@@ -177,26 +177,20 @@ const StatsPage = ({ user, role, manageableClassrooms = [], onBack, onNavigateTo
       ? { tier: 'weekly', slice: 4 }
       : { tier: 'daily', slice: 7 };
 
-    return classroomDocs.map(doc => {
-      const tierMap = doc.activity?.[config.tier] || {};
+    const sumTypeTier = (doc, type) => {
+      const tierMap = doc.activityByType?.[type]?.[config.tier] || {};
       const entries = Object.entries(tierMap).sort(([a], [b]) => a.localeCompare(b));
-      const recent = entries.slice(-config.slice);
-      const periodTotal = recent.reduce((sum, [, count]) => sum + count, 0);
-      const nc = doc.noteCounts || {};
-      const totalAll = nc.total || 1;
-      const obsRatio = ((nc.voice || 0) + (nc.text || 0)) / totalAll;
-      const lessonRatio = (nc.lesson || 0) / totalAll;
-      const mediaRatio = (nc.media || 0) / totalAll;
+      return entries.slice(-config.slice).reduce((sum, [, count]) => sum + count, 0);
+    };
 
-      return {
-        id: doc.classroomId,
-        name: doc.classroomName,
-        branchId: doc.branchId,
-        thisWeekObservationNotes: Math.round(periodTotal * obsRatio),
-        thisWeekLessonNotes: Math.round(periodTotal * lessonRatio),
-        thisWeekMediaNotes: Math.round(periodTotal * mediaRatio),
-      };
-    });
+    return classroomDocs.map(doc => ({
+      id: doc.classroomId,
+      name: doc.classroomName,
+      branchId: doc.branchId,
+      thisWeekObservationNotes: sumTypeTier(doc, 'voice') + sumTypeTier(doc, 'text'),
+      thisWeekLessonNotes: sumTypeTier(doc, 'lesson'),
+      thisWeekMediaNotes: sumTypeTier(doc, 'media'),
+    }));
   }, [classroomTimePeriod, classroomDocs]);
 
   // Pie chart data filtered by time period using per-type activity tiers
@@ -279,34 +273,24 @@ const StatsPage = ({ user, role, manageableClassrooms = [], onBack, onNavigateTo
     const doc = classroomDocs.find(d => d.classroomId === selectedTeacherClassroomId);
     if (!doc) return [];
 
-    const config = teacherTimePeriod === '1M'
-      ? { tier: 'weekly', slice: 4 }
-      : { tier: 'daily', slice: 7 };
-
-    const tierMap = doc.activity?.[config.tier] || {};
-    const entries = Object.entries(tierMap).sort(([a], [b]) => a.localeCompare(b));
-    const recentEntries = entries.slice(-config.slice);
-    const periodTotal = recentEntries.reduce((sum, [, count]) => sum + count, 0);
-    const allTimeTotal = (doc.noteCounts?.total) || 1;
+    const is7d = teacherTimePeriod === '1W';
 
     const list = (doc.teachers || []).map(t => {
-      const teacherAllTime = t.observations + t.lessons;
-      const teacherRatio = teacherAllTime / Math.max(allTimeTotal, 1);
-      const periodEstimate = Math.round(periodTotal * teacherRatio);
-      const lessonRatio = teacherAllTime > 0 ? t.lessons / teacherAllTime : 0;
+      const periodObs = is7d ? (t.observations7d || 0) : (t.observations30d || 0);
+      const periodLessons = is7d ? (t.lessons7d || 0) : (t.lessons30d || 0);
 
       return {
         id: t.id,
         name: t.name,
         email: t.email,
         status: t.status,
-        periodObservations: periodEstimate,
-        periodObservationNotes: Math.round(periodEstimate * (1 - lessonRatio)),
-        periodLessonNotes: Math.round(periodEstimate * lessonRatio),
-        otherClassroomCount: teacherTimePeriod === '1W'
+        periodObservations: periodObs + periodLessons,
+        periodObservationNotes: periodObs,
+        periodLessonNotes: periodLessons,
+        otherClassroomCount: is7d
           ? (t.otherCount7d || 0)
           : (t.otherCount30d || 0),
-        otherClassroomNotes: teacherTimePeriod === '1W'
+        otherClassroomNotes: is7d
           ? (t.otherNotes7d || 0)
           : (t.otherNotes30d || 0),
       };

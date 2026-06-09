@@ -189,9 +189,13 @@ export default function useInlineVoice({ onTranscribed } = {}) {
 
   // ── Recording actions ──────────────────────────────────────────
   const stopRecording = useCallback(() => {
-    if (mediaRecorderRef.current && mediaRecorderRef.current.state === 'recording') {
+    if (mediaRecorderRef.current && (mediaRecorderRef.current.state === 'recording' || mediaRecorderRef.current.state === 'paused')) {
       try {
         mediaRecorderRef.current.stop();
+        // Set isTranscribing BEFORE clearing isRecording so that `active`
+        // (isRecording || isTranscribing) never flickers to false — which
+        // would trigger consumers to clear their callback targets prematurely.
+        setIsTranscribing(true);
         setIsRecording(false);
         setIsPaused(false);
         stopTimer();

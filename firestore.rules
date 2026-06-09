@@ -84,14 +84,28 @@ service cloud.firestore {
         (isClassroomAdmin() && request.resource.data.role == 'teacher');
       
       allow update: if
+        // Branch 1: Superadmin can update any user doc
         (isSuperAdmin() && isValidAdminPayload(request.resource.data)) ||
+        // Branch 2: Classroomadmin can manage teacher profiles (not their own doc)
         (isClassroomAdmin() && resource.data.role == 'teacher' && request.resource.data.role == 'teacher') ||
-        (isSelf() && resource.data.role == 'teacher' && request.resource.data.role == 'teacher' &&
+        // Branch 3: Self-update — safe fields only, no role change
+        (isSelf() && resource.data.role in ['teacher', 'classroomadmin'] &&
+          request.resource.data.role == resource.data.role &&
           request.resource.data.diff(resource.data).affectedKeys().hasOnly([
             'displayName', 'photoURL', 'status', 'lastLoginAt', 'updatedAt', 'studentAliases', 'fcmToken', 'notificationPreferences'
           ]));
 
       allow delete: if isSuperAdmin() || (isClassroomAdmin() && resource.data.role == 'teacher');
+    }
+
+    // Superadmin-only digest — explicit match prevents classroomadmin access via wildcard
+    match /classrooms/_digest_all/digests/{digestId} {
+      allow read: if isSuperAdmin();
+      allow write: if false;
+    }
+    match /classrooms/_digest_all/digests/{digestId}/history/{weekKey} {
+      allow read: if isSuperAdmin();
+      allow write: if false;
     }
 
     // Classrooms - role-scoped reads
@@ -111,6 +125,17 @@ service cloud.firestore {
           (request.resource.data.studentCount is int) &&
           (!('deletedStudentCount' in request.resource.data) || request.resource.data.deletedStudentCount is int)
         );
+
+      // Weekly digest (PEP-297) — CF writes via admin SDK; admins can read
+      match /digests/{digestId} {
+        allow read: if managesClassroom(classroomId);
+        allow write: if false;
+
+        match /history/{weekKey} {
+          allow read: if managesClassroom(classroomId);
+          allow write: if false;
+        }
+      }
     }
 
     // Classrooms collection queries allowed via read above (no extra collection-level match needed)

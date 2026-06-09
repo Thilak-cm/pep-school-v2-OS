@@ -225,11 +225,21 @@ export const recomputeStats = functions
         );
         let observations = 0;
         let lessons = 0;
+        let observations7d = 0;
+        let lessons7d = 0;
+        let observations30d = 0;
+        let lessons30d = 0;
         for (const o of teacherObsHere) {
-          if (classifyNote(o) === "lesson") {
+          const d = getObservationDate(o);
+          const isLesson = classifyNote(o) === "lesson";
+          if (isLesson) {
             lessons++;
+            if (d >= weekAgo) lessons7d++;
+            if (d >= thirtyDaysAgo) lessons30d++;
           } else {
             observations++;
+            if (d >= weekAgo) observations7d++;
+            if (d >= thirtyDaysAgo) observations30d++;
           }
         }
 
@@ -261,6 +271,10 @@ export const recomputeStats = functions
           status: user.status,
           observations,
           lessons,
+          observations7d,
+          lessons7d,
+          observations30d,
+          lessons30d,
           otherNotes7d,
           otherCount7d: otherIds7d.size,
           otherNotes30d,
