@@ -4,6 +4,7 @@ import { Box, Typography, ButtonBase, CircularProgress } from '@mui/material';
 import { BarChart3, UserPlus, Download, MessageSquare, ChevronRight } from '../icons';
 import { Avatar, MiniTangram, QuickJumpButton } from './ui';
 import { trackEvent } from '../utils/analytics';
+import DynamicIslandPill from './DynamicIslandPill';
 
 // Fallback palette: [cardColor, bgColor, borderColor] — CSS-var safe
 const FALLBACK_PALETTES = [
@@ -24,6 +25,7 @@ function LandingPage({
   onNavigateToFeedback,
   onNavigateToClassroomNotes,
   onNavigate,
+  onNavigateToStudent,
 }) {
   const isTeacher = userRole === 'teacher';
 
@@ -75,6 +77,13 @@ function LandingPage({
           src={currentUser?.photoURL || undefined}
         />
       </Box>
+
+      {/* ── Dynamic Island alert pill ─────────────────────── */}
+      <DynamicIslandPill
+        onNavigateToStudent={onNavigateToStudent}
+        onNavigate={onNavigate}
+        classrooms={classrooms}
+      />
 
       {/* ── Classrooms section ─────────────────────────────── */}
       <Box>
@@ -151,9 +160,6 @@ function LandingPage({
 
       {/* ── Quick jump ─────────────────────────────────────── */}
       <Box>
-        <Typography variant="overline" sx={{ fontWeight: 700, color: 'var(--color-text)', letterSpacing: 1, mb: 1, display: 'block' }}>
-          Quick jump
-        </Typography>
         <Box sx={{
           display: 'grid',
           gridTemplateColumns: `repeat(${Math.min(quickJumps.length, 4)}, 1fr)`,

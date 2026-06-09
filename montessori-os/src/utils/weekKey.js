@@ -45,3 +45,12 @@ export const getIstMidnightDate = (date = new Date()) => {
   return toUtcMidnight(parts);
 };
 
+export const getPastWeekKeys = (count = 5, referenceDate = new Date()) => {
+  const keys = [];
+  for (let i = count; i >= 1; i--) {
+    const past = new Date(referenceDate.getTime() - i * 7 * MS_PER_DAY);
+    keys.push(getIstIsoWeekKey(past));
+  }
+  return keys;
+};
+

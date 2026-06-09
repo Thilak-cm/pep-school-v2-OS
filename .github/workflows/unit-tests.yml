@@ -4,6 +4,8 @@ on:
   push:
     branches:
       - master
+      - dev
+      - alt-dev
     paths:
       - 'montessori-os/src/**'
       - 'montessori-os/package.json'
@@ -17,6 +19,8 @@ on:
   pull_request:
     branches:
       - master
+      - dev
+      - alt-dev
     paths:
       - 'montessori-os/src/**'
       - 'montessori-os/package.json'

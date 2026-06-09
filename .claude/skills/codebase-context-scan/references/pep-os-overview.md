@@ -1,7 +1,7 @@
 # Pep OS Overview
 
-Generated: 2026-05-31T23:47:20.648Z
-App version: 10.31.0
+Generated: 2026-06-09T01:17:13.085Z
+App version: 10.34.1
 
 ## App Snapshot
 
@@ -44,8 +44,8 @@ App version: 10.31.0
 - `montessori-os/src/components/LessonNotes.jsx`
 
 ### Timelines and Media (`timelines-and-media`)
-- Count: 13
-- Components: `ClassroomList`, `ClassroomTimeline`, `ClassroomTimeline.pagination.test`, `classroomTimelineUtils`, `classroomTimelineUtils.extraction.test`, `ExportWizard`, `FeedbackTimeline`, `FilterPanel`, `StudentDashboard`, `StudentDashboard.test`, `StudentStatsPage`, `StudentTimeline`, `StudentTimeline.reassignCleanup.test`
+- Count: 12
+- Components: `ClassroomList`, `ClassroomTimeline`, `ClassroomTimeline.pagination.test`, `classroomTimelineUtils`, `classroomTimelineUtils.extraction.test`, `ExportWizard`, `FeedbackTimeline`, `FilterPanel`, `StudentDashboard`, `StudentDashboard.test`, `StudentStatsPage`, `StudentTimeline`
 - Representative paths:
 - `montessori-os/src/components/ClassroomList.jsx`
 - `montessori-os/src/components/ClassroomTimeline.jsx`
@@ -57,11 +57,12 @@ App version: 10.31.0
 - `montessori-os/src/components/FilterPanel.jsx`
 
 ### Analytics and Notifications (`analytics-and-notifications`)
-- Count: 6
-- Components: `NewFeaturePill`, `NotificationsPage`, `PerformanceSummaryCard`, `StatsPage`, `StatsPage.noteTypes.test`, `UpdateNotification`
+- Count: 7
+- Components: `NewFeaturePill`, `NotificationsPage`, `NotificationsPage.heatmap.test`, `PerformanceSummaryCard`, `StatsPage`, `StatsPage.noteTypes.test`, `UpdateNotification`
 - Representative paths:
 - `montessori-os/src/components/NewFeaturePill.jsx`
 - `montessori-os/src/components/NotificationsPage.jsx`
+- `montessori-os/src/components/NotificationsPage.heatmap.test.js`
 - `montessori-os/src/components/PerformanceSummaryCard.jsx`
 - `montessori-os/src/components/StatsPage.jsx`
 - `montessori-os/src/components/StatsPage.noteTypes.test.js`
@@ -92,8 +93,8 @@ App version: 10.31.0
 - `montessori-os/src/components/UsersAccessPage.jsx`
 
 ### Settings, Feedback, and App Shell (`settings-feedback-shell`)
-- Count: 37
-- Components: `App`, `AppFooter`, `AppHeader`, `BulkUploadPage`, `BulkUploadPage.helpers`, `BulkUploadPage.test`, `ClassroomNoteCard`, `ClassroomStudentCard`, `CopyToClipboardButton`, `deadCodeRemoval.pep115.test`, `FeedbackPage`, `GroupedNoteCard`, `GroupedNoteDialog`, `InterviewsPage`, `InterviewsPage.helpers`, `InterviewsPage.test`, `LandingPage`, `LandingPage.test`, `MonthlyPlanTab`, `MonthlyPlanTab.test`, `NoteBottomSheet.structure.test`, `NotesOverTimeDrawer`, `PlanFeedbackDialog`, `PlanFeedbackDialog.test`, `ProfilePage`, `ReadinessCheckDialog`, `ReportGenerateDialog`, `ReportPreviewDialog`, `ReportsCard`, `ReportsPage`, `ReportsPage.test`, `ReviewClassroomNotes`, `SettingsPage`, `SettingsPage.test`, `SnapshotBody`, `SnapshotCard`, `VersionBadge`
+- Count: 39
+- Components: `App`, `AppFooter`, `AppHeader`, `BulkUploadPage`, `BulkUploadPage.helpers`, `BulkUploadPage.test`, `ClassroomNoteCard`, `ClassroomStudentCard`, `CopyToClipboardButton`, `DynamicIslandPill`, `DynamicIslandPill.test`, `FeedbackPage`, `GroupedNoteCard`, `GroupedNoteDialog`, `InlineVoiceOverlay`, `InterviewsPage`, `InterviewsPage.helpers`, `InterviewsPage.test`, `LandingPage`, `LandingPage.test`, `MonthlyPlanTab`, `MonthlyPlanTab.test`, `NoteBottomSheet.structure.test`, `NotesOverTimeDrawer`, `PlanFeedbackDialog`, `PlanFeedbackDialog.test`, `ProfilePage`, `ReadinessCheckDialog`, `ReportGenerateDialog`, `ReportPreviewDialog`, `ReportsCard`, `ReportsPage`, `ReportsPage.test`, `ReviewClassroomNotes`, `SettingsPage`, `SettingsPage.test`, `SnapshotBody`, `SnapshotCard`, `VersionBadge`
 - Representative paths:
 - `montessori-os/src/App.jsx`
 - `montessori-os/src/AppFooter.jsx`
@@ -114,11 +115,12 @@ App version: 10.31.0
 
 ## Firestore/Data Surface
 
-- Core collections/signals: `users`, `branches`, `programs`, `classrooms`, `students`, `observations`, `media`, `ai_summaries`, `config`, `feedback`, `placements`, `chats`, `messages`, `access`, `history`, `interviews`, `runs`, `statsCache`, `testbench`
+- Core collections/signals: `users`, `branches`, `programs`, `classrooms`, `students`, `observations`, `media`, `ai_summaries`, `config`, `feedback`, `placements`, `chats`, `messages`, `access`, `alerts`, `history`, `interviews`, `monthly_plan_feedback`, `runs`, `statsCache`, `testbench`
 - Rule-declared paths:
 - `/{document=**}`
 - `/access/{uid}`
 - `/ai_summaries/{summaryId}`
+- `/alerts/{alertId}`
 - `/branches/{branchId}`
 - `/chats/{chatId}`
 - `/classrooms/{classroomId}`
@@ -128,6 +130,7 @@ App version: 10.31.0
 - `/interviews/{interviewId}`
 - `/media/{mediaId}`
 - `/messages/{messageId}`
+- `/monthly_plan_feedback/{feedbackId}`
 - `/observations/{observationId}`
 - `/placements/{placementId}`
 - `/programs/{programId}`
@@ -142,23 +145,23 @@ App version: 10.31.0
 
 ## Recent Changes
 
-### 10.31.0 (2026-05-31)
-- Student and teacher deletion is now soft-delete — sets `status: 'inactive'` instead of removing the document, preserving all observation data and subcollections (PEP-250)
-- Confirmation dialogs say "Remove" instead of "Delete" with softer language explaining data is preserved (PEP-250)
-- Observations by removed teachers display "(removed)" suffix on the author name (PEP-250)
+### 10.34.1 (2026-06-08)
+- Per-classroom heatmap cache in `statsCache/heatmap_{classroomId}` docs — reduces Alerts page cold-load from ~420 reads to ~20 reads for superadmins (PEP-303)
+- `writeHeatmapCache` called after weekly `generateBaseballCards` run; `patchHeatmapStudent` called after on-demand single-student regen (PEP-303)
+- `useHeatmapCache` hook + shared `fetchHeatmapDocs` utility for role-scoped cache reads with weekKey freshness check (PEP-303)
 
-### 10.30.0 (2026-05-29)
-- Server-side stats recompute: `recomputeStats` Cloud Function pre-computes per-classroom stats and caches in `statsCache/` collection (PEP-285)
-- "Updated X ago" timestamp and manual Refresh button on stats page — any user can trigger a refresh (PEP-285)
-- Firestore rules for `statsCache/` with role-based read access (PEP-285)
+### 10.34.0 (2026-06-05)
+- Firestore `alerts` collection as universal alert bus — any system (Cloud Functions, frontend, future agents) can write alert docs that surface in the Dynamic Island Pill (PEP-296)
+- DIP dual-source subscriber — merges weekly_snapshot red flags with realtime alerts collection into a single sorted carousel (PEP-296)
+- Transform-at-read display contract — `transformForDisplay()` maps alert type + payload into DIP display shape, evolves with frontend deploys without data migration (PEP-296)
 
-### 10.29.0 (2026-05-27)
-- Plan feedback bottom sheet for admins — classroom admins and superadmins can rate difficulty, pace, and leave free-text/voice comments on a student's monthly plan (PEP-282)
-- Firestore security rules for feedback subcollection with classroom-scoped access control (PEP-282)
-- Monthly plan Drive export: `exportMonthlyPlanToDrive` CF creates two Google Docs per student (detailed plan + printable task checklist) in the shared Drive with shortcuts in student folders (PEP-279)
+### 10.33.0 (2026-06-04)
+- Dynamic Island alert pill on Home page — rotating dark pill surfaces red-flagged students from weekly AI snapshots with iOS-style vertical carousel, swipe gestures, and dot indicators (PEP-213)
+- CTA navigation from pill to student dashboard with auto-opened flag popover on the weekly tab (PEP-213)
+- Role-aware data fetching — teachers see assigned classrooms, classroomadmins see manageable classrooms, superadmins see all (PEP-213)
 
-### 10.28.0 (2026-05-26)
-- Monthly action plan generation: new `generateMonthlyPlan` Cloud Function gathers observations, writing analysis, and preceding plan to produce a structured 25-item plan via LLM (PEP-260)
-- Plan tab on student dashboard as the default tab for toddler and primary students — section pills, numbered accordion items with watch/next/hook fields (PEP-260)
-- Superadmin-only plan regeneration with confirmation dialog and archive-before-overwrite (PEP-260)
+### 10.32.0 (2026-06-04)
+- Heatmap-led alerts page replacing the accordion-based design — 6-week flag history grid per student with severity-to-color mapping (PEP-198)
+- Trend summary row with escalated/steady/improved counts and SVG trend glyphs (PEP-198)
+- Search within heatmap card — icon expands into input row, filters roster by student name (PEP-198)
 

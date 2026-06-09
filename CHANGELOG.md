@@ -1,5 +1,65 @@
 # Changelog
 
+# 10.34.1 — 2026-06-08
+
+### Added
+- Per-classroom heatmap cache in `statsCache/heatmap_{classroomId}` docs — reduces Alerts page cold-load from ~420 reads to ~20 reads for superadmins (PEP-303)
+- `writeHeatmapCache` called after weekly `generateBaseballCards` run; `patchHeatmapStudent` called after on-demand single-student regen (PEP-303)
+- `useHeatmapCache` hook + shared `fetchHeatmapDocs` utility for role-scoped cache reads with weekKey freshness check (PEP-303)
+- `useAlertBus` (DIP) now reads from heatmap cache with legacy fallback (PEP-303)
+- Classroom filter dropdown and persistent search bar on Alerts page
+
+### Fixed
+- `useStatsData` superadmin query now filters by `classroom_` prefix to prevent heatmap docs from polluting StatsPage charts
+- `patchHeatmapStudent` uses Firestore transaction to prevent concurrent regen race conditions
+- Week boundary guard prevents stale cache corruption when patching across week boundaries
+
+# 10.34.0 — 2026-06-05
+
+### Added
+- Firestore `alerts` collection as universal alert bus — any system (Cloud Functions, frontend, future agents) can write alert docs that surface in the Dynamic Island Pill (PEP-296)
+- DIP dual-source subscriber — merges weekly_snapshot red flags with realtime alerts collection into a single sorted carousel (PEP-296)
+- Transform-at-read display contract — `transformForDisplay()` maps alert type + payload into DIP display shape, evolves with frontend deploys without data migration (PEP-296)
+- Client-side targeting filter — alerts scoped by `targetRoles`, `targetClassrooms`, `targetTeachers` fields (PEP-296)
+- `dismissAlert()` frontend utility with per-user acknowledgment via `dismissedBy` map (PEP-296)
+- `createAlert()` Cloud Function helper with deterministic doc IDs for idempotent upserts (PEP-296)
+- `cleanupExpiredAlerts` scheduled CF — runs weekly, deletes expired alerts with 500-doc batch chunking (PEP-296)
+- Firestore security rules for `alerts/{alertId}` with uid-scoped `dismissedBy` map-key constraint (PEP-296)
+
+### Changed
+- DIP carousel changed from infinite loop to clamped bounce — auto-rotation ping-pongs between first and last alert (PEP-296)
+- DIP timer increased to 10 seconds between transitions (PEP-296)
+- Removed `DEV_MOCK_ALERTS` and all mock data from DynamicIslandPill (PEP-296)
+
+# 10.33.0 — 2026-06-04
+
+### Added
+- Dynamic Island alert pill on Home page — rotating dark pill surfaces red-flagged students from weekly AI snapshots with iOS-style vertical carousel, swipe gestures, and dot indicators (PEP-213)
+- CTA navigation from pill to student dashboard with auto-opened flag popover on the weekly tab (PEP-213)
+- Role-aware data fetching — teachers see assigned classrooms, classroomadmins see manageable classrooms, superadmins see all (PEP-213)
+- "All clear this week" empty state when no active red flags exist (PEP-213)
+- Extensible alert type system — typed alert objects with per-type colors for future alert types (PEP-213)
+
+# 10.32.0 — 2026-06-04
+
+### Added
+- Heatmap-led alerts page replacing the accordion-based design — 6-week flag history grid per student with severity-to-color mapping (PEP-198)
+- Trend summary row with escalated/steady/improved counts and SVG trend glyphs (PEP-198)
+- Search within heatmap card — icon expands into input row, filters roster by student name (PEP-198)
+- Bottom-sheet modal with weekly snapshot card, refresh/flag buttons, and "View Dashboard" navigation (PEP-198)
+- Students without a current-week snapshot appear in the heatmap with dotted boxes; students with zero history are hidden (PEP-198)
+- `heatmapUtils.js` utility with `severityToFlag`, `flagSortValue` helpers and behavioral tests (PEP-198)
+
+### Changed
+- Teacher alerts fetch uses direct doc reads per student instead of collectionGroup queries to respect Firestore rules (PEP-198)
+- Admin path fetches all active students from covered classrooms, not just those with current snapshots (PEP-198)
+- Orphaned snapshot entries (deleted student docs) now excluded from admin heatmap (PEP-198)
+
+### Fixed
+- Red-flagged students sort first in roster with cascade tiebreak by week (PEP-198)
+- Search icon toggles to X when expanded, clears query on close (PEP-198)
+- Missing-data weeks show dotted box instead of green (PEP-198)
+
 # 10.31.0 — 2026-05-31
 
 ### Changed

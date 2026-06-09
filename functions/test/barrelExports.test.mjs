@@ -51,6 +51,8 @@ const EXPECTED_EXPORTS = [
   "batchGenerateMonthlyPlans",
   // Stats
   "recomputeStats",
+  // Alerts
+  "cleanupExpiredAlerts",
   // Test Bench
   "testBenchRun",
 ];

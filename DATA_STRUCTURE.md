@@ -38,6 +38,7 @@
 - `students/{studentId}/ai_summaries/monthly_plan/history/{YYYY-MM}_{timestamp}` // monthly plan archives (PEP-260)
 - `students/{studentId}/ai_summaries/weekly_snapshot`   // unified baseball card + signals + missing domains (PEP-229)
 - `students/{studentId}/ai_summaries/weekly_snapshot/history/{weekKey}` // weekly snapshot archives
+- `alerts/{alertId}`                                    // universal alert bus for DIP + Alerts page (PEP-296)
 - `feedback/{feedbackId}`
  - `config/{docId}`
 - `testbench/settings`                                 // test bench feature registry, defaults, global config
@@ -942,8 +943,51 @@ Migration/backfill (branches)
 
 ---
 
+## 🔔 Alerts (`/alerts/{alertId}`)
+Purpose: Universal alert bus for the Dynamic Island Pill (DIP) and Alerts page (PEP-296). Any system — Cloud Functions, frontend (superadmin broadcasts), or future agents — can create alert docs. The DIP subscribes in realtime to docs with `dip: true`; the Alerts page reads the full collection.
+
+Doc IDs: Deterministic for CF-produced alerts to prevent duplicates on retries (e.g., `cf:interviewCap:teacherUid:2026-W23`). Auto-generated for frontend-created alerts (broadcasts).
+
+```typescript
+interface AlertDoc {
+  // Bus contract — required on every alert
+  type: 'redFlag' | 'interview' | 'broadcast' | 'system' | 'agent';
+  dip: boolean;                    // true = surfaces in Dynamic Island Pill
+  priority: number;                // DIP carousel sort order (lower = more urgent)
+  source: string;                  // producer ID (e.g., "cf:interviewScheduler", "admin:broadcast")
+  payload: Record<string, any>;    // type-specific raw data (see below)
+  createdAt: Timestamp;
+  createdBy: string;               // uid or system identifier
+
+  // Targeting — who sees this alert
+  targetRoles: string[];           // [] = all roles
+  targetClassrooms: string[];      // [] = all classrooms
+  targetTeachers: string[];        // [] = all matching roles
+
+  // Lifecycle
+  dismissedBy: Record<string, Timestamp>;  // { [uid]: Timestamp } — per-user ack
+  expiresAt: Timestamp | null;     // auto-hide after this time; cleanup CF deletes weekly
+}
+```
+
+Type-specific payloads:
+- `interview`: `{ studentName, interviewTime, classroomName, prepStatus, studentId }`
+- `broadcast`: `{ message, senderName, audience }`
+- `system`: `{ message, severity, detail }`
+- `agent`: `{ message, detail }`
+
+Display contract: NOT stored in Firestore. The DIP component transforms `type` + `payload` into display fields (`label`, `title`, `subtitle`, `ctaLabel`, etc.) at read time via `transformForDisplay()`. This allows display changes via frontend deploy without data migration.
+
+Security rules:
+- **Read**: any authenticated user (`isSignedIn()`)
+- **Create**: superadmins only (`isSuperAdmin()`); CFs use admin SDK (bypasses rules)
+- **Update**: any authenticated user, restricted to `dismissedBy` field only (`affectedKeys().hasOnly(['dismissedBy'])`)
+- **Delete**: denied for clients; cleanup CF uses admin SDK
+
+---
+
 ## 📊 Stats Cache (`/statsCache/{docId}`)
-Purpose: Pre-computed per-classroom stats written by the `recomputeStats` Cloud Function (PEP-285). The client reads these docs directly — Firestore rules enforce role-scoped access. One doc per active classroom + one `_meta` doc for cache freshness.
+Purpose: Pre-computed per-classroom stats and heatmap cache written by Cloud Functions (`recomputeStats` PEP-285, `writeHeatmapCache` PEP-303). The client reads these docs directly — Firestore rules enforce role-scoped access via `classroomId` field. Doc ID conventions: `classroom_{id}` for stats, `heatmap_{id}` for heatmap cache, `_meta` / `heatmap_meta` for freshness sentinels.
 
 ### Meta doc (`/statsCache/_meta`)
 ```typescript
@@ -999,8 +1043,41 @@ interface StatsClassroomDoc {
 }
 ```
 
+### Heatmap doc (`/statsCache/heatmap_{classroomId}`) — PEP-303
+```typescript
+interface HeatmapCacheDoc {
+  classroomId: string;
+  weekKey: string;              // e.g. "2026-W23"
+  cachedAt: Timestamp;
+  counts: {
+    escalated: number;
+    steady: number;
+    improved: number;
+    total: number;
+  };
+  roster: Array<{
+    studentId: string;
+    displayName: string;
+    classroomId: string;
+    weeks: Array<string | null>; // 6-element array (oldest → newest), severity or null
+    escalatedThisWeek: boolean;
+    improvedThisWeek: boolean;
+  }>;
+}
+```
+
+### Heatmap meta doc (`/statsCache/heatmap_meta`) — PEP-303
+```typescript
+interface HeatmapMetaDoc {
+  cachedAt: Timestamp;
+  classroomCount: number;
+  weekKey: string;
+}
+```
+Note: `heatmap_meta` is only readable by superadmins (no `classroomId` field). Not read by any client code — exists for operational diagnostics.
+
 ### Security rules
-- **Read**: superadmin reads all; classroomadmin reads docs where `classroomId` is in `manageableClassrooms`; teacher reads docs where they are in `classroom.teacherIds`; `_meta` readable by all signed-in users
+- **Read**: superadmin reads all; classroomadmin reads docs where `classroomId` is in `manageableClassrooms`; teacher reads docs where they are in `classroom.teacherIds`; `_meta` readable by all signed-in users. `heatmap_meta` has no explicit rule arm — readable only by superadmins via the `isSuperAdmin()` catch-all.
 - **Write**: `false` — only Cloud Functions write via admin SDK
 
 ---
