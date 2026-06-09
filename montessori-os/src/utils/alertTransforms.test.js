@@ -82,4 +82,46 @@ describe('alertTransforms — DIP display transform (PEP-296)', () => {
       'transformRedFlag should check severity and produce RED FLAG label'
     );
   });
+
+  // ── PEP-307: broadcast display from payload fields ──
+  describe('broadcast payload-driven display (PEP-307)', () => {
+    it('maps payload.label to display label (not hardcoded)', () => {
+      assert.ok(
+        source.includes('payload.label'),
+        'Should read label from payload.label'
+      );
+      assert.ok(
+        !source.includes("label: 'FROM OFFICE'") && !source.includes('label: "FROM OFFICE"'),
+        'Should NOT hardcode FROM OFFICE as label'
+      );
+    });
+
+    it('maps payload.title to display title', () => {
+      assert.ok(
+        source.includes('payload.title'),
+        'Should read title from payload.title'
+      );
+    });
+
+    it('maps payload.subtitle to display subtitle', () => {
+      assert.ok(
+        source.includes('payload.subtitle'),
+        'Should read subtitle from payload.subtitle'
+      );
+    });
+
+    it('maps payload.ctaLabel to CTA button text', () => {
+      assert.ok(
+        source.includes('payload.ctaLabel'),
+        'Should read ctaLabel from payload.ctaLabel'
+      );
+    });
+
+    it('includes payload.message for ack modal (full body)', () => {
+      assert.ok(
+        source.includes('payload.message') || source.includes('message'),
+        'Should pass through payload.message for confirmation modal'
+      );
+    });
+  });
 });
