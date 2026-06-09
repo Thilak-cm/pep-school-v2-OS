@@ -603,12 +603,13 @@ service cloud.firestore {
     match /alerts/{alertId} {
       allow read: if isSignedIn();
       allow create: if isSuperAdmin();
-      allow update: if isSignedIn()
-        && request.resource.data.diff(resource.data).affectedKeys().hasOnly(['dismissedBy'])
-        && request.resource.data.dismissedBy is map
-        && resource.data.dismissedBy is map
-        && request.resource.data.dismissedBy.diff(resource.data.dismissedBy).affectedKeys().hasOnly([request.auth.uid]);
-      allow delete: if false;
+      allow update: if (isSuperAdmin() && resource.data.type == 'broadcast')
+        || (isSignedIn()
+          && request.resource.data.diff(resource.data).affectedKeys().hasOnly(['dismissedBy'])
+          && request.resource.data.dismissedBy is map
+          && resource.data.dismissedBy is map
+          && request.resource.data.dismissedBy.diff(resource.data.dismissedBy).affectedKeys().hasOnly([request.auth.uid]));
+      allow delete: if isSuperAdmin();
     }
 
     // Stats cache (PEP-285) — pre-computed per-classroom stats written by CF

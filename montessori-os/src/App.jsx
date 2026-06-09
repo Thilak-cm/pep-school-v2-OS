@@ -118,6 +118,7 @@ function App() {
     else if (path === '/aliases') setScreen('studentAliases');
     else if (path === '/config' && isSuperAdminUser) setScreen('config');
     else if (path === '/bulkUpload' && isSuperAdminUser) setScreen('bulkUpload');
+    else if (path === '/broadcastComposer' && isSuperAdminUser) setScreen('broadcastComposer');
   };
 
   const handleSignOut = async () => {

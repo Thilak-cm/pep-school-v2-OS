@@ -478,6 +478,27 @@ export const TOOL_DEFINITIONS = [
       properties: {},
     },
   },
+
+  // ── Alerts ──
+  {
+    name: "list_alerts",
+    description:
+      "List alerts from the alerts collection. Optionally filter by type (redFlag, interview, broadcast, system, agent). Returns full alert docs including payload, targeting, dismissedBy, and lifecycle fields.",
+    inputSchema: {
+      type: "object",
+      properties: {
+        type: {
+          type: "string",
+          description: "Filter by alert type.",
+          enum: ["redFlag", "interview", "broadcast", "system", "agent"],
+        },
+        limit: {
+          type: "number",
+          description: "Max alerts to return (default: 50).",
+        },
+      },
+    },
+  },
 ];
 
 // ────────────────────────────────────────────
@@ -1059,6 +1080,28 @@ export async function handleGetConfig(db, params) {
   const doc = await db.collection("config").doc(docId).get();
   if (!doc.exists) return null;
   return serializeTimestamps({ id: doc.id, ...doc.data() });
+}
+
+// ── Alerts ──
+
+export async function handleListAlerts(db, params) {
+  const { type, limit: maxResults = 50 } = params || {};
+
+  let query = db.collection("alerts");
+
+  if (type) {
+    query = query.where("type", "==", type);
+  }
+
+  query = query.orderBy("createdAt", "desc").limit(maxResults);
+  const snap = await query.get();
+
+  const results = [];
+  snap.forEach((doc) => {
+    results.push(serializeTimestamps({ id: doc.id, ...doc.data() }));
+  });
+
+  return results;
 }
 
 export async function handleListConfig(db) {

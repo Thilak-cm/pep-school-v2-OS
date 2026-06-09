@@ -1,10 +1,11 @@
 // DynamicIslandPill.jsx — Rotating alert pill for Home page (PEP-213, PEP-296)
 import React, { useEffect, useState, useRef, useCallback } from 'react';
 import { keyframes } from '@emotion/react';
-import { Box, Typography, ButtonBase, IconButton } from '@mui/material';
+import { Box, Typography, ButtonBase, IconButton, Dialog, DialogTitle, DialogContent, DialogActions, Button } from '@mui/material';
 import { Flag, Calendar, ShieldCheck, ChevronUp, ChevronDown } from '../icons';
 import { useAlertBus } from '../hooks/useAlertBus';
 import { dismissAlert } from '../utils/alertService';
+
 import NewFeaturePill from './NewFeaturePill';
 
 // ── Constants ──────────────────────────────────────────────────────────────────
@@ -51,6 +52,7 @@ function DynamicIslandPill({ onNavigateToStudent, onNavigate, classrooms = [] })
   // Swipe state
   const [dragOffset, setDragOffset] = useState(0);
   const [isDragging, setIsDragging] = useState(false);
+  const [ackDialog, setAckDialog] = useState(null); // broadcast alert pending confirmation
   const touchStartRef = useRef({ y: 0, time: 0 });
   const containerRef = useRef(null);
 
@@ -193,8 +195,14 @@ function DynamicIslandPill({ onNavigateToStudent, onNavigate, classrooms = [] })
       return;
     }
 
-    // Dismiss broadcast/system/agent alerts on CTA tap (acknowledgment actions)
-    if (['broadcast', 'system', 'agent'].includes(alert.colorKey) && alert.id && alert._source === 'alerts') {
+    // Broadcast CTA → show confirmation modal before dismissing (PEP-307)
+    if (alert.colorKey === 'broadcast' && alert.id && alert._source === 'alerts') {
+      setAckDialog(alert);
+      return;
+    }
+
+    // Dismiss system/agent alerts on CTA tap (acknowledgment actions)
+    if (['system', 'agent'].includes(alert.colorKey) && alert.id && alert._source === 'alerts') {
       dismissAlert(alert.id);
     }
 
@@ -203,6 +211,14 @@ function DynamicIslandPill({ onNavigateToStudent, onNavigate, classrooms = [] })
       onNavigate(ctaRoute, ctaParams);
     }
   }, [onNavigateToStudent, onNavigate]);
+
+  // ── Broadcast ack confirmation handler (PEP-307) ──────────────────────
+  const handleBroadcastAck = useCallback(() => {
+    if (ackDialog?.id) {
+      dismissAlert(ackDialog.id);
+    }
+    setAckDialog(null);
+  }, [ackDialog]);
 
 
   // ── Loading state — pill-shaped placeholder ──────────────────────────────
@@ -263,6 +279,7 @@ function DynamicIslandPill({ onNavigateToStudent, onNavigate, classrooms = [] })
   const multipleAlerts = alerts.length > 1;
 
   return (
+    <>
     <Box>
       <Box sx={{ display: 'flex', alignItems: 'center', gap: 1, mb: 1 }}>
         <Typography variant="overline" sx={{ fontWeight: 700, color: 'var(--color-text)', letterSpacing: 1 }}>
@@ -361,6 +378,46 @@ function DynamicIslandPill({ onNavigateToStudent, onNavigate, classrooms = [] })
         )}
       </Box>
     </Box>
+
+      {/* ── Broadcast ack confirmation dialog (PEP-307) ── */}
+      <Dialog
+        open={!!ackDialog}
+        onClose={() => setAckDialog(null)}
+        PaperProps={{
+          sx: {
+            borderRadius: 3,
+            maxWidth: 360,
+            mx: 2,
+          },
+        }}
+      >
+        <DialogTitle sx={{ fontWeight: 700, fontSize: '1.1rem', pb: 0.5 }}>
+          {ackDialog?.label}
+        </DialogTitle>
+        <DialogContent>
+          <Typography variant="body1" sx={{ color: 'var(--color-text)', whiteSpace: 'pre-wrap' }}>
+            {ackDialog?.message || ackDialog?.title || ''}
+          </Typography>
+          {ackDialog?.subtitle && (
+            <Typography variant="caption" sx={{ display: 'block', mt: 1.5, color: 'var(--color-text-faint)' }}>
+              {ackDialog.subtitle}
+            </Typography>
+          )}
+        </DialogContent>
+        <DialogActions sx={{ px: 3, pb: 2 }}>
+          <Button onClick={() => setAckDialog(null)} sx={{ color: 'var(--color-text-faint)' }}>
+            Close
+          </Button>
+          <Button
+            variant="contained"
+            onClick={handleBroadcastAck}
+            sx={{ borderRadius: 2, textTransform: 'none', fontWeight: 600 }}
+          >
+            I've read this
+          </Button>
+        </DialogActions>
+      </Dialog>
+    </>
   );
 }
 

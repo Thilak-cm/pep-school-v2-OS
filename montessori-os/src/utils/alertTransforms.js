@@ -48,16 +48,15 @@ export function transformForDisplay(alert) {
 
     case 'broadcast':
       return {
-        label: 'FROM OFFICE',
+        label: payload.label || 'BROADCAST',
         labelDetail: payload.senderName || null,
-        title: payload.message || '',
-        subtitle: payload.audience || 'All staff',
-        ctaLabel: 'Got it',
+        title: payload.title || payload.message || '',
+        subtitle: payload.subtitle || payload.audience || 'All staff',
+        ctaLabel: payload.ctaLabel || 'Got it',
         ctaIcon: 'ShieldCheck',
         colorKey: 'broadcast',
         color: ALERT_COLORS.broadcast,
-        ctaRoute: 'alerts',
-        ctaParams: { alertId: alert.id },
+        message: payload.message || '',
       };
 
     case 'system':

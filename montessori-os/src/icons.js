@@ -117,4 +117,5 @@ export {
   ListChecks,
   ClipboardList,
   ThumbsUp,
+  Megaphone,
 } from 'lucide-react';

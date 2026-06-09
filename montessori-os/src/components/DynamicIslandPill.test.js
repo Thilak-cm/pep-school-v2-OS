@@ -174,6 +174,39 @@ describe('DynamicIslandPill component (PEP-213 + PEP-296)', () => {
     });
   });
 
+  // --- PEP-307: Broadcast CTA confirmation modal ---
+  describe('Broadcast CTA confirmation modal (PEP-307)', () => {
+    it('has a Dialog for broadcast ack confirmation', () => {
+      assert.ok(
+        source.includes('Dialog') && (source.includes('broadcastAck') || source.includes('ackModal') || source.includes('confirmDialog') || source.includes('ackDialog')),
+        'Should have a Dialog component for broadcast acknowledgment'
+      );
+    });
+
+    it('shows full message body in the confirmation dialog', () => {
+      assert.ok(
+        source.includes('message') && source.includes('Dialog'),
+        'Should display the full message body in the confirmation dialog'
+      );
+    });
+
+    it('has an "I\'ve read this" confirmation button', () => {
+      assert.ok(
+        source.includes("I've read this") || source.includes('I\\u2019ve read this'),
+        'Should have an "I\'ve read this" confirmation button'
+      );
+    });
+
+    it('only dismisses after confirmation (not on CTA tap)', () => {
+      // The broadcast CTA should NOT call dismissAlert directly — it should open the modal first
+      // dismissAlert should only be called from the modal confirm handler
+      assert.ok(
+        source.includes('ackDialog') || source.includes('ackModal') || source.includes('confirmDialog') || source.includes('broadcastAck'),
+        'Should use a confirmation state/dialog before dismissing'
+      );
+    });
+  });
+
   // --- Alert type extensibility ---
   describe('Alert type extensibility', () => {
     it('accepts alerts as a typed array', () => {
