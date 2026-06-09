@@ -32,6 +32,9 @@ const config = {
 - The school was on summer break for April and May 2026. A dip in notes for most students during this period is expected, except for students in the summer program.
 - Argus, Orion and Sirius classrooms are new classrooms that started recently — lower activity is expected as they ramp up.`,
 
+  // Enable test trigger via callable function
+  enableTestTrigger: true,
+
   // Test mode — all emails go to these addresses only.
   // Remove this field for production.
   testOverrideEmails: [

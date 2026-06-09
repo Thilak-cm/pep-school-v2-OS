@@ -198,6 +198,7 @@ async function fetchDigestConfig() {
     superadminClassroomOverrides: d.superadminClassroomOverrides || {},
     contextualNotes: d.contextualNotes || "",
     testOverrideEmails: d.testOverrideEmails || null,
+    enableTestTrigger: d.enableTestTrigger || false,
   };
 }
 
@@ -285,6 +286,16 @@ export const weeklyDigestClassroomAdmin = functions
         }
       }
 
+      // Pre-fetch all users once (avoid N queries inside concurrency loop)
+      const usersSnap = await db.collection("users").get();
+      const allUsers = usersSnap.docs.map((d) => ({
+        id: d.id,
+        ...d.data(),
+      }));
+      const admins = resolveClassroomAdminRecipients(allUsers);
+      const superAdmins = resolveSuperAdminRecipients(allUsers);
+      const overrides = resolveSuperAdminOverrides(config, superAdmins);
+
       // Run agent loop per classroom
       let digestCount = 0;
       let errorCount = 0;
@@ -331,19 +342,10 @@ export const weeklyDigestClassroomAdmin = functions
             const hasRedFlags = result.toolCallLog.some(
               (tc) =>
                 tc.name === "fetch_weekly_snapshot" &&
-                tc.result?.redFlag?.severity === "high"
+                (tc.result?.redFlag || tc.result?.escalatedThisWeek === true)
             );
 
-            // Resolve recipients for this classroom
-            const usersSnap = await db.collection("users").get();
-            const allUsers = usersSnap.docs.map((d) => ({
-              id: d.id,
-              ...d.data(),
-            }));
-            const admins = resolveClassroomAdminRecipients(allUsers);
-            const superAdmins = resolveSuperAdminRecipients(allUsers);
-            const overrides = resolveSuperAdminOverrides(config, superAdmins);
-
+            // Resolve recipients for this classroom (users pre-fetched above)
             const recipientEmails = [
               ...admins
                 .filter((a) => a.manageableClassrooms.includes(classroom.id))
@@ -432,7 +434,9 @@ export const weeklyDigestSuperadmin = functions
     memory: "1GB",
     secrets: [OPENROUTER_API_KEY, SENDGRID_API_KEY, LANGFUSE_SECRET_KEY, LANGFUSE_PUBLIC_KEY],
   })
-  .pubsub.schedule("30 18 * * 0") // Sunday 6:30 PM IST (30 min after CF 1)
+  // Offset from CF1 (18:00). Fixed gap — not guaranteed to run after CF1 finishes.
+  // For reliable sequencing, see Pub/Sub handoff issue.
+  .pubsub.schedule("45 18 * * 0") // Sunday 6:45 PM IST (45 min after CF 1)
   .timeZone("Asia/Kolkata")
   .onRun(async () => {
     const langfuse = new Langfuse();
@@ -482,6 +486,14 @@ export const weeklyDigestSuperadmin = functions
           classroomsWithRedFlags: digests.filter((d) => d.hasRedFlags).map((d) => d.classroomName),
         },
       });
+
+      if (digests.length < classroomIds.length) {
+        const digestClassroomIds = new Set(digests.map((d) => d.classroomId));
+        const missingIds = classroomIds.filter((id) => !digestClassroomIds.has(id));
+        console.warn(
+          `[weeklyDigestSuperadmin] CF2: found ${digests.length}/${classroomIds.length} digests. Missing: ${missingIds.join(", ")}`
+        );
+      }
 
       if (digests.length === 0) {
         console.log("[weeklyDigestSuperadmin] No digests found for", weekKey);
@@ -618,8 +630,15 @@ export const triggerDigestTest = functions
       throw new functions.https.HttpsError("permission-denied", "Superadmin only");
     }
     const config = await fetchDigestConfig();
-    // TODO: revert to [callerSnap.data().email] after pepschoolv2.com domain is verified in Resend
-    config.testOverrideEmails = ["tech@pepschoolv2.com"];
+    if (!config.enableTestTrigger) {
+      throw new functions.https.HttpsError(
+        "failed-precondition",
+        "Test trigger is disabled in config. Set enableTestTrigger: true in config/weekly_digest to enable."
+      );
+    }
+    if (!config.testOverrideEmails?.length) {
+      config.testOverrideEmails = [callerSnap.data().email];
+    }
 
     const langfuse = new Langfuse();
     const weekKey = getWeekKey();
@@ -661,6 +680,13 @@ export const triggerDigestTest = functions
       }
     }
 
+    // Pre-fetch all users once (avoid N queries inside loop)
+    const testUsersSnap = await db.collection("users").get();
+    const testAllUsers = testUsersSnap.docs.map((d) => ({ id: d.id, ...d.data() }));
+    const testAdmins = resolveClassroomAdminRecipients(testAllUsers);
+    const testSuperAdmins = resolveSuperAdminRecipients(testAllUsers);
+    const testOverrides = resolveSuperAdminOverrides(config, testSuperAdmins);
+
     let cf1Count = 0;
     let cf1Errors = 0;
 
@@ -685,18 +711,13 @@ export const triggerDigestTest = functions
         });
 
         const hasRedFlags = result.toolCallLog.some(
-          (tc) => tc.name === "fetch_weekly_snapshot" && tc.result?.redFlag?.severity === "high"
+          (tc) => tc.name === "fetch_weekly_snapshot" && (tc.result?.redFlag || tc.result?.escalatedThisWeek === true)
         );
 
-        // Resolve recipients + override
-        const usersSnap = await db.collection("users").get();
-        const allUsers = usersSnap.docs.map((d) => ({ id: d.id, ...d.data() }));
-        const admins = resolveClassroomAdminRecipients(allUsers);
-        const superAdmins = resolveSuperAdminRecipients(allUsers);
-        const overrides = resolveSuperAdminOverrides(config, superAdmins);
+        // Resolve recipients + override (users pre-fetched above)
         const recipientEmails = [
-          ...admins.filter((a) => a.manageableClassrooms.includes(classroom.id)).map((a) => a.email),
-          ...[...overrides.entries()].filter(([, cids]) => cids.includes(classroom.id)).map(([email]) => email),
+          ...testAdmins.filter((a) => a.manageableClassrooms.includes(classroom.id)).map((a) => a.email),
+          ...[...testOverrides.entries()].filter(([, cids]) => cids.includes(classroom.id)).map(([email]) => email),
         ];
 
         const digestRef = db.doc(`classrooms/${classroom.id}/digests/weekly_email`);
@@ -718,7 +739,11 @@ export const triggerDigestTest = functions
           : `${classroomName} — Weekly Digest`;
         const sendTo = applyEmailOverride(recipientEmails, config);
         for (const email of sendTo) {
-          await sendEmail({ to: email, subject, html: result.content });
+          try {
+            await sendEmail({ to: email, subject, html: result.content });
+          } catch (emailErr) {
+            console.error(`[triggerDigestTest] CF1 email failed for ${email}:`, emailErr.message);
+          }
         }
 
         span.end({ output: { status: "sent", toolCalls: result.toolCallLog.length } });
@@ -801,11 +826,17 @@ export const triggerDigestTest = functions
         ? "⚠️ Weekly School Digest — Action Required"
         : "Weekly School Digest";
       const sendTo = applyEmailOverride(recipientEmails, config);
+      const emailResults = [];
       for (const email of sendTo) {
-        await sendEmail({ to: email, subject, html: result.content });
+        try {
+          await sendEmail({ to: email, subject, html: result.content });
+          emailResults.push({ email, status: "sent" });
+        } catch (emailErr) {
+          emailResults.push({ email, status: "failed", error: emailErr.message });
+        }
       }
 
-      cf2Result = { sent: sendTo.length, toolCalls: result.toolCallLog.length };
+      cf2Result = { sent: sendTo.length, toolCalls: result.toolCallLog.length, emailDelivery: emailResults };
     }
 
     cf2Trace.update({ output: cf2Result || "No digests to consolidate" });

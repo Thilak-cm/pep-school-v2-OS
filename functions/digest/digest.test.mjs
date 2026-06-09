@@ -71,7 +71,6 @@ function buildFirstUserMessage(classroomDoc, statsCacheDoc, contextualNotes) {
     name: classroomDoc.name || classroomDoc.id,
     program: classroomDoc.program || "unknown",
     teacherIds: classroomDoc.teacherIds || [],
-    studentCount: classroomDoc.studentCount || 0,
   };
 
   const teachers = (statsCacheDoc?.teachers || []).map((t) => ({

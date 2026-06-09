@@ -1,5 +1,26 @@
 # Changelog
 
+# 10.34.0 — 2026-06-09
+
+### Added
+- Weekly classroom digest agent — two-stage agentic pipeline (CF1 per-classroom, CF2 superadmin consolidation) with tool-calling agent loop, 8 Firestore investigation tools, and progressive disclosure gating (PEP-297)
+- Resend email integration replacing SendGrid for transactional digest emails (PEP-297)
+- Langfuse observability tracing on every agent run — tool calls, LLM responses, email delivery status (PEP-297)
+- Contextual notes feature — school-specific context injected into agent system prompts via Firestore config (PEP-297)
+- Superadmin classroom overrides — config-driven mapping lets specific superadmins receive per-classroom emails (PEP-297)
+- Firestore rules for `classrooms/{id}/digests` subcollection with role-scoped read access (PEP-297)
+- Config-gated test trigger callable for end-to-end digest testing (PEP-297)
+- Generic reusable agent loop (`shared/agentLoop.js`) for future agent Cloud Functions (PEP-297)
+
+### Changed
+- `generateBaseballCards` schedule shifted to Sunday 00:00 IST so snapshots are fresh for Sunday digest runs (PEP-297)
+- Inline voice dictation for media comment fields in AddNoteModal — replaces dialog-based VoiceRecorder with `useInlineVoice` hook (PEP-297)
+
+### Fixed
+- `recomputeStats` now outputs real per-teacher 7d/30d observation counts instead of proportional estimates (PEP-297)
+- Classroomadmins can now self-update profile fields like student groups (firestore.rules fix)
+- Inline voice transcription race condition — `isTranscribing` set before `isRecording` cleared to prevent active-flag flicker (PEP-297)
+
 # 10.33.0 — 2026-06-04
 
 ### Added
