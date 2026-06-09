@@ -94,6 +94,35 @@ describe("buildSavePayload", () => {
     assert.deepEqual(payload.ranBy, { uid: "u1", name: "Thilak" });
   });
 
+  it("uses classroomId/classroomName for digest_generation feature", () => {
+    const args = {
+      ...baseArgs,
+      featureId: "digest_generation",
+      selectedClassroom: { id: "allstars", name: "All Stars" },
+      selectedStudent: null,
+      promptType: "classroom",
+    };
+    const payload = buildSavePayload(args);
+    assert.equal(payload.classroomId, "allstars");
+    assert.equal(payload.classroomName, "All Stars");
+    assert.equal(payload.promptType, "classroom");
+    assert.equal(payload.studentId, undefined);
+    assert.equal(payload.studentName, undefined);
+  });
+
+  it("includes promptType superadmin for digest_generation", () => {
+    const args = {
+      ...baseArgs,
+      featureId: "digest_generation",
+      selectedClassroom: { id: "periwinkle", name: "Periwinkle" },
+      selectedStudent: null,
+      promptType: "superadmin",
+    };
+    const payload = buildSavePayload(args);
+    assert.equal(payload.promptType, "superadmin");
+    assert.equal(payload.classroomId, "periwinkle");
+  });
+
   it("includes interviewMode and selectedAreas for interview feature", () => {
     const args = {
       ...baseArgs,
@@ -136,6 +165,22 @@ describe("restoreVariantsFromRun", () => {
 
   it("returns empty array for run with no variants", () => {
     assert.deepEqual(restoreVariantsFromRun({}), []);
+  });
+
+  it("restores classroom context from digest run", () => {
+    const run = {
+      feature: "digest_generation",
+      classroomId: "allstars",
+      classroomName: "All Stars",
+      promptType: "classroom",
+      variants: [
+        { name: "Variant A", prompt: { systemPrompt: "p1", model: "gpt-4o", temperature: 0.4, max_tokens: 4000 }, output: "<h1>Digest</h1>", rating: 8, notes: "" },
+      ],
+    };
+    const result = restoreVariantsFromRun(run);
+    assert.equal(result.length, 1);
+    assert.equal(result[0].systemPrompt, "p1");
+    assert.equal(result[0].output, "<h1>Digest</h1>");
   });
 });
 
@@ -205,5 +250,13 @@ describe("getRunLabel", () => {
 
   it("returns empty string when both fields are missing", () => {
     assert.equal(getRunLabel({}), "");
+  });
+
+  it("falls back to classroomName for digest runs without sessionName", () => {
+    assert.equal(getRunLabel({ classroomName: "All Stars" }), "All Stars");
+  });
+
+  it("prefers sessionName over classroomName for digest runs", () => {
+    assert.equal(getRunLabel({ sessionName: "Prompt v2", classroomName: "All Stars" }), "Prompt v2");
   });
 });

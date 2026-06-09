@@ -132,7 +132,10 @@ export default function RunHistory({ open, onClose, featureId, onLoad }) {
                     <Typography variant="caption" color="error" sx={{ display: "block", mt: 0.5 }}>{renameError}</Typography>
                   )}
                   {run.sessionName?.trim() && (
-                    <Typography variant="caption" color="text.secondary">{run.studentName}</Typography>
+                    <Typography variant="caption" color="text.secondary">{run.studentName || run.classroomName}</Typography>
+                  )}
+                  {run.promptType && (
+                    <Chip label={run.promptType === "superadmin" ? "Executive" : "Classroom"} size="small" variant="outlined" sx={{ mt: 0.5, fontSize: "0.65rem" }} />
                   )}
                   <Typography variant="caption" color="text.secondary" sx={{ display: "block" }}>
                     {run.ranBy?.name ? `${run.ranBy.name} · ` : ""}{formatDate(run.timestamp)}

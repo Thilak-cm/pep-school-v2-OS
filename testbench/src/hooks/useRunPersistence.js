@@ -15,17 +15,19 @@ export function buildSessionNameField(sessionName) {
 }
 
 export function getRunLabel(run) {
-  return run.sessionName?.trim() || run.studentName || "";
+  return run.sessionName?.trim() || run.studentName || run.classroomName || "";
 }
 
-export function buildSavePayload({ featureId, selectedStudent, variants, conversations, sessionName, kickoffMessage, interviewMode, selectedAreas, user }) {
+export function buildSavePayload({ featureId, selectedStudent, selectedClassroom, promptType, variants, conversations, sessionName, kickoffMessage, interviewMode, selectedAreas, user }) {
   const isInterview = featureId === "interview_question_gen";
+  const isDigest = featureId === "digest_generation";
   const trimmedName = buildSessionNameField(sessionName);
 
   return {
     feature: featureId,
-    studentId: selectedStudent.id,
-    studentName: selectedStudent.displayName,
+    ...(isDigest
+      ? { classroomId: selectedClassroom?.id, classroomName: selectedClassroom?.name, promptType }
+      : { studentId: selectedStudent.id, studentName: selectedStudent.displayName }),
     ...(trimmedName ? { sessionName: trimmedName } : {}),
     variants: variants.map((v, idx) => ({
       name: v.name,
