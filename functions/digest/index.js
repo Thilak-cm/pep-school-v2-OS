@@ -16,11 +16,15 @@
  */
 
 import * as functions from "firebase-functions/v1";
+import { defineSecret } from "firebase-functions/params";
 import { db, Timestamp } from "../shared/firebase.js";
 import {
   OPENROUTER_API_KEY,
 } from "../shared/openrouter.js";
 import { SENDGRID_API_KEY, sendEmail } from "../shared/sendgrid.js";
+
+const LANGFUSE_SECRET_KEY = defineSecret("LANGFUSE_SECRET_KEY");
+const LANGFUSE_PUBLIC_KEY = defineSecret("LANGFUSE_PUBLIC_KEY");
 import { runWithConcurrency } from "../shared/scheduling.js";
 import { runAgentLoop } from "../shared/agentLoop.js";
 import { DIGEST_TOOLS, ToolGatekeeper, createToolExecutor } from "./tools.js";
@@ -30,26 +34,30 @@ import { Langfuse } from "langfuse";
 
 const DEFAULT_CLASSROOM_PROMPT = `You are a Montessori school assistant generating a weekly classroom digest email for a classroom administrator.
 
-You receive structured data about ONE classroom: teacher activity stats and student note counts for the past 7 days. You also have tools to investigate individual students more deeply.
+You receive structured data about ONE classroom: teacher activity stats, student note counts for the past 7 days, and contextual notes from the school administration providing important background (e.g., teacher roles, school calendar events, known situations). You also have tools to investigate individual students more deeply.
 
 Your job:
-1. Review the stats provided. Identify anomalies — students with sudden drops in notes, teachers with zero activity, students with very low coverage.
+1. Review the stats provided and any contextual notes. Identify anomalies — students with sudden drops in notes, teachers with zero activity, students with very low coverage.
 2. Use your tools to investigate. Start with fetch_weekly_snapshot for students who look concerning. If a snapshot shows escalation or red flags, dig deeper with fetch_snapshot_history, fetch_soul, or fetch_observations.
 3. Once you have enough context, produce a concise, actionable HTML email body.
 
-Guidelines:
+Output rules:
+- **Title:** Use the format "<full month name> Week <number> Digest — <Classroom Name>" as the email heading (e.g., "Month June Week 2 Digest — Periwinkle").
+- **No greetings or sign-offs.** Do not start with "Dear Team" or end with "Best regards." Get right into the content.
 - **Red-flagged students must be prominently called out.** Use bold text and warning colors. These are urgent.
 - **Escalated students** (medium/high severity) should be highlighted with context on why.
 - **Inactive teachers** (zero notes this week) must be named explicitly.
 - **Anomalies over time** — if a student went from lots of notes to none, say so. If a teacher's output dropped, flag it.
+- **Never say "and several others" or "among others."** Always list every student or teacher by name. Be exhaustive and specific.
 - **Tone:** Professional but warm. You are a co-pilot for the manager.
-- **Format:** Output valid HTML (no <html>/<head>/<body> tags — just inner content). Use inline styles. Mobile-friendly.
+- **Format:** Output valid HTML (no <html>/<head>/<body> tags — just inner content). Use inline styles. Centre-aligned, blog-post style layout with max-width 600px. Mobile-friendly.
 - **Do not invent information.** Only reference data you received or fetched via tools.
+- **Respect contextual notes.** If the notes say a teacher is administrative (not teaching), do not flag them for inactivity. If a school break is mentioned, adjust your analysis accordingly.
 - **Keep it brief.** Lead with what needs attention. A quiet week gets a short "all clear."`;
 
 const DEFAULT_SUPERADMIN_PROMPT = `You are a Montessori school assistant generating a consolidated weekly digest email for a superadmin who oversees ALL classrooms across the school.
 
-You receive the individual classroom digest summaries that were already generated for each classroom. You also have tools to investigate specific students if needed.
+You receive the individual classroom digest summaries that were already generated for each classroom, plus contextual notes from the school administration providing important background. You also have tools to investigate specific students if needed.
 
 Your job:
 1. Synthesize the classroom digests into ONE consolidated email.
@@ -57,12 +65,16 @@ Your job:
 3. Identify cross-classroom patterns if any (e.g., multiple classrooms with inactive teachers, school-wide observation drop).
 4. Use tools only if you need to verify something or dig deeper into a specific case.
 
-Guidelines:
+Output rules:
+- **Title:** Use the format "Executive Digest for <full month name> Week <number>" as the email heading (e.g., "Weekly Executive Digest — Month June Week 2").
+- **No greetings or sign-offs.** Do not start with "Dear Team" or end with "Best regards." Get right into the content.
 - **Lead with the most urgent items** — red flags first, then escalations, then general notes.
 - **Group by classroom** but don't just repeat each digest. Summarize and prioritize.
 - **Cross-classroom insights** are your unique value — no individual digest has this view.
+- **Never say "and several others" or "among others."** Always list every teacher and student by name. Be exhaustive and specific.
 - **Tone:** Executive summary for leadership. Concise, direct, actionable.
-- **Format:** Valid HTML, inline styles, mobile-friendly. No <html>/<head>/<body> tags.
+- **Format:** Valid HTML, inline styles, centre-aligned blog-post style layout with max-width 700px. Mobile-friendly. No <html>/<head>/<body> tags.
+- **Respect contextual notes.** If the notes say a teacher is administrative, do not flag them for inactivity. If a school break is mentioned, adjust analysis accordingly.
 - **Keep it tight.** This covers ~20 classrooms — be ruthlessly concise.`;
 
 // ── Pure logic (exported for testing) ───────────────────────────────
@@ -101,7 +113,7 @@ export function resolveSuperAdminOverrides(config, superAdmins) {
   return result;
 }
 
-export function buildFirstUserMessage(classroomDoc, statsCacheDoc) {
+export function buildFirstUserMessage(classroomDoc, statsCacheDoc, contextualNotes) {
   const classroom = {
     id: classroomDoc.id,
     name: classroomDoc.name || classroomDoc.id,
@@ -126,12 +138,17 @@ export function buildFirstUserMessage(classroomDoc, statsCacheDoc) {
     totalNotes: s.totalNotes || 0,
   }));
 
+  const notesSection = contextualNotes
+    ? ["## School Contextual Notes", contextualNotes, ""]
+    : [];
+
   return [
     `# Classroom: ${classroom.name}`,
     `Program: ${classroom.program}`,
     `Teachers: ${classroom.teacherIds.length}`,
     `Students: ${students.length}`,
     "",
+    ...notesSection,
     "## Teacher Activity (last 7 days)",
     ...teachers.map(
       (t) =>
@@ -168,6 +185,7 @@ async function fetchDigestConfig() {
       classroomPrompt: DEFAULT_CLASSROOM_PROMPT,
       superadminPrompt: DEFAULT_SUPERADMIN_PROMPT,
       superadminClassroomOverrides: {},
+      contextualNotes: "",
     };
   }
   const d = snap.data();
@@ -178,6 +196,7 @@ async function fetchDigestConfig() {
     classroomPrompt: d.classroomPrompt || DEFAULT_CLASSROOM_PROMPT,
     superadminPrompt: d.superadminPrompt || DEFAULT_SUPERADMIN_PROMPT,
     superadminClassroomOverrides: d.superadminClassroomOverrides || {},
+    contextualNotes: d.contextualNotes || "",
     testOverrideEmails: d.testOverrideEmails || null,
   };
 }
@@ -211,20 +230,25 @@ export const weeklyDigestClassroomAdmin = functions
   .runWith({
     timeoutSeconds: 540,
     memory: "1GB",
-    secrets: [OPENROUTER_API_KEY, SENDGRID_API_KEY],
+    secrets: [OPENROUTER_API_KEY, SENDGRID_API_KEY, LANGFUSE_SECRET_KEY, LANGFUSE_PUBLIC_KEY],
   })
   .pubsub.schedule("0 18 * * 0") // Sunday 6:00 PM IST
   .timeZone("Asia/Kolkata")
   .onRun(async () => {
     const langfuse = new Langfuse();
+    const weekKey = getWeekKey();
+    const sessionId = `digest-${weekKey}`;
+
     const trace = langfuse.trace({
       name: "weekly-digest-classrooms",
-      metadata: { triggeredAt: new Date().toISOString() },
+      sessionId,
+      userId: "cron",
+      tags: ["feature:digest", "type:classroom"],
+      metadata: { triggeredAt: new Date().toISOString(), weekKey },
     });
 
     try {
       const config = await fetchDigestConfig();
-      const weekKey = getWeekKey();
 
       // Fetch all active classrooms
       const classroomsSnap = await db
@@ -238,7 +262,7 @@ export const weeklyDigestClassroomAdmin = functions
 
       trace.span({
         name: "config-loaded",
-        input: { model: config.model, classrooms: classrooms.length, weekKey },
+        input: { model: config.model, classrooms: classrooms.length, weekKey, hasContextualNotes: !!config.contextualNotes },
       });
 
       // Fetch statsCache for all classrooms
@@ -268,14 +292,22 @@ export const weeklyDigestClassroomAdmin = functions
       await runWithConcurrency(
         classrooms,
         async (classroom) => {
+          const classroomName = classroom.name || classroom.id;
           const classroomSpan = trace.span({
             name: `classroom-${classroom.id}`,
-            input: { classroomName: classroom.name || classroom.id },
+            metadata: {
+              classroomName,
+              classroomId: classroom.id,
+              program: classroom.program,
+              teacherCount: (classroom.teacherIds || []).length,
+            },
           });
 
           try {
             const statsDoc = statsDocs.get(classroom.id) || null;
-            const userMessage = buildFirstUserMessage(classroom, statsDoc);
+            const userMessage = buildFirstUserMessage(classroom, statsDoc, config.contextualNotes);
+
+            classroomSpan.update({ input: userMessage });
 
             const gatekeeper = new ToolGatekeeper();
             const toolExecutor = createToolExecutor(gatekeeper);
@@ -339,22 +371,30 @@ export const weeklyDigestClassroomAdmin = functions
             });
 
             // Send emails
-            const classroomName = classroom.name || classroom.id;
             const subject = hasRedFlags
               ? `⚠️ ${classroomName} — Weekly Digest — Action Required`
               : `${classroomName} — Weekly Digest`;
 
             const sendTo = applyEmailOverride(recipientEmails, config);
+            const emailResults = [];
             for (const email of sendTo) {
-              await sendEmail({ to: email, subject, html: result.content });
+              try {
+                await sendEmail({ to: email, subject, html: result.content });
+                emailResults.push({ email, status: "sent" });
+              } catch (emailErr) {
+                emailResults.push({ email, status: "failed", error: emailErr.message });
+              }
             }
 
             classroomSpan.end({
-              output: {
-                status: "sent",
-                recipients: recipientEmails.length,
+              output: result.content,
+              metadata: {
+                hasRedFlags,
                 toolCalls: result.toolCallLog.length,
+                toolsUsed: [...new Set(result.toolCallLog.map((tc) => tc.name))],
                 iterations: result.iterations,
+                recipients: recipientEmails,
+                emailDelivery: emailResults,
               },
             });
             digestCount++;
@@ -390,20 +430,25 @@ export const weeklyDigestSuperadmin = functions
   .runWith({
     timeoutSeconds: 540,
     memory: "1GB",
-    secrets: [OPENROUTER_API_KEY, SENDGRID_API_KEY],
+    secrets: [OPENROUTER_API_KEY, SENDGRID_API_KEY, LANGFUSE_SECRET_KEY, LANGFUSE_PUBLIC_KEY],
   })
   .pubsub.schedule("30 18 * * 0") // Sunday 6:30 PM IST (30 min after CF 1)
   .timeZone("Asia/Kolkata")
   .onRun(async () => {
     const langfuse = new Langfuse();
+    const weekKey = getWeekKey();
+    const sessionId = `digest-${weekKey}`;
+
     const trace = langfuse.trace({
       name: "weekly-digest-superadmin",
-      metadata: { triggeredAt: new Date().toISOString() },
+      sessionId,
+      userId: "cron",
+      tags: ["feature:digest", "type:superadmin"],
+      metadata: { triggeredAt: new Date().toISOString(), weekKey },
     });
 
     try {
       const config = await fetchDigestConfig();
-      const weekKey = getWeekKey();
 
       // Read all classroom digests written by CF 1
       const classroomsSnap = await db
@@ -431,7 +476,11 @@ export const weeklyDigestSuperadmin = functions
 
       trace.span({
         name: "digests-loaded",
-        metadata: { digestCount: digests.length, weekKey },
+        metadata: {
+          digestCount: digests.length,
+          weekKey,
+          classroomsWithRedFlags: digests.filter((d) => d.hasRedFlags).map((d) => d.classroomName),
+        },
       });
 
       if (digests.length === 0) {
@@ -449,17 +498,24 @@ export const weeklyDigestSuperadmin = functions
         )
         .join("\n\n---\n\n");
 
+      const notesSection = config.contextualNotes
+        ? ["## School Contextual Notes", config.contextualNotes, ""]
+        : [];
+
       const userMessage = [
         `# All Classroom Digests for ${weekKey}`,
         `Total classrooms: ${digests.length}`,
         `Classrooms with red flags: ${digests.filter((d) => d.hasRedFlags).length}`,
         "",
+        ...notesSection,
         digestSummaries,
         "",
         "Generate a consolidated executive summary email for superadmins. Highlight the most critical items across all classrooms. Identify cross-classroom patterns. Use tools to investigate specific cases if needed.",
       ].join("\n");
 
       // Agent loop for superadmin digest
+      trace.update({ input: userMessage });
+
       const gatekeeper = new ToolGatekeeper();
       const toolExecutor = createToolExecutor(gatekeeper);
 
@@ -510,21 +566,29 @@ export const weeklyDigestSuperadmin = functions
         : "Weekly School Digest";
 
       const sendTo = applyEmailOverride(recipientEmails, config);
+      const emailResults = [];
       for (const email of sendTo) {
-        await sendEmail({ to: email, subject, html: result.content });
+        try {
+          await sendEmail({ to: email, subject, html: result.content });
+          emailResults.push({ email, status: "sent" });
+        } catch (emailErr) {
+          emailResults.push({ email, status: "failed", error: emailErr.message });
+        }
       }
 
       const summary = {
         sent: recipientEmails.length,
         toolCalls: result.toolCallLog.length,
+        toolsUsed: [...new Set(result.toolCallLog.map((tc) => tc.name))],
         iterations: result.iterations,
         weekKey,
+        emailDelivery: emailResults,
       };
       console.log(
         "[weeklyDigestSuperadmin] CF2 complete:",
         JSON.stringify(summary)
       );
-      trace.update({ output: summary });
+      trace.update({ output: result.content, metadata: summary });
       await langfuse.flushAsync();
       return summary;
     } catch (err) {
@@ -542,7 +606,7 @@ export const triggerDigestTest = functions
   .runWith({
     timeoutSeconds: 540,
     memory: "1GB",
-    secrets: [OPENROUTER_API_KEY, SENDGRID_API_KEY],
+    secrets: [OPENROUTER_API_KEY, SENDGRID_API_KEY, LANGFUSE_SECRET_KEY, LANGFUSE_PUBLIC_KEY],
   })
   .https.onCall(async (data, context) => {
     if (!context.auth) {
@@ -553,29 +617,35 @@ export const triggerDigestTest = functions
     if (!callerSnap.exists || callerSnap.data().role !== "superadmin") {
       throw new functions.https.HttpsError("permission-denied", "Superadmin only");
     }
+    const callerEmail = callerSnap.data().email;
 
     const config = await fetchDigestConfig();
-    if (!config.testOverrideEmails) {
-      throw new functions.https.HttpsError(
-        "failed-precondition",
-        "Set testOverrideEmails in config/weekly_digest before running test"
-      );
-    }
+    // Override emails to only send to the caller
+    config.testOverrideEmails = [callerEmail];
 
     const langfuse = new Langfuse();
     const weekKey = getWeekKey();
+    const sessionId = `digest-test-${weekKey}-${Date.now()}`;
 
     // ── Run CF 1 logic (per-classroom digests) ──────────────────────
     const cf1Trace = langfuse.trace({
       name: "digest-test-classrooms",
-      metadata: { triggeredBy: context.auth.uid, test: true },
+      sessionId,
+      userId: context.auth.uid,
+      tags: ["feature:digest", "type:classroom", "test"],
+      metadata: { triggeredBy: context.auth.uid, weekKey },
     });
+
+    // Test mode: only process classrooms specified in data, or default to ["amazing"]
+    const testClassroomIds = data?.classrooms || ["amazing"];
 
     const classroomsSnap = await db
       .collection("classrooms")
       .where("status", "==", "active")
       .get();
-    const classrooms = classroomsSnap.docs.map((d) => ({ id: d.id, ...d.data() }));
+    const classrooms = classroomsSnap.docs
+      .map((d) => ({ id: d.id, ...d.data() }))
+      .filter((c) => testClassroomIds.includes(c.id));
 
     // Fetch statsCache
     const statsDocs = new Map();
@@ -601,7 +671,7 @@ export const triggerDigestTest = functions
       const span = cf1Trace.span({ name: `classroom-${classroom.id}` });
       try {
         const statsDoc = statsDocs.get(classroom.id) || null;
-        const userMessage = buildFirstUserMessage(classroom, statsDoc);
+        const userMessage = buildFirstUserMessage(classroom, statsDoc, config.contextualNotes);
         const gatekeeper = new ToolGatekeeper();
         const toolExecutor = createToolExecutor(gatekeeper);
 
@@ -667,7 +737,10 @@ export const triggerDigestTest = functions
     // ── Run CF 2 logic (superadmin consolidated) ────────────────────
     const cf2Trace = langfuse.trace({
       name: "digest-test-superadmin",
-      metadata: { triggeredBy: context.auth.uid, test: true },
+      sessionId,
+      userId: context.auth.uid,
+      tags: ["feature:digest", "type:superadmin", "test"],
+      metadata: { triggeredBy: context.auth.uid, weekKey },
     });
 
     const digests = [];

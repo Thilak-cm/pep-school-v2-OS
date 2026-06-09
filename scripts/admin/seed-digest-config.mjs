@@ -25,6 +25,13 @@ const config = {
   temperature: 0.4,
   max_tokens: 4000,
 
+  // Contextual notes — school-specific context injected into every
+  // agent's first user message. Editable by superadmins via settings page.
+  contextualNotes: `- Diana D'Souza is an administrative teacher — she handles operations, not classroom teaching. Do not flag her for note-taking inactivity.
+- Anil Kumar S is a support staff member, not a classroom teacher. Ignore his note counts.
+- The school was on summer break for April and May 2026. A dip in notes for most students during this period is expected, except for students in the summer program.
+- Argus, Orion and Sirius classrooms are new classrooms that started recently — lower activity is expected as they ramp up.`,
+
   // Test mode — all emails go to these addresses only.
   // Remove this field for production.
   testOverrideEmails: [

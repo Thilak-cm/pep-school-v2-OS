@@ -65,7 +65,7 @@ function resolveSuperAdminOverrides(config, superAdmins) {
  * Build the first user message for the per-classroom agent.
  * Contains mandatory context: classroom doc + statsCache.
  */
-function buildFirstUserMessage(classroomDoc, statsCacheDoc) {
+function buildFirstUserMessage(classroomDoc, statsCacheDoc, contextualNotes) {
   const classroom = {
     id: classroomDoc.id,
     name: classroomDoc.name || classroomDoc.id,
@@ -91,12 +91,17 @@ function buildFirstUserMessage(classroomDoc, statsCacheDoc) {
     totalNotes: s.totalNotes || 0,
   }));
 
+  const notesSection = contextualNotes
+    ? ["## School Contextual Notes", contextualNotes, ""]
+    : [];
+
   return [
     `# Classroom: ${classroom.name}`,
     `Program: ${classroom.program}`,
     `Teachers: ${classroom.teacherIds.length}`,
     `Students: ${students.length}`,
     "",
+    ...notesSection,
     "## Teacher Activity (last 7 days)",
     ...teachers.map(
       (t) =>
@@ -255,7 +260,7 @@ test("resolveSuperAdminOverrides handles missing config", () => {
 
 // ── First User Message ──────────────────────────────────────────────
 
-test("buildFirstUserMessage includes classroom and stats data", () => {
+test("buildFirstUserMessage includes classroom, stats, and contextual notes", () => {
   const classroomDoc = { id: "amazing", name: "Amazing", program: "primary", teacherIds: ["t1", "t2"], studentCount: 20 };
   const statsDoc = {
     teachers: [
@@ -267,20 +272,25 @@ test("buildFirstUserMessage includes classroom and stats data", () => {
       { id: "s2", name: "Bob", thisWeekNotes: 0, last42DaysNotes: 8, totalNotes: 20 },
     ],
   };
-  const msg = buildFirstUserMessage(classroomDoc, statsDoc);
+  const notes = "- Diana is admin, not a teacher.\n- Summer break April-May.";
+  const msg = buildFirstUserMessage(classroomDoc, statsDoc, notes);
   assert.ok(msg.includes("# Classroom: Amazing"));
   assert.ok(msg.includes("Program: primary"));
   assert.ok(msg.includes("Geetha: 8 notes"));
   assert.ok(msg.includes("Naina: 0 notes"));
   assert.ok(msg.includes("Alice [s1]: this week 3"));
   assert.ok(msg.includes("Bob [s2]: this week 0"));
+  assert.ok(msg.includes("## School Contextual Notes"));
+  assert.ok(msg.includes("Diana is admin"));
+  assert.ok(msg.includes("Summer break"));
 });
 
-test("buildFirstUserMessage handles missing statsCache", () => {
-  const msg = buildFirstUserMessage({ id: "test", name: "Test" }, null);
+test("buildFirstUserMessage handles missing statsCache and empty notes", () => {
+  const msg = buildFirstUserMessage({ id: "test", name: "Test" }, null, "");
   assert.ok(msg.includes("# Classroom: Test"));
   assert.ok(msg.includes("## Teacher Activity"));
   assert.ok(msg.includes("## Student Note Counts"));
+  assert.ok(!msg.includes("## School Contextual Notes"));
 });
 
 // ── Progressive Disclosure ──────────────────────────────────────────
