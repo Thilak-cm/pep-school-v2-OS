@@ -1,5 +1,18 @@
 # Changelog
 
+# 10.35.0 — 2026-06-09
+
+### Added
+- Superadmin broadcast composer in Settings → Admin Tools — compose, edit, and manage broadcast alerts with label, title, message body, audience targeting, priority, DIP toggle, and expiry (PEP-307)
+- Broadcast acknowledgment modal in DIP — tapping a broadcast CTA shows the full message with "I've read this" confirmation before dismissing (PEP-307)
+- Broadcast management view — list all published broadcasts (live + expired) with edit, delete, and DIP visibility toggle (PEP-307)
+- Reset acknowledgments flow — editing a broadcast with existing dismissals prompts whether to clear and re-surface or keep existing acknowledgments (PEP-307)
+- `list_alerts` MCP tool for querying the alerts collection with optional type filter (PEP-307)
+
+### Changed
+- `transformForDisplay()` broadcast case now reads all display fields from `payload.*` instead of hardcoded values — supports custom labels, titles, subtitles, and CTA text (PEP-307)
+- Firestore alerts update rule scoped to broadcast type for superadmin edits; delete now allowed for superadmins (PEP-307)
+
 # 10.34.1 — 2026-06-08
 
 ### Added
