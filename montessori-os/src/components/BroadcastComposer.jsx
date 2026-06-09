@@ -294,8 +294,7 @@ export default function BroadcastComposer({ currentUser, userRole }) {
       {error && <MuiAlert severity="error" sx={{ mb: 2, borderRadius: 2 }} onClose={() => setError(null)}>{error}</MuiAlert>}
 
       {/* ── Compose form (inline) ── */}
-      <Paper elevation={0} sx={{ p: 2.5, borderRadius: 3, border: '1px solid var(--color-border)', mb: 3 }}>
-        <Box sx={{ display: 'flex', flexDirection: 'column', gap: 2 }}>
+        <Box sx={{ display: 'flex', flexDirection: 'column', gap: 2, mb: 3 }}>
 
           {/* Label — preset picker or custom */}
           <FormControl size="small" fullWidth>
@@ -463,7 +462,6 @@ export default function BroadcastComposer({ currentUser, userRole }) {
             Publish Broadcast
           </Button>
         </Box>
-      </Paper>
 
       {/* ── Published broadcasts list ── */}
       {broadcasts.length > 0 && (
@@ -597,7 +595,7 @@ export default function BroadcastComposer({ currentUser, userRole }) {
             Cancel
           </Button>
           <Button variant="contained" onClick={confirmClassrooms} sx={{ borderRadius: 2, textTransform: 'none', fontWeight: 600 }}>
-            OK ({pendingClassrooms.length} selected)
+            Select ({pendingClassrooms.length})
           </Button>
         </DialogActions>
       </Dialog>
@@ -639,10 +637,7 @@ export default function BroadcastComposer({ currentUser, userRole }) {
                       size="small"
                     />
                   </ListItemIcon>
-                  <ListItemText
-                    primary={teacherDisplayName(t)}
-                    secondary={t.email || null}
-                  />
+                  <ListItemText primary={teacherDisplayName(t)} />
                 </ListItemButton>
               </ListItem>
             ))}
@@ -658,7 +653,7 @@ export default function BroadcastComposer({ currentUser, userRole }) {
             Cancel
           </Button>
           <Button variant="contained" onClick={confirmTeachers} sx={{ borderRadius: 2, textTransform: 'none', fontWeight: 600 }}>
-            OK ({pendingTeachers.length} selected)
+            Select ({pendingTeachers.length})
           </Button>
         </DialogActions>
       </Dialog>

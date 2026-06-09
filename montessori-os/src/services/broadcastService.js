@@ -83,10 +83,16 @@ export async function listBroadcasts() {
   const q = query(
     collection(db, ALERTS_COL),
     where('type', '==', 'broadcast'),
-    orderBy('createdAt', 'desc'),
   );
   const snap = await getDocs(q);
-  return snap.docs.map(d => ({ id: d.id, ...d.data() }));
+  const docs = snap.docs.map(d => ({ id: d.id, ...d.data() }));
+  // Sort client-side to avoid requiring a composite index
+  docs.sort((a, b) => {
+    const ta = a.createdAt?.toMillis?.() || 0;
+    const tb = b.createdAt?.toMillis?.() || 0;
+    return tb - ta;
+  });
+  return docs;
 }
 
 /**
