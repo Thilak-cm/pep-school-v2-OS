@@ -31,6 +31,7 @@ import VersionBadge from './VersionBadge';
 import { trackEvent } from '../utils/analytics';
 import { isSuperAdmin, isAdminRole, isClassroomAdmin, getRoleLabel } from '../utils/roleUtils';
 import useNotify from '../notifications/useNotify';
+import NewFeaturePill from './NewFeaturePill';
 
 function SettingsPage({ user, userRole, classrooms = [], onNavigate, onSignOut }) {
   const [confirmOpen, setConfirmOpen] = useState(false);
@@ -224,7 +225,7 @@ function SettingsPage({ user, userRole, classrooms = [], onNavigate, onSignOut }
               <SettingsRow
                 icon={<Megaphone size={20} />}
                 iconColor="var(--color-violet)"
-                label="Broadcast Message"
+                label={<Box sx={{ display: 'inline-flex', alignItems: 'center', gap: 1 }}>Broadcast Message <NewFeaturePill /></Box>}
                 onClick={() => onNavigate('/broadcastComposer')}
               />
               <SettingsRow

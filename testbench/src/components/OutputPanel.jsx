@@ -86,6 +86,11 @@ function formatOutput(output, featureId) {
     }
   }
 
+  // Digest handled separately via iframe (see OutputPanel render)
+  if (featureId === "digest_generation") {
+    return null;
+  }
+
   return output;
 }
 
@@ -120,7 +125,41 @@ export default function OutputPanel({ output, loading, error, meta, featureId })
     );
   }
 
+  const isDigest = featureId === "digest_generation";
   const isProseOutput = featureId === "soul_generation" || featureId === "monthly_plan";
+
+  // Digest: render in an iframe for full style isolation (true email preview)
+  if (isDigest) {
+    const iframeSrc = `<!DOCTYPE html><html><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><style>body{margin:0;padding:16px;font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,sans-serif;background:#fff;color:#222;line-height:1.6}</style></head><body>${output}</body></html>`;
+    return (
+      <Box>
+        {meta && (
+          <Box sx={{ display: "flex", gap: 1, mb: 1, flexWrap: "wrap" }}>
+            {meta.model && <Chip label={meta.model} size="small" variant="outlined" />}
+            {meta.tokens && <Chip label={`${meta.tokens} tokens`} size="small" variant="outlined" />}
+            {meta.latencyMs && <Chip label={`${(meta.latencyMs / 1000).toFixed(1)}s`} size="small" variant="outlined" />}
+            {meta.toolCalls != null && <Chip label={`${meta.toolCalls} tool calls`} size="small" variant="outlined" />}
+            {meta.iterations != null && <Chip label={`${meta.iterations} iterations`} size="small" variant="outlined" />}
+          </Box>
+        )}
+        <Paper variant="outlined" sx={{ overflow: "hidden", borderRadius: 2 }}>
+          <iframe
+            srcDoc={iframeSrc}
+            title="Digest email preview"
+            sandbox="allow-same-origin"
+            style={{ width: "100%", minHeight: 500, border: "none", display: "block" }}
+            onLoad={(e) => {
+              // Auto-resize iframe to content height
+              try {
+                const h = e.target.contentDocument.body.scrollHeight;
+                e.target.style.height = `${h + 32}px`;
+              } catch { /* cross-origin fallback */ }
+            }}
+          />
+        </Paper>
+      </Box>
+    );
+  }
 
   return (
     <Box>

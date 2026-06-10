@@ -27,6 +27,13 @@ export const FEATURES = [
     configDoc: "monthly_plan",
     status: "active",
   },
+  {
+    id: "digest_generation",
+    label: "Digest Generation",
+    description: "Test weekly digest agent prompts against real classroom data with full agent loop and HTML email preview",
+    configDoc: "weekly_digest",
+    status: "active",
+  },
 ];
 
 export const ACTIVE_FEATURES = FEATURES.filter((f) => f.status === "active");

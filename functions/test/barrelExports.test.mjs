@@ -55,6 +55,10 @@ const EXPECTED_EXPORTS = [
   "cleanupExpiredAlerts",
   // Test Bench
   "testBenchRun",
+  // Weekly Digest (PEP-297)
+  "weeklyDigestClassroomAdmin",
+  "weeklyDigestSuperadmin",
+  "triggerDigestTest",
 ];
 
 describe("barrel file (functions/index.js)", () => {
