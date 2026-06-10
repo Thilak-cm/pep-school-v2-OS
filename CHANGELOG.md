@@ -1,5 +1,19 @@
 # Changelog
 
+# 10.36.0 — 2026-06-09
+
+### Added
+- Digest Generation feature in prompt test bench — full agent loop with 8 digest tools, HTML email preview, side-by-side variant comparison, and run history with classroom context (PEP-304)
+- Shared tool registry (`functions/shared/toolRegistry.js`) with scope permissions, prerequisite enforcement, and static frontend metadata mirror (`toolCatalog.js`) (PEP-304)
+- Role-scoped ClassroomPicker for testbench — teachers see assigned, classroomadmins see manageable, superadmins see all (PEP-304)
+- Tool checklist UI with scope-aware locking and prerequisite cascade disabling (PEP-304)
+- Prompt assembly pipeline accordion with visual flow for digest workbench (PEP-304)
+- Token usage tracking across agent loop iterations in `agentLoop.js` (PEP-304)
+
+### Changed
+- Superadmin Executive prompt type gated to superadmin role in both frontend toggle and Cloud Function (PEP-304)
+- `digest/tools.js` refactored to thin backward-compat shim re-exporting from shared registry (PEP-304)
+
 # 10.35.0 — 2026-06-09
 
 ### Added
