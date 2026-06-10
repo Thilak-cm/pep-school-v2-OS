@@ -1,7 +1,7 @@
 # Pep OS Overview
 
-Generated: 2026-06-09T17:51:19.320Z
-App version: 10.35.0
+Generated: 2026-06-10T00:34:21.129Z
+App version: 10.36.0
 
 ## App Snapshot
 
@@ -115,7 +115,7 @@ App version: 10.35.0
 
 ## Firestore/Data Surface
 
-- Core collections/signals: `users`, `branches`, `programs`, `classrooms`, `students`, `observations`, `media`, `ai_summaries`, `config`, `feedback`, `placements`, `chats`, `messages`, `access`, `alerts`, `history`, `interviews`, `monthly_plan_feedback`, `runs`, `statsCache`, `testbench`
+- Core collections/signals: `users`, `branches`, `programs`, `classrooms`, `students`, `observations`, `media`, `ai_summaries`, `config`, `feedback`, `placements`, `chats`, `messages`, `access`, `alerts`, `digests`, `history`, `interviews`, `monthly_plan_feedback`, `runs`, `statsCache`, `testbench`
 - Rule-declared paths:
 - `/{document=**}`
 - `/access/{uid}`
@@ -125,8 +125,10 @@ App version: 10.35.0
 - `/chats/{chatId}`
 - `/classrooms/{classroomId}`
 - `/config/{docId}`
+- `/digests/{digestId}`
 - `/feedback/{feedbackId}`
 - `/history/{historyId}`
+- `/history/{weekKey}`
 - `/interviews/{interviewId}`
 - `/media/{mediaId}`
 - `/messages/{messageId}`
@@ -142,8 +144,15 @@ App version: 10.35.0
 - `/{path=**}/ai_summaries/{summaryId}`
 - `/{path=**}/media/{mediaId}`
 - `/{path=**}/observations/{observationId}`
+- `/classrooms/_digest_all/digests/{digestId}`
+- `/classrooms/_digest_all/digests/{digestId}/history/{weekKey}`
 
 ## Recent Changes
+
+### 10.36.0 (2026-06-09)
+- Digest Generation feature in prompt test bench — full agent loop with 8 digest tools, HTML email preview, side-by-side variant comparison, and run history with classroom context (PEP-304)
+- Shared tool registry (`functions/shared/toolRegistry.js`) with scope permissions, prerequisite enforcement, and static frontend metadata mirror (`toolCatalog.js`) (PEP-304)
+- Role-scoped ClassroomPicker for testbench — teachers see assigned, classroomadmins see manageable, superadmins see all (PEP-304)
 
 ### 10.35.0 (2026-06-09)
 - Superadmin broadcast composer in Settings → Admin Tools — compose, edit, and manage broadcast alerts with label, title, message body, audience targeting, priority, DIP toggle, and expiry (PEP-307)
@@ -159,9 +168,4 @@ App version: 10.35.0
 - Firestore `alerts` collection as universal alert bus — any system (Cloud Functions, frontend, future agents) can write alert docs that surface in the Dynamic Island Pill (PEP-296)
 - DIP dual-source subscriber — merges weekly_snapshot red flags with realtime alerts collection into a single sorted carousel (PEP-296)
 - Transform-at-read display contract — `transformForDisplay()` maps alert type + payload into DIP display shape, evolves with frontend deploys without data migration (PEP-296)
-
-### 10.33.0 (2026-06-04)
-- Dynamic Island alert pill on Home page — rotating dark pill surfaces red-flagged students from weekly AI snapshots with iOS-style vertical carousel, swipe gestures, and dot indicators (PEP-213)
-- CTA navigation from pill to student dashboard with auto-opened flag popover on the weekly tab (PEP-213)
-- Role-aware data fetching — teachers see assigned classrooms, classroomadmins see manageable classrooms, superadmins see all (PEP-213)
 
