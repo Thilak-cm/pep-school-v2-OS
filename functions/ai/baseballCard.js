@@ -183,10 +183,15 @@ async function writeWeeklySnapshot(studentId, cardPayload, signalsPayload, archi
 
     // Batch run: clean slate for the new week
     merged.edits = [];
+    merged.regeneratedBy = null;
     batch.set(snapshotRef, merged);
     await batch.commit();
   } else {
-    // Manual regen: snapshot previous state into edits array
+    // Manual regen: snapshot previous state into edits array.
+    // TODO: concurrent regens for the same student can race — the second writer
+    // overwrites the first's edit entry. A Firestore transaction would fix this,
+    // but the window is small (requires two humans regenerating the same student
+    // within a 5-30s OpenAI call). Acceptable for now.
     const prev = existingSnapshot ?? (await snapshotRef.get().then((s) => s.exists ? s.data() : null));
     if (prev) {
       const editEntry = {
@@ -199,7 +204,8 @@ async function writeWeeklySnapshot(studentId, cardPayload, signalsPayload, archi
         generatedAt: prev.generatedAt ?? null,
         replacedAt: Timestamp.now(),
       };
-      merged.edits = [...(Array.isArray(prev.edits) ? prev.edits : []), editEntry];
+      const existingEdits = Array.isArray(prev.edits) ? prev.edits : [];
+      merged.edits = [...existingEdits.slice(-49), editEntry];
     } else {
       merged.edits = [];
     }
