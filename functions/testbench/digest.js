@@ -6,6 +6,7 @@
  * Does NOT send emails or write to production digest docs.
  */
 
+import { createLangfuse } from "../shared/langfuse.js";
 import { db } from "../shared/firebase.js";
 import { runAgentLoop } from "../shared/agentLoop.js";
 import {
@@ -106,6 +107,14 @@ export async function testBenchDigest({
   maxTokens,
   enabledTools,
 }) {
+  const langfuse = createLangfuse();
+  const trace = langfuse.trace({
+    name: "testbench-digest",
+    userId: "testbench",
+    tags: ["feature:digest", "source:testbench", `type:${promptType}`],
+    metadata: { classroomId, model, temperature },
+  });
+
   const config = await fetchDigestConfig();
   const tools = resolveTools(enabledTools, config);
   const toolDefs = getToolDefinitions(tools);
@@ -150,13 +159,16 @@ export async function testBenchDigest({
       tools: toolDefs,
       toolExecutor,
       model: { model, temperature, maxTokens },
+      trace,
     });
 
+    await langfuse.flushAsync();
     return {
       output: result.content,
       totalTokens: result.totalTokens || 0,
       toolCallLog: result.toolCallLog,
       iterations: result.iterations,
+      iterationTrace: result.iterationTrace || [],
     };
   }
 
@@ -184,12 +196,15 @@ export async function testBenchDigest({
     tools: toolDefs,
     toolExecutor,
     model: { model, temperature, maxTokens },
+    trace,
   });
 
+  await langfuse.flushAsync();
   return {
     output: result.content,
     totalTokens: result.totalTokens || 0,
     toolCallLog: result.toolCallLog,
     iterations: result.iterations,
+    iterationTrace: result.iterationTrace || [],
   };
 }

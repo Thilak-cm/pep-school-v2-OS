@@ -1,6 +1,10 @@
 import * as functions from "firebase-functions/v1";
+import { defineSecret } from "firebase-functions/params";
 import { db } from "../shared/firebase.js";
 import { OPENROUTER_API_KEY, getOpenRouterKey } from "../shared/openrouter.js";
+
+const LANGFUSE_SECRET_KEY = defineSecret("LANGFUSE_SECRET_KEY");
+const LANGFUSE_PUBLIC_KEY = defineSecret("LANGFUSE_PUBLIC_KEY");
 import { FRONTIER_MODEL } from "../config/modelConstants.js";
 import { getOpenRouterModelId, getModelSupportsJson } from "../config/testBenchModels.js";
 import { testBenchSoul } from "../students/soul.js";
@@ -16,7 +20,7 @@ import { testBenchDigest } from "./digest.js";
 
 export const testBenchRun = functions
   .region("asia-south1")
-  .runWith({ timeoutSeconds: 300, memory: "1GB", secrets: [OPENROUTER_API_KEY] })
+  .runWith({ timeoutSeconds: 300, memory: "1GB", secrets: [OPENROUTER_API_KEY, LANGFUSE_SECRET_KEY, LANGFUSE_PUBLIC_KEY] })
   .https.onCall(async (data, context) => {
     if (!context.auth) {
       throw new functions.https.HttpsError("unauthenticated", "User must be authenticated");

@@ -150,6 +150,7 @@ export default function DigestWorkbench() {
             latencyMs: Date.now() - start,
             toolCalls: result.data.toolCallLog?.length || 0,
             iterations: result.data.iterations || 0,
+            iterationTrace: result.data.iterationTrace || [],
           },
         };
       } catch (err) { return { idx, error: err.message || "Unknown error" }; }

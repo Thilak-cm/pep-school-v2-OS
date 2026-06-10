@@ -28,7 +28,7 @@ const LANGFUSE_PUBLIC_KEY = defineSecret("LANGFUSE_PUBLIC_KEY");
 import { runWithConcurrency } from "../shared/scheduling.js";
 import { runAgentLoop } from "../shared/agentLoop.js";
 import { DIGEST_TOOLS, ToolGatekeeper, createToolExecutor } from "./tools.js";
-import { Langfuse } from "langfuse";
+import { createLangfuse } from "../shared/langfuse.js";
 
 // ── Default system prompts ──────────────────────────────────────────
 
@@ -236,7 +236,7 @@ export const weeklyDigestClassroomAdmin = functions
   .pubsub.schedule("0 18 * * 0") // Sunday 6:00 PM IST
   .timeZone("Asia/Kolkata")
   .onRun(async () => {
-    const langfuse = new Langfuse();
+    const langfuse = createLangfuse();
     const weekKey = getWeekKey();
     const sessionId = `digest-${weekKey}`;
 
@@ -439,7 +439,7 @@ export const weeklyDigestSuperadmin = functions
   .pubsub.schedule("45 18 * * 0") // Sunday 6:45 PM IST (45 min after CF 1)
   .timeZone("Asia/Kolkata")
   .onRun(async () => {
-    const langfuse = new Langfuse();
+    const langfuse = createLangfuse();
     const weekKey = getWeekKey();
     const sessionId = `digest-${weekKey}`;
 
@@ -640,7 +640,7 @@ export const triggerDigestTest = functions
       config.testOverrideEmails = [callerSnap.data().email];
     }
 
-    const langfuse = new Langfuse();
+    const langfuse = createLangfuse();
     const weekKey = getWeekKey();
     const sessionId = `digest-test-${weekKey}-${Date.now()}`;
 

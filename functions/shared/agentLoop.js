@@ -40,11 +40,13 @@ export async function runAgentLoop({
   if (!apiKey) throw new Error("OPENROUTER_API_KEY not configured");
 
   const toolCallLog = [];
+  const iterationTrace = [];
   let iteration = 0;
   let totalTokens = 0;
 
   while (iteration < maxIterations) {
     iteration++;
+    const iterStart = Date.now();
 
     const body = buildChatBody({
       model: model.model,
@@ -95,12 +97,14 @@ export async function runAgentLoop({
       input: json?.usage?.prompt_tokens,
       output: json?.usage?.completion_tokens,
     };
-    totalTokens += (usage.input || 0) + (usage.output || 0);
+    const iterTokens = { input: usage.input || 0, output: usage.output || 0 };
+    totalTokens += iterTokens.input + iterTokens.output;
 
     // Check for tool calls
     if (choice.tool_calls && choice.tool_calls.length > 0) {
       generation?.end({ output: { toolCalls: choice.tool_calls.map((tc) => tc.function.name) }, usage });
 
+      const iterToolCalls = [];
       for (const tc of choice.tool_calls) {
         const fnName = tc.function.name;
         let fnArgs;
@@ -111,6 +115,7 @@ export async function runAgentLoop({
         }
 
         const toolSpan = trace?.span({ name: `tool-${fnName}`, input: fnArgs });
+        const toolStart = Date.now();
         let result;
         try {
           result = await toolExecutor(fnName, fnArgs);
@@ -121,6 +126,12 @@ export async function runAgentLoop({
         }
 
         toolCallLog.push({ name: fnName, args: fnArgs, result });
+        iterToolCalls.push({
+          name: fnName,
+          args: fnArgs,
+          resultSizeBytes: JSON.stringify(result).length,
+          durationMs: Date.now() - toolStart,
+        });
 
         messages.push({
           role: "tool",
@@ -128,6 +139,16 @@ export async function runAgentLoop({
           content: JSON.stringify(result),
         });
       }
+
+      iterationTrace.push({
+        iteration,
+        startedAt: iterStart,
+        durationMs: Date.now() - iterStart,
+        tokens: iterTokens,
+        reasoning: choice.content?.trim() || null,
+        toolCalls: iterToolCalls,
+        isFinal: false,
+      });
 
       continue; // Next iteration
     }
@@ -141,7 +162,17 @@ export async function runAgentLoop({
 
     generation?.end({ output: content, usage });
 
-    return { content, toolCallLog, iterations: iteration, totalTokens };
+    iterationTrace.push({
+      iteration,
+      startedAt: iterStart,
+      durationMs: Date.now() - iterStart,
+      tokens: iterTokens,
+      reasoning: null,
+      toolCalls: [],
+      isFinal: true,
+    });
+
+    return { content, toolCallLog, iterations: iteration, totalTokens, iterationTrace };
   }
 
   throw new Error(`Agent loop exceeded max iterations (${maxIterations})`);

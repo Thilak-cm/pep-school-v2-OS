@@ -5,9 +5,12 @@ import Paper from "@mui/material/Paper";
 import CircularProgress from "@mui/material/CircularProgress";
 import Chip from "@mui/material/Chip";
 import Collapse from "@mui/material/Collapse";
+import Tabs from "@mui/material/Tabs";
+import Tab from "@mui/material/Tab";
 import PsychologyIcon from "@mui/icons-material/Psychology";
 import ExpandMoreIcon from "@mui/icons-material/ExpandMore";
 import ReactMarkdown from "react-markdown";
+import AgentTracePanel from "./AgentTracePanel";
 
 function RationaleBlock({ rationale }) {
   const [open, setOpen] = useState(false);
@@ -95,6 +98,8 @@ function formatOutput(output, featureId) {
 }
 
 export default function OutputPanel({ output, loading, error, meta, featureId }) {
+  const [digestTab, setDigestTab] = useState(0);
+
   const rendered = useMemo(() => {
     if (!output) return null;
     return formatOutput(output, featureId);
@@ -128,9 +133,10 @@ export default function OutputPanel({ output, loading, error, meta, featureId })
   const isDigest = featureId === "digest_generation";
   const isProseOutput = featureId === "soul_generation" || featureId === "monthly_plan";
 
-  // Digest: render in an iframe for full style isolation (true email preview)
+  // Digest: tabbed view — Email Preview + Agent Trace
   if (isDigest) {
     const iframeSrc = `<!DOCTYPE html><html><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><style>body{margin:0;padding:16px;font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,sans-serif;background:#fff;color:#222;line-height:1.6}</style></head><body>${output}</body></html>`;
+    const hasTrace = meta?.iterationTrace?.length > 0;
     return (
       <Box>
         {meta && (
@@ -142,21 +148,36 @@ export default function OutputPanel({ output, loading, error, meta, featureId })
             {meta.iterations != null && <Chip label={`${meta.iterations} iterations`} size="small" variant="outlined" />}
           </Box>
         )}
-        <Paper variant="outlined" sx={{ overflow: "hidden", borderRadius: 2 }}>
-          <iframe
-            srcDoc={iframeSrc}
-            title="Digest email preview"
-            sandbox="allow-same-origin"
-            style={{ width: "100%", minHeight: 500, border: "none", display: "block" }}
-            onLoad={(e) => {
-              // Auto-resize iframe to content height
-              try {
-                const h = e.target.contentDocument.body.scrollHeight;
-                e.target.style.height = `${h + 32}px`;
-              } catch { /* cross-origin fallback */ }
-            }}
+        <Tabs
+          value={digestTab}
+          onChange={(_, v) => setDigestTab(v)}
+          sx={{ mb: 1, minHeight: 36, "& .MuiTab-root": { minHeight: 36, py: 0.5, textTransform: "none" } }}
+        >
+          <Tab label="Email Preview" />
+          <Tab
+            label={hasTrace ? `Agent Trace (${meta.iterationTrace.length})` : "Agent Trace"}
+            disabled={!hasTrace}
           />
-        </Paper>
+        </Tabs>
+        {digestTab === 0 && (
+          <Paper variant="outlined" sx={{ overflow: "hidden", borderRadius: 2 }}>
+            <iframe
+              srcDoc={iframeSrc}
+              title="Digest email preview"
+              sandbox="allow-same-origin"
+              style={{ width: "100%", minHeight: 500, border: "none", display: "block" }}
+              onLoad={(e) => {
+                try {
+                  const h = e.target.contentDocument.body.scrollHeight;
+                  e.target.style.height = `${h + 32}px`;
+                } catch { /* cross-origin fallback */ }
+              }}
+            />
+          </Paper>
+        )}
+        {digestTab === 1 && (
+          <AgentTracePanel trace={meta.iterationTrace} />
+        )}
       </Box>
     );
   }
