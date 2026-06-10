@@ -142,8 +142,10 @@ async function callBaseballCard(notes, config, prompt, windowDays, studentContex
  * @param {Object} cardPayload - Baseball card fields (summary, bullets, etc.)
  * @param {Object} signalsPayload - Signals fields (severity, redFlag, etc.)
  * @param {boolean} archiveHistory - If true, snapshot previous doc to history before overwrite
+ * @param {Object|null} requesterInfo - { uid, displayName, role } for manual regens, null for batch
+ * @param {Object|null} existingSnapshot - Pre-fetched existing doc data (from buildSignalsPayload) to avoid double-read
  */
-async function writeWeeklySnapshot(studentId, cardPayload, signalsPayload, archiveHistory = false) {
+async function writeWeeklySnapshot(studentId, cardPayload, signalsPayload, archiveHistory = false, requesterInfo = null, existingSnapshot = null) {
   const snapshotRef = db.collection("students").doc(studentId)
     .collection("ai_summaries").doc("weekly_snapshot");
 
@@ -166,23 +168,42 @@ async function writeWeeklySnapshot(studentId, cardPayload, signalsPayload, archi
 
   if (archiveHistory) {
     const now = Timestamp.now();
-    const existing = await snapshotRef.get();
+    const prev = existingSnapshot ?? (await snapshotRef.get().then((s) => s.exists ? s.data() : null));
 
     const batch = db.batch();
 
-    if (existing.exists) {
-      const prevData = existing.data();
-      const weekKey = prevData.weekKey || `migrated-${Date.now()}`;
+    if (prev) {
+      const weekKey = prev.weekKey || `migrated-${Date.now()}`;
       const historyRef = snapshotRef.collection("history").doc(weekKey);
       batch.set(historyRef, {
-        ...prevData,
+        ...prev,
         archivedAt: now,
       });
     }
 
+    // Batch run: clean slate for the new week
+    merged.edits = [];
     batch.set(snapshotRef, merged);
     await batch.commit();
   } else {
+    // Manual regen: snapshot previous state into edits array
+    const prev = existingSnapshot ?? (await snapshotRef.get().then((s) => s.exists ? s.data() : null));
+    if (prev) {
+      const editEntry = {
+        severity: prev.severity ?? null,
+        severityScore: prev.severityScore ?? null,
+        summary: prev.summary ?? "",
+        redFlag: prev.redFlag ?? { severity: null, reason: null },
+        coverageGaps: prev.coverageGaps ?? [],
+        regeneratedBy: prev.regeneratedBy ?? null,
+        generatedAt: prev.generatedAt ?? null,
+        replacedAt: Timestamp.now(),
+      };
+      merged.edits = [...(Array.isArray(prev.edits) ? prev.edits : []), editEntry];
+    } else {
+      merged.edits = [];
+    }
+    merged.regeneratedBy = requesterInfo;
     await snapshotRef.set(merged);
   }
 }
@@ -236,17 +257,20 @@ async function buildSignalsPayload(studentId, baseSignals) {
   improvedThisWeek = improvedThisWeek || (severityScore < prevSeverityScore);
 
   return {
-    ...baseSignals,
-    severity,
-    severityScore,
-    prevSeverity,
-    prevSeverityScore,
-    weekKey: currentWeekKey,
-    weekBaselineSeverity,
-    weekBaselineSeverityScore,
-    escalatedThisWeek,
-    improvedThisWeek,
-    lastUpdatedAt: Timestamp.now(),
+    signals: {
+      ...baseSignals,
+      severity,
+      severityScore,
+      prevSeverity,
+      prevSeverityScore,
+      weekKey: currentWeekKey,
+      weekBaselineSeverity,
+      weekBaselineSeverityScore,
+      escalatedThisWeek,
+      improvedThisWeek,
+      lastUpdatedAt: Timestamp.now(),
+    },
+    existingSnapshot: snap.exists ? existing : null,
   };
 }
 
@@ -259,6 +283,7 @@ async function runBaseballCards({
   collectResults = false,
   concurrency = 12,
   archiveHistory = false,
+  requesterInfo = null,
 }) {
   const ids = Array.isArray(studentIds) && studentIds.length ? studentIds : await fetchActiveStudentIds();
   if (!dryRun) {
@@ -288,7 +313,7 @@ async function runBaseballCards({
         if (dryRun && collectResults) {
           results.push({ studentId, status: "no_notes", payload });
         } else if (!dryRun) {
-          const signalsPayload = await buildSignalsPayload(studentId, {
+          const { signals, existingSnapshot } = await buildSignalsPayload(studentId, {
             redFlag: payload.redFlag,
             coverageGaps: payload.coverageGaps,
             noteCount: payload.noteCount,
@@ -300,7 +325,7 @@ async function runBaseballCards({
             status: payload.status,
             evidenceCount: payload.noteCount,
           });
-          await writeWeeklySnapshot(studentId, payload, signalsPayload, archiveHistory);
+          await writeWeeklySnapshot(studentId, payload, signals, archiveHistory, requesterInfo, existingSnapshot);
         }
         return;
       }
@@ -327,7 +352,7 @@ async function runBaseballCards({
       if (dryRun && collectResults) {
         results.push({ studentId, status: "ok", payload });
       } else if (!dryRun) {
-        const signalsPayload = await buildSignalsPayload(studentId, {
+        const { signals, existingSnapshot } = await buildSignalsPayload(studentId, {
           redFlag: aiResult.redFlag,
           coverageGaps: aiResult.coverageGaps,
           noteCount: payload.noteCount,
@@ -339,7 +364,7 @@ async function runBaseballCards({
           status: payload.status,
           evidenceCount: payload.noteCount,
         });
-        await writeWeeklySnapshot(studentId, payload, signalsPayload, archiveHistory);
+        await writeWeeklySnapshot(studentId, payload, signals, archiveHistory, requesterInfo, existingSnapshot);
       }
     } catch (err) {
       console.error(`[baseballCard] run failed for student ${studentId}`, err);
@@ -441,10 +466,17 @@ export const regenerateBaseballCardForStudent = functions
     }
 
     const requesterSnap = await db.collection("users").doc(context.auth.uid).get();
-    const requesterRole = requesterSnap.data()?.role;
+    const requesterData = requesterSnap.data() || {};
+    const requesterRole = requesterData.role;
     if (!requesterSnap.exists || !["superadmin", "classroomadmin", "teacher"].includes(requesterRole)) {
       throw new functions.https.HttpsError("permission-denied", "You do not have permission to regenerate baseball cards");
     }
+
+    const requesterInfo = {
+      uid: context.auth.uid,
+      displayName: requesterData.displayName || requesterData.name || null,
+      role: requesterRole,
+    };
 
     const openAiKey = getOpenAiKey();
     if (!openAiKey) {
@@ -478,6 +510,7 @@ export const regenerateBaseballCardForStudent = functions
       dryRun: false,
       collectResults: false,
       concurrency: 1,
+      requesterInfo,
     });
 
     // Patch heatmap cache with updated student data (PEP-303)
