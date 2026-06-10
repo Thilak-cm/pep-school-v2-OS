@@ -88,6 +88,9 @@ export const testBenchRun = functions
       if (promptType === "classroom" && !classroomId) {
         throw new functions.https.HttpsError("invalid-argument", "classroomId is required for classroom prompt type");
       }
+      if (promptType === "superadmin" && callerRole !== "superadmin") {
+        throw new functions.https.HttpsError("permission-denied", "Executive digest requires superadmin role");
+      }
       const enabledTools = Array.isArray(data?.enabledTools) ? data.enabledTools : null;
       return await testBenchDigest({ classroomId, promptType, systemPrompt, model: routerModel, temperature, maxTokens, enabledTools });
     }

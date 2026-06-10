@@ -89,8 +89,8 @@ function buildSuperadminUserMessage(digests, contextualNotes) {
  * enabledTools (from UI) is intersected with config.allowedTools (permissions).
  */
 function resolveTools(enabledTools, config) {
-  // If UI sent a specific list, intersect with what the agent is allowed
-  const requestedIds = Array.isArray(enabledTools) && enabledTools.length > 0
+  // null = use defaults (UI didn't send a list); array = explicit user selection (even if empty)
+  const requestedIds = enabledTools !== null
     ? enabledTools.filter((id) => config.allowedTools.includes(id))
     : config.allowedTools;
 

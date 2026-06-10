@@ -290,6 +290,8 @@ export function getToolDefinitions(tools) {
 
 /**
  * Create an executor function for the given tools, with prerequisite enforcement.
+ * Creates a fresh executor with its own prerequisite state — one per agent run.
+ * Do NOT reuse across separate runs (e.g., different classrooms).
  *
  * @param {Object[]} tools - Tool entries from getTools()
  * @returns {Function} async (name, args) => result

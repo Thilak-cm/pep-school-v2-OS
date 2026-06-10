@@ -29,12 +29,16 @@ import VariantColumn from "../VariantColumn.jsx";
 import RunHistory from "../RunHistory.jsx";
 import DigestConfig from "./DigestConfig.jsx";
 import DigestPromptPipeline from "../pipeline/DigestPromptPipeline.jsx";
+import { useAuth } from "../../contexts/AuthContext.js";
 import { createVariant, updateVariant as updateVariantHelper, hasUnsavedWork, SCROLL_AFTER } from "../../utils/variantHelpers.js";
 import { buildSavePayload, restoreVariantsFromRun } from "../../hooks/useRunPersistence.js";
+import { TOOL_CATALOG_META } from "../../../../functions/config/toolCatalog.js";
 
 const FEATURE_ID = "digest_generation";
+const ALL_DEFAULT_TOOLS = TOOL_CATALOG_META.map((t) => t.id);
 
 export default function DigestWorkbench() {
+  const { role } = useAuth();
   const [selectedClassroom, setSelectedClassroom] = useState(null);
   const [promptType, setPromptType] = useState("classroom");
   const [variants, setVariants] = useState([createVariant(null, 0), createVariant(null, 1)]);
@@ -46,11 +50,6 @@ export default function DigestWorkbench() {
   const [sessionName, setSessionName] = useState("");
 
   // Tool selection
-  const ALL_DEFAULT_TOOLS = [
-    "fetch_weekly_snapshot", "fetch_snapshot_history", "fetch_soul",
-    "fetch_monthly_plan", "fetch_writing_analysis", "fetch_interviews",
-    "fetch_observations", "fetch_media",
-  ];
   const [enabledTools, setEnabledTools] = useState(ALL_DEFAULT_TOOLS);
   const [allowedTools, setAllowedTools] = useState(ALL_DEFAULT_TOOLS);
   const [allowedScopes, setAllowedScopes] = useState(["student"]);
@@ -213,11 +212,11 @@ export default function DigestWorkbench() {
           size="small"
         >
           <ToggleButton value="classroom">Classroom Admin</ToggleButton>
-          <ToggleButton value="superadmin">Superadmin Executive</ToggleButton>
+          <ToggleButton value="superadmin" disabled={role !== "superadmin"}>Superadmin Executive</ToggleButton>
         </ToggleButtonGroup>
 
         {promptType === "classroom" && (
-          <ClassroomPicker onSelect={setSelectedClassroom} />
+          <ClassroomPicker value={selectedClassroom} onSelect={setSelectedClassroom} />
         )}
         {promptType === "superadmin" && (
           <Typography variant="body2" color="text.secondary" sx={{ alignSelf: "center" }}>

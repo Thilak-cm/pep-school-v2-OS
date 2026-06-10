@@ -26,7 +26,7 @@ const MAX_ITERATIONS = 15;
  * @param {Object}   opts.model        - { model, temperature, maxTokens }
  * @param {Object}   [opts.trace]      - Langfuse span for tracing (optional)
  * @param {number}   [opts.maxIterations] - Safety limit (default 15)
- * @returns {{ content: string, toolCallLog: Object[], iterations: number }}
+ * @returns {{ content: string, toolCallLog: Object[], iterations: number, totalTokens: number }}
  */
 export async function runAgentLoop({
   messages,
@@ -41,6 +41,7 @@ export async function runAgentLoop({
 
   const toolCallLog = [];
   let iteration = 0;
+  let totalTokens = 0;
 
   while (iteration < maxIterations) {
     iteration++;
@@ -94,6 +95,7 @@ export async function runAgentLoop({
       input: json?.usage?.prompt_tokens,
       output: json?.usage?.completion_tokens,
     };
+    totalTokens += (usage.input || 0) + (usage.output || 0);
 
     // Check for tool calls
     if (choice.tool_calls && choice.tool_calls.length > 0) {
@@ -139,7 +141,7 @@ export async function runAgentLoop({
 
     generation?.end({ output: content, usage });
 
-    return { content, toolCallLog, iterations: iteration };
+    return { content, toolCallLog, iterations: iteration, totalTokens };
   }
 
   throw new Error(`Agent loop exceeded max iterations (${maxIterations})`);
