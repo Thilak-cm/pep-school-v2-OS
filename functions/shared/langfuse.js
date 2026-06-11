@@ -1,6 +1,6 @@
 import { Langfuse } from "langfuse";
 
-const LANGFUSE_BASE_URL = "https://us.cloud.langfuse.com";
+const LANGFUSE_BASE_URL = process.env.LANGFUSE_BASE_URL || "https://us.cloud.langfuse.com";
 
 /**
  * Create a configured Langfuse client.

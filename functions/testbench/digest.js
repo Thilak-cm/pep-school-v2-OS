@@ -141,11 +141,13 @@ export async function testBenchDigest({
     }
 
     if (digests.length === 0) {
+      await langfuse.flushAsync();
       return {
         output: "<p>No classroom digests found. Run classroom digest generation first.</p>",
         totalTokens: 0,
         toolCallLog: [],
         iterations: 0,
+        iterationTrace: [],
       };
     }
 
@@ -160,6 +162,7 @@ export async function testBenchDigest({
       toolExecutor,
       model: { model, temperature, maxTokens },
       trace,
+      collectTrace: true,
     });
 
     await langfuse.flushAsync();
@@ -197,6 +200,7 @@ export async function testBenchDigest({
     toolExecutor,
     model: { model, temperature, maxTokens },
     trace,
+    collectTrace: true,
   });
 
   await langfuse.flushAsync();

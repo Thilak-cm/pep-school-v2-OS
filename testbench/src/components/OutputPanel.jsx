@@ -1,4 +1,4 @@
-import { useMemo, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import Box from "@mui/material/Box";
 import Typography from "@mui/material/Typography";
 import Paper from "@mui/material/Paper";
@@ -99,6 +99,9 @@ function formatOutput(output, featureId) {
 
 export default function OutputPanel({ output, loading, error, meta, featureId }) {
   const [digestTab, setDigestTab] = useState(0);
+
+  // Reset to Email Preview tab when a new run completes
+  useEffect(() => { setDigestTab(0); }, [output]);
 
   const rendered = useMemo(() => {
     if (!output) return null;

@@ -25,8 +25,9 @@ const MAX_ITERATIONS = 15;
  * @param {Function} opts.toolExecutor - async (name, args) => result
  * @param {Object}   opts.model        - { model, temperature, maxTokens }
  * @param {Object}   [opts.trace]      - Langfuse span for tracing (optional)
+ * @param {boolean}  [opts.collectTrace] - Build per-iteration trace data (default false)
  * @param {number}   [opts.maxIterations] - Safety limit (default 15)
- * @returns {{ content: string, toolCallLog: Object[], iterations: number, totalTokens: number }}
+ * @returns {{ content: string, toolCallLog: Object[], iterations: number, totalTokens: number, iterationTrace: Object[] }}
  */
 export async function runAgentLoop({
   messages,
@@ -34,19 +35,20 @@ export async function runAgentLoop({
   toolExecutor,
   model,
   trace,
+  collectTrace = false,
   maxIterations = MAX_ITERATIONS,
 }) {
   const apiKey = getOpenRouterKey();
   if (!apiKey) throw new Error("OPENROUTER_API_KEY not configured");
 
   const toolCallLog = [];
-  const iterationTrace = [];
+  const iterationTrace = collectTrace ? [] : null;
   let iteration = 0;
   let totalTokens = 0;
 
   while (iteration < maxIterations) {
     iteration++;
-    const iterStart = Date.now();
+    const iterStart = collectTrace ? Date.now() : 0;
 
     const body = buildChatBody({
       model: model.model,
@@ -104,7 +106,7 @@ export async function runAgentLoop({
     if (choice.tool_calls && choice.tool_calls.length > 0) {
       generation?.end({ output: { toolCalls: choice.tool_calls.map((tc) => tc.function.name) }, usage });
 
-      const iterToolCalls = [];
+      const iterToolCalls = collectTrace ? [] : null;
       for (const tc of choice.tool_calls) {
         const fnName = tc.function.name;
         let fnArgs;
@@ -115,7 +117,7 @@ export async function runAgentLoop({
         }
 
         const toolSpan = trace?.span({ name: `tool-${fnName}`, input: fnArgs });
-        const toolStart = Date.now();
+        const toolStart = collectTrace ? Date.now() : 0;
         let result;
         try {
           result = await toolExecutor(fnName, fnArgs);
@@ -126,12 +128,14 @@ export async function runAgentLoop({
         }
 
         toolCallLog.push({ name: fnName, args: fnArgs, result });
-        iterToolCalls.push({
-          name: fnName,
-          args: fnArgs,
-          resultSizeBytes: JSON.stringify(result).length,
-          durationMs: Date.now() - toolStart,
-        });
+        if (collectTrace) {
+          iterToolCalls.push({
+            name: fnName,
+            args: fnArgs,
+            resultSizeBytes: JSON.stringify(result).length,
+            durationMs: Date.now() - toolStart,
+          });
+        }
 
         messages.push({
           role: "tool",
@@ -140,15 +144,16 @@ export async function runAgentLoop({
         });
       }
 
-      iterationTrace.push({
-        iteration,
-        startedAt: iterStart,
-        durationMs: Date.now() - iterStart,
-        tokens: iterTokens,
-        reasoning: choice.content?.trim() || null,
-        toolCalls: iterToolCalls,
-        isFinal: false,
-      });
+      if (collectTrace) {
+        iterationTrace.push({
+          iteration,
+          durationMs: Date.now() - iterStart,
+          tokens: iterTokens,
+          reasoning: choice.content?.trim() || null,
+          toolCalls: iterToolCalls,
+          isFinal: false,
+        });
+      }
 
       continue; // Next iteration
     }
@@ -162,15 +167,16 @@ export async function runAgentLoop({
 
     generation?.end({ output: content, usage });
 
-    iterationTrace.push({
-      iteration,
-      startedAt: iterStart,
-      durationMs: Date.now() - iterStart,
-      tokens: iterTokens,
-      reasoning: null,
-      toolCalls: [],
-      isFinal: true,
-    });
+    if (collectTrace) {
+      iterationTrace.push({
+        iteration,
+        durationMs: Date.now() - iterStart,
+        tokens: iterTokens,
+        reasoning: null,
+        toolCalls: [],
+        isFinal: true,
+      });
+    }
 
     return { content, toolCallLog, iterations: iteration, totalTokens, iterationTrace };
   }
