@@ -107,8 +107,6 @@ export default function BroadcastCompose({
   const audienceSummary = getAudienceSummary(form.targetClassrooms, form.targetTeachers, classrooms);
   const reach = computeReach(form.targetClassrooms, form.targetTeachers, teachers, classrooms);
 
-  const canSubmit = form.title.trim() && form.message.trim() && form.expiresAt;
-
   // ── Expiry chip handler ────────────────────────────────────────────────
 
   const handleExpiryChip = (chipKey, chipValue) => {
@@ -165,7 +163,10 @@ export default function BroadcastCompose({
   };
 
   const handlePublish = () => {
-    if (!canSubmit) return;
+    // Validate required fields with specific toasts
+    if (!form.title.trim()) { notify.warning('Add a title for the broadcast'); return; }
+    if (!form.message.trim()) { notify.warning('Add a message body — teachers see this after tapping'); return; }
+    if (!form.expiresAt) { notify.warning('Pick an expiry date — broadcasts must have an end time'); return; }
 
     // Check for existing acks when editing
     if (isEditing) {
@@ -457,7 +458,7 @@ export default function BroadcastCompose({
           <Button
             variant="contained" fullWidth
             onClick={handlePublish}
-            disabled={!canSubmit || submitting}
+            disabled={submitting}
             startIcon={submitting ? <CircularProgress size={18} /> : <Send size={18} />}
             sx={{
               borderRadius: '11px', textTransform: 'none',
