@@ -200,10 +200,10 @@ describe('Heatmap card UI structure', () => {
     );
   });
 
-  it('renders "Others" placeholder section', () => {
+  it('renders Alerts section (replaced "Others" placeholder)', () => {
     assert.ok(
-      source.includes('More coming soon') || source.includes('more coming soon'),
-      'Missing Others placeholder'
+      source.includes('Alerts') && source.includes('alertDocs'),
+      'Should render Alerts section with realtime alert data'
     );
   });
 });

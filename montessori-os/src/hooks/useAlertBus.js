@@ -267,6 +267,8 @@ export function useAlertBus(classrooms = []) {
       if (data.dismissedBy && data.dismissedBy[uid]) continue;
       // expiresAt filtering (belt-and-suspenders with cleanup CF)
       if (data.expiresAt && data.expiresAt.toDate && data.expiresAt.toDate() < new Date()) continue;
+      // Skip scheduled broadcasts that haven't started yet
+      if (data.startsAt && data.startsAt.toDate && data.startsAt.toDate() > new Date()) continue;
 
       // Client-side targeting filter — empty arrays mean "all" (no filtering)
       if (Array.isArray(data.targetRoles) && data.targetRoles.length > 0) {

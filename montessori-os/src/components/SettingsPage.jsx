@@ -352,6 +352,7 @@ function SettingsRow({ icon, iconColor, label, labelColor, labelWeight, onClick 
         {icon}
       </Box>
       <Typography
+        component="span"
         sx={{
           flex: 1,
           fontWeight: labelWeight || 600,

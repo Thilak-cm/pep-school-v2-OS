@@ -997,6 +997,8 @@ interface AlertDoc {
   // Lifecycle
   dismissedBy: Record<string, Timestamp>;  // { [uid]: Timestamp } — per-user ack
   expiresAt: Timestamp | null;     // auto-hide after this time; cleanup CF deletes weekly
+  startsAt: Timestamp | null;      // schedule for later (null = publish immediately; DIP skips if startsAt > now)
+  reach: number;                   // resolved audience count at publish time (denominator for ack progress)
 }
 ```
 

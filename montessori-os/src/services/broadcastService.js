@@ -28,7 +28,7 @@ export const BROADCAST_PRIORITIES = [
  * @param {string} fields.label          - DIP top line (e.g., "FROM OFFICE")
  * @param {string} fields.title          - DIP main line
  * @param {string} [fields.subtitle]     - DIP below line (auto-generated if omitted)
- * @param {string} [fields.ctaLabel]     - CTA button text (default "Got it")
+ * @param {string} [fields.ctaLabel]     - CTA button text (default "Mark as read")
  * @param {string} fields.message        - Full message body shown in ack modal
  * @param {string} fields.senderName     - Displayed as labelDetail in DIP
  * @param {string} [fields.audience]     - Audience summary for subtitle fallback
@@ -38,6 +38,8 @@ export const BROADCAST_PRIORITIES = [
  * @param {string[]} [fields.targetClassrooms] - Classroom IDs (empty = all)
  * @param {string[]} [fields.targetTeachers]   - Teacher UIDs (empty = all)
  * @param {string[]} [fields.targetRoles]      - Roles (empty = all)
+ * @param {Date|import('firebase/firestore').Timestamp|null} [fields.startsAt] - Schedule for later (null = immediately)
+ * @param {number} [fields.reach]              - Resolved audience count at publish time
  * @returns {Promise<string>} The created doc ID
  */
 export async function createBroadcast(fields) {
@@ -57,7 +59,7 @@ export async function createBroadcast(fields) {
       label: fields.label,
       title: fields.title,
       subtitle: fields.subtitle || fields.audience || 'All staff',
-      ctaLabel: fields.ctaLabel || 'Got it',
+      ctaLabel: fields.ctaLabel || 'Mark as read',
       message: fields.message,
       senderName: fields.senderName,
       audience: fields.audience || 'All staff',
@@ -67,6 +69,8 @@ export async function createBroadcast(fields) {
     targetTeachers: fields.targetTeachers || [],
     dismissedBy: {},
     expiresAt: fields.expiresAt,
+    startsAt: fields.startsAt || null,
+    reach: fields.reach || 0,
     createdAt: serverTimestamp(),
     createdBy: uid,
   };
@@ -117,7 +121,7 @@ export async function updateBroadcast(alertId, fields) {
       label: rest.label,
       title: rest.title,
       subtitle: rest.subtitle || rest.audience || 'All staff',
-      ctaLabel: rest.ctaLabel || 'Got it',
+      ctaLabel: rest.ctaLabel || 'Mark as read',
       message: rest.message,
       senderName: rest.senderName,
       audience: rest.audience || 'All staff',
@@ -126,6 +130,8 @@ export async function updateBroadcast(alertId, fields) {
     targetClassrooms: rest.targetClassrooms || [],
     targetTeachers: rest.targetTeachers || [],
     expiresAt: rest.expiresAt,
+    ...(rest.startsAt !== undefined && { startsAt: rest.startsAt || null }),
+    ...(rest.reach !== undefined && { reach: rest.reach }),
   };
 
   if (resetDismissals) {

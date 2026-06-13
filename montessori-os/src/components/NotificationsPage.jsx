@@ -17,7 +17,7 @@ import {
 } from '@mui/material';
 import { Flag as FlagRounded, TriangleAlert as WarningIcon, RefreshCw as Refresh, CircleCheck as CheckCircle, Info as InfoOutlined, Search, ChevronRight, X as CloseIcon } from '../icons';
 import MiniTangram from './ui/MiniTangram';
-import { collectionGroup, collection, query, where, getDocs, doc, getDoc, documentId, Timestamp, orderBy, limit } from 'firebase/firestore';
+import { collectionGroup, collection, query, where, getDocs, doc, getDoc, documentId, Timestamp, orderBy, limit, onSnapshot } from 'firebase/firestore';
 import { httpsCallable } from 'firebase/functions';
 import { auth, db, cloudFunctions } from '../firebase';
 import { prepareNotificationsFeature } from '../utils/notificationsFeature';
@@ -28,6 +28,8 @@ import { reportCaughtError } from '../utils/reportCaughtError.js';
 import { friendlyFunctionError } from '../utils/cloudFunctionErrors';
 import { FLAG_SORT_ORDER, flagSortValue, severityToFlag } from '../utils/heatmapUtils.js';
 import { useHeatmapCache } from '../hooks/useHeatmapCache.js';
+import { transformForDisplay, ALERT_COLORS } from '../utils/alertTransforms';
+import { dismissAlert } from '../utils/alertService';
 
 // ── Week label helper ───────────────────────────────────────────────────────
 
@@ -226,7 +228,60 @@ function NotificationsPage() {
   const [showScrollFade, setShowScrollFade] = useState(false);
   const [studentDobMap, setStudentDobMap] = useState({});
 
+  // ── Alerts section state ─────────────────────────────────────────────────
+  const [alertDocs, setAlertDocs] = useState([]);
+
   useEffect(() => { prepareNotificationsFeature(); }, []);
+
+  // ── Realtime alerts subscription (all types, not just dip) ──────────────
+  useEffect(() => {
+    const uid = auth?.currentUser?.uid;
+    if (!uid || !accessLoaded) return;
+
+    const alertsQuery = query(collection(db, 'alerts'));
+    let cancelled = false;
+
+    const unsub = onSnapshot(alertsQuery, (snapshot) => {
+      if (cancelled) return;
+      const now = new Date();
+      const docs = [];
+      snapshot.forEach((d) => {
+        const data = { id: d.id, ...(d.data() || {}) };
+        // Hide expired
+        if (data.expiresAt && data.expiresAt.toDate && data.expiresAt.toDate() < now) return;
+        // Skip scheduled broadcasts not yet live
+        if (data.startsAt && data.startsAt.toDate && data.startsAt.toDate() > now) return;
+        // Apply same targeting as DIP
+        if (Array.isArray(data.targetRoles) && data.targetRoles.length > 0) {
+          if (!currentRole || !data.targetRoles.includes(currentRole)) return;
+        }
+        if (Array.isArray(data.targetClassrooms) && data.targetClassrooms.length > 0) {
+          if (currentRole !== 'superadmin' && (!accessibleClassrooms.length || !data.targetClassrooms.some(c => accessibleClassrooms.includes(c)))) return;
+        }
+        if (Array.isArray(data.targetTeachers) && data.targetTeachers.length > 0) {
+          if (!data.targetTeachers.includes(uid)) return;
+        }
+        docs.push(data);
+      });
+      // Sort by priority then createdAt desc
+      docs.sort((a, b) => {
+        const pa = a.priority ?? 99;
+        const pb = b.priority ?? 99;
+        if (pa !== pb) return pa - pb;
+        const ta = a.createdAt?.seconds || 0;
+        const tb = b.createdAt?.seconds || 0;
+        return tb - ta;
+      });
+      setAlertDocs(docs);
+    }, () => {
+      if (!cancelled) setAlertDocs([]);
+    });
+
+    return () => {
+      cancelled = true;
+      queueMicrotask(() => unsub());
+    };
+  }, [accessLoaded, currentRole, accessibleClassrooms]);
 
   // ── Load baseball card config ─────────────────────────────────────────────
 
@@ -1335,22 +1390,120 @@ function NotificationsPage() {
             </Box>
           </Box>
 
-          {/* ── Others section ──────────────────────────────────────────── */}
+          {/* ── Alerts section ──────────────────────────────────────────── */}
           <Box>
-            <Typography sx={{ fontFamily: 'inherit', fontSize: '16px', fontWeight: 700, color: 'var(--grey-900)', mb: 0.5 }}>
-              Others
+            <Typography sx={{ fontFamily: 'inherit', fontSize: '16px', fontWeight: 700, color: 'var(--grey-900)', mb: 1 }}>
+              Alerts
             </Typography>
-            <Box sx={{
-              backgroundColor: 'var(--color-bg)',
-              border: '1px dashed var(--color-border)',
-              borderRadius: '12px',
-              p: '22px 16px',
-              textAlign: 'center',
-            }}>
-              <Typography variant="body2" sx={{ color: 'var(--color-text-faint)' }}>
-                More coming soon
-              </Typography>
-            </Box>
+
+            {alertDocs.length === 0 ? (
+              <Box sx={{
+                backgroundColor: 'var(--color-bg)',
+                border: '1px dashed var(--color-border)',
+                borderRadius: '12px',
+                p: '22px 16px',
+                textAlign: 'center',
+              }}>
+                <Typography variant="body2" sx={{ color: 'var(--color-text-faint)' }}>
+                  All clear — no active alerts
+                </Typography>
+              </Box>
+            ) : (
+              <Box sx={{ display: 'flex', flexDirection: 'column', gap: 1 }}>
+                {alertDocs.map(alertDoc => {
+                  const uid = auth?.currentUser?.uid;
+                  const isDismissed = !!(uid && alertDoc.dismissedBy?.[uid]);
+                  const display = transformForDisplay({ id: alertDoc.id, ...alertDoc });
+                  const colorSet = ALERT_COLORS[display.colorKey] || ALERT_COLORS.system;
+                  const typeBadge = (alertDoc.type || 'alert').toUpperCase();
+                  const ackCount = alertDoc.dismissedBy ? Object.keys(alertDoc.dismissedBy).length : 0;
+                  const reach = alertDoc.reach || 0;
+                  const showAckBar = alertDoc.type === 'broadcast' && currentRole === 'superadmin' && reach > 0;
+
+                  return (
+                    <Box
+                      key={alertDoc.id}
+                      onClick={() => {
+                        // Broadcast CTA for teachers: show ack dialog (handled by DIP)
+                        // System/agent: dismiss on tap
+                        if (['system', 'agent'].includes(alertDoc.type) && alertDoc.id && !isDismissed) {
+                          dismissAlert(alertDoc.id);
+                        }
+                      }}
+                      sx={{
+                        p: 1.5, borderRadius: '12px',
+                        border: '1px solid var(--color-border)',
+                        backgroundColor: '#fff',
+                        opacity: isDismissed ? 0.6 : 1,
+                        cursor: ['system', 'agent'].includes(alertDoc.type) && !isDismissed ? 'pointer' : 'default',
+                        '&:active': ['system', 'agent'].includes(alertDoc.type) && !isDismissed ? { opacity: 0.85 } : {},
+                      }}
+                    >
+                      {/* Meta row */}
+                      <Box sx={{ display: 'flex', alignItems: 'center', gap: 0.75, mb: 0.5, flexWrap: 'wrap' }}>
+                        <Box sx={{
+                          display: 'inline-flex', px: 0.75, py: 0.15, borderRadius: '4px',
+                          fontSize: '0.55rem', fontWeight: 800, letterSpacing: 0.8,
+                          backgroundColor: `color-mix(in srgb, ${colorSet.label} 12%, transparent)`,
+                          color: colorSet.label,
+                        }}>
+                          {typeBadge}
+                        </Box>
+                        {isDismissed && (
+                          <CheckCircle size={13} style={{ color: 'var(--color-success, #16a34a)' }} />
+                        )}
+                        <Box sx={{ flex: 1 }} />
+                        {alertDoc.expiresAt && (
+                          <Typography sx={{ fontSize: '0.6rem', color: 'var(--color-text-faint)' }}>
+                            {(() => {
+                              const exp = alertDoc.expiresAt.toDate ? alertDoc.expiresAt.toDate() : new Date(alertDoc.expiresAt);
+                              const diffMs = exp - new Date();
+                              const days = Math.floor(diffMs / 86400000);
+                              const hours = Math.floor(diffMs / 3600000);
+                              if (days >= 2) return `ends in ${days}d`;
+                              if (hours >= 1) return `ends in ${hours}h`;
+                              return `ends soon`;
+                            })()}
+                          </Typography>
+                        )}
+                      </Box>
+
+                      {/* Title */}
+                      <Typography sx={{ fontSize: '0.85rem', fontWeight: 600, color: 'var(--color-text)', mb: 0.15 }}>
+                        {display.title}
+                      </Typography>
+
+                      {/* Subtitle */}
+                      {display.subtitle && (
+                        <Typography sx={{ fontSize: '0.72rem', color: 'var(--color-text-soft)', mb: showAckBar ? 0.75 : 0 }}>
+                          {display.subtitle}
+                        </Typography>
+                      )}
+
+                      {/* Ack progress bar (broadcasts, superadmin only) */}
+                      {showAckBar && (
+                        <Box sx={{ display: 'flex', alignItems: 'center', gap: 1, mt: 0.5 }}>
+                          <Box sx={{
+                            flex: 1, height: 4, borderRadius: '2px',
+                            backgroundColor: 'var(--color-surface, #eef0f4)',
+                            overflow: 'hidden',
+                          }}>
+                            <Box sx={{
+                              width: `${Math.min((ackCount / reach) * 100, 100)}%`,
+                              height: '100%', borderRadius: '2px',
+                              backgroundColor: ackCount >= reach ? 'var(--color-success, #16a34a)' : 'var(--color-primary)',
+                            }} />
+                          </Box>
+                          <Typography sx={{ fontSize: '0.6rem', fontWeight: 600, color: 'var(--color-text-soft)', whiteSpace: 'nowrap' }}>
+                            {ackCount}/{reach} read
+                          </Typography>
+                        </Box>
+                      )}
+                    </Box>
+                  );
+                })}
+              </Box>
+            )}
           </Box>
         </>
       )}
