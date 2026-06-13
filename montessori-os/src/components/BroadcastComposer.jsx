@@ -33,8 +33,10 @@ export default function BroadcastComposer({ currentUser, userRole }) {
     try {
       const list = await listBroadcasts();
       setBroadcasts(list);
+      return list;
     } catch {
       notify.error('Failed to load broadcasts');
+      return [];
     }
   }, [notify]);
 
@@ -92,10 +94,10 @@ export default function BroadcastComposer({ currentUser, userRole }) {
     setView(selectedBroadcast ? 'detail' : 'desk');
     setEditingBroadcast(null);
     if (didSave) {
-      await loadBroadcasts();
-      // If we came from detail, refresh the selected broadcast
+      const freshList = await loadBroadcasts();
+      // If we came from detail, refresh the selected broadcast from the same fetch
       if (selectedBroadcast) {
-        const updated = (await listBroadcasts()).find(b => b.id === selectedBroadcast.id);
+        const updated = freshList.find(b => b.id === selectedBroadcast.id);
         if (updated) setSelectedBroadcast(updated);
       }
     }
@@ -107,10 +109,10 @@ export default function BroadcastComposer({ currentUser, userRole }) {
   };
 
   const handleBroadcastChanged = async () => {
-    await loadBroadcasts();
-    // Refresh selected broadcast if still viewing detail
+    const freshList = await loadBroadcasts();
+    // Refresh selected broadcast from the same fetch
     if (selectedBroadcast) {
-      const updated = (await listBroadcasts()).find(b => b.id === selectedBroadcast.id);
+      const updated = freshList.find(b => b.id === selectedBroadcast.id);
       if (updated) setSelectedBroadcast(updated);
       else handleDetailClose(); // Broadcast was deleted
     }

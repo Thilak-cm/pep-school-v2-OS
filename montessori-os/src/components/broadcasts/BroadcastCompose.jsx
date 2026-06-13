@@ -1,7 +1,7 @@
 // BroadcastCompose.jsx — Compose modal for creating/editing broadcasts
 // MUI Dialog modal. Single scrollable column. Pinned footer.
 
-import React, { useState, useEffect, useMemo } from 'react';
+import React, { useState, useEffect } from 'react';
 import {
   Box, Typography, Button, Dialog, Switch, FormControlLabel,
   TextField, CircularProgress, DialogTitle, DialogContent, DialogActions,
@@ -66,7 +66,7 @@ export default function BroadcastCompose({
   const notify = useNotify();
 
   const isEditing = !!editingBroadcast;
-  const expiryChips = useMemo(() => getExpiryChips(), []);
+  const expiryChips = getExpiryChips();
 
   // ── Populate form for editing ──────────────────────────────────────────
 

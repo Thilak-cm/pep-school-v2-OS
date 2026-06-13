@@ -238,6 +238,9 @@ function NotificationsPage() {
     const uid = auth?.currentUser?.uid;
     if (!uid || !accessLoaded) return;
 
+    // Intentionally unscoped: Alerts page shows all types (not just dip=true like useAlertBus).
+    // Expired/targeting filters applied client-side. Acceptable while alerts collection is small
+    // (~50 docs, weekly cleanup CF). Add server-side filters if collection grows past ~200 docs.
     const alertsQuery = query(collection(db, 'alerts'));
     let cancelled = false;
 

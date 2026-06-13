@@ -127,3 +127,113 @@ describe('BroadcastComposer — broadcast admin screen (PEP-307 redesign)', () =
     assert.ok(source.includes('isSuperAdmin'), 'Should verify superadmin role');
   });
 });
+
+// ── Behavioral tests for broadcastUtils pure functions ──
+
+import {
+  classifyBroadcast, computeReach, relativeExpiry, getAudienceSummary,
+} from './broadcasts/broadcastUtils.js';
+
+describe('classifyBroadcast', () => {
+  const makeTs = (date) => ({ toDate: () => date });
+  const now = new Date();
+  const future = new Date(now.getTime() + 86400000);
+  const past = new Date(now.getTime() - 86400000);
+
+  it('returns "live" for broadcast with no startsAt and future expiresAt', () => {
+    assert.equal(classifyBroadcast({ expiresAt: makeTs(future) }), 'live');
+  });
+
+  it('returns "scheduled" for broadcast with future startsAt', () => {
+    assert.equal(classifyBroadcast({ startsAt: makeTs(future), expiresAt: makeTs(future) }), 'scheduled');
+  });
+
+  it('returns "done" for broadcast with past expiresAt', () => {
+    assert.equal(classifyBroadcast({ expiresAt: makeTs(past) }), 'done');
+  });
+
+  it('returns "live" for broadcast with no expiresAt', () => {
+    assert.equal(classifyBroadcast({}), 'live');
+  });
+
+  it('returns "live" for broadcast with past startsAt and future expiresAt', () => {
+    assert.equal(classifyBroadcast({ startsAt: makeTs(past), expiresAt: makeTs(future) }), 'live');
+  });
+});
+
+describe('computeReach', () => {
+  const classrooms = [
+    { id: 'c1', teacherIds: ['t1', 't2'] },
+    { id: 'c2', teacherIds: ['t3'] },
+  ];
+  const allTeachers = [{ id: 't1' }, { id: 't2' }, { id: 't3' }, { id: 't4' }];
+
+  it('returns all teachers when no targeting', () => {
+    assert.equal(computeReach([], [], allTeachers, classrooms), 4);
+  });
+
+  it('returns teachers in targeted classroom', () => {
+    assert.equal(computeReach(['c1'], [], allTeachers, classrooms), 2);
+  });
+
+  it('returns directly targeted teachers', () => {
+    assert.equal(computeReach([], ['t1', 't3'], allTeachers, classrooms), 2);
+  });
+
+  it('returns union of classroom + direct targeting', () => {
+    assert.equal(computeReach(['c1'], ['t3'], allTeachers, classrooms), 3);
+  });
+
+  it('returns 0 when classroom has no teacherIds', () => {
+    assert.equal(computeReach(['c1'], [], allTeachers, [{ id: 'c1', teacherIds: [] }]), 0);
+  });
+});
+
+describe('relativeExpiry', () => {
+  const makeTs = (offsetMs) => ({ toDate: () => new Date(Date.now() + offsetMs) });
+
+  it('shows minutes for sub-hour expiry', () => {
+    const result = relativeExpiry(makeTs(30 * 60000));
+    assert.ok(result.includes('m'), `Expected minutes, got: ${result}`);
+  });
+
+  it('shows hours for same-day expiry', () => {
+    const result = relativeExpiry(makeTs(5 * 3600000));
+    assert.ok(result.includes('h'), `Expected hours, got: ${result}`);
+  });
+
+  it('shows days for 1-day expiry', () => {
+    const result = relativeExpiry(makeTs(1.5 * 86400000));
+    assert.ok(result.includes('1d'), `Expected 1d, got: ${result}`);
+  });
+
+  it('shows days for multi-day expiry', () => {
+    const result = relativeExpiry(makeTs(3 * 86400000));
+    assert.ok(result.includes('3d'), `Expected 3d, got: ${result}`);
+  });
+
+  it('shows "ended" for past expiry', () => {
+    const result = relativeExpiry(makeTs(-2 * 86400000));
+    assert.ok(result.startsWith('ended'), `Expected "ended", got: ${result}`);
+  });
+});
+
+describe('getAudienceSummary', () => {
+  const classrooms = [{ id: 'c1', name: 'Elementary' }, { id: 'c2', name: 'Casa' }];
+
+  it('returns "All staff" when no targeting', () => {
+    assert.equal(getAudienceSummary([], [], classrooms), 'All staff');
+  });
+
+  it('returns classroom names when targeted', () => {
+    assert.equal(getAudienceSummary(['c1'], [], classrooms), 'Elementary');
+  });
+
+  it('returns teacher count when targeted', () => {
+    assert.equal(getAudienceSummary([], ['t1', 't2'], classrooms), '2 teachers');
+  });
+
+  it('returns combined summary', () => {
+    assert.equal(getAudienceSummary(['c1'], ['t1'], classrooms), 'Elementary + 1 teacher');
+  });
+});

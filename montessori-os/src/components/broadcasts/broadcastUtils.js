@@ -79,10 +79,8 @@ export function relativeExpiry(expiresAt) {
   let text;
   if (days > 6) {
     text = exp.toLocaleDateString('en-IN', { day: 'numeric', month: 'short' });
-  } else if (days >= 2) {
+  } else if (days >= 1) {
     text = `${days}d`;
-  } else if (days === 1) {
-    text = `${hours}h`;
   } else if (hours >= 1) {
     text = `${hours}h`;
   } else {
@@ -156,7 +154,7 @@ export function computeReach(targetClassrooms = [], targetTeachers = [], allTeac
     targetTeachers.forEach(id => reachSet.add(id));
   }
 
-  return reachSet.size || allTeachers.length;
+  return reachSet.size;
 }
 
 // ── Smart expiry chip defaults ─────────────────────────────────────────────────
