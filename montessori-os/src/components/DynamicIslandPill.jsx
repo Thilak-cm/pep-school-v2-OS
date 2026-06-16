@@ -6,7 +6,6 @@ import { Flag, Calendar, ShieldCheck, ChevronUp, ChevronDown } from '../icons';
 import { useAlertBus } from '../hooks/useAlertBus';
 import { dismissAlert } from '../utils/alertService';
 
-import NewFeaturePill from './NewFeaturePill';
 
 // ── Constants ──────────────────────────────────────────────────────────────────
 
@@ -230,7 +229,6 @@ function DynamicIslandPill({ onNavigateToStudent, onNavigate, classrooms = [] })
           <Typography variant="overline" sx={{ fontWeight: 700, color: 'var(--color-text)', letterSpacing: 1 }}>
             Quick alerts
           </Typography>
-          <NewFeaturePill />
         </Box>
         <Box sx={{
           display: 'flex', alignItems: 'center', justifyContent: 'center',
@@ -259,7 +257,6 @@ function DynamicIslandPill({ onNavigateToStudent, onNavigate, classrooms = [] })
           <Typography variant="overline" sx={{ fontWeight: 700, color: 'var(--color-text)', letterSpacing: 1 }}>
             Quick alerts
           </Typography>
-          <NewFeaturePill />
         </Box>
         <Typography sx={{ color: 'var(--color-text-soft)', fontSize: '0.85rem' }}>
           All clear this week
@@ -285,7 +282,6 @@ function DynamicIslandPill({ onNavigateToStudent, onNavigate, classrooms = [] })
         <Typography variant="overline" sx={{ fontWeight: 700, color: 'var(--color-text)', letterSpacing: 1 }}>
           Quick alerts
         </Typography>
-        <NewFeaturePill />
       </Box>
 
       <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
