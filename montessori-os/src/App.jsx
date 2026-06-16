@@ -17,6 +17,7 @@ import { isSuperAdmin } from './utils/roleUtils';
 import { normalizeClassroomId } from './utils/lessonNoteConstraints';
 import { clearNotificationsCache } from './components/NotificationsPage.jsx';
 import { initSaveQueue } from './services/saveQueue';
+import { CoachmarkProvider } from './coachmark/CoachmarkProvider';
 import { getPageTitle, getBackNavigation, FAB_HIDDEN_SCREENS, FOOTER_TAB_SCREENS, NO_BACK_BUTTON_SCREENS, NO_HEADER_SCREENS } from './screenConfig.js';
 import AppHeader, { HEADER_HEIGHT } from './AppHeader.jsx';
 import ScreenRenderer from './ScreenRenderer.jsx';
@@ -347,7 +348,8 @@ function App() {
           backgroundColor: 'var(--color-bg)', display: 'flex', flexDirection: 'column', position: 'relative', overflowX: 'hidden',
           '@media (min-width: 600px)': { borderRadius: '24px', boxShadow: '0 8px 32px rgba(0,0,0,0.12)' }
         }}>
-          <NotificationProvider>
+          <CoachmarkProvider>
+            <NotificationProvider>
             <NotificationStack />
             <SaveQueueNotificationBridge onNavigateToReport={handleNavigateToReport} />
 
@@ -416,7 +418,8 @@ function App() {
                 )}
               </>
             )}
-          </NotificationProvider>
+            </NotificationProvider>
+          </CoachmarkProvider>
         </Box>
       </Box>
     </>
