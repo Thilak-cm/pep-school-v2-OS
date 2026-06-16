@@ -96,15 +96,15 @@ export default function ConfigHomePage({ userRole, onOpenLessonNoteConfig, onOpe
         <CardActionArea onClick={onOpenDigestConfig} sx={{ p: 0 }}>
           <CardContent sx={{ p: 3 }}>
             <Box sx={{ display: 'flex', alignItems: 'center', gap: 2 }}>
-              <Avatar sx={{ bgcolor: 'var(--color-green)', width: 56, height: 56 }}>
+              <Avatar sx={{ bgcolor: 'var(--color-secondary)', width: 56, height: 56 }}>
                 <Calendar />
               </Avatar>
               <Box>
                 <Typography variant="h6" component="h3" sx={{ color: 'var(--color-text)', fontWeight: 600 }}>
-                  Weekly Digest
+                  School Context Notes
                 </Typography>
                 <Typography variant="body2" sx={{ color: 'var(--color-text-soft)', mt: 0.5 }}>
-                  Manage school contextual notes for the weekly digest AI
+                  Manage context notes the AI uses across weekly digests
                 </Typography>
               </Box>
             </Box>

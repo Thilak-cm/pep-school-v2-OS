@@ -16,7 +16,7 @@ import {
   DialogContentText,
   DialogActions,
 } from '@mui/material';
-import { Plus as Add, Trash2 as Delete, Save } from '../icons';
+import { Plus as Add, Trash2 as Delete, Save, Pencil, Check } from '../icons';
 import { doc, getDoc, updateDoc } from 'firebase/firestore';
 import { db } from '../firebase';
 import { isSuperAdmin } from '../utils/roleUtils';
@@ -36,6 +36,7 @@ export default function WeeklyDigestConfigEditor({ userRole }) {
   const [notes, setNotes] = useState([]);
   const [originalNotes, setOriginalNotes] = useState([]);
 
+  const [editingIndex, setEditingIndex] = useState(null);
   const [deleteDialog, setDeleteDialog] = useState({ open: false, index: null, text: '' });
 
   useEffect(() => {
@@ -69,7 +70,10 @@ export default function WeeklyDigestConfigEditor({ userRole }) {
   const isDirty = JSON.stringify(notes) !== JSON.stringify(originalNotes);
 
   const handleAdd = useCallback(() => {
-    setNotes((prev) => [...prev, '']);
+    setNotes((prev) => {
+      setEditingIndex(prev.length);
+      return [...prev, ''];
+    });
   }, []);
 
   const handleChange = useCallback((index, value) => {
@@ -127,7 +131,7 @@ export default function WeeklyDigestConfigEditor({ userRole }) {
       <Card sx={{ borderRadius: 2 }}>
         <CardContent sx={{ p: 3 }}>
           <Typography variant="h6" sx={{ fontWeight: 600, color: 'var(--color-text)', mb: 1 }}>
-            School Contextual Notes
+            School Context Notes
           </Typography>
           <Typography variant="body2" sx={{ color: 'var(--color-text-soft)', mb: 2 }}>
             These notes are injected into every weekly digest LLM call. Use them to flag non-teaching staff, school breaks, or other edge cases the AI should know about.
@@ -135,27 +139,64 @@ export default function WeeklyDigestConfigEditor({ userRole }) {
 
           <Stack spacing={1.5}>
             {notes.map((note, index) => (
-              <Box key={index} sx={{ display: 'flex', alignItems: 'flex-start', gap: 1 }}>
-                <TextField
-                  fullWidth
-                  multiline
-                  minRows={1}
-                  maxRows={4}
-                  size="small"
-                  value={note}
-                  onChange={(e) => handleChange(index, e.target.value)}
-                  placeholder="e.g. Diana Da is operations admin, not a teacher"
-                  sx={{ '& .MuiOutlinedInput-root': { borderRadius: 1.5 } }}
-                />
-                <IconButton
-                  size="small"
-                  color="error"
-                  onClick={() => setDeleteDialog({ open: true, index, text: note })}
-                  sx={{ mt: 0.5 }}
-                >
-                  <Delete size={18} />
-                </IconButton>
-              </Box>
+              <Card
+                key={index}
+                variant="outlined"
+                sx={{
+                  borderRadius: 2,
+                  bgcolor: 'var(--color-surface, #fafafa)',
+                }}
+              >
+                <CardContent sx={{ p: 2, '&:last-child': { pb: 2 }, display: 'flex', alignItems: 'flex-start', gap: 1 }}>
+                  {editingIndex === index ? (
+                    <>
+                      <TextField
+                        fullWidth
+                        multiline
+                        minRows={2}
+                        maxRows={6}
+                        size="small"
+                        autoFocus
+                        value={note}
+                        onChange={(e) => handleChange(index, e.target.value)}
+                        placeholder="e.g. Diana Da is operations admin, not a teacher"
+                        sx={{ '& .MuiOutlinedInput-root': { borderRadius: 1.5 } }}
+                      />
+                      <IconButton
+                        size="small"
+                        color="primary"
+                        onClick={() => setEditingIndex(null)}
+                        sx={{ mt: 0.5 }}
+                      >
+                        <Check size={18} />
+                      </IconButton>
+                    </>
+                  ) : (
+                    <>
+                      <Typography
+                        variant="body2"
+                        sx={{ flex: 1, color: 'var(--color-text)', lineHeight: 1.6, py: 0.5 }}
+                      >
+                        {note || <em style={{ color: 'var(--color-text-soft)' }}>Empty note</em>}
+                      </Typography>
+                      <IconButton
+                        size="small"
+                        onClick={() => setEditingIndex(index)}
+                        sx={{ color: 'var(--color-text-soft)' }}
+                      >
+                        <Pencil size={16} />
+                      </IconButton>
+                      <IconButton
+                        size="small"
+                        color="error"
+                        onClick={() => setDeleteDialog({ open: true, index, text: note })}
+                      >
+                        <Delete size={16} />
+                      </IconButton>
+                    </>
+                  )}
+                </CardContent>
+              </Card>
             ))}
 
             {notes.length === 0 && (

@@ -15,7 +15,7 @@ const STATIC_TITLES = {
   config: "Configurations",
   configLessonNotes: "Lesson Notes Config",
   configAiTools: "AI Tools",
-  configDigest: "Weekly Digest Config",
+  configDigest: "School Context Notes",
   bulkUpload: "Bulk Upload",
   baseballCardConfig: "Baseball Card Config",
   aiTextEditor: "Text Cleanup Editor",
