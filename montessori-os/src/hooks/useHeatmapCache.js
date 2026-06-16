@@ -9,6 +9,7 @@
  */
 
 import { useState, useEffect } from 'react';
+import { getIstIsoWeekKey } from '../utils/weekKey';
 import { fetchHeatmapDocs } from '../utils/heatmapFetch';
 
 /**
@@ -39,7 +40,11 @@ export function useHeatmapCache({ role, accessibleClassrooms, accessLoaded }) {
 
         if (cancelled) return;
 
-        setHeatmapDocs(docs);
+        // Freshness check: discard stale cache docs from a previous week
+        const currentWeekKey = getIstIsoWeekKey();
+        const freshDocs = docs.filter((d) => d.weekKey === currentWeekKey);
+
+        setHeatmapDocs(freshDocs);
       } catch (err) {
         if (!cancelled) setError(err?.message || 'Failed to load heatmap cache');
       } finally {
