@@ -4,6 +4,8 @@
 
 ### Added
 - School Context Notes editor on Configurations page — superadmins can add, edit, and delete contextual notes injected into weekly digest LLM calls (PEP-324)
+- Reusable coachmark system for feature discovery — floating tooltip with backdrop overlay, pulse animation, session and permanent dismiss, and guided tour scaffolding (PEP-322)
+- Plan feedback coachmark on StudentDashboard plan tab — guides teachers to the feedback chip on first visit (PEP-322)
 - NewFeaturePill badge on Broadcast Message in Settings and Dynamic Island Pill header
 
 ### Fixed
