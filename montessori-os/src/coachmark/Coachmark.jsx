@@ -1,4 +1,4 @@
-import React, { useEffect, useState } from 'react';
+import { useEffect, useState } from 'react';
 import { Box, Typography, Popover, IconButton, Portal } from '@mui/material';
 import { X as CloseIcon } from '../icons';
 import { useCoachmarkContext } from './CoachmarkProvider';
@@ -7,6 +7,7 @@ import { useCoachmarkContext } from './CoachmarkProvider';
  * Pulse animation keyframes — injected once via a <style> tag.
  * The @keyframes pulse-coachmark produces a subtle scale throb on the target.
  */
+// Intentionally global — injected once and never removed (matches app-level style pattern)
 const PULSE_STYLE_ID = 'coachmark-pulse-style';
 function ensurePulseStyle() {
   if (typeof document === 'undefined') return;
@@ -72,7 +73,7 @@ export default function Coachmark({
     // Small delay so the anchor is painted before we position
     const timer = setTimeout(() => setVisible(true), 300);
     return () => clearTimeout(timer);
-  }, [enabled, coachmarkKey, isDismissed, sessionDismissed, anchorRef]);
+  }, [enabled, coachmarkKey, isDismissed, sessionDismissed]); // anchorRef omitted — ref objects have stable identity
 
   // Track anchor element's bounding rect for the spotlight overlay
   const [anchorRect, setAnchorRect] = useState(null);
@@ -89,7 +90,7 @@ export default function Coachmark({
       window.removeEventListener('scroll', update, true);
       setAnchorRect(null);
     };
-  }, [visible, anchorRef]);
+  }, [visible]); // anchorRef omitted — ref objects have stable identity
 
   /** X button — hide for this page visit only (reappears on return). */
   const handleSessionDismiss = () => {
@@ -105,6 +106,8 @@ export default function Coachmark({
     onDismiss?.();
   };
 
+  // For tours, pass `advanceTour` from `useCoachmarkContext()` as the `onAdvance` prop.
+  // The Coachmark component does not auto-connect to the tour provider.
   const handleNext = () => {
     setVisible(false);
     onAdvance?.();
@@ -138,14 +141,7 @@ export default function Coachmark({
               animation: 'pulse-coachmark 2s infinite',
               pointerEvents: advanceMode === 'action' ? 'auto' : 'none',
             }}
-          >
-            {anchorRef.current && (() => {
-              const el = anchorRef.current;
-              const icon = el.querySelector('svg');
-              if (icon) return <Box component="span" sx={{ display: 'flex', color: el.style?.color || 'inherit' }} dangerouslySetInnerHTML={{ __html: icon.outerHTML }} />;
-              return null;
-            })()}
-          </Box>
+          />
         </Portal>
       )}
 
@@ -194,10 +190,12 @@ export default function Coachmark({
 
         {/* Step progress + advance controls */}
         <Box sx={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', mt: 1.5 }}>
-          {isTour ? (
-            <Typography sx={{ fontSize: '0.7rem', color: 'var(--color-text-softer, #999)', fontWeight: 600 }}>
-              Step {currentStep + 1} of {totalSteps}
-            </Typography>
+          {(isTour || advanceMode === 'action') ? (
+            isTour ? (
+              <Typography sx={{ fontSize: '0.7rem', color: 'var(--color-text-softer, #999)', fontWeight: 600 }}>
+                Step {currentStep + 1} of {totalSteps}
+              </Typography>
+            ) : <Box />
           ) : (
             <Typography
               component="button"

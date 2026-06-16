@@ -54,6 +54,7 @@ const CHIP_BASE = {
 };
 
 const PLAN_PROGRAMS = ['toddler', 'primary'];
+const PLAN_FEEDBACK_COACHMARK_KEY = 'plan_feedback_v1';
 
 const SNAPSHOT_TABS_WITH_PLAN = [
   { label: 'Plan', value: 'plan' },
@@ -115,7 +116,11 @@ function StudentDashboard({ student, onOpenTimeline, onOpenFeedback, onOpenChat,
   const [programResolved, setProgramResolved] = useState(false);
   const hasPlanTab = PLAN_PROGRAMS.includes(studentProgramId);
   const snapshotTabs = hasPlanTab ? SNAPSHOT_TABS_WITH_PLAN : SNAPSHOT_TABS_NO_PLAN;
-  const planFeedbackCoachmark = useCoachmark('plan_feedback_v1');
+  const planFeedbackCoachmark = useCoachmark(PLAN_FEEDBACK_COACHMARK_KEY);
+  const handlePlanFeedbackChipClick = () => {
+    if (!planFeedbackCoachmark.isDismissed) planFeedbackCoachmark.dismiss();
+    setPlanFeedbackOpen(true);
+  };
 
   // Auto-open flag popover when navigating from Dynamic Island pill (PEP-213)
   useEffect(() => {
@@ -862,7 +867,7 @@ function StudentDashboard({ student, onOpenTimeline, onOpenFeedback, onOpenChat,
                 <Box
                   ref={planFeedbackChipRef}
                   component="button"
-                  onClick={() => { planFeedbackCoachmark.dismiss(); setPlanFeedbackOpen(true); }}
+                  onClick={handlePlanFeedbackChipClick}
                   sx={{
                     ...CHIP_BASE,
                     width: 28,
@@ -882,12 +887,11 @@ function StudentDashboard({ student, onOpenTimeline, onOpenFeedback, onOpenChat,
             {/* Plan feedback coachmark — first-time discovery (PEP-322) */}
             {activeTab === 'plan' && planData && (
               <Coachmark
-                coachmarkKey="plan_feedback_v1"
+                coachmarkKey={PLAN_FEEDBACK_COACHMARK_KEY}
                 title="Latest feature!"
                 body="Tap here to rate this plan and help improve future ones"
                 anchorRef={planFeedbackChipRef}
                 placement="bottom"
-                onDismiss={() => {}}
                 enabled={!planFeedbackOpen}
               />
             )}

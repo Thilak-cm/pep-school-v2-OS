@@ -1,7 +1,9 @@
-import React, { createContext, useCallback, useContext, useMemo, useRef, useState } from 'react';
+import { createContext, useCallback, useContext, useMemo, useRef, useState } from 'react';
 
 const CoachmarkContext = createContext(null);
 
+// Persistence: localStorage only (no Firestore) — teachers primarily use one device.
+// Cross-device sync intentionally omitted to avoid Firestore rule complexity. (PEP-322)
 const STORAGE_KEY = 'pep-dismissed-coachmarks';
 
 function readDismissed() {
@@ -38,6 +40,8 @@ export function CoachmarkProvider({ children }) {
 
   /** Check if a coachmark key has been permanently dismissed. */
   const isDismissed = useCallback((key) => !!dismissedCoachmarks[key], [dismissedCoachmarks]);
+
+  // TODO: Tour orchestration scaffolding — no callers yet. Wire up when a guided tour issue lands.
 
   /**
    * Start a guided tour.
@@ -79,7 +83,6 @@ export function CoachmarkProvider({ children }) {
   const getTourRef = useCallback((stepKey) => tourRefsRef.current[stepKey] || null, []);
 
   const value = useMemo(() => ({
-    dismissedCoachmarks,
     dismissCoachmark,
     isDismissed,
     activeTour,
@@ -89,7 +92,7 @@ export function CoachmarkProvider({ children }) {
     cancelTour,
     registerTourRef,
     getTourRef,
-  }), [dismissedCoachmarks, dismissCoachmark, isDismissed, activeTour, currentStep, startTour, advanceTour, cancelTour, registerTourRef, getTourRef]);
+  }), [dismissCoachmark, isDismissed, activeTour, currentStep, startTour, advanceTour, cancelTour, registerTourRef, getTourRef]);
 
   return (
     <CoachmarkContext.Provider value={value}>

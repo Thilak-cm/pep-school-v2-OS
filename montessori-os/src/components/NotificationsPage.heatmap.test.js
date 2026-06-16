@@ -179,6 +179,14 @@ describe('Heatmap card UI structure', () => {
     assert.ok(source.includes('weekKeyToLabel'), 'Should use weekKeyToLabel for past week labels');
   });
 
+  it('WEEK_LABELS ternary maps last element to NOW and others to weekKeyToLabel', () => {
+    // Verify the exact mapping pattern: last entry → 'NOW', others → weekKeyToLabel(key)
+    assert.ok(
+      /idx\s*===\s*arr\.length\s*-\s*1\s*\?\s*'NOW'\s*:\s*weekKeyToLabel\(key\)/.test(source),
+      'WEEK_LABELS should use ternary: last index → "NOW", others → weekKeyToLabel(key)'
+    );
+  });
+
   it('renders legend with four labels', () => {
     assert.ok(source.includes("'Clear'"), 'Missing Clear legend');
     assert.ok(source.includes("'Low'"), 'Missing Low legend');

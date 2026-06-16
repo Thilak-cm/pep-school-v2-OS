@@ -349,7 +349,7 @@ function App() {
           '@media (min-width: 600px)': { borderRadius: '24px', boxShadow: '0 8px 32px rgba(0,0,0,0.12)' }
         }}>
           <CoachmarkProvider>
-          <NotificationProvider>
+            <NotificationProvider>
             <NotificationStack />
             <SaveQueueNotificationBridge onNavigateToReport={handleNavigateToReport} />
 
@@ -418,7 +418,7 @@ function App() {
                 )}
               </>
             )}
-          </NotificationProvider>
+            </NotificationProvider>
           </CoachmarkProvider>
         </Box>
       </Box>
