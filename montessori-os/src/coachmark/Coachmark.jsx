@@ -1,5 +1,5 @@
 import React, { useEffect, useRef, useState } from 'react';
-import { Box, Typography, Popover, IconButton } from '@mui/material';
+import { Box, Typography, Popover, IconButton, Portal } from '@mui/material';
 import { X as CloseIcon } from '../icons';
 import { useCoachmarkContext } from './CoachmarkProvider';
 
@@ -74,19 +74,20 @@ export default function Coachmark({
     return () => clearTimeout(timer);
   }, [enabled, coachmarkKey, isDismissed, anchorRef]);
 
-  // Apply pulse animation to anchor element
+  // Track anchor element's bounding rect for the spotlight overlay
+  const [anchorRect, setAnchorRect] = useState(null);
   useEffect(() => {
     const el = anchorRef?.current;
-    if (!el || !visible) return;
+    if (!el || !visible) { setAnchorRect(null); return; }
     ensurePulseStyle();
-    el.style.animation = 'pulse-coachmark 2s infinite';
-    el.style.position = el.style.position || 'relative';
-    el.style.zIndex = '1301';
-    pulseApplied.current = true;
+    const update = () => setAnchorRect(el.getBoundingClientRect());
+    update();
+    window.addEventListener('resize', update);
+    window.addEventListener('scroll', update, true);
     return () => {
-      el.style.animation = '';
-      el.style.zIndex = '';
-      pulseApplied.current = false;
+      window.removeEventListener('resize', update);
+      window.removeEventListener('scroll', update, true);
+      setAnchorRect(null);
     };
   }, [visible, anchorRef]);
 
@@ -108,6 +109,38 @@ export default function Coachmark({
 
   return (
     <>
+      {/* Spotlight: clone of anchor element rendered above the backdrop via Portal */}
+      {anchorRect && (
+        <Portal>
+          <Box
+            className="coachmark-spotlight"
+            onClick={advanceMode === 'action' ? handleDismiss : undefined}
+            sx={{
+              position: 'fixed',
+              top: anchorRect.top,
+              left: anchorRect.left,
+              width: anchorRect.width,
+              height: anchorRect.height,
+              zIndex: 1301,
+              borderRadius: '14px',
+              backgroundColor: 'var(--color-bg, #fff)',
+              display: 'flex',
+              alignItems: 'center',
+              justifyContent: 'center',
+              animation: 'pulse-coachmark 2s infinite',
+              pointerEvents: advanceMode === 'action' ? 'auto' : 'none',
+            }}
+          >
+            {anchorRef.current && (() => {
+              const el = anchorRef.current;
+              const icon = el.querySelector('svg');
+              if (icon) return <Box component="span" sx={{ display: 'flex', color: el.style?.color || 'inherit' }} dangerouslySetInnerHTML={{ __html: icon.outerHTML }} />;
+              return null;
+            })()}
+          </Box>
+        </Portal>
+      )}
+
       <Popover
         open
         anchorEl={anchorRef.current}
