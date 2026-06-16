@@ -81,11 +81,21 @@ export default function Coachmark({
     const el = anchorRef?.current;
     if (!el || !visible) { setAnchorRect(null); return; }
     ensurePulseStyle();
+    // Elevate the actual anchor element above the backdrop so its content is visible
+    const prevZIndex = el.style.zIndex;
+    const prevPosition = el.style.position;
+    const prevColor = el.style.color;
+    el.style.zIndex = '1302';
+    el.style.position = 'relative';
+    el.style.color = '#000';
     const update = () => setAnchorRect(el.getBoundingClientRect());
     update();
     window.addEventListener('resize', update);
     window.addEventListener('scroll', update, true);
     return () => {
+      el.style.zIndex = prevZIndex;
+      el.style.position = prevPosition;
+      el.style.color = prevColor;
       window.removeEventListener('resize', update);
       window.removeEventListener('scroll', update, true);
       setAnchorRect(null);
