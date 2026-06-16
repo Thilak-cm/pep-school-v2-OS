@@ -92,7 +92,7 @@ service cloud.firestore {
         (isSelf() && resource.data.role in ['teacher', 'classroomadmin'] &&
           request.resource.data.role == resource.data.role &&
           request.resource.data.diff(resource.data).affectedKeys().hasOnly([
-            'displayName', 'photoURL', 'status', 'lastLoginAt', 'updatedAt', 'studentAliases', 'fcmToken', 'notificationPreferences', 'dismissedCoachmarks'
+            'displayName', 'photoURL', 'status', 'lastLoginAt', 'updatedAt', 'studentAliases', 'fcmToken', 'notificationPreferences'
           ]));
 
       allow delete: if isSuperAdmin() || (isClassroomAdmin() && resource.data.role == 'teacher');

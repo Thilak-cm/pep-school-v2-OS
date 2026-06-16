@@ -1,4 +1,4 @@
-import React, { useEffect, useRef, useState } from 'react';
+import React, { useEffect, useState } from 'react';
 import { Box, Typography, Popover, IconButton, Portal } from '@mui/material';
 import { X as CloseIcon } from '../icons';
 import { useCoachmarkContext } from './CoachmarkProvider';
@@ -61,18 +61,18 @@ export default function Coachmark({
 }) {
   const { isDismissed, dismissCoachmark } = useCoachmarkContext();
   const [visible, setVisible] = useState(false);
-  const pulseApplied = useRef(false);
+  const [sessionDismissed, setSessionDismissed] = useState(false);
 
-  // Show coachmark once anchor is mounted and key not dismissed
+  // Show coachmark once anchor is mounted, key not permanently dismissed, and not session-dismissed
   useEffect(() => {
-    if (!enabled || isDismissed(coachmarkKey) || !anchorRef?.current) {
+    if (!enabled || isDismissed(coachmarkKey) || sessionDismissed || !anchorRef?.current) {
       setVisible(false);
       return;
     }
     // Small delay so the anchor is painted before we position
     const timer = setTimeout(() => setVisible(true), 300);
     return () => clearTimeout(timer);
-  }, [enabled, coachmarkKey, isDismissed, anchorRef]);
+  }, [enabled, coachmarkKey, isDismissed, sessionDismissed, anchorRef]);
 
   // Track anchor element's bounding rect for the spotlight overlay
   const [anchorRect, setAnchorRect] = useState(null);
@@ -91,7 +91,15 @@ export default function Coachmark({
     };
   }, [visible, anchorRef]);
 
-  const handleDismiss = () => {
+  /** X button — hide for this page visit only (reappears on return). */
+  const handleSessionDismiss = () => {
+    setSessionDismissed(true);
+    setVisible(false);
+    onDismiss?.();
+  };
+
+  /** "Never show again" — persist to localStorage permanently. */
+  const handlePermanentDismiss = () => {
     setVisible(false);
     dismissCoachmark(coachmarkKey);
     onDismiss?.();
@@ -114,7 +122,7 @@ export default function Coachmark({
         <Portal>
           <Box
             className="coachmark-spotlight"
-            onClick={advanceMode === 'action' ? handleDismiss : undefined}
+            onClick={advanceMode === 'action' ? handleSessionDismiss : undefined}
             sx={{
               position: 'fixed',
               top: anchorRect.top,
@@ -146,7 +154,7 @@ export default function Coachmark({
         anchorEl={anchorRef.current}
         anchorOrigin={placementConfig.anchorOrigin}
         transformOrigin={placementConfig.transformOrigin}
-        onClose={advanceMode !== 'action' ? handleDismiss : undefined}
+        onClose={advanceMode !== 'action' ? handleSessionDismiss : undefined}
         disableAutoFocus
         disableEnforceFocus
         slotProps={{
@@ -179,7 +187,7 @@ export default function Coachmark({
               </Typography>
             )}
           </Box>
-          <IconButton size="small" onClick={handleDismiss} sx={{ mt: -0.5, mr: -0.5 }}>
+          <IconButton size="small" onClick={handleSessionDismiss} sx={{ mt: -0.5, mr: -0.5 }}>
             <CloseIcon size={16} />
           </IconButton>
         </Box>
@@ -191,7 +199,22 @@ export default function Coachmark({
               Step {currentStep + 1} of {totalSteps}
             </Typography>
           ) : (
-            <span />
+            <Typography
+              component="button"
+              onClick={handlePermanentDismiss}
+              sx={{
+                background: 'none',
+                border: 'none',
+                padding: 0,
+                fontSize: '0.7rem',
+                color: 'var(--color-text-softer, #999)',
+                cursor: 'pointer',
+                textDecoration: 'underline',
+                '&:hover': { color: 'var(--color-text-soft)' },
+              }}
+            >
+              Never show again
+            </Typography>
           )}
 
           {advanceMode === 'next' && (

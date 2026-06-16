@@ -1,38 +1,42 @@
 import React, { createContext, useCallback, useContext, useMemo, useRef, useState } from 'react';
-import { doc, updateDoc, Timestamp } from 'firebase/firestore';
-import { db } from '../firebase';
 
 const CoachmarkContext = createContext(null);
 
+const STORAGE_KEY = 'pep-dismissed-coachmarks';
+
+function readDismissed() {
+  try {
+    const raw = localStorage.getItem(STORAGE_KEY);
+    return raw ? JSON.parse(raw) : {};
+  } catch { return {}; }
+}
+
+function writeDismissed(map) {
+  try { localStorage.setItem(STORAGE_KEY, JSON.stringify(map)); } catch { /* best-effort */ }
+}
+
 /**
  * App-level provider for coachmark state — dismissed keys and active tour.
- *
- * Props:
- *  - uid: current user's Firebase uid (required for Firestore writes)
- *  - initialDismissed: map of coachmarkKey → Timestamp from user doc (loaded on login)
- *  - children
+ * Permanent dismissals stored in localStorage (no Firestore dependency).
  */
-export function CoachmarkProvider({ uid, initialDismissed = {}, children }) {
-  const [dismissedCoachmarks, setDismissedCoachmarks] = useState(initialDismissed);
+export function CoachmarkProvider({ children }) {
+  const [dismissedCoachmarks, setDismissedCoachmarks] = useState(readDismissed);
 
   // ── Tour state ──
   const [activeTour, setActiveTour] = useState(null);   // { id, steps: [...] }
   const [currentStep, setCurrentStep] = useState(0);
   const tourRefsRef = useRef({});  // stepKey → ref, registered by Coachmark components
 
-  /** Persist a single coachmark key as dismissed to Firestore + local state. */
-  const dismissCoachmark = useCallback(async (key) => {
-    const ts = Timestamp.now();
-    setDismissedCoachmarks((prev) => ({ ...prev, [key]: ts }));
-    if (uid) {
-      try {
-        const userRef = doc(db, 'users', uid);
-        await updateDoc(userRef, { [`dismissedCoachmarks.${key}`]: ts });
-      } catch (_err) { /* best-effort — local state already updated */ }
-    }
-  }, [uid]);
+  /** Permanently dismiss a coachmark key (persisted to localStorage). */
+  const dismissCoachmark = useCallback((key) => {
+    setDismissedCoachmarks((prev) => {
+      const next = { ...prev, [key]: Date.now() };
+      writeDismissed(next);
+      return next;
+    });
+  }, []);
 
-  /** Check if a coachmark key has been dismissed. */
+  /** Check if a coachmark key has been permanently dismissed. */
   const isDismissed = useCallback((key) => !!dismissedCoachmarks[key], [dismissedCoachmarks]);
 
   /**

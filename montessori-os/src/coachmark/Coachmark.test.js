@@ -13,7 +13,7 @@ const componentPath = new URL('./Coachmark.jsx', import.meta.url);
 const hookPath = new URL('./useCoachmark.js', import.meta.url);
 const dashboardPath = new URL('../components/StudentDashboard.jsx', import.meta.url);
 const appPath = new URL('../App.jsx', import.meta.url);
-const rulesPath = new URL('../../../firestore.rules', import.meta.url);
+
 
 // ── CoachmarkProvider ──
 
@@ -54,11 +54,11 @@ describe('CoachmarkProvider (PEP-322)', () => {
     );
   });
 
-  it('writes to Firestore dismissedCoachmarks field on dismiss', async () => {
+  it('persists dismissed state to localStorage', async () => {
     const src = await readFile(providerPath, 'utf8');
     assert.ok(
-      /dismissedCoachmarks/.test(src) && /updateDoc|setDoc/.test(src),
-      'Should write dismissedCoachmarks to Firestore on dismiss',
+      /localStorage/.test(src),
+      'Should use localStorage for persistence',
     );
   });
 
@@ -186,14 +186,6 @@ describe('App.jsx CoachmarkProvider integration (PEP-322)', () => {
       'App.jsx should render <CoachmarkProvider>',
     );
   });
-
-  it('reads dismissedCoachmarks from user doc', async () => {
-    const src = await readFile(appPath, 'utf8');
-    assert.ok(
-      /dismissedCoachmarks/.test(src),
-      'App.jsx should read dismissedCoachmarks from user doc',
-    );
-  });
 });
 
 // ── StudentDashboard plan feedback coachmark ──
@@ -224,14 +216,22 @@ describe('StudentDashboard plan feedback coachmark (PEP-322)', () => {
   });
 });
 
-// ── Firestore rules ──
+// ── Session vs permanent dismiss ──
 
-describe('Firestore rules dismissedCoachmarks allowlist (PEP-322)', () => {
-  it('includes dismissedCoachmarks in self-update allowlist', async () => {
-    const src = await readFile(rulesPath, 'utf8');
+describe('Coachmark session vs permanent dismiss (PEP-322)', () => {
+  it('has sessionDismissed local state for per-visit dismiss', async () => {
+    const src = await readFile(componentPath, 'utf8');
     assert.ok(
-      /dismissedCoachmarks/.test(src),
-      'firestore.rules should include dismissedCoachmarks in self-update allowlist',
+      /sessionDismissed/.test(src),
+      'Should have sessionDismissed state for per-visit dismiss',
+    );
+  });
+
+  it('has a "Never show again" permanent dismiss option', async () => {
+    const src = await readFile(componentPath, 'utf8');
+    assert.ok(
+      /Never show again/.test(src),
+      'Should render a "Never show again" button',
     );
   });
 });
