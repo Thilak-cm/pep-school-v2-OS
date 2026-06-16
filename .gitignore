@@ -107,3 +107,6 @@ prd.md
 
 # Generated HTML artifacts (skill outputs)
 .claude/artifacts/
+
+# Personal principles scratch (local only)
+principles.local.md
