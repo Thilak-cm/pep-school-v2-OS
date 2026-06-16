@@ -16,11 +16,18 @@
  *   node scripts/admin/backfill-monthly-plans.mjs --classroom lily --apply --month 2026-07
  */
 import admin from "firebase-admin";
-import { google } from "googleapis";
+import { createRequire } from "module";
+import { fileURLToPath } from "url";
+import { dirname, resolve } from "path";
+const require = createRequire(new URL("../../functions/package.json", import.meta.url));
+const { google } = require("googleapis");
+
+const __dirname = dirname(fileURLToPath(import.meta.url));
+const SA_KEY_PATH = resolve(__dirname, "../../firebase-service-account.json");
 
 if (!admin.apps.length) {
   admin.initializeApp({
-    credential: admin.credential.applicationDefault(),
+    credential: admin.credential.cert(SA_KEY_PATH),
     projectId: "pep-os",
   });
 }
@@ -84,6 +91,7 @@ function capitalize(str) {
 
 async function getDriveClient() {
   const auth = new google.auth.GoogleAuth({
+    keyFile: SA_KEY_PATH,
     scopes: ["https://www.googleapis.com/auth/drive"],
   });
   return google.drive({ version: "v3", auth });

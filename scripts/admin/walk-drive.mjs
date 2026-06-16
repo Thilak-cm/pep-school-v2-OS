@@ -7,8 +7,14 @@
  *   node scripts/admin/walk-drive.mjs --depth 2          # limit depth
  *   node scripts/admin/walk-drive.mjs --dates            # show created dates
  */
-import { google } from "googleapis";
+import { createRequire } from "module";
+import { fileURLToPath } from "url";
+import { dirname, resolve } from "path";
+const require = createRequire(new URL("../../functions/package.json", import.meta.url));
+const { google } = require("googleapis");
 
+const __dirname = dirname(fileURLToPath(import.meta.url));
+const SA_KEY_PATH = resolve(__dirname, "../../firebase-service-account.json");
 const SHARED_DRIVE_ID = "0ANF5MPbc7nZEUk9PVA";
 
 const args = process.argv.slice(2);
@@ -20,6 +26,7 @@ const maxDepth = depthIdx >= 0 ? parseInt(args[depthIdx + 1], 10) : Infinity;
 
 async function main() {
   const auth = new google.auth.GoogleAuth({
+    keyFile: SA_KEY_PATH,
     scopes: ["https://www.googleapis.com/auth/drive.readonly"],
   });
   const drive = google.drive({ version: "v3", auth });
