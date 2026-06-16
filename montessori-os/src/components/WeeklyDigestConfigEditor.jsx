@@ -80,11 +80,22 @@ export default function WeeklyDigestConfigEditor({ userRole }) {
     setNotes((prev) => prev.map((n, i) => (i === index ? value : n)));
   }, []);
 
-  const handleDeleteConfirm = useCallback(() => {
+  const handleDeleteConfirm = async () => {
     const { index } = deleteDialog;
-    setNotes((prev) => prev.filter((_, i) => i !== index));
+    const updated = notes.filter((_, i) => i !== index).map((n) => n.trim()).filter(Boolean);
     setDeleteDialog({ open: false, index: null, text: '' });
-  }, [deleteDialog]);
+    try {
+      const ref = doc(db, 'config', 'weekly_digest');
+      await updateDoc(ref, { contextualNotes: serializeNotes(updated) });
+      setNotes(updated);
+      setOriginalNotes(updated);
+      if (editingIndex === index) setEditingIndex(null);
+      else if (editingIndex !== null && editingIndex > index) setEditingIndex(editingIndex - 1);
+      notify.success('Note deleted.');
+    } catch {
+      notify.error('Failed to delete note.');
+    }
+  };
 
   const handleSave = async () => {
     const trimmed = notes.map((n) => n.trim()).filter(Boolean);
@@ -236,7 +247,7 @@ export default function WeeklyDigestConfigEditor({ userRole }) {
         <DialogTitle>Delete Note</DialogTitle>
         <DialogContent>
           <DialogContentText>
-            Are you sure you want to delete this note?
+            This will permanently delete this note. Are you sure?
           </DialogContentText>
           {deleteDialog.text && (
             <Typography variant="body2" sx={{ mt: 1, fontStyle: 'italic', color: 'text.secondary' }}>
