@@ -28,6 +28,8 @@ import { BASEBALL_CARD_DEFAULTS } from '../../../scripts/config/baseballCardCons
 import SnapshotBody from './SnapshotBody';
 import MonthlyPlanTab from './MonthlyPlanTab';
 import PlanFeedbackDialog from './PlanFeedbackDialog';
+import Coachmark from '../coachmark/Coachmark';
+import useCoachmark from '../coachmark/useCoachmark';
 import NotesOverTimeDrawer from './NotesOverTimeDrawer';
 import NoteBottomSheet from './noteBottomSheet/NoteBottomSheet';
 import { friendlyFunctionError } from '../utils/cloudFunctionErrors';
@@ -93,6 +95,7 @@ function StudentDashboard({ student, onOpenTimeline, onOpenFeedback, onOpenChat,
   const hwInFlightRef = useRef(new Set());
   const [flagAnchorEl, setFlagAnchorEl] = useState(null);
   const flagChipRef = useRef(null);
+  const planFeedbackChipRef = useRef(null);
   const [missingDomainsAnchorEl, setMissingDomainsAnchorEl] = useState(null);
   const [regenRunning, setRegenRunning] = useState(false);
   const [regenDialogOpen, setRegenDialogOpen] = useState(false);
@@ -112,6 +115,7 @@ function StudentDashboard({ student, onOpenTimeline, onOpenFeedback, onOpenChat,
   const [programResolved, setProgramResolved] = useState(false);
   const hasPlanTab = PLAN_PROGRAMS.includes(studentProgramId);
   const snapshotTabs = hasPlanTab ? SNAPSHOT_TABS_WITH_PLAN : SNAPSHOT_TABS_NO_PLAN;
+  const planFeedbackCoachmark = useCoachmark('plan_feedback_v1');
 
   // Auto-open flag popover when navigating from Dynamic Island pill (PEP-213)
   useEffect(() => {
@@ -856,8 +860,9 @@ function StudentDashboard({ student, onOpenTimeline, onOpenFeedback, onOpenChat,
             {activeTab === 'plan' && planData && (
               <Tooltip title="Rate this plan" arrow>
                 <Box
+                  ref={planFeedbackChipRef}
                   component="button"
-                  onClick={() => setPlanFeedbackOpen(true)}
+                  onClick={() => { planFeedbackCoachmark.dismiss(); setPlanFeedbackOpen(true); }}
                   sx={{
                     ...CHIP_BASE,
                     width: 28,
@@ -872,6 +877,19 @@ function StudentDashboard({ student, onOpenTimeline, onOpenFeedback, onOpenChat,
                   <FeedbackIcon size={14} />
                 </Box>
               </Tooltip>
+            )}
+
+            {/* Plan feedback coachmark — first-time discovery (PEP-322) */}
+            {activeTab === 'plan' && planData && (
+              <Coachmark
+                coachmarkKey="plan_feedback_v1"
+                title="Latest feature!"
+                body="Tap here to rate this plan and help improve future ones"
+                anchorRef={planFeedbackChipRef}
+                placement="bottom"
+                onDismiss={() => {}}
+                enabled={!planFeedbackOpen}
+              />
             )}
 
             {/* Export to Drive chip — plan tab, superadmin only, only when plan exists */}

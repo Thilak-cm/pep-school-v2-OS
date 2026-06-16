@@ -17,6 +17,7 @@ import { isSuperAdmin } from './utils/roleUtils';
 import { normalizeClassroomId } from './utils/lessonNoteConstraints';
 import { clearNotificationsCache } from './components/NotificationsPage.jsx';
 import { initSaveQueue } from './services/saveQueue';
+import { CoachmarkProvider } from './coachmark/CoachmarkProvider';
 import { getPageTitle, getBackNavigation, FAB_HIDDEN_SCREENS, FOOTER_TAB_SCREENS, NO_BACK_BUTTON_SCREENS, NO_HEADER_SCREENS } from './screenConfig.js';
 import AppHeader, { HEADER_HEIGHT } from './AppHeader.jsx';
 import ScreenRenderer from './ScreenRenderer.jsx';
@@ -27,6 +28,7 @@ function App() {
   const [loading, setLoading] = useState(true);
   const [role, setRole] = useState(null);
   const [manageableClassrooms, setManageableClassrooms] = useState([]);
+  const [dismissedCoachmarks, setDismissedCoachmarks] = useState({});
   const [_unauthorized, setUnauthorized] = useState(false);
   const [addNoteOpen, setAddNoteOpen] = useState(false);
   const [addNoteInitialStep, setAddNoteInitialStep] = useState('record');
@@ -247,6 +249,7 @@ function App() {
         }
         setRole(userDoc.role);
         setManageableClassrooms(userManageableClassrooms);
+        setDismissedCoachmarks(userDoc.dismissedCoachmarks || {});
         setUserProperty('role', userDoc.role);
         setScreen('landingPage');
       } catch (_err) { setScreen('accessDenied'); }
@@ -347,6 +350,7 @@ function App() {
           backgroundColor: 'var(--color-bg)', display: 'flex', flexDirection: 'column', position: 'relative', overflowX: 'hidden',
           '@media (min-width: 600px)': { borderRadius: '24px', boxShadow: '0 8px 32px rgba(0,0,0,0.12)' }
         }}>
+          <CoachmarkProvider uid={user?.uid} initialDismissed={dismissedCoachmarks}>
           <NotificationProvider>
             <NotificationStack />
             <SaveQueueNotificationBridge onNavigateToReport={handleNavigateToReport} />
@@ -417,6 +421,7 @@ function App() {
               </>
             )}
           </NotificationProvider>
+          </CoachmarkProvider>
         </Box>
       </Box>
     </>
