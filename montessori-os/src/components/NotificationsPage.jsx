@@ -1169,7 +1169,9 @@ function NotificationsPage() {
 
   // ── Render ────────────────────────────────────────────────────────────────
 
-  const WEEK_LABELS = allWeekKeys.map(weekKeyToLabel);
+  const WEEK_LABELS = allWeekKeys.map((key, idx, arr) =>
+    idx === arr.length - 1 ? 'NOW' : weekKeyToLabel(key),
+  );
 
   return (
     <Box sx={{ display: 'flex', flexDirection: 'column', gap: 1.5, pb: 2 }}>

@@ -108,33 +108,25 @@ export default function Coachmark({
 
   return (
     <>
-      {/* Backdrop overlay */}
-      <Box
-        className="coachmark-backdrop"
-        onClick={advanceMode !== 'action' ? handleDismiss : undefined}
-        sx={{
-          position: 'fixed',
-          inset: 0,
-          backgroundColor: 'rgba(0, 0, 0, 0.45)',
-          zIndex: 1300,
-          pointerEvents: 'auto',
-        }}
-      />
-
       <Popover
         open
         anchorEl={anchorRef.current}
         anchorOrigin={placementConfig.anchorOrigin}
         transformOrigin={placementConfig.transformOrigin}
+        onClose={advanceMode !== 'action' ? handleDismiss : undefined}
         disableAutoFocus
         disableEnforceFocus
         slotProps={{
+          backdrop: {
+            sx: {
+              backgroundColor: 'rgba(0, 0, 0, 0.45)',
+            },
+          },
           paper: {
             sx: {
               p: 2,
               maxWidth: 280,
               borderRadius: '12px',
-              zIndex: 1302,
               backgroundColor: 'var(--color-bg, #fff)',
               boxShadow: '0 8px 32px rgba(0,0,0,0.18)',
             },
