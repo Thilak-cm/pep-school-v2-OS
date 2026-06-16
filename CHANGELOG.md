@@ -1,5 +1,14 @@
 # Changelog
 
+# 10.37.0 — 2026-06-15
+
+### Added
+- Reusable coachmark system for feature discovery — floating tooltip with backdrop overlay, pulse animation, session and permanent dismiss, and guided tour scaffolding (PEP-322)
+- Plan feedback coachmark on StudentDashboard plan tab — guides teachers to the feedback chip on first visit (PEP-322)
+
+### Changed
+- Heatmap last column label in NotificationsPage now shows "NOW" instead of the formatted week key (PEP-322)
+
 # 10.36.0 — 2026-06-09
 
 ### Added
