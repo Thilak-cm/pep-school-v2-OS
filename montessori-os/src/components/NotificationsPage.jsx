@@ -21,7 +21,7 @@ import { collectionGroup, collection, query, where, getDocs, doc, getDoc, docume
 import { httpsCallable } from 'firebase/functions';
 import { auth, db, cloudFunctions } from '../firebase';
 import { prepareNotificationsFeature } from '../utils/notificationsFeature';
-import { getIstIsoWeekKey, getPastWeekKeys } from '../utils/weekKey';
+import { getIstIsoWeekKey, getPastWeekKeys, weekKeyToMonday } from '../utils/weekKey';
 import { BASEBALL_CARD_DEFAULTS } from '../../../scripts/config/baseballCardConstants';
 import SnapshotCard from './SnapshotCard';
 import { reportCaughtError } from '../utils/reportCaughtError.js';
@@ -201,6 +201,7 @@ function NotificationsPage() {
   });
 
   // Heatmap-specific state
+  const [effectiveWeekKey, setEffectiveWeekKey] = useState(weekKey);
   const [weekHistoryMap, setWeekHistoryMap] = useState({});
   const [searchQuery, setSearchQuery] = useState('');
   const [hoveredStudentId, setHoveredStudentId] = useState(null);
@@ -424,8 +425,10 @@ function NotificationsPage() {
 
     // ── Fast path: build from heatmap cache docs (PEP-303) ──────────────
     if (heatmapDocs.length > 0) {
-      const pastKeys = getPastWeekKeys(5);
-      const allWeekKeys = [...pastKeys, weekKey];
+      // Use the cache's weekKey (the week it was generated for), not today's
+      const cacheWeekKey = heatmapDocs[0].weekKey || weekKey;
+      const pastKeys = getPastWeekKeys(5, weekKeyToMonday(cacheWeekKey));
+      const allWeekKeys = [...pastKeys, cacheWeekKey];
       const builtSignals = [];
       const builtStudentInfo = {};
       const builtHistoryMap = {};
@@ -453,6 +456,7 @@ function NotificationsPage() {
         }
       }
 
+      setEffectiveWeekKey(cacheWeekKey);
       setSignals(builtSignals);
       setStudentInfo(builtStudentInfo);
       setWeekHistoryMap(builtHistoryMap);
@@ -792,8 +796,8 @@ function NotificationsPage() {
   // ── Derived data ──────────────────────────────────────────────────────────
 
   const isLoading = !accessLoaded || loading;
-  const pastKeys = getPastWeekKeys(5);
-  const allWeekKeys = [...pastKeys, weekKey];
+  const pastKeys = getPastWeekKeys(5, weekKeyToMonday(effectiveWeekKey));
+  const allWeekKeys = [...pastKeys, effectiveWeekKey];
 
   // Trend counts are computed after classroom filter so they reflect the visible set
   const classroomScopedSignals = selectedClassroom === 'all'
@@ -840,7 +844,7 @@ function NotificationsPage() {
       const bHasRed = b.weeks.some((w) => w === 'r');
       if (aHasRed !== bHasRed) return aHasRed ? -1 : 1;
 
-      // 2. Sort by NOW column, then walk backwards through weeks to break ties
+      // 2. Sort by latest column, then walk backwards through weeks to break ties
       for (let i = 5; i >= 0; i--) {
         const diff = flagSortValue(a.weeks[i]) - flagSortValue(b.weeks[i]);
         if (diff !== 0) return diff;
@@ -1165,7 +1169,7 @@ function NotificationsPage() {
 
   // ── Render ────────────────────────────────────────────────────────────────
 
-  const WEEK_LABELS = [...pastKeys.map(weekKeyToLabel), 'NOW'];
+  const WEEK_LABELS = allWeekKeys.map(weekKeyToLabel);
 
   return (
     <Box sx={{ display: 'flex', flexDirection: 'column', gap: 1.5, pb: 2 }}>
@@ -1298,15 +1302,18 @@ function NotificationsPage() {
               mb: 0.5,
             }}>
               <Box />
-              {WEEK_LABELS.map((label) => (
-                <Box key={label} sx={{ textAlign: 'center' }}>
-                  <Typography sx={{
-                    fontFamily: 'var(--f-mono, monospace)', fontSize: '9px',
-                    color: label === 'NOW' ? 'var(--color-error)' : 'var(--color-text-faint)',
-                    fontWeight: label === 'NOW' ? 700 : 400,
-                  }}>{label}</Typography>
-                </Box>
-              ))}
+              {WEEK_LABELS.map((label, idx) => {
+                const isLatest = idx === WEEK_LABELS.length - 1;
+                return (
+                  <Box key={label} sx={{ textAlign: 'center' }}>
+                    <Typography sx={{
+                      fontFamily: 'var(--f-mono, monospace)', fontSize: '9px',
+                      color: isLatest ? 'var(--color-primary)' : 'var(--color-text-faint)',
+                      fontWeight: isLatest ? 700 : 400,
+                    }}>{label}</Typography>
+                  </Box>
+                );
+              })}
               <Box />
             </Box>
 
