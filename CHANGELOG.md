@@ -1,5 +1,18 @@
 # Changelog
 
+# 10.37.0 — 2026-06-15
+
+### Added
+- School Context Notes editor on Configurations page — superadmins can add, edit, and delete contextual notes injected into weekly digest LLM calls (PEP-324)
+- NewFeaturePill badge on Broadcast Message in Settings and Dynamic Island Pill header
+
+### Fixed
+- Heatmap cache staleness — discard previous week's cache instead of showing stale data under a misleading label
+- Heatmap week labels — current week column now shows "NOW" instead of a date that may not match the cache's generation week
+
+### Changed
+- Removed unused `weekKeyToMonday` utility from weekKey.js
+
 # 10.36.0 — 2026-06-09
 
 ### Added
