@@ -96,7 +96,8 @@ export function useAlertBus(classrooms = []) {
 
       try {
         heatmapDocs = await fetchHeatmapDocs({ role, accessibleClassrooms });
-        // No freshness filter — cache is valid until next Sunday's generation run
+        // Discard stale cache from a previous week
+        heatmapDocs = heatmapDocs.filter((d) => d.weekKey === weekKey);
       } catch {
         // Cache read failed — fall through to legacy path
       }

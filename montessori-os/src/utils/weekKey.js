@@ -45,21 +45,6 @@ export const getIstMidnightDate = (date = new Date()) => {
   return toUtcMidnight(parts);
 };
 
-/**
- * Parse "2026-W24" → Monday Date (UTC) of that ISO week.
- * Returns current date if weekKey is malformed.
- */
-export const weekKeyToMonday = (weekKey) => {
-  const match = weekKey.match(/^(\d{4})-W(\d{2})$/);
-  if (!match) return new Date();
-  const year = Number(match[1]);
-  const week = Number(match[2]);
-  const jan4 = new Date(Date.UTC(year, 0, 4));
-  const dayOfWeek = (jan4.getUTCDay() + 6) % 7; // Monday=0
-  const week1Monday = new Date(jan4.getTime() - dayOfWeek * MS_PER_DAY);
-  return new Date(week1Monday.getTime() + (week - 1) * 7 * MS_PER_DAY);
-};
-
 export const getPastWeekKeys = (count = 5, referenceDate = new Date()) => {
   const keys = [];
   for (let i = count; i >= 1; i--) {
