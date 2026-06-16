@@ -1,7 +1,7 @@
 # Pep OS Overview
 
-Generated: 2026-06-10T00:34:21.129Z
-App version: 10.36.0
+Generated: 2026-06-16T06:40:18.644Z
+App version: 10.37.0
 
 ## App Snapshot
 
@@ -80,8 +80,8 @@ App version: 10.36.0
 - `montessori-os/src/components/ChildChat.jsx`
 
 ### Admin and Access (`admin-and-access`)
-- Count: 10
-- Components: `AccessDenied`, `BaseballCardConfigEditor`, `ConfigHomePage`, `GraduateStudentsPage`, `ReportGenConfigEditor`, `SignIn`, `StudentAliasesPage`, `UsersAccessPage`, `UsersAccessPage.parentFields.test`, `UsersAccessPage.validation`
+- Count: 11
+- Components: `AccessDenied`, `BaseballCardConfigEditor`, `ConfigHomePage`, `GraduateStudentsPage`, `ReportGenConfigEditor`, `SignIn`, `StudentAliasesPage`, `UsersAccessPage`, `UsersAccessPage.parentFields.test`, `UsersAccessPage.validation`, `WeeklyDigestConfigEditor`
 - Representative paths:
 - `montessori-os/src/AccessDenied.jsx`
 - `montessori-os/src/components/BaseballCardConfigEditor.jsx`
@@ -149,6 +149,11 @@ App version: 10.36.0
 
 ## Recent Changes
 
+### 10.37.0 (2026-06-15)
+- School Context Notes editor on Configurations page — superadmins can add, edit, and delete contextual notes injected into weekly digest LLM calls (PEP-324)
+- NewFeaturePill badge on Broadcast Message in Settings and Dynamic Island Pill header
+- Heatmap cache staleness — discard previous week's cache instead of showing stale data under a misleading label
+
 ### 10.36.0 (2026-06-09)
 - Digest Generation feature in prompt test bench — full agent loop with 8 digest tools, HTML email preview, side-by-side variant comparison, and run history with classroom context (PEP-304)
 - Shared tool registry (`functions/shared/toolRegistry.js`) with scope permissions, prerequisite enforcement, and static frontend metadata mirror (`toolCatalog.js`) (PEP-304)
@@ -163,9 +168,4 @@ App version: 10.36.0
 - Per-classroom heatmap cache in `statsCache/heatmap_{classroomId}` docs — reduces Alerts page cold-load from ~420 reads to ~20 reads for superadmins (PEP-303)
 - `writeHeatmapCache` called after weekly `generateBaseballCards` run; `patchHeatmapStudent` called after on-demand single-student regen (PEP-303)
 - `useHeatmapCache` hook + shared `fetchHeatmapDocs` utility for role-scoped cache reads with weekKey freshness check (PEP-303)
-
-### 10.34.0 (2026-06-05)
-- Firestore `alerts` collection as universal alert bus — any system (Cloud Functions, frontend, future agents) can write alert docs that surface in the Dynamic Island Pill (PEP-296)
-- DIP dual-source subscriber — merges weekly_snapshot red flags with realtime alerts collection into a single sorted carousel (PEP-296)
-- Transform-at-read display contract — `transformForDisplay()` maps alert type + payload into DIP display shape, evolves with frontend deploys without data migration (PEP-296)
 
