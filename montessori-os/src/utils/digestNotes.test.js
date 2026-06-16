@@ -1,6 +1,6 @@
 import { describe, it } from "node:test";
 import assert from "node:assert/strict";
-import { parseNotes, serializeNotes } from "../utils/digestNotes.js";
+import { parseNotes, serializeNotes } from "./digestNotes.js";
 
 // ── Tests ──────────────────────────────────────────────────────────────────
 

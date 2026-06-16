@@ -17,7 +17,7 @@ import {
   DialogActions,
 } from '@mui/material';
 import { Plus as Add, Trash2 as Delete, Save, Pencil, Check } from '../icons';
-import { doc, getDoc, updateDoc } from 'firebase/firestore';
+import { doc, getDoc, setDoc } from 'firebase/firestore';
 import { db } from '../firebase';
 import { isSuperAdmin } from '../utils/roleUtils';
 import useNotify from '../notifications/useNotify';
@@ -81,12 +81,13 @@ export default function WeeklyDigestConfigEditor({ userRole }) {
   }, []);
 
   const handleDeleteConfirm = async () => {
+    if (!isAdmin) return;
     const { index } = deleteDialog;
     const updated = notes.filter((_, i) => i !== index).map((n) => n.trim()).filter(Boolean);
     setDeleteDialog({ open: false, index: null, text: '' });
     try {
       const ref = doc(db, 'config', 'weekly_digest');
-      await updateDoc(ref, { contextualNotes: serializeNotes(updated) });
+      await setDoc(ref, { contextualNotes: serializeNotes(updated) }, { merge: true });
       setNotes(updated);
       setOriginalNotes(updated);
       if (editingIndex === index) setEditingIndex(null);
@@ -98,11 +99,12 @@ export default function WeeklyDigestConfigEditor({ userRole }) {
   };
 
   const handleSave = async () => {
+    if (!isAdmin || saving) return;
     const trimmed = notes.map((n) => n.trim()).filter(Boolean);
     setSaving(true);
     try {
       const ref = doc(db, 'config', 'weekly_digest');
-      await updateDoc(ref, { contextualNotes: serializeNotes(trimmed) });
+      await setDoc(ref, { contextualNotes: serializeNotes(trimmed) }, { merge: true });
       setNotes(trimmed);
       setOriginalNotes(trimmed);
       notify.success('Contextual notes saved.');
@@ -151,7 +153,7 @@ export default function WeeklyDigestConfigEditor({ userRole }) {
           <Stack spacing={1.5}>
             {notes.map((note, index) => (
               <Card
-                key={index}
+                key={`note-${index}-${note.slice(0, 20)}`}
                 variant="outlined"
                 sx={{
                   borderRadius: 2,

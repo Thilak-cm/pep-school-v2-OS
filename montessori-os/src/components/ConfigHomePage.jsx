@@ -12,7 +12,7 @@ import {
 import { Settings as Tune, Brain as Psychology, Calendar } from '../icons';
 import { isSuperAdmin } from '../utils/roleUtils';
 
-export default function ConfigHomePage({ userRole, onOpenLessonNoteConfig, onOpenAiTools, onOpenDigestConfig }) {
+export default function ConfigHomePage({ userRole, onOpenLessonNoteConfig, onOpenAiTools, onOpenDigestConfig = () => {} }) {
   const isAdmin = isSuperAdmin(userRole);
 
   if (!isAdmin) {
