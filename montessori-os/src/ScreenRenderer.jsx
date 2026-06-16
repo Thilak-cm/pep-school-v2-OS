@@ -32,6 +32,7 @@ import ConfigHomePage from "./components/ConfigHomePage.jsx";
 import BulkUploadPage from "./components/BulkUploadPage.jsx";
 import BroadcastComposer from "./components/BroadcastComposer.jsx";
 import LessonNoteConfigEditor from "./components/LessonNoteConfigEditor.jsx";
+import WeeklyDigestConfigEditor from "./components/WeeklyDigestConfigEditor.jsx";
 
 /**
  * Renders the correct screen component based on the current `screen` value.
@@ -292,11 +293,15 @@ function renderScreen(screen, ctx) {
           userRole={ctx.role}
           onOpenLessonNoteConfig={() => ctx.setScreen("configLessonNotes")}
           onOpenAiTools={() => ctx.setScreen("configAiTools")}
+          onOpenDigestConfig={() => ctx.setScreen("configDigest")}
         />
       );
 
     case "configLessonNotes":
       return <LessonNoteConfigEditor currentUser={ctx.user} userRole={ctx.role} />;
+
+    case "configDigest":
+      return <WeeklyDigestConfigEditor userRole={ctx.role} />;
 
     case "bulkUpload":
       return <BulkUploadPage currentUser={ctx.user} userRole={ctx.role} />;

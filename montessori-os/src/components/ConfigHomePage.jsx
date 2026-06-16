@@ -9,10 +9,10 @@ import {
   Grid,
   Alert
 } from '@mui/material';
-import { Settings as Tune, Brain as Psychology, FileText as Description, AudioLines as GraphicEq } from '../icons';
+import { Settings as Tune, Brain as Psychology, Calendar } from '../icons';
 import { isSuperAdmin } from '../utils/roleUtils';
 
-export default function ConfigHomePage({ userRole, onOpenLessonNoteConfig, onOpenAiTools }) {
+export default function ConfigHomePage({ userRole, onOpenLessonNoteConfig, onOpenAiTools, onOpenDigestConfig }) {
   const isAdmin = isSuperAdmin(userRole);
 
   if (!isAdmin) {
@@ -76,6 +76,35 @@ export default function ConfigHomePage({ userRole, onOpenLessonNoteConfig, onOpe
                 </Typography>
                 <Typography variant="body2" sx={{ color: 'var(--color-text-soft)', mt: 0.5 }}>
                   Configure Text Cleanup, Voice Transcriber, and Coach prompts
+                </Typography>
+              </Box>
+            </Box>
+          </CardContent>
+        </CardActionArea>
+      </Card>
+
+      <Card
+        sx={{
+          borderRadius: 2,
+          '&:hover': {
+            boxShadow: '0 8px 24px rgba(0,0,0,0.12)',
+            transform: 'translateY(-2px)',
+          },
+          transition: 'all 0.2s ease-in-out',
+        }}
+      >
+        <CardActionArea onClick={onOpenDigestConfig} sx={{ p: 0 }}>
+          <CardContent sx={{ p: 3 }}>
+            <Box sx={{ display: 'flex', alignItems: 'center', gap: 2 }}>
+              <Avatar sx={{ bgcolor: 'var(--color-green)', width: 56, height: 56 }}>
+                <Calendar />
+              </Avatar>
+              <Box>
+                <Typography variant="h6" component="h3" sx={{ color: 'var(--color-text)', fontWeight: 600 }}>
+                  Weekly Digest
+                </Typography>
+                <Typography variant="body2" sx={{ color: 'var(--color-text-soft)', mt: 0.5 }}>
+                  Manage school contextual notes for the weekly digest AI
                 </Typography>
               </Box>
             </Box>
