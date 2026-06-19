@@ -132,7 +132,7 @@ IMPORTANT: You must output your response as a JSON object with exactly this stru
 The reportText should contain the complete parent-facing report following the prompt instructions above.
 Output ONLY the JSON object, nothing else.`;
 
-async function callReportGeneration(notes, prompt, studentContext, dateRange, config = REPORT_DEFAULTS) {
+async function callReportGeneration(notes, prompt, studentContext, dateRange, config = REPORT_DEFAULTS, reportType = "term") {
   const openAiKey = getOpenAiKey();
   if (!openAiKey) {
     throw new functions.https.HttpsError("failed-precondition", "OpenAI key not configured");
@@ -158,7 +158,7 @@ async function callReportGeneration(notes, prompt, studentContext, dateRange, co
     : String(dateRange.end);
 
   const userContent = [
-    `Generate the Educator Summary report for the period ${startStr} to ${endStr}.`,
+    `Generate the ${reportType === "monthly" ? "Monthly Baseline Report" : "Educator Summary"} for the period ${startStr} to ${endStr}.`,
     "",
     `Student: ${JSON.stringify(safeContext)}`,
     "",
@@ -269,7 +269,7 @@ async function runSingleReport({ studentId, dateRangeStart, dateRangeEnd, reques
   }
 
   const formatted = notes.map(formatObservationForPrompt);
-  const aiResult = await callReportGeneration(formatted, prompt, studentInfo, { start: startDate, end: endDate }, config);
+  const aiResult = await callReportGeneration(formatted, prompt, studentInfo, { start: startDate, end: endDate }, config, reportType);
   const sourceNoteIds = notes.map((n) => n.id).filter(Boolean);
 
   const payload = {

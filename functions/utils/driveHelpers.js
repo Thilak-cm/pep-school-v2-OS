@@ -259,10 +259,11 @@ export function buildDocInsertRequests(markdown, opts) {
     });
     idx += nameText.length;
 
-    // 3. Metadata line: "{Program} | Educator Summary | {DD/MM/YYYY} to date | AY {YYYY-YY}"
+    // 3. Metadata line: "{Program} | {Report Label} | {DD/MM/YYYY} to date | AY {YYYY-YY}"
+    const reportLabel = opts.reportType === "monthly" ? "Monthly Baseline Report" : "Educator Summary";
     const startStr = formatDateForMeta(opts.startDate);
     const datePipe = startStr ? ` | ${startStr} to date` : "";
-    const metaText = `${opts.programName || ""} | Educator Summary${datePipe} | AY ${opts.academicYear || ""}\n`;
+    const metaText = `${opts.programName || ""} | ${reportLabel}${datePipe} | AY ${opts.academicYear || ""}\n`;
     requests.push({
       insertText: { location: { index: idx }, text: metaText },
     });
