@@ -1,4 +1,4 @@
-import React, { useState, useMemo } from 'react';
+import React, { useState, useMemo, useEffect } from 'react';
 import {
   Dialog,
   DialogContent,
@@ -38,6 +38,15 @@ export default function ReportGenerateDialog({
 
   const [startDate, setStartDate] = useState(defaults.start);
   const [endDate, setEndDate] = useState(defaults.end);
+
+  // Reset to term defaults each time the dialog opens
+  useEffect(() => {
+    if (open) {
+      setReportType('term');
+      setStartDate(termDefaults.start);
+      setEndDate(termDefaults.end);
+    }
+  }, [open, termDefaults.start, termDefaults.end]);
 
   const handleTypeChange = (_, newType) => {
     if (!newType) return; // MUI ToggleButtonGroup can fire null on re-click

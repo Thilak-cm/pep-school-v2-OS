@@ -409,6 +409,7 @@ function StudentTimeline({ student, currentUser, userRole, noteTypeFilter = null
             status: data.status || 'ok',
             dateRangeStart: data.dateRangeStart || null,
             dateRangeEnd: data.dateRangeEnd || null,
+            reportType: data.reportType || 'term',
           };
         })
         .filter((r) => r.status === 'ok');
@@ -1480,6 +1481,7 @@ function StudentTimeline({ student, currentUser, userRole, noteTypeFilter = null
         open={!!reportPreviewData}
         onClose={() => setReportPreviewData(null)}
         reportText={reportPreviewData?.reportText || ''}
+        reportType={reportPreviewData?.reportType || 'term'}
         missingInputFlags={reportPreviewData?.missingInputFlags || []}
         generatedAt={reportPreviewData?.generatedAt || null}
         studentLabel={student?.displayName || student?.name || 'Student'}

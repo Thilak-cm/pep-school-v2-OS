@@ -67,10 +67,18 @@ export function buildArchiveCsvFilename(classroomName) {
  * Build the classroom-specific monthly baseline report CSV filename.
  * Format: "{Classroom Name} | {Month Year} | Monthly Baseline Report Summary.csv"
  */
-export function buildMonthlyBaselineCsvFilename(classroomName) {
-  const now = new Date();
+export function buildMonthlyBaselineCsvFilename(classroomName, now = new Date()) {
   const monthYear = now.toLocaleDateString("en-US", { month: "long", year: "numeric" });
   return `${classroomName} | ${monthYear} | Monthly Baseline Report Summary.csv`;
+}
+
+/**
+ * Build the classroom-specific monthly baseline archive CSV filename.
+ * Format: "{Classroom Name} | {Month Year} | Monthly Baseline Report Summary Archive.csv"
+ */
+export function buildMonthlyBaselineArchiveCsvFilename(classroomName, now = new Date()) {
+  const monthYear = now.toLocaleDateString("en-US", { month: "long", year: "numeric" });
+  return `${classroomName} | ${monthYear} | Monthly Baseline Report Summary Archive.csv`;
 }
 
 // Google Drive export constants

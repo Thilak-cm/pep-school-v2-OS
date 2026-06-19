@@ -1,7 +1,7 @@
 import * as functions from "firebase-functions/v1";
 import { db } from "../shared/firebase.js";
 import { OPENAI_API_KEY, getOpenAiKey, buildChatBody, CHAT_ENDPOINT } from "../shared/openai.js";
-import { REPORT_DEFAULTS, READINESS_DEFAULTS, READINESS_DOC_ID, DRIVE_CONSTANTS, buildCsvFilename, buildArchiveCsvFilename, buildMonthlyBaselineCsvFilename } from "../config/reportConstants.js";
+import { REPORT_DEFAULTS, READINESS_DEFAULTS, READINESS_DOC_ID, DRIVE_CONSTANTS, buildCsvFilename, buildArchiveCsvFilename, buildMonthlyBaselineCsvFilename, buildMonthlyBaselineArchiveCsvFilename } from "../config/reportConstants.js";
 import { getDefaultDateRange, parseReportResponse, parseReadinessResponse, getReportPromptDocId, getReadinessPromptDocId, mergeReportConfig, formatCsvRow, updateCsvContent, removeCsvRow, appendCsvContent, normalizeEndOfDay, assembleReportSystemContent, buildReadinessArchive } from "../utils/reportHelpers.js";
 import {
   getDriveClients,
@@ -644,19 +644,26 @@ export const exportReportToDrive = functions
         classroom: classroomName,
         generatedAt: generatedAtIso,
         author: report.generatedByName || "",
-        sentimentScore: readinessScores.sentimentScore,
-        areaBalanceScore: readinessScores.areaBalanceScore,
-        missingInputFlags: readinessScores.missingInputFlags,
+        sentimentScore: isMonthly ? null : readinessScores.sentimentScore,
+        areaBalanceScore: isMonthly ? null : readinessScores.areaBalanceScore,
+        missingInputFlags: isMonthly ? [] : readinessScores.missingInputFlags,
         docLink,
       });
 
+      const monthlyDateAnchor = report.dateRangeEnd
+        ? (report.dateRangeEnd?.toDate?.() || report.dateRangeEnd)
+        : new Date();
       const summaryCsvName = isMonthly
-        ? buildMonthlyBaselineCsvFilename(classroomName)
+        ? buildMonthlyBaselineCsvFilename(classroomName, monthlyDateAnchor)
         : buildCsvFilename(classroomName);
-      const archiveCsvName = buildArchiveCsvFilename(classroomName);
+      const archiveCsvName = isMonthly
+        ? buildMonthlyBaselineArchiveCsvFilename(classroomName, monthlyDateAnchor)
+        : buildArchiveCsvFilename(classroomName);
 
-      // Migrate legacy CSV if it exists under the old name
-      await migrateLegacyCsv(drive, classroomFolderId, summaryCsvName);
+      // Migrate legacy CSV if it exists under the old name (term reports only)
+      if (!isMonthly) {
+        await migrateLegacyCsv(drive, classroomFolderId, summaryCsvName);
+      }
 
       // Summary CSV: one row per student (replace on regeneration)
       const existingCsv = await downloadCsvContent(drive, classroomFolderId, summaryCsvName);

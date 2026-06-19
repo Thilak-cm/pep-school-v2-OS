@@ -156,6 +156,7 @@ export async function createReportDoc(
     programName: formatOpts.programName,
     academicYear: formatOpts.academicYear,
     startDate: formatOpts.startDate,
+    reportType: formatOpts.reportType,
     logoUrl: LOGO_URL,
   } : undefined;
   const requests = buildDocInsertRequests(reportMarkdown, docOpts);

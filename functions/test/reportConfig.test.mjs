@@ -100,7 +100,7 @@ describe("BASELINE_REPORT_PROMPT_DOCS", () => {
     assert.deepStrictEqual(monthlyPrograms, termPrograms);
   });
 
-  it("uses report_monthly_ prefix for all doc IDs", () => {
+  it("uses baseline_report_ prefix for all doc IDs", () => {
     for (const [program, docId] of Object.entries(BASELINE_REPORT_PROMPT_DOCS)) {
       assert.ok(
         docId.startsWith("baseline_report_"),
@@ -118,16 +118,16 @@ describe("BASELINE_REPORT_PROMPT_DOCS", () => {
 });
 
 describe("buildMonthlyBaselineCsvFilename", () => {
-  it("includes classroom name and Monthly Baseline Report label", () => {
-    const result = buildMonthlyBaselineCsvFilename("Periwinkle");
-    assert.ok(result.includes("Periwinkle"), "should include classroom name");
-    assert.ok(result.includes("Monthly Baseline Report"), "should include report type label");
-    assert.ok(result.endsWith(".csv"), "should end with .csv");
+  it("produces correct filename with pinned date", () => {
+    const result = buildMonthlyBaselineCsvFilename("Periwinkle", new Date(2026, 5, 1));
+    assert.equal(result, "Periwinkle | June 2026 | Monthly Baseline Report Summary.csv");
   });
 
-  it("includes a month/year label", () => {
+  it("defaults to current date when now is omitted", () => {
     const result = buildMonthlyBaselineCsvFilename("Allstars");
-    // Should contain a month-year pattern (e.g. "June 2026")
+    assert.ok(result.includes("Allstars"), "should include classroom name");
+    assert.ok(result.includes("Monthly Baseline Report"), "should include report type label");
+    assert.ok(result.endsWith(".csv"), "should end with .csv");
     assert.ok(/[A-Z][a-z]+ \d{4}/.test(result), `Expected month-year in filename, got: ${result}`);
   });
 });
