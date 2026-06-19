@@ -8,10 +8,12 @@ import {
   Stack,
   Box,
   TextField,
-  CircularProgress
+  CircularProgress,
+  ToggleButton,
+  ToggleButtonGroup,
 } from '@mui/material';
 import { FileText as ReportIcon } from '../icons';
-import { getDefaultReportDateRange, toIsoDate } from '../utils/reportUtils';
+import { getDefaultReportDateRange, getDefaultMonthlyDateRange, toIsoDate } from '../utils/reportUtils';
 
 export default function ReportGenerateDialog({
   open,
@@ -20,13 +22,30 @@ export default function ReportGenerateDialog({
   generating = false,
   studentLabel = 'this student',
 }) {
-  const defaults = useMemo(() => {
+  const [reportType, setReportType] = useState('term');
+
+  const termDefaults = useMemo(() => {
     const { start, end } = getDefaultReportDateRange();
     return { start: toIsoDate(start), end: toIsoDate(end) };
   }, []);
 
+  const monthlyDefaults = useMemo(() => {
+    const { start, end } = getDefaultMonthlyDateRange();
+    return { start: toIsoDate(start), end: toIsoDate(end) };
+  }, []);
+
+  const defaults = reportType === 'monthly' ? monthlyDefaults : termDefaults;
+
   const [startDate, setStartDate] = useState(defaults.start);
   const [endDate, setEndDate] = useState(defaults.end);
+
+  const handleTypeChange = (_, newType) => {
+    if (!newType) return; // MUI ToggleButtonGroup can fire null on re-click
+    setReportType(newType);
+    const newDefaults = newType === 'monthly' ? monthlyDefaults : termDefaults;
+    setStartDate(newDefaults.start);
+    setEndDate(newDefaults.end);
+  };
 
   const dateValid = Boolean(startDate && endDate);
   const rangeError = dateValid && endDate < startDate;
@@ -35,7 +54,7 @@ export default function ReportGenerateDialog({
 
   const handleGenerate = () => {
     if (!dateValid || rangeError) return;
-    onGenerate?.({ dateRangeStart: startDate, dateRangeEnd: endDate });
+    onGenerate?.({ dateRangeStart: startDate, dateRangeEnd: endDate, reportType });
   };
 
   return (
@@ -78,6 +97,31 @@ export default function ReportGenerateDialog({
           <Typography variant="body2" sx={{ color: 'var(--grey-600)' }}>
             Coach Pepper will generate a parent report using observations within the date range below.
           </Typography>
+
+          <ToggleButtonGroup
+            value={reportType}
+            exclusive
+            onChange={handleTypeChange}
+            disabled={generating}
+            size="small"
+            fullWidth
+            sx={{
+              '& .MuiToggleButton-root': {
+                textTransform: 'none',
+                fontWeight: 700,
+                borderRadius: 2,
+                py: 0.75,
+              },
+              '& .Mui-selected': {
+                backgroundColor: 'var(--color-indigo-bg) !important',
+                color: 'var(--color-primary) !important',
+                borderColor: 'var(--color-primary) !important',
+              },
+            }}
+          >
+            <ToggleButton value="term">Term Report</ToggleButton>
+            <ToggleButton value="monthly">Monthly Baseline</ToggleButton>
+          </ToggleButtonGroup>
 
           <Stack direction="row" spacing={2}>
             <TextField
