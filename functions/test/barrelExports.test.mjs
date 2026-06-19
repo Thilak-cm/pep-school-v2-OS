@@ -52,7 +52,6 @@ const EXPECTED_EXPORTS = [
   // Stats
   "recomputeStats",
   // Alerts
-  "cleanupExpiredAlerts",
   "autoExpireBroadcast",
   // Test Bench
   "testBenchRun",
