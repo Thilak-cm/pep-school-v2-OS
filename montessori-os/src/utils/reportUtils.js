@@ -51,6 +51,7 @@ export function buildReportList(docs) {
       noteCount: d.noteCount ?? null,
       reportText: d.reportText || '',
       status: d.status || null,
+      reportType: d.reportType || 'term',
       missingInputFlags: d.missingInputFlags || [],
       sentimentScore: d.sentimentScore ?? null,
       areaBalanceScore: d.areaBalanceScore ?? null,

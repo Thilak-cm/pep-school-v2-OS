@@ -11,12 +11,21 @@ export const REPORT_DEFAULTS = {
   defaultStartDay: 1,
 };
 
-// Supported programs and their Firestore prompt doc IDs
+// Supported programs and their Firestore prompt doc IDs (term reports)
 export const REPORT_PROMPT_DOCS = {
   adolescent: "report_adolescent",
   elementary: "report_elementary",
   primary: "report_primary",
   toddler: "report_toddler",
+};
+
+// Baseline report prompt docs (PEP-325) — fully independent from the term docs.
+// One dedicated doc per program; same shape (staticSystemPrompt + dynamicSystemPrompt).
+export const REPORT_BASELINE_PROMPT_DOCS = {
+  adolescent: "report_baseline_adolescent",
+  elementary: "report_baseline_elementary",
+  primary: "report_baseline_primary",
+  toddler: "report_baseline_toddler",
 };
 
 // Report readiness checker (PEP-68)
@@ -39,20 +48,32 @@ export const READINESS_DEFAULTS = {
 // TODO: auto-detect Term 1 (March) vs Term 2 (October) from report date range.
 export const HARDCODED_TERM = "March 2026";
 
+// Baseline reports (PEP-325) get their own consolidation CSVs, kept separate
+// from term reports so the two report types never share a summary file.
+export const BASELINE_CSV_LABEL = "Baseline";
+
+/**
+ * The label segment used in consolidation CSV filenames, by report type.
+ * Term (default) → hardcoded term label; baseline → "Baseline".
+ */
+export function csvTermLabel(reportType = "term") {
+  return reportType === "baseline" ? BASELINE_CSV_LABEL : HARDCODED_TERM;
+}
+
 /**
  * Build the classroom-specific summary CSV filename.
- * Format: "{Classroom Name} | {Term} | Report Consolidation Summary.csv"
+ * Format: "{Classroom Name} | {Label} | Report Consolidation Summary.csv"
  */
-export function buildCsvFilename(classroomName) {
-  return `${classroomName} | ${HARDCODED_TERM} | Report Consolidation Summary.csv`;
+export function buildCsvFilename(classroomName, reportType = "term") {
+  return `${classroomName} | ${csvTermLabel(reportType)} | Report Consolidation Summary.csv`;
 }
 
 /**
  * Build the classroom-specific archive CSV filename.
- * Format: "{Classroom Name} | {Term} | Report Consolidation Summary Archive.csv"
+ * Format: "{Classroom Name} | {Label} | Report Consolidation Summary Archive.csv"
  */
-export function buildArchiveCsvFilename(classroomName) {
-  return `${classroomName} | ${HARDCODED_TERM} | Report Consolidation Summary Archive.csv`;
+export function buildArchiveCsvFilename(classroomName, reportType = "term") {
+  return `${classroomName} | ${csvTermLabel(reportType)} | Report Consolidation Summary Archive.csv`;
 }
 
 // Google Drive export constants

@@ -23,13 +23,15 @@ export function capitalize(str) {
 
 /**
  * Build the Google Doc title for a student report.
- * Format: "Child Name | Educator Summary | Month-Year" (e.g. "March 2026")
+ * Term (default): "Child Name | Educator Summary | Month-Year"
+ * Baseline (PEP-325): "Child Name | Baseline Report | Month-Year"
  */
-export function buildReportDocTitle(studentName, generatedAt) {
+export function buildReportDocTitle(studentName, generatedAt, reportType = "term") {
   const name = (studentName || "").trim();
   const date = generatedAt ? new Date(generatedAt) : new Date();
   const monthYear = date.toLocaleDateString("en-US", { month: "long", year: "numeric", timeZone: "UTC" });
-  return `${name} | Educator Summary | ${monthYear}`;
+  const label = reportType === "baseline" ? "Baseline Report" : "Educator Summary";
+  return `${name} | ${label} | ${monthYear}`;
 }
 
 /**
@@ -133,7 +135,7 @@ export async function createReportDoc(
   drive, docs, folderId, studentName, reportMarkdown, generatedAt,
   formatOpts,
 ) {
-  const title = buildReportDocTitle(studentName, generatedAt);
+  const title = buildReportDocTitle(studentName, generatedAt, formatOpts?.reportType);
 
   // Create blank doc in the folder
   const file = await drive.files.create({

@@ -96,6 +96,20 @@ describe("buildReportDocTitle", () => {
       "Aakash Mehta | Educator Summary | February 2026",
     );
   });
+
+  it("keeps the Educator Summary label when reportType is term (PEP-325)", () => {
+    assert.equal(
+      buildReportDocTitle("Aakash Mehta", "2026-02-28T10:00:00.000Z", "term"),
+      "Aakash Mehta | Educator Summary | February 2026",
+    );
+  });
+
+  it("uses the Baseline Report label when reportType is baseline (PEP-325)", () => {
+    assert.equal(
+      buildReportDocTitle("Aakash Mehta", "2026-02-28T10:00:00.000Z", "baseline"),
+      "Aakash Mehta | Baseline Report | February 2026",
+    );
+  });
 });
 
 // --- deriveAcademicYear ---

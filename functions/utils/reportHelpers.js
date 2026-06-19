@@ -1,4 +1,4 @@
-import { REPORT_PROMPT_DOCS, REPORT_DEFAULTS, READINESS_PROMPT_DOCS } from "../config/reportConstants.js";
+import { REPORT_PROMPT_DOCS, REPORT_BASELINE_PROMPT_DOCS, REPORT_DEFAULTS, READINESS_PROMPT_DOCS } from "../config/reportConstants.js";
 
 /**
  * Returns the default date range for report generation.
@@ -67,11 +67,15 @@ export function parseReadinessResponse(rawContent) {
 
 /**
  * Get the Firestore document ID for a program's report prompt.
+ * Term reports (default) resolve to REPORT_PROMPT_DOCS; baseline reports (PEP-325)
+ * resolve to the dedicated REPORT_BASELINE_PROMPT_DOCS. There is no cross-fallback:
+ * a baseline request never resolves a term doc (and vice versa).
  * Returns null if the program is not supported.
  */
-export function getReportPromptDocId(programId) {
+export function getReportPromptDocId(programId, reportType = "term") {
   if (!programId || typeof programId !== "string") return null;
-  return REPORT_PROMPT_DOCS[programId] || null;
+  const docs = reportType === "baseline" ? REPORT_BASELINE_PROMPT_DOCS : REPORT_PROMPT_DOCS;
+  return docs[programId] || null;
 }
 
 /**

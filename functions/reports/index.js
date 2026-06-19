@@ -28,12 +28,12 @@ const REPORT_PROMPT_CACHE_TTL_MS = 5 * 60 * 1000;
 
 const reportConfigCache = {};
 
-async function getReportConfig(programId, { forceRefresh = false } = {}) {
-  const docId = getReportPromptDocId(programId);
+async function getReportConfig(programId, reportType = "term", { forceRefresh = false } = {}) {
+  const docId = getReportPromptDocId(programId, reportType);
   if (!docId) {
     throw new functions.https.HttpsError(
       "invalid-argument",
-      `Unsupported program for report generation: ${programId}`,
+      `Unsupported program for ${reportType} report generation: ${programId}`,
     );
   }
 
@@ -46,7 +46,7 @@ async function getReportConfig(programId, { forceRefresh = false } = {}) {
   if (!snap.exists) {
     throw new functions.https.HttpsError(
       "not-found",
-      `Report config not found for program: ${programId}. Run migrate-ai-prompts-to-config.mjs --apply`,
+      `Report config not found for ${reportType} report (program: ${programId}, doc: ${docId}). Seed it before generating ${reportType} reports.`,
     );
   }
 
@@ -132,7 +132,7 @@ IMPORTANT: You must output your response as a JSON object with exactly this stru
 The reportText should contain the complete parent-facing report following the prompt instructions above.
 Output ONLY the JSON object, nothing else.`;
 
-async function callReportGeneration(notes, prompt, studentContext, dateRange, config = REPORT_DEFAULTS) {
+async function callReportGeneration(notes, prompt, studentContext, dateRange, config = REPORT_DEFAULTS, reportType = "term") {
   const openAiKey = getOpenAiKey();
   if (!openAiKey) {
     throw new functions.https.HttpsError("failed-precondition", "OpenAI key not configured");
@@ -157,8 +157,9 @@ async function callReportGeneration(notes, prompt, studentContext, dateRange, co
     ? dateRange.end.toISOString().split("T")[0]
     : String(dateRange.end);
 
+  const reportLabel = reportType === "baseline" ? "Baseline" : "Educator Summary";
   const userContent = [
-    `Generate the Educator Summary report for the period ${startStr} to ${endStr}.`,
+    `Generate the ${reportLabel} report for the period ${startStr} to ${endStr}.`,
     "",
     `Student: ${JSON.stringify(safeContext)}`,
     "",
@@ -215,7 +216,7 @@ async function writeReportDoc(studentId, payload, docId) {
   return resolvedId;
 }
 
-async function runSingleReport({ studentId, dateRangeStart, dateRangeEnd, requesterId, requesterName, configOverrides, promptOverride, dryRun = false }) {
+async function runSingleReport({ studentId, dateRangeStart, dateRangeEnd, requesterId, requesterName, configOverrides, promptOverride, reportType = "term", dryRun = false }) {
   const studentInfo = await getStudentWithProgram(studentId);
   if (!studentInfo.programId) {
     throw new functions.https.HttpsError(
@@ -224,7 +225,7 @@ async function runSingleReport({ studentId, dateRangeStart, dateRangeEnd, reques
     );
   }
 
-  const baseConfig = await getReportConfig(studentInfo.programId);
+  const baseConfig = await getReportConfig(studentInfo.programId, reportType);
   const config = configOverrides
     ? mergeReportConfig(configOverrides, baseConfig)
     : baseConfig;
@@ -259,6 +260,7 @@ async function runSingleReport({ studentId, dateRangeStart, dateRangeEnd, reques
       generatedByName: requesterName || null,
       status: "no_notes",
       sourceNoteIds: [],
+      reportType,
     };
     if (!dryRun) {
       const docId = await writeReportDoc(studentId, payload);
@@ -268,7 +270,7 @@ async function runSingleReport({ studentId, dateRangeStart, dateRangeEnd, reques
   }
 
   const formatted = notes.map(formatObservationForPrompt);
-  const aiResult = await callReportGeneration(formatted, prompt, studentInfo, { start: startDate, end: endDate }, config);
+  const aiResult = await callReportGeneration(formatted, prompt, studentInfo, { start: startDate, end: endDate }, config, reportType);
   const sourceNoteIds = notes.map((n) => n.id).filter(Boolean);
 
   const payload = {
@@ -284,6 +286,7 @@ async function runSingleReport({ studentId, dateRangeStart, dateRangeEnd, reques
     generatedByName: requesterName || null,
     status: "ok",
     sourceNoteIds,
+    reportType,
   };
 
   if (!dryRun) {
@@ -345,12 +348,15 @@ export const generateStudentReport = functions
 
     const { displayName: requesterName } = await checkReportPermission(context.auth.uid, studentId);
 
+    const reportType = data?.reportType === "baseline" ? "baseline" : "term";
+
     const result = await runSingleReport({
       studentId,
       dateRangeStart: data?.dateRangeStart || null,
       dateRangeEnd: data?.dateRangeEnd || null,
       requesterId: context.auth.uid,
       requesterName,
+      reportType,
       dryRun: true,
     });
 
@@ -367,6 +373,7 @@ export const generateStudentReport = functions
       generatedAt: result.payload.generatedAt?.toISOString?.() || new Date().toISOString(),
       generatedBy: result.payload.generatedBy,
       generatedByName: result.payload.generatedByName,
+      reportType: result.payload.reportType,
     };
   });
 
@@ -394,6 +401,8 @@ export const previewStudentReport = functions
       throw new functions.https.HttpsError("invalid-argument", "studentId is required");
     }
 
+    const reportType = data?.reportType === "baseline" ? "baseline" : "term";
+
     const result = await runSingleReport({
       studentId,
       dateRangeStart: data?.dateRangeStart || null,
@@ -403,6 +412,7 @@ export const previewStudentReport = functions
       promptOverride: (typeof data?.staticSystemPrompt === "string" && data.staticSystemPrompt.trim()) || (typeof data?.dynamicSystemPrompt === "string" && data.dynamicSystemPrompt.trim())
         ? { staticSystemPrompt: data.staticSystemPrompt, dynamicSystemPrompt: data.dynamicSystemPrompt }
         : null,
+      reportType,
       dryRun: true,
     });
 
@@ -413,6 +423,7 @@ export const previewStudentReport = functions
       reportText: result.payload.reportText,
       model: result.payload.model,
       generatedAt: result.payload.generatedAt?.toISOString?.() || new Date().toISOString(),
+      reportType: result.payload.reportType,
     };
   });
 
@@ -498,6 +509,7 @@ export const exportReportToDrive = functions
           generatedAt: reportPayload.generatedAt ? new Date(reportPayload.generatedAt) : new Date(),
           generatedBy: reportPayload.generatedBy || context.auth.uid,
           generatedByName: reportPayload.generatedByName || requesterName || null,
+          reportType: reportPayload.reportType === "baseline" ? "baseline" : "term",
           status: "pending_drive",
         };
         if (!report.reportText) {
@@ -590,10 +602,11 @@ export const exportReportToDrive = functions
     const reportStartDate = reportDocId
       ? (report.dateRangeStart?.toDate?.() || report.dateRangeStart)
       : report.dateRangeStart;
+    const reportType = report.reportType === "baseline" ? "baseline" : "term";
     const { docId: driveDocId, docLink } = await createReportDoc(
       drive, docs, studentFolderId, studentName, report.reportText,
       generatedAtIso,
-      { programName, academicYear, startDate: reportStartDate },
+      { programName, academicYear, startDate: reportStartDate, reportType },
     );
 
     // Persist driveDocId immediately so retries find it and skip Drive creation.
@@ -638,8 +651,8 @@ export const exportReportToDrive = functions
         docLink,
       });
 
-      const summaryCsvName = buildCsvFilename(classroomName);
-      const archiveCsvName = buildArchiveCsvFilename(classroomName);
+      const summaryCsvName = buildCsvFilename(classroomName, reportType);
+      const archiveCsvName = buildArchiveCsvFilename(classroomName, reportType);
 
       // Migrate legacy CSV if it exists under the old name
       await migrateLegacyCsv(drive, classroomFolderId, summaryCsvName);
@@ -669,6 +682,7 @@ export const exportReportToDrive = functions
         studentId,
         classroomId,
         kind: "report",
+        reportType,
       });
       docId = reportDocId;
     } else if (reportDocId) {

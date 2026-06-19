@@ -114,6 +114,22 @@ describe("getReportPromptDocId", () => {
     assert.equal(getReportPromptDocId(""), null);
     assert.equal(getReportPromptDocId(null), null);
   });
+
+  it("defaults to the term doc when reportType is omitted (PEP-325)", () => {
+    assert.equal(getReportPromptDocId("elementary"), "report_elementary");
+    assert.equal(getReportPromptDocId("primary", "term"), "report_primary");
+  });
+
+  it("returns the dedicated baseline doc when reportType is baseline (PEP-325)", () => {
+    assert.equal(getReportPromptDocId("adolescent", "baseline"), "report_baseline_adolescent");
+    assert.equal(getReportPromptDocId("elementary", "baseline"), "report_baseline_elementary");
+    assert.equal(getReportPromptDocId("primary", "baseline"), "report_baseline_primary");
+    assert.equal(getReportPromptDocId("toddler", "baseline"), "report_baseline_toddler");
+  });
+
+  it("returns null for an unsupported program even with baseline type (PEP-325)", () => {
+    assert.equal(getReportPromptDocId("unsupported_program", "baseline"), null);
+  });
 });
 
 describe("formatCsvRow", () => {
@@ -405,6 +421,20 @@ describe("buildCsvFilename", () => {
       "Room A & B | March 2026 | Report Consolidation Summary.csv",
     );
   });
+
+  it("uses a Baseline label for baseline reports (PEP-325)", () => {
+    assert.equal(
+      buildCsvFilename("All Stars", "baseline"),
+      "All Stars | Baseline | Report Consolidation Summary.csv",
+    );
+  });
+
+  it("keeps the term label when reportType is term or omitted (PEP-325)", () => {
+    assert.equal(
+      buildCsvFilename("All Stars", "term"),
+      "All Stars | March 2026 | Report Consolidation Summary.csv",
+    );
+  });
 });
 
 describe("buildArchiveCsvFilename", () => {
@@ -412,6 +442,13 @@ describe("buildArchiveCsvFilename", () => {
     assert.equal(
       buildArchiveCsvFilename("All Stars"),
       "All Stars | March 2026 | Report Consolidation Summary Archive.csv",
+    );
+  });
+
+  it("uses a Baseline label for baseline archive filename (PEP-325)", () => {
+    assert.equal(
+      buildArchiveCsvFilename("All Stars", "baseline"),
+      "All Stars | Baseline | Report Consolidation Summary Archive.csv",
     );
   });
 });

@@ -295,3 +295,23 @@ test('ReportGenerateDialog does not contain readiness UI (moved to ReportsPage)'
     'Expected ReportGenerateDialog to not contain any readiness-related code',
   );
 });
+
+test('ReportsPage forwards reportType to generateStudentReport (PEP-325)', async () => {
+  const source = await readFile(sourceUrl, 'utf8');
+  assert.ok(
+    /handleGenerate\s*=\s*async\s*\(\{[^}]*reportType/.test(source),
+    'Expected handleGenerate to accept reportType from the dialog payload',
+  );
+  assert.ok(
+    /call\(\{[^}]*reportType/.test(source),
+    'Expected the generateStudentReport call payload to include reportType',
+  );
+});
+
+test('ReportsPage carries reportType into the draft report (PEP-325)', async () => {
+  const source = await readFile(sourceUrl, 'utf8');
+  assert.ok(
+    /reportType:\s*result\.data\.reportType/.test(source),
+    'Expected the draft report to carry reportType so it flows into the Drive export payload',
+  );
+});

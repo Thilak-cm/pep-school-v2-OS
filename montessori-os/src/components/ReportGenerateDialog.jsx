@@ -8,6 +8,8 @@ import {
   Stack,
   Box,
   TextField,
+  ToggleButton,
+  ToggleButtonGroup,
   CircularProgress
 } from '@mui/material';
 import { FileText as ReportIcon } from '../icons';
@@ -27,6 +29,9 @@ export default function ReportGenerateDialog({
 
   const [startDate, setStartDate] = useState(defaults.start);
   const [endDate, setEndDate] = useState(defaults.end);
+  // Report format: 'term' (existing default) or 'baseline' (PEP-325). Defaulting to
+  // 'term' keeps the existing flow byte-for-byte unchanged when the toggle is untouched.
+  const [reportType, setReportType] = useState('term');
 
   const dateValid = Boolean(startDate && endDate);
   const rangeError = dateValid && endDate < startDate;
@@ -35,7 +40,7 @@ export default function ReportGenerateDialog({
 
   const handleGenerate = () => {
     if (!dateValid || rangeError) return;
-    onGenerate?.({ dateRangeStart: startDate, dateRangeEnd: endDate });
+    onGenerate?.({ dateRangeStart: startDate, dateRangeEnd: endDate, reportType });
   };
 
   return (
@@ -78,6 +83,31 @@ export default function ReportGenerateDialog({
           <Typography variant="body2" sx={{ color: 'var(--grey-600)' }}>
             Coach Pepper will generate a parent report using observations within the date range below.
           </Typography>
+
+          <Box>
+            <Typography
+              variant="caption"
+              sx={{ display: 'block', mb: 0.75, fontWeight: 700, color: 'var(--grey-600)' }}
+            >
+              Report type
+            </Typography>
+            <ToggleButtonGroup
+              value={reportType}
+              exclusive
+              fullWidth
+              size="small"
+              disabled={generating}
+              onChange={(_e, next) => { if (next) setReportType(next); }}
+              aria-label="Report type"
+            >
+              <ToggleButton value="term" sx={{ textTransform: 'none' }}>
+                Term
+              </ToggleButton>
+              <ToggleButton value="baseline" sx={{ textTransform: 'none' }}>
+                Baseline
+              </ToggleButton>
+            </ToggleButtonGroup>
+          </Box>
 
           <Stack direction="row" spacing={2}>
             <TextField

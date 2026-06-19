@@ -244,12 +244,12 @@ export default function ReportsPage({
     }
   };
 
-  const handleGenerate = async ({ dateRangeStart, dateRangeEnd }) => {
+  const handleGenerate = async ({ dateRangeStart, dateRangeEnd, reportType = 'term' }) => {
     try {
       setGenerating(true);
-      trackEvent('report_generate_start', { studentId }).catch(() => {});
+      trackEvent('report_generate_start', { studentId, reportType }).catch(() => {});
       const call = httpsCallable(cloudFunctions, 'generateStudentReport', { timeout: 300_000 });
-      const result = await call({ studentId, dateRangeStart, dateRangeEnd });
+      const result = await call({ studentId, dateRangeStart, dateRangeEnd, reportType });
       const draft = {
         // No id — this is a draft, not yet in Firestore
         generatedAt: result.data.generatedAt ? new Date(result.data.generatedAt) : new Date(),
@@ -263,6 +263,7 @@ export default function ReportsPage({
         sourceNoteIds: result.data.sourceNoteIds || [],
         generatedBy: result.data.generatedBy || '',
         generatedByName: result.data.generatedByName || null,
+        reportType: result.data.reportType || reportType,
         driveDocLink: null,
       };
       setDraftReport(draft);
