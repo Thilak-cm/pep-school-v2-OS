@@ -121,38 +121,3 @@ export const autoExpireBroadcast = functions
     return null;
   });
 
-/**
- * Scheduled CF: delete expired alert docs where expiresAt < now.
- * Runs weekly on Monday 01:00 IST.
- */
-export const cleanupExpiredAlerts = functions
-  .region("asia-south1")
-  .runWith({ timeoutSeconds: 120, memory: "256MB" })
-  .pubsub.schedule("0 1 * * 1")
-  .timeZone("Asia/Kolkata")
-  .onRun(async () => {
-    const now = Timestamp.now();
-    // Alerts with expiresAt: null are retained indefinitely —
-    // they must be deleted manually or via admin action.
-    const snapshot = await db
-      .collection("alerts")
-      .where("expiresAt", "<=", now)
-      .get();
-
-    if (snapshot.empty) {
-      functions.logger.info("cleanupExpiredAlerts: no expired alerts found");
-      return null;
-    }
-
-    const BATCH_LIMIT = 500;
-    for (let i = 0; i < snapshot.docs.length; i += BATCH_LIMIT) {
-      const batch = db.batch();
-      snapshot.docs.slice(i, i + BATCH_LIMIT).forEach((d) => batch.delete(d.ref));
-      await batch.commit();
-    }
-
-    functions.logger.info(
-      `cleanupExpiredAlerts: deleted ${snapshot.size} expired alerts`
-    );
-    return null;
-  });
