@@ -50,8 +50,11 @@ export async function createBroadcast(fields) {
     throw new Error('label, title, and message are required');
   }
 
+  const kind = fields.broadcastKind || 'ack';
+
   const alertDoc = {
     type: 'broadcast',
+    broadcastKind: kind,
     dip: fields.dip ?? true,
     priority: fields.priority ?? 3,
     source: 'admin:broadcast',
@@ -68,6 +71,10 @@ export async function createBroadcast(fields) {
     targetClassrooms: fields.targetClassrooms || [],
     targetTeachers: fields.targetTeachers || [],
     dismissedBy: {},
+    ...(kind === 'poll' && {
+      poll: fields.poll,
+      responses: {},
+    }),
     expiresAt: fields.expiresAt,
     startsAt: fields.startsAt || null,
     reach: fields.reach || 0,
@@ -113,8 +120,10 @@ export async function updateBroadcast(alertId, fields) {
   if (!uid) throw new Error('Not authenticated');
 
   const { resetDismissals, ...rest } = fields;
+  const kind = rest.broadcastKind || 'ack';
 
   const updates = {
+    broadcastKind: kind,
     dip: rest.dip ?? true,
     priority: rest.priority ?? 3,
     payload: {
@@ -132,10 +141,12 @@ export async function updateBroadcast(alertId, fields) {
     expiresAt: rest.expiresAt,
     ...(rest.startsAt !== undefined && { startsAt: rest.startsAt || null }),
     ...(rest.reach !== undefined && { reach: rest.reach }),
+    ...(kind === 'poll' && rest.poll && { poll: rest.poll }),
   };
 
   if (resetDismissals) {
     updates.dismissedBy = {};
+    if (kind === 'poll') updates.responses = {};
   }
 
   await updateDoc(doc(db, ALERTS_COL, alertId), updates);
