@@ -1185,70 +1185,6 @@ function NotificationsPage() {
         </Box>
       ) : (
         <>
-          {/* ── Search + Classroom filter toolbar ──────────────────────── */}
-          <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
-            {/* Persistent search field */}
-            <Box sx={{
-              flex: 1,
-              display: 'flex', alignItems: 'center', gap: 1,
-              backgroundColor: 'var(--color-paper)', border: '1px solid var(--color-border)', borderRadius: '10px',
-              px: '11px', py: '8px',
-            }}>
-              <Search size={14} style={{ color: 'var(--color-text-faint)', flexShrink: 0 }} />
-              <InputBase
-                value={searchQuery}
-                onChange={(e) => setSearchQuery(e.target.value)}
-                placeholder="Look up a student…"
-                fullWidth
-                sx={{ fontSize: '12.5px', '& input': { p: 0 } }}
-              />
-              {searchQuery && (
-                <IconButton size="small" onClick={() => setSearchQuery('')} sx={{ p: 0.25 }}>
-                  <CloseIcon size={13} />
-                </IconButton>
-              )}
-            </Box>
-
-            {/* Classroom dropdown */}
-            {classroomOptions.length > 1 && (
-              <Select
-                value={selectedClassroom}
-                onChange={(e) => setSelectedClassroom(e.target.value)}
-                size="small"
-                displayEmpty
-                renderValue={(value) => {
-                  if (value === 'all') return 'All classrooms';
-                  const opt = classroomOptions.find((c) => c.id === value);
-                  return (
-                    <Box sx={{ display: 'flex', alignItems: 'center', gap: 0.75 }}>
-                      {opt?.color && <MiniTangram size={16} color={opt.color} />}
-                      <span>{opt?.name || value}</span>
-                    </Box>
-                  );
-                }}
-                sx={{
-                  minWidth: 160,
-                  fontSize: '12.5px',
-                  fontWeight: 600,
-                  backgroundColor: 'var(--color-paper)',
-                  borderRadius: '10px',
-                  '& .MuiOutlinedInput-notchedOutline': { borderColor: 'var(--color-border)' },
-                  '& .MuiSelect-select': { py: '8px', display: 'flex', alignItems: 'center' },
-                }}
-              >
-                <MenuItem value="all" sx={{ fontSize: '12.5px', fontWeight: 600 }}>
-                  All classrooms
-                </MenuItem>
-                {classroomOptions.map((c) => (
-                  <MenuItem key={c.id} value={c.id} sx={{ fontSize: '12.5px', display: 'flex', alignItems: 'center', gap: 0.75 }}>
-                    {c.color && <MiniTangram size={16} color={c.color} />}
-                    {c.name}
-                  </MenuItem>
-                ))}
-              </Select>
-            )}
-          </Box>
-
           {/* ── Heatmap card ────────────────────────────────────────────── */}
           <Box sx={{
             backgroundColor: 'var(--color-paper)',
@@ -1260,7 +1196,7 @@ function NotificationsPage() {
             <Box sx={{ display: 'flex', alignItems: 'baseline', justifyContent: 'space-between', mb: 0.5 }}>
               <Box sx={{ display: 'flex', alignItems: 'baseline', gap: 1.5 }}>
                 <Typography sx={{ fontFamily: 'inherit', fontSize: '15px', fontWeight: 700, color: 'var(--grey-900)' }}>
-                  Flag pattern
+                  Behaviour Pattern Trend
                 </Typography>
                 <Typography sx={{ fontFamily: 'var(--f-mono, monospace)', fontSize: '9px', letterSpacing: '0.05em', color: 'var(--color-text-faint)', textTransform: 'uppercase' }}>
                   LAST 6 WEEKS
@@ -1271,10 +1207,71 @@ function NotificationsPage() {
               </Typography>
             </Box>
 
+            {/* Search + Classroom filter */}
+            <Box sx={{ display: 'flex', alignItems: 'center', gap: 1, mb: 1 }}>
+              <Box sx={{
+                flex: 1,
+                display: 'flex', alignItems: 'center', gap: 1,
+                backgroundColor: 'var(--color-bg)', border: '1px solid var(--color-border)', borderRadius: '8px',
+                px: '9px', py: '6px',
+              }}>
+                <Search size={13} style={{ color: 'var(--color-text-faint)', flexShrink: 0 }} />
+                <InputBase
+                  value={searchQuery}
+                  onChange={(e) => setSearchQuery(e.target.value)}
+                  placeholder="Look up a student…"
+                  fullWidth
+                  sx={{ fontSize: '12px', '& input': { p: 0 } }}
+                />
+                {searchQuery && (
+                  <IconButton size="small" onClick={() => setSearchQuery('')} sx={{ p: 0.25 }}>
+                    <CloseIcon size={12} />
+                  </IconButton>
+                )}
+              </Box>
+              {classroomOptions.length > 1 && (
+                <Select
+                  value={selectedClassroom}
+                  onChange={(e) => setSelectedClassroom(e.target.value)}
+                  size="small"
+                  displayEmpty
+                  renderValue={(value) => {
+                    if (value === 'all') return 'All classrooms';
+                    const opt = classroomOptions.find((c) => c.id === value);
+                    return (
+                      <Box sx={{ display: 'flex', alignItems: 'center', gap: 0.75 }}>
+                        {opt?.color && <MiniTangram size={16} color={opt.color} />}
+                        <span>{opt?.name || value}</span>
+                      </Box>
+                    );
+                  }}
+                  sx={{
+                    minWidth: 140,
+                    fontSize: '12px',
+                    fontWeight: 600,
+                    backgroundColor: 'var(--color-bg)',
+                    borderRadius: '8px',
+                    '& .MuiOutlinedInput-notchedOutline': { borderColor: 'var(--color-border)' },
+                    '& .MuiSelect-select': { py: '6px', display: 'flex', alignItems: 'center' },
+                  }}
+                >
+                  <MenuItem value="all" sx={{ fontSize: '12px', fontWeight: 600 }}>
+                    All classrooms
+                  </MenuItem>
+                  {classroomOptions.map((c) => (
+                    <MenuItem key={c.id} value={c.id} sx={{ fontSize: '12px', display: 'flex', alignItems: 'center', gap: 0.75 }}>
+                      {c.color && <MiniTangram size={16} color={c.color} />}
+                      {c.name}
+                    </MenuItem>
+                  ))}
+                </Select>
+              )}
+            </Box>
+
             {/* Trend summary */}
             <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', mb: 1.5, mt: 0.5 }}>
               {[
-                { count: escalatedCount, label: 'escalated', glyph: 'down' },
+                { count: escalatedCount, label: 'worsened', glyph: 'down' },
                 { count: steadyCount, label: 'steady', glyph: 'flat' },
                 { count: improvedCount, label: 'improved', glyph: 'up' },
               ].map(({ count, label, glyph }) => (
