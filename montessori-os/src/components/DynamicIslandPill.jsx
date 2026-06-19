@@ -304,7 +304,6 @@ function DynamicIslandPill({ onNavigateToStudent, onNavigate, classrooms = [] })
         <Typography variant="overline" sx={{ fontWeight: 700, color: 'var(--color-text)', letterSpacing: 1 }}>
           Quick alerts
         </Typography>
-        <NewFeaturePill />
       </Box>
 
       <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
