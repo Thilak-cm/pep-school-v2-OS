@@ -231,6 +231,7 @@ function NotificationsPage() {
 
   // ── Alerts section state ─────────────────────────────────────────────────
   const [alertDocs, setAlertDocs] = useState([]);
+  const [alertTab, setAlertTab] = useState('active'); // 'active' | 'history'
 
   useEffect(() => { prepareNotificationsFeature(); }, []);
 
@@ -251,8 +252,6 @@ function NotificationsPage() {
       const docs = [];
       snapshot.forEach((d) => {
         const data = { id: d.id, ...(d.data() || {}) };
-        // Hide expired
-        if (data.expiresAt && data.expiresAt.toDate && data.expiresAt.toDate() < now) return;
         // Skip scheduled broadcasts not yet live
         if (data.startsAt && data.startsAt.toDate && data.startsAt.toDate() > now) return;
         // Apply same targeting as DIP
@@ -1406,21 +1405,68 @@ function NotificationsPage() {
               Alerts
             </Typography>
 
-            {alertDocs.length === 0 ? (
-              <Box sx={{
-                backgroundColor: 'var(--color-bg)',
-                border: '1px dashed var(--color-border)',
-                borderRadius: '12px',
-                p: '22px 16px',
-                textAlign: 'center',
-              }}>
-                <Typography variant="body2" sx={{ color: 'var(--color-text-faint)' }}>
-                  All clear — no active alerts
-                </Typography>
-              </Box>
-            ) : (
-              <Box sx={{ display: 'flex', flexDirection: 'column', gap: 1 }}>
-                {alertDocs.map(alertDoc => {
+            {/* Tabs (PEP-323c) */}
+            {(() => {
+              const uid = auth?.currentUser?.uid;
+              const now = new Date();
+              const isHistory = (doc) => {
+                // Expired broadcasts → history
+                if (doc.expiresAt && doc.expiresAt.toDate && doc.expiresAt.toDate() < now) return true;
+                // Dismissed system/agent alerts → history
+                if (['system', 'agent'].includes(doc.type) && uid && doc.dismissedBy?.[uid]) return true;
+                return false;
+              };
+              const activeAlerts = alertDocs.filter(d => !isHistory(d));
+              const historyAlerts = alertDocs.filter(d => isHistory(d));
+              const filteredAlerts = alertTab === 'active' ? activeAlerts : historyAlerts;
+
+              return (
+                <>
+                  <Box sx={{
+                    display: 'flex', gap: 0,
+                    backgroundColor: 'var(--color-surface, #f1f3f7)',
+                    borderRadius: '10px', p: '3px', mb: 1.5,
+                  }}>
+                    {[
+                      { key: 'active', label: 'Active', count: activeAlerts.length },
+                      { key: 'history', label: 'History', count: historyAlerts.length },
+                    ].map(tab => {
+                      const isActive = alertTab === tab.key;
+                      return (
+                        <Box
+                          key={tab.key}
+                          onClick={() => setAlertTab(tab.key)}
+                          sx={{
+                            flex: 1, textAlign: 'center', py: 0.7,
+                            borderRadius: '8px', cursor: 'pointer',
+                            fontSize: '0.8rem', fontWeight: 600,
+                            transition: 'all 0.2s ease',
+                            ...(isActive
+                              ? { backgroundColor: '#fff', color: 'var(--color-text)', boxShadow: '0 1px 3px rgba(0,0,0,0.08)' }
+                              : { color: 'var(--color-text-faint)' }),
+                          }}
+                        >
+                          {tab.label} · {tab.count}
+                        </Box>
+                      );
+                    })}
+                  </Box>
+
+                  {filteredAlerts.length === 0 ? (
+                    <Box sx={{
+                      backgroundColor: 'var(--color-bg)',
+                      border: '1px dashed var(--color-border)',
+                      borderRadius: '12px',
+                      p: '22px 16px',
+                      textAlign: 'center',
+                    }}>
+                      <Typography variant="body2" sx={{ color: 'var(--color-text-faint)' }}>
+                        {alertTab === 'active' ? 'All clear — no active alerts' : 'No past alerts'}
+                      </Typography>
+                    </Box>
+                  ) : (
+                    <Box sx={{ display: 'flex', flexDirection: 'column', gap: 1 }}>
+                      {filteredAlerts.map(alertDoc => {
                   const uid = auth?.currentUser?.uid;
                   const isDismissedByMe = !!(uid && alertDoc.dismissedBy?.[uid]);
                   // Superadmins manage broadcasts — don't show as dismissed even if they acked
@@ -1529,6 +1575,9 @@ function NotificationsPage() {
                 })}
               </Box>
             )}
+                </>
+              );
+            })()}
           </Box>
         </>
       )}
