@@ -1,4 +1,4 @@
-import { REPORT_PROMPT_DOCS, MONTHLY_REPORT_PROMPT_DOCS, REPORT_DEFAULTS, READINESS_PROMPT_DOCS } from "../config/reportConstants.js";
+import { REPORT_PROMPT_DOCS, BASELINE_REPORT_PROMPT_DOCS, REPORT_DEFAULTS, READINESS_PROMPT_DOCS } from "../config/reportConstants.js";
 
 /**
  * Returns the default date range for report generation.
@@ -74,7 +74,7 @@ export function parseReadinessResponse(rawContent) {
 export function getReportPromptDocId(programId, reportType) {
   if (!programId || typeof programId !== "string") return null;
   if (reportType === "monthly") {
-    return MONTHLY_REPORT_PROMPT_DOCS[programId] || null;
+    return BASELINE_REPORT_PROMPT_DOCS[programId] || null;
   }
   return REPORT_PROMPT_DOCS[programId] || null;
 }

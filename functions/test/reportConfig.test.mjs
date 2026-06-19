@@ -4,7 +4,7 @@ import { mergeReportConfig, getReportPromptDocId } from "../utils/reportHelpers.
 import {
   REPORT_DEFAULTS,
   REPORT_PROMPT_DOCS,
-  MONTHLY_REPORT_PROMPT_DOCS,
+  BASELINE_REPORT_PROMPT_DOCS,
   buildMonthlyBaselineCsvFilename,
 } from "../config/reportConstants.js";
 
@@ -93,25 +93,25 @@ describe("mergeReportConfig", () => {
   });
 });
 
-describe("MONTHLY_REPORT_PROMPT_DOCS", () => {
+describe("BASELINE_REPORT_PROMPT_DOCS", () => {
   it("has entries for all programs matching REPORT_PROMPT_DOCS keys", () => {
     const termPrograms = Object.keys(REPORT_PROMPT_DOCS).sort();
-    const monthlyPrograms = Object.keys(MONTHLY_REPORT_PROMPT_DOCS).sort();
+    const monthlyPrograms = Object.keys(BASELINE_REPORT_PROMPT_DOCS).sort();
     assert.deepStrictEqual(monthlyPrograms, termPrograms);
   });
 
   it("uses report_monthly_ prefix for all doc IDs", () => {
-    for (const [program, docId] of Object.entries(MONTHLY_REPORT_PROMPT_DOCS)) {
+    for (const [program, docId] of Object.entries(BASELINE_REPORT_PROMPT_DOCS)) {
       assert.ok(
-        docId.startsWith("report_monthly_"),
-        `Expected ${program} doc ID to start with report_monthly_, got ${docId}`,
+        docId.startsWith("baseline_report_"),
+        `Expected ${program} doc ID to start with baseline_report_, got ${docId}`,
       );
     }
   });
 
   it("doc IDs do not collide with term report doc IDs", () => {
     const termIds = new Set(Object.values(REPORT_PROMPT_DOCS));
-    for (const docId of Object.values(MONTHLY_REPORT_PROMPT_DOCS)) {
+    for (const docId of Object.values(BASELINE_REPORT_PROMPT_DOCS)) {
       assert.ok(!termIds.has(docId), `Monthly doc ID ${docId} collides with term doc`);
     }
   });
@@ -134,19 +134,19 @@ describe("buildMonthlyBaselineCsvFilename", () => {
 
 describe("getReportPromptDocId with reportType", () => {
   it("returns term doc ID by default (no reportType)", () => {
-    assert.equal(getReportPromptDocId("primary"), "report_primary");
+    assert.equal(getReportPromptDocId("primary"), "term_report_primary");
   });
 
   it("returns term doc ID when reportType is 'term'", () => {
-    assert.equal(getReportPromptDocId("primary", "term"), "report_primary");
+    assert.equal(getReportPromptDocId("primary", "term"), "term_report_primary");
   });
 
-  it("returns monthly doc ID when reportType is 'monthly'", () => {
-    assert.equal(getReportPromptDocId("primary", "monthly"), "report_monthly_primary");
+  it("returns baseline doc ID when reportType is 'monthly'", () => {
+    assert.equal(getReportPromptDocId("primary", "monthly"), "baseline_report_primary");
   });
 
-  it("returns monthly doc ID for elementary", () => {
-    assert.equal(getReportPromptDocId("elementary", "monthly"), "report_monthly_elementary");
+  it("returns baseline doc ID for elementary", () => {
+    assert.equal(getReportPromptDocId("elementary", "monthly"), "baseline_report_elementary");
   });
 
   it("returns null for unsupported program regardless of reportType", () => {
@@ -160,6 +160,6 @@ describe("getReportPromptDocId with reportType", () => {
   });
 
   it("falls back to term for unknown reportType", () => {
-    assert.equal(getReportPromptDocId("primary", "quarterly"), "report_primary");
+    assert.equal(getReportPromptDocId("primary", "quarterly"), "term_report_primary");
   });
 });
