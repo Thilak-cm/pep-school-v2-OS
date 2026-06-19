@@ -4,7 +4,7 @@ import { auth, db, cloudFunctions } from "./firebase";
 import SignIn from "./SignIn";
 import AppFooter from "./AppFooter";
 import { setAnalyticsUserId, setUserProperty, setAppVersionProperty, trackEvent } from './utils/analytics';
-import { doc, getDoc, collection, query, where, getDocs, documentId } from "firebase/firestore";
+import { doc, getDoc, collection, query, where, getDocs, documentId, onSnapshot } from "firebase/firestore";
 import { httpsCallable } from 'firebase/functions';
 import { Box, Typography, CircularProgress, Card } from "@mui/material";
 import AddNoteFab from './components/AddNoteFab';
@@ -36,6 +36,8 @@ function App() {
   const [classroomsLoaded, setClassroomsLoaded] = useState(false);
   const [inputFocused, setInputFocused] = useState(false);
   const [noteDrawerOpen, setNoteDrawerOpen] = useState(false);
+  const [broadcastDeepLink, setBroadcastDeepLink] = useState(null);
+  const [alertBadgeCount, setAlertBadgeCount] = useState(0);
 
   const {
     screen, setScreen,
@@ -198,6 +200,49 @@ function App() {
     };
   }, []);
 
+  // Navigate to broadcast detail from system alert — needs role in closure (PEP-323c)
+  useEffect(() => {
+    const handleNavigateToBroadcast = (e) => {
+      if (!isSuperAdmin(role)) return;
+      setBroadcastDeepLink(e.detail?.broadcastId || null);
+      setScreen('broadcastComposer');
+    };
+    window.addEventListener('navigateToBroadcastDetail', handleNavigateToBroadcast);
+    return () => window.removeEventListener('navigateToBroadcastDetail', handleNavigateToBroadcast);
+  }, [role]);
+
+  // ── Alert badge count — undismissed non-DIP alerts with targeting (PEP-323c) ──
+  useEffect(() => {
+    const uid = auth?.currentUser?.uid;
+    if (!uid) return;
+    // dip==false: broadcasts (dip:true) are surfaced in the DIP carousel; badge targets system/agent alerts
+    const q = query(collection(db, 'alerts'), where('dip', '==', false));
+    const myClassrooms = role === 'superadmin' ? [] : [...(manageableClassrooms || [])];
+    const unsub = onSnapshot(q, (snap) => {
+      let count = 0;
+      const now = new Date();
+      snap.forEach((d) => {
+        const data = d.data();
+        if (data.dismissedBy?.[uid]) return;
+        if (data.expiresAt && data.expiresAt.toDate && data.expiresAt.toDate() < now) return;
+        if (data.startsAt && data.startsAt.toDate && data.startsAt.toDate() > now) return;
+        // Apply targeting filters (same logic as NotificationsPage)
+        if (Array.isArray(data.targetRoles) && data.targetRoles.length > 0) {
+          if (!role || !data.targetRoles.includes(role)) return;
+        }
+        if (Array.isArray(data.targetClassrooms) && data.targetClassrooms.length > 0) {
+          if (role !== 'superadmin' && (!myClassrooms.length || !data.targetClassrooms.some(c => myClassrooms.includes(c)))) return;
+        }
+        if (Array.isArray(data.targetTeachers) && data.targetTeachers.length > 0) {
+          if (!data.targetTeachers.includes(uid)) return;
+        }
+        count++;
+      });
+      setAlertBadgeCount(count);
+    }, () => setAlertBadgeCount(0));
+    return unsub;
+  }, [user, role, manageableClassrooms]);
+
   // ── Track screen views for GA4 path analysis ──
   useEffect(() => {
     if (screen && screen !== 'loading') {
@@ -335,7 +380,7 @@ function App() {
     setStudentDashboardNoteType, setTimelineFilter, setUsersAccessView, setPendingViewReportId, setInitialStudentId,
     setLessonNoteEditObservation, setFeedbackReturnScreen, studentDashboardFlagOpen, setStudentDashboardFlagOpen,
     openFeedbackWithMessage, handleLessonNotesSaved, handleNavigation, handleSignOut,
-    getStudentDisplayName,
+    getStudentDisplayName, broadcastDeepLink, setBroadcastDeepLink,
     pageTitle, backNavigation, showBackButton,
   };
 
@@ -414,6 +459,7 @@ function App() {
                     onHome={handleHome}
                     onNavigate={handleNavigation}
                     active={FOOTER_TAB_SCREENS[screen] || null}
+                    alertBadgeCount={alertBadgeCount}
                   />
                 )}
               </>

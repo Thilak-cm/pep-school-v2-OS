@@ -53,8 +53,6 @@ export default function BroadcastCard({ broadcast, classrooms = [], onClick }) {
     );
   }
 
-  const isDone = status === 'done';
-
   return (
     <Paper
       elevation={0}
@@ -62,7 +60,7 @@ export default function BroadcastCard({ broadcast, classrooms = [], onClick }) {
       sx={{
         mb: 1.5, p: 2, borderRadius: 3,
         border: '1px solid var(--color-border)',
-        opacity: isDone ? 0.7 : 1,
+        opacity: 1,
         cursor: 'pointer',
         '&:active': { opacity: 0.85 },
       }}
@@ -125,7 +123,7 @@ export default function BroadcastCard({ broadcast, classrooms = [], onClick }) {
             fontSize: '0.65rem', fontWeight: 600, color: 'var(--color-text-soft)',
             whiteSpace: 'nowrap', flexShrink: 0,
           }}>
-            {ackCount}/{reach} read
+            {ackCount}/{reach} {broadcast.broadcastKind === 'poll' ? 'responded' : 'read'}
           </Typography>
         </Box>
       )}

@@ -124,4 +124,28 @@ describe('alertTransforms — DIP display transform (PEP-296)', () => {
       );
     });
   });
+
+  // ── PEP-323a: poll data passthrough ──
+  describe('poll broadcast passthrough (PEP-323a)', () => {
+    it('passes poll field through in broadcast transform', () => {
+      assert.ok(
+        source.includes('poll') && source.includes('alert.poll'),
+        'Should pass alert.poll through in broadcast case'
+      );
+    });
+
+    it('passes broadcastKind through in broadcast transform', () => {
+      assert.ok(
+        source.includes('broadcastKind') && source.includes('alert.broadcastKind'),
+        'Should pass alert.broadcastKind through in broadcast case'
+      );
+    });
+
+    it('sets ctaLabel to Respond for poll broadcasts', () => {
+      assert.ok(
+        source.includes("'Respond'") || source.includes('"Respond"'),
+        'Should use "Respond" as ctaLabel for poll kind'
+      );
+    });
+  });
 });

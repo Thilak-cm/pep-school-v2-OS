@@ -58,37 +58,66 @@ export async function createAlert(docId, alertData) {
 }
 
 /**
- * Scheduled CF: delete expired alert docs where expiresAt < now.
- * Runs weekly on Monday 01:00 IST.
+ * Firestore trigger: auto-complete a broadcast when all targeted teachers
+ * have responded (dismissedBy count >= reach). Writes expiresAt: now().
+ * Applies to both 'ack' and 'poll' broadcasts (PEP-323c).
+ *
+ * Idempotency guards:
+ * - No-op if dismissedBy count unchanged from before
+ * - No-op if expiresAt is already set to a past or near-now time
+ * - No-op if doc type is not 'broadcast'
  */
-export const cleanupExpiredAlerts = functions
+export const autoExpireBroadcast = functions
   .region("asia-south1")
-  .runWith({ timeoutSeconds: 120, memory: "256MB" })
-  .pubsub.schedule("0 1 * * 1")
-  .timeZone("Asia/Kolkata")
-  .onRun(async () => {
-    const now = Timestamp.now();
-    // Alerts with expiresAt: null are retained indefinitely —
-    // they must be deleted manually or via admin action.
-    const snapshot = await db
-      .collection("alerts")
-      .where("expiresAt", "<=", now)
-      .get();
+  .firestore.document("alerts/{alertId}")
+  .onUpdate(async (change) => {
+    const before = change.before.data();
+    const after = change.after.data();
 
-    if (snapshot.empty) {
-      functions.logger.info("cleanupExpiredAlerts: no expired alerts found");
+    // Only applies to broadcasts
+    if (after.type !== "broadcast") return null;
+
+    // Skip if reach is 0 or missing (no targeted audience)
+    const reach = after.reach || 0;
+    if (reach <= 0) return null;
+
+    // Skip if ack count unchanged (avoids re-trigger from our own write)
+    const beforeCount = Object.keys(before.dismissedBy || {}).length;
+    const afterCount = Object.keys(after.dismissedBy || {}).length;
+    if (afterCount <= beforeCount) return null;
+
+    // Skip if already expired (our own write or manual expiry)
+    if (after.expiresAt && after.expiresAt.toMillis() <= Date.now() + 5000) {
       return null;
     }
 
-    const BATCH_LIMIT = 500;
-    for (let i = 0; i < snapshot.docs.length; i += BATCH_LIMIT) {
-      const batch = db.batch();
-      snapshot.docs.slice(i, i + BATCH_LIMIT).forEach((d) => batch.delete(d.ref));
-      await batch.commit();
+    // Check if all have responded
+    if (afterCount >= reach) {
+      const alertId = change.after.id;
+      const title = after.payload?.title || "Broadcast";
+      functions.logger.info(
+        `autoExpireBroadcast: alert ${alertId} — ${afterCount}/${reach} acked, auto-completing`
+      );
+      await change.after.ref.update({ expiresAt: Timestamp.now() });
+
+      // Create a system notification for superadmins (PEP-323c)
+      const kindLabel = after.broadcastKind === "poll" ? "responded to" : "read";
+      await createAlert(`broadcast-complete:${alertId}`, {
+        type: "system",
+        dip: false,
+        priority: 3,
+        source: "cf:broadcastComplete",
+        payload: {
+          message: `All ${reach} teachers ${kindLabel} "${title}"`,
+          detail: "Tap to view details",
+          broadcastId: alertId,
+        },
+        targetRoles: ["superadmin"],
+        expiresAt: Timestamp.fromMillis(Date.now() + 30 * 24 * 60 * 60 * 1000),
+        createdBy: "system",
+      });
     }
 
-    functions.logger.info(
-      `cleanupExpiredAlerts: deleted ${snapshot.size} expired alerts`
-    );
     return null;
   });
+

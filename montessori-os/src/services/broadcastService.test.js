@@ -122,10 +122,10 @@ describe('broadcastService — broadcast CRUD contract (PEP-307)', () => {
     );
   });
 
-  it('requires expiresAt', () => {
+  it('includes expiresAt field (nullable for auto-expiry)', () => {
     assert.ok(
-      source.includes('expiresAt is required') || source.includes('expiresAt'),
-      'Should require expiresAt field'
+      source.includes('expiresAt'),
+      'Should include expiresAt field'
     );
   });
 
@@ -170,6 +170,39 @@ describe('broadcastService — broadcast CRUD contract (PEP-307)', () => {
     assert.ok(
       source.includes("'alerts'") || source.includes('"alerts"'),
       'Should reference the alerts Firestore collection'
+    );
+  });
+
+  // ── Poll support (PEP-323a) ──
+  it('accepts broadcastKind field and writes it to alertDoc', () => {
+    assert.ok(
+      source.includes('broadcastKind'),
+      'Should include broadcastKind field in doc shape'
+    );
+  });
+
+  it('sets broadcastKind explicitly (ack or poll)', () => {
+    assert.ok(
+      source.includes("broadcastKind") && (source.includes("'ack'") || source.includes('"ack"')),
+      'Should reference ack as a broadcastKind value'
+    );
+    assert.ok(
+      source.includes("'poll'") || source.includes('"poll"'),
+      'Should reference poll as a broadcastKind value'
+    );
+  });
+
+  it('writes poll field only for poll broadcasts', () => {
+    assert.ok(
+      source.includes('poll') && source.includes('fields.poll'),
+      'Should pass poll field from input fields'
+    );
+  });
+
+  it('initializes responses as empty object only for poll broadcasts', () => {
+    assert.ok(
+      source.includes('responses: {}'),
+      'Should initialize responses as empty map for polls'
     );
   });
 
