@@ -1,7 +1,7 @@
 # Pep OS Overview
 
-Generated: 2026-06-16T06:41:52.476Z
-App version: 10.37.0
+Generated: 2026-06-19T22:46:00.627Z
+App version: 10.38.0
 
 ## App Snapshot
 
@@ -57,10 +57,9 @@ App version: 10.37.0
 - `montessori-os/src/components/FilterPanel.jsx`
 
 ### Analytics and Notifications (`analytics-and-notifications`)
-- Count: 7
-- Components: `NewFeaturePill`, `NotificationsPage`, `NotificationsPage.heatmap.test`, `PerformanceSummaryCard`, `StatsPage`, `StatsPage.noteTypes.test`, `UpdateNotification`
+- Count: 6
+- Components: `NotificationsPage`, `NotificationsPage.heatmap.test`, `PerformanceSummaryCard`, `StatsPage`, `StatsPage.noteTypes.test`, `UpdateNotification`
 - Representative paths:
-- `montessori-os/src/components/NewFeaturePill.jsx`
 - `montessori-os/src/components/NotificationsPage.jsx`
 - `montessori-os/src/components/NotificationsPage.heatmap.test.js`
 - `montessori-os/src/components/PerformanceSummaryCard.jsx`
@@ -149,12 +148,15 @@ App version: 10.37.0
 
 ## Recent Changes
 
+### 10.38.0 (2026-06-19)
+- MCQ poll composer for broadcasts — superadmins attach a poll with question, options, multi-select, and free-text "Other" toggle (PEP-323a)
+- Teacher poll voting flow in DIP dialog — radio/checkbox options with "Respond" submit button (PEP-323a)
+- Poll results infographic in broadcast detail — bar chart with vote counts, percentages, and collapsible voter lists (PEP-323b)
+
 ### 10.37.0 (2026-06-15)
 - School Context Notes editor on Configurations page — superadmins can add, edit, and delete contextual notes injected into weekly digest LLM calls (PEP-324)
 - Reusable coachmark system for feature discovery — floating tooltip with backdrop overlay, pulse animation, session and permanent dismiss, and guided tour scaffolding (PEP-322)
 - Plan feedback coachmark on StudentDashboard plan tab — guides teachers to the feedback chip on first visit (PEP-322)
-- NewFeaturePill badge on Broadcast Message in Settings and Dynamic Island Pill header
-- Heatmap cache staleness — discard previous week's cache instead of showing stale data under a misleading label
 
 ### 10.36.0 (2026-06-09)
 - Digest Generation feature in prompt test bench — full agent loop with 8 digest tools, HTML email preview, side-by-side variant comparison, and run history with classroom context (PEP-304)
@@ -165,9 +167,4 @@ App version: 10.37.0
 - Superadmin broadcast composer in Settings → Admin Tools — compose, edit, and manage broadcast alerts with label, title, message body, audience targeting, priority, DIP toggle, and expiry (PEP-307)
 - Broadcast acknowledgment modal in DIP — tapping a broadcast CTA shows the full message with "I've read this" confirmation before dismissing (PEP-307)
 - Broadcast management view — list all published broadcasts (live + expired) with edit, delete, and DIP visibility toggle (PEP-307)
-
-### 10.34.1 (2026-06-08)
-- Per-classroom heatmap cache in `statsCache/heatmap_{classroomId}` docs — reduces Alerts page cold-load from ~420 reads to ~20 reads for superadmins (PEP-303)
-- `writeHeatmapCache` called after weekly `generateBaseballCards` run; `patchHeatmapStudent` called after on-demand single-student regen (PEP-303)
-- `useHeatmapCache` hook + shared `fetchHeatmapDocs` utility for role-scoped cache reads with weekKey freshness check (PEP-303)
 
