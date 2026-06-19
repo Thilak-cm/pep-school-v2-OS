@@ -173,6 +173,39 @@ describe('broadcastService — broadcast CRUD contract (PEP-307)', () => {
     );
   });
 
+  // ── Poll support (PEP-323a) ──
+  it('accepts broadcastKind field and writes it to alertDoc', () => {
+    assert.ok(
+      source.includes('broadcastKind'),
+      'Should include broadcastKind field in doc shape'
+    );
+  });
+
+  it('sets broadcastKind explicitly (ack or poll)', () => {
+    assert.ok(
+      source.includes("broadcastKind") && (source.includes("'ack'") || source.includes('"ack"')),
+      'Should reference ack as a broadcastKind value'
+    );
+    assert.ok(
+      source.includes("'poll'") || source.includes('"poll"'),
+      'Should reference poll as a broadcastKind value'
+    );
+  });
+
+  it('writes poll field only for poll broadcasts', () => {
+    assert.ok(
+      source.includes('poll') && source.includes('fields.poll'),
+      'Should pass poll field from input fields'
+    );
+  });
+
+  it('initializes responses as empty object only for poll broadcasts', () => {
+    assert.ok(
+      source.includes('responses: {}'),
+      'Should initialize responses as empty map for polls'
+    );
+  });
+
   // ── Priority values ──
   it('defines priority values 1-4 (Urgent, High, Normal, Low)', () => {
     for (const val of ['1', '2', '3', '4']) {

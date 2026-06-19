@@ -122,6 +122,56 @@ describe('BroadcastComposer — broadcast admin screen (PEP-307 redesign)', () =
     assert.ok(utilsSource.includes('computeReach'), 'Should export computeReach');
   });
 
+  // ── Poll composer (PEP-323a) ──
+  it('compose has poll toggle or poll section', () => {
+    assert.ok(
+      composeSource.includes('poll') || composeSource.includes('Poll'),
+      'Compose should have poll section or toggle'
+    );
+  });
+
+  it('compose has poll question input', () => {
+    assert.ok(
+      composeSource.includes('question') || composeSource.includes('Question'),
+      'Compose should have poll question field'
+    );
+  });
+
+  it('compose has poll options management (add/remove)', () => {
+    assert.ok(
+      composeSource.includes('addOption') || composeSource.includes('removeOption') || composeSource.includes('options'),
+      'Compose should support adding/removing poll options'
+    );
+  });
+
+  it('compose has multi-select toggle for polls', () => {
+    assert.ok(
+      composeSource.includes('multiSelect') || composeSource.includes('Multi'),
+      'Compose should have multi-select toggle'
+    );
+  });
+
+  it('compose has Other free-text toggle for polls', () => {
+    assert.ok(
+      composeSource.includes('allowOther') || composeSource.includes('Other'),
+      'Compose should have Other free-text toggle'
+    );
+  });
+
+  it('compose sets broadcastKind to poll when poll enabled', () => {
+    assert.ok(
+      composeSource.includes('broadcastKind') && (composeSource.includes("'poll'") || composeSource.includes('"poll"')),
+      'Compose should set broadcastKind to poll'
+    );
+  });
+
+  it('compose sets broadcastKind to ack when poll disabled', () => {
+    assert.ok(
+      composeSource.includes("'ack'") || composeSource.includes('"ack"'),
+      'Compose should set broadcastKind to ack for non-poll broadcasts'
+    );
+  });
+
   // ── Superadmin guard ──
   it('checks for superadmin role', () => {
     assert.ok(source.includes('isSuperAdmin'), 'Should verify superadmin role');
