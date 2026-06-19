@@ -53,6 +53,7 @@ const EXPECTED_EXPORTS = [
   "recomputeStats",
   // Alerts
   "cleanupExpiredAlerts",
+  "onBroadcastAckComplete",
   // Test Bench
   "testBenchRun",
   // Weekly Digest (PEP-297)
