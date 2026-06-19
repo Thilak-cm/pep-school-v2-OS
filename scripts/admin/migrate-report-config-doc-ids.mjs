@@ -2,8 +2,8 @@
  * Migrate report config doc IDs (PEP-325):
  *
  * 1. Copy  config/report_{program}          → config/term_report_{program}
- * 2. Delete config/report_monthly_{program}  (seeded earlier, now renamed)
- * 3. Copy  seed prompt content               → config/baseline_report_{program}
+ * 2. Copy  config/report_monthly_{program} → config/baseline_report_{program}
+ * 3. Delete config/report_monthly_{program}  (source copied in step 2)
  *
  * Old config/report_{program} docs are kept as tombstones until the deployed
  * CF reads the new names. Delete them manually once the new CF is live.
@@ -56,8 +56,35 @@ for (const program of PROGRAMS) {
   }
 }
 
-// Step 2: Delete report_monthly_{program} (old seeded docs)
-console.log("\n--- Step 2: Delete old monthly config docs ---");
+// Step 2: Copy report_monthly_{program} → baseline_report_{program}
+// (must run BEFORE Step 3 deletes the source docs)
+console.log("\n--- Step 2: Create baseline report configs ---");
+for (const program of PROGRAMS) {
+  const newId = `baseline_report_${program}`;
+
+  const existingSnap = await db.collection("config").doc(newId).get();
+  if (existingSnap.exists) {
+    console.log(`  SKIP ${newId} — already exists`);
+    continue;
+  }
+
+  const oldMonthlyId = `report_monthly_${program}`;
+  const oldMonthlySnap = await db.collection("config").doc(oldMonthlyId).get();
+
+  if (oldMonthlySnap.exists) {
+    if (dryRun) {
+      console.log(`  WOULD copy ${oldMonthlyId} → ${newId}`);
+    } else {
+      await db.collection("config").doc(newId).set(oldMonthlySnap.data());
+      console.log(`  COPIED ${oldMonthlyId} → ${newId}`);
+    }
+  } else {
+    console.log(`  MANUAL NEEDED: ${newId} — no source doc found. Run seed-monthly-report-prompts.mjs first`);
+  }
+}
+
+// Step 3: Delete report_monthly_{program} (old seeded docs, now copied above)
+console.log("\n--- Step 3: Delete old monthly config docs ---");
 for (const program of PROGRAMS) {
   const oldMonthlyId = `report_monthly_${program}`;
 
@@ -72,36 +99,6 @@ for (const program of PROGRAMS) {
   } else {
     await db.collection("config").doc(oldMonthlyId).delete();
     console.log(`  DELETED ${oldMonthlyId}`);
-  }
-}
-
-// Step 3: Create baseline_report_{program} from seed-monthly-report-prompts content
-// Import the seed prompts inline to keep this script self-contained
-console.log("\n--- Step 3: Create baseline report configs ---");
-for (const program of PROGRAMS) {
-  const newId = `baseline_report_${program}`;
-
-  const existingSnap = await db.collection("config").doc(newId).get();
-  if (existingSnap.exists) {
-    console.log(`  SKIP ${newId} — already exists`);
-    continue;
-  }
-
-  // Try to read from the old monthly doc that may still exist (in dry run)
-  // or from the seed script's content
-  const oldMonthlyId = `report_monthly_${program}`;
-  const oldMonthlySnap = await db.collection("config").doc(oldMonthlyId).get();
-
-  if (oldMonthlySnap.exists) {
-    // Copy from old monthly doc
-    if (dryRun) {
-      console.log(`  WOULD copy ${oldMonthlyId} → ${newId}`);
-    } else {
-      await db.collection("config").doc(newId).set(oldMonthlySnap.data());
-      console.log(`  COPIED ${oldMonthlyId} → ${newId}`);
-    }
-  } else {
-    console.log(`  MANUAL NEEDED: ${newId} — no source doc found. Run seed-monthly-report-prompts.mjs first (update doc IDs to baseline_report_*)`);
   }
 }
 

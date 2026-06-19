@@ -96,6 +96,27 @@ describe("buildReportDocTitle", () => {
       "Aakash Mehta | Educator Summary | February 2026",
     );
   });
+
+  it("uses Monthly Baseline Report label when reportType is monthly", () => {
+    assert.equal(
+      buildReportDocTitle("Ava", "2026-06-01T10:00:00.000Z", "monthly"),
+      "Ava | Monthly Baseline Report | June 2026",
+    );
+  });
+
+  it("uses Educator Summary label when reportType is term", () => {
+    assert.equal(
+      buildReportDocTitle("Ava", "2026-06-01T10:00:00.000Z", "term"),
+      "Ava | Educator Summary | June 2026",
+    );
+  });
+
+  it("defaults to Educator Summary when reportType is undefined", () => {
+    assert.equal(
+      buildReportDocTitle("Ava", "2026-06-01T10:00:00.000Z"),
+      "Ava | Educator Summary | June 2026",
+    );
+  });
 });
 
 // --- deriveAcademicYear ---
