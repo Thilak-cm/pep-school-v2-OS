@@ -7,7 +7,6 @@ import { useAlertBus } from '../hooks/useAlertBus';
 import { dismissAlert, voteOnBroadcast } from '../utils/alertService';
 import { TextField, Checkbox, Radio, FormControlLabel } from '@mui/material';
 
-import NewFeaturePill from './NewFeaturePill';
 
 // ── Constants ──────────────────────────────────────────────────────────────────
 
@@ -250,7 +249,7 @@ function DynamicIslandPill({ onNavigateToStudent, onNavigate, classrooms = [] })
           <Typography variant="overline" sx={{ fontWeight: 700, color: 'var(--color-text)', letterSpacing: 1 }}>
             Quick alerts
           </Typography>
-          <NewFeaturePill />
+
         </Box>
         <Box sx={{
           display: 'flex', alignItems: 'center', justifyContent: 'center',
@@ -279,7 +278,7 @@ function DynamicIslandPill({ onNavigateToStudent, onNavigate, classrooms = [] })
           <Typography variant="overline" sx={{ fontWeight: 700, color: 'var(--color-text)', letterSpacing: 1 }}>
             Quick alerts
           </Typography>
-          <NewFeaturePill />
+
         </Box>
         <Typography sx={{ color: 'var(--color-text-soft)', fontSize: '0.85rem' }}>
           All clear this week
