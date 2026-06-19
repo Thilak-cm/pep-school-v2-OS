@@ -67,7 +67,7 @@ export async function createAlert(docId, alertData) {
  * - No-op if expiresAt is already set to a past or near-now time
  * - No-op if doc type is not 'broadcast'
  */
-export const onBroadcastAckComplete = functions
+export const autoExpireBroadcast = functions
   .region("asia-south1")
   .firestore.document("alerts/{alertId}")
   .onUpdate(async (change) => {
@@ -96,7 +96,7 @@ export const onBroadcastAckComplete = functions
       const alertId = change.after.id;
       const title = after.payload?.title || "Broadcast";
       functions.logger.info(
-        `onBroadcastAckComplete: alert ${alertId} — ${afterCount}/${reach} acked, auto-completing`
+        `autoExpireBroadcast: alert ${alertId} — ${afterCount}/${reach} acked, auto-completing`
       );
       await change.after.ref.update({ expiresAt: Timestamp.now() });
 
