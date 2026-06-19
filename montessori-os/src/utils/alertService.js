@@ -1,6 +1,6 @@
 // alertService.js — Alert bus client utilities (PEP-296, PEP-323a)
 
-import { doc, updateDoc, serverTimestamp, Timestamp } from 'firebase/firestore';
+import { doc, updateDoc, serverTimestamp } from 'firebase/firestore';
 import { db, auth } from '../firebase';
 
 /**
@@ -33,7 +33,7 @@ export async function dismissAlert(alertId) {
  */
 export async function voteOnBroadcast(alertId, choices, text) {
   const uid = auth?.currentUser?.uid;
-  if (!uid || !alertId) return;
+  if (!uid || !alertId) return false;
 
   try {
     const alertRef = doc(db, 'alerts', alertId);
@@ -41,11 +41,13 @@ export async function voteOnBroadcast(alertId, choices, text) {
       [`responses.${uid}`]: {
         choices,
         ...(text && { text }),
-        ts: Timestamp.now(),
+        ts: serverTimestamp(),
       },
       [`dismissedBy.${uid}`]: serverTimestamp(),
     });
-  } catch (err) {
-    console.error('voteOnBroadcast failed:', err);
+    return true;
+  } catch {
+    // Silently degrade — alert stays visible, which is safe
+    return false;
   }
 }

@@ -189,7 +189,7 @@ describe('BroadcastComposer — broadcast admin screen (PEP-307 redesign)', () =
 
   it('detail shows voter names per option', () => {
     assert.ok(
-      detailSource.includes('voters') && detailSource.includes('join'),
+      detailSource.includes('voters') && detailSource.includes('voters.map'),
       'Detail should list voter names per option'
     );
   });

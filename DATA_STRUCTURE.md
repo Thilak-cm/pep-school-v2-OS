@@ -996,15 +996,29 @@ interface AlertDoc {
 
   // Lifecycle
   dismissedBy: Record<string, Timestamp>;  // { [uid]: Timestamp } — per-user ack
-  expiresAt: Timestamp | null;     // auto-hide after this time; cleanup CF deletes weekly
+  expiresAt: Timestamp | null;     // auto-hide after this time; null = auto-expiry via autoExpireBroadcast CF
   startsAt: Timestamp | null;      // schedule for later (null = publish immediately; DIP skips if startsAt > now)
   reach: number;                   // resolved audience count at publish time (denominator for ack progress)
+
+  // Broadcast subtype (PEP-323)
+  broadcastKind?: 'ack' | 'poll';  // defaults to 'ack' when missing (backward-compatible)
+  poll?: {                         // present only when broadcastKind === 'poll'
+    question: string;
+    options: { id: string; label: string }[];
+    multiSelect: boolean;
+    allowOther: boolean;
+  };
+  responses?: Record<string, {     // present only when broadcastKind === 'poll'; { [uid]: vote }
+    choices: string[];             // selected option IDs
+    text?: string;                 // free-text "Other" response
+    ts: Timestamp;
+  }>;
 }
 ```
 
 Type-specific payloads:
 - `interview`: `{ studentName, interviewTime, classroomName, prepStatus, studentId }`
-- `broadcast`: `{ label, title, subtitle, ctaLabel, message, senderName, audience }`
+- `broadcast`: `{ label, title, subtitle, ctaLabel, message, senderName, audience }` (poll broadcasts also have top-level `broadcastKind`, `poll`, `responses` fields)
 - `system`: `{ message, severity, detail }`
 - `agent`: `{ message, detail }`
 
@@ -1013,8 +1027,9 @@ Display contract: NOT stored in Firestore. The DIP component transforms `type` +
 Security rules:
 - **Read**: any authenticated user (`isSignedIn()`)
 - **Create**: superadmins only (`isSuperAdmin()`); CFs use admin SDK (bypasses rules)
-- **Update**: superadmins can update broadcast-type alerts (`isSuperAdmin() && type == 'broadcast'`); any authenticated user can update `dismissedBy` field only (`affectedKeys().hasOnly(['dismissedBy'])`)
-- **Delete**: superadmins only (`isSuperAdmin()`); cleanup CF uses admin SDK
+- **Update**: superadmins can update broadcast-type alerts (`isSuperAdmin() && type == 'broadcast'`); any authenticated user can update `dismissedBy` only (ack) or `dismissedBy` + `responses` atomically (poll vote, one-shot — rejects if `responses.{uid}` already exists)
+- **Delete**: superadmins only (`isSuperAdmin()`)
+- **Auto-expiry**: `autoExpireBroadcast` Firestore onUpdate trigger sets `expiresAt: now()` when `dismissedBy` count reaches `reach`, and creates a `broadcast-complete:` system alert for superadmins (30-day TTL)
 
 ---
 

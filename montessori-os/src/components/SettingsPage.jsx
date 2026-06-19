@@ -32,7 +32,6 @@ import { trackEvent } from '../utils/analytics';
 import { isSuperAdmin, isAdminRole, isClassroomAdmin, getRoleLabel } from '../utils/roleUtils';
 import useNotify from '../notifications/useNotify';
 
-
 function SettingsPage({ user, userRole, classrooms = [], onNavigate, onSignOut }) {
   const [confirmOpen, setConfirmOpen] = useState(false);
   const [digestConfirmOpen, setDigestConfirmOpen] = useState(false);

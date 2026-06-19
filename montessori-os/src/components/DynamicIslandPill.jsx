@@ -1,11 +1,10 @@
 // DynamicIslandPill.jsx — Rotating alert pill for Home page (PEP-213, PEP-296)
 import React, { useEffect, useState, useRef, useCallback } from 'react';
 import { keyframes } from '@emotion/react';
-import { Box, Typography, ButtonBase, IconButton, Dialog, DialogTitle, DialogContent, DialogActions, Button } from '@mui/material';
+import { Box, Typography, ButtonBase, IconButton, Dialog, DialogTitle, DialogContent, DialogActions, Button, TextField, Checkbox, Radio, FormControlLabel } from '@mui/material';
 import { Flag, Calendar, ShieldCheck, ChevronUp, ChevronDown } from '../icons';
 import { useAlertBus } from '../hooks/useAlertBus';
 import { dismissAlert, voteOnBroadcast } from '../utils/alertService';
-import { TextField, Checkbox, Radio, FormControlLabel } from '@mui/material';
 
 
 // ── Constants ──────────────────────────────────────────────────────────────────
@@ -226,17 +225,18 @@ function DynamicIslandPill({ onNavigateToStudent, onNavigate, classrooms = [] })
   }, [ackDialog]);
 
   // Poll vote submit (PEP-323a)
-  const handlePollSubmit = useCallback(() => {
-    if (ackDialog?.id && pollChoices.length > 0) {
-      voteOnBroadcast(
-        ackDialog.id,
-        pollChoices,
-        ackDialog.poll?.allowOther && pollOtherText.trim() ? pollOtherText.trim() : undefined,
-      );
+  const handlePollSubmit = useCallback(async () => {
+    if (!ackDialog?.id || pollChoices.length === 0) return;
+    const ok = await voteOnBroadcast(
+      ackDialog.id,
+      pollChoices,
+      ackDialog.poll?.allowOther && pollOtherText.trim() ? pollOtherText.trim() : undefined,
+    );
+    if (ok) {
+      setAckDialog(null);
+      setPollChoices([]);
+      setPollOtherText('');
     }
-    setAckDialog(null);
-    setPollChoices([]);
-    setPollOtherText('');
   }, [ackDialog, pollChoices, pollOtherText]);
 
 

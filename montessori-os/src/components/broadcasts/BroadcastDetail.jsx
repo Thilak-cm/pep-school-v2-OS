@@ -238,6 +238,7 @@ export default function BroadcastDetail({
                 {broadcast.poll.options.map(opt => {
                   const voters = optionVotes[opt.id] || [];
                   const pct = totalVoters > 0 ? Math.round((voters.length / totalVoters) * 100) : 0;
+                  // Bar width relative to most-voted option (shows dominance), not total voters
                   const barWidth = maxVotes > 0 ? (voters.length / maxVotes) * 100 : 0;
 
                   return (
@@ -247,7 +248,7 @@ export default function BroadcastDetail({
                           {opt.label}
                         </Typography>
                         <Typography sx={{ fontSize: '0.75rem', fontWeight: 600, color: 'var(--color-text-soft)' }}>
-                          {voters.length} ({pct}%)
+                          {voters.length}{broadcast.poll.multiSelect ? `/${totalVoters}` : ` (${pct}%)`}
                         </Typography>
                       </Box>
                       <Box sx={{
@@ -320,7 +321,7 @@ export default function BroadcastDetail({
                 Acknowledgments
               </Typography>
               <Typography sx={{ fontSize: '0.85rem', fontWeight: 700, color: 'var(--color-primary)' }}>
-                {ackCount}/{reach} read
+                {ackCount}/{reach} {broadcast.broadcastKind === 'poll' ? 'responded' : 'read'}
               </Typography>
             </Box>
 

@@ -194,37 +194,54 @@ function App() {
     window.addEventListener('navigateToStudentNotes', handleNavigateToStudentNotes);
     const handleNoteDrawerToggle = (e) => setNoteDrawerOpen(!!e?.detail?.open);
     window.addEventListener('noteDrawerToggle', handleNoteDrawerToggle);
-    // Navigate to broadcast detail from system alert (PEP-323c)
+    return () => {
+      window.removeEventListener('navigateToStudentNotes', handleNavigateToStudentNotes);
+      window.removeEventListener('noteDrawerToggle', handleNoteDrawerToggle);
+    };
+  }, []);
+
+  // Navigate to broadcast detail from system alert — needs role in closure (PEP-323c)
+  useEffect(() => {
     const handleNavigateToBroadcast = (e) => {
+      if (!isSuperAdmin(role)) return;
       setBroadcastDeepLink(e.detail?.broadcastId || null);
       setScreen('broadcastComposer');
     };
     window.addEventListener('navigateToBroadcastDetail', handleNavigateToBroadcast);
-    return () => {
-      window.removeEventListener('navigateToStudentNotes', handleNavigateToStudentNotes);
-      window.removeEventListener('noteDrawerToggle', handleNoteDrawerToggle);
-      window.removeEventListener('navigateToBroadcastDetail', handleNavigateToBroadcast);
-    };
-  }, []);
+    return () => window.removeEventListener('navigateToBroadcastDetail', handleNavigateToBroadcast);
+  }, [role]);
 
-  // ── Alert badge count — undismissed non-DIP alerts (PEP-323c) ──────────
+  // ── Alert badge count — undismissed non-DIP alerts with targeting (PEP-323c) ──
   useEffect(() => {
     const uid = auth?.currentUser?.uid;
     if (!uid) return;
+    // dip==false: broadcasts (dip:true) are surfaced in the DIP carousel; badge targets system/agent alerts
     const q = query(collection(db, 'alerts'), where('dip', '==', false));
+    const myClassrooms = role === 'superadmin' ? [] : [...(manageableClassrooms || [])];
     const unsub = onSnapshot(q, (snap) => {
       let count = 0;
+      const now = new Date();
       snap.forEach((d) => {
         const data = d.data();
-        // Count alerts not dismissed by this user and not expired
         if (data.dismissedBy?.[uid]) return;
-        if (data.expiresAt && data.expiresAt.toDate() < new Date()) return;
+        if (data.expiresAt && data.expiresAt.toDate && data.expiresAt.toDate() < now) return;
+        if (data.startsAt && data.startsAt.toDate && data.startsAt.toDate() > now) return;
+        // Apply targeting filters (same logic as NotificationsPage)
+        if (Array.isArray(data.targetRoles) && data.targetRoles.length > 0) {
+          if (!role || !data.targetRoles.includes(role)) return;
+        }
+        if (Array.isArray(data.targetClassrooms) && data.targetClassrooms.length > 0) {
+          if (role !== 'superadmin' && (!myClassrooms.length || !data.targetClassrooms.some(c => myClassrooms.includes(c)))) return;
+        }
+        if (Array.isArray(data.targetTeachers) && data.targetTeachers.length > 0) {
+          if (!data.targetTeachers.includes(uid)) return;
+        }
         count++;
       });
       setAlertBadgeCount(count);
     }, () => setAlertBadgeCount(0));
     return unsub;
-  }, [user]);
+  }, [user, role, manageableClassrooms]);
 
   // ── Track screen views for GA4 path analysis ──
   useEffect(() => {

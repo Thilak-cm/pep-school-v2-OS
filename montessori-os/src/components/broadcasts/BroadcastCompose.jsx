@@ -40,7 +40,8 @@ const INITIAL_FORM = {
   pollAllowOther: false,
 };
 
-let nextOptionId = 3;
+// Unique option ID generator — uses timestamp to avoid collisions across sessions
+const nextOptionId = () => `opt_${Date.now()}_${Math.random().toString(36).slice(2, 6)}`;
 
 // ── Soft input style (shared) ──────────────────────────────────────────────────
 
@@ -191,6 +192,7 @@ export default function BroadcastCompose({
     if (!form.title.trim()) { notify.warning('Add a title for the broadcast'); return; }
     if (!form.message.trim()) { notify.warning('Add a message body — teachers see this after tapping'); return; }
     if (form.expiryChip !== 'auto' && !form.expiresAt) { notify.warning('Pick an expiry date — broadcasts must have an end time'); return; }
+    if (form.expiryChip === 'auto' && reach === 0) { notify.warning('Select an audience — auto-expiry needs at least one teacher'); return; }
     if (form.pollEnabled) {
       if (!form.pollQuestion.trim()) { notify.warning('Add a poll question'); return; }
       const filledOptions = form.pollOptions.filter(o => o.label.trim());
@@ -347,7 +349,7 @@ export default function BroadcastCompose({
                 {/* Add option */}
                 <Box
                   onClick={() => {
-                    const id = `opt_${nextOptionId++}`;
+                    const id = nextOptionId();
                     updateField('pollOptions', [...form.pollOptions, { id, label: '' }]);
                   }}
                   sx={{
