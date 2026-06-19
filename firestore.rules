@@ -639,9 +639,9 @@ service cloud.firestore {
               && resource.data.dismissedBy is map
               && request.resource.data.dismissedBy.diff(resource.data.dismissedBy).affectedKeys().hasOnly([request.auth.uid])
               && request.resource.data.responses is map
-              && resource.data.responses is map
-              && request.resource.data.responses.diff(resource.data.responses).affectedKeys().hasOnly([request.auth.uid])
-              && !(request.auth.uid in resource.data.responses))
+              && request.resource.data.get('responses', {}) is map
+              && request.resource.data.responses.diff(resource.data.get('responses', {})).affectedKeys().hasOnly([request.auth.uid])
+              && !(request.auth.uid in resource.data.get('responses', {})))
           ));
       allow delete: if isSuperAdmin();
     }
