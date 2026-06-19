@@ -1,12 +1,11 @@
 // DynamicIslandPill.jsx — Rotating alert pill for Home page (PEP-213, PEP-296)
 import React, { useEffect, useState, useRef, useCallback } from 'react';
 import { keyframes } from '@emotion/react';
-import { Box, Typography, ButtonBase, IconButton, Dialog, DialogTitle, DialogContent, DialogActions, Button } from '@mui/material';
+import { Box, Typography, ButtonBase, IconButton, Dialog, DialogTitle, DialogContent, DialogActions, Button, TextField, Checkbox, Radio, FormControlLabel } from '@mui/material';
 import { Flag, Calendar, ShieldCheck, ChevronUp, ChevronDown } from '../icons';
 import { useAlertBus } from '../hooks/useAlertBus';
-import { dismissAlert } from '../utils/alertService';
+import { dismissAlert, voteOnBroadcast } from '../utils/alertService';
 
-import NewFeaturePill from './NewFeaturePill';
 
 // ── Constants ──────────────────────────────────────────────────────────────────
 
@@ -53,6 +52,9 @@ function DynamicIslandPill({ onNavigateToStudent, onNavigate, classrooms = [] })
   const [dragOffset, setDragOffset] = useState(0);
   const [isDragging, setIsDragging] = useState(false);
   const [ackDialog, setAckDialog] = useState(null); // broadcast alert pending confirmation
+  // Poll voting state (PEP-323a)
+  const [pollChoices, setPollChoices] = useState([]);
+  const [pollOtherText, setPollOtherText] = useState('');
   const touchStartRef = useRef({ y: 0, time: 0 });
   const containerRef = useRef(null);
 
@@ -218,7 +220,24 @@ function DynamicIslandPill({ onNavigateToStudent, onNavigate, classrooms = [] })
       dismissAlert(ackDialog.id);
     }
     setAckDialog(null);
+    setPollChoices([]);
+    setPollOtherText('');
   }, [ackDialog]);
+
+  // Poll vote submit (PEP-323a)
+  const handlePollSubmit = useCallback(async () => {
+    if (!ackDialog?.id || pollChoices.length === 0) return;
+    const ok = await voteOnBroadcast(
+      ackDialog.id,
+      pollChoices,
+      ackDialog.poll?.allowOther && pollOtherText.trim() ? pollOtherText.trim() : undefined,
+    );
+    if (ok) {
+      setAckDialog(null);
+      setPollChoices([]);
+      setPollOtherText('');
+    }
+  }, [ackDialog, pollChoices, pollOtherText]);
 
 
   // ── Loading state — pill-shaped placeholder ──────────────────────────────
@@ -230,7 +249,7 @@ function DynamicIslandPill({ onNavigateToStudent, onNavigate, classrooms = [] })
           <Typography variant="overline" sx={{ fontWeight: 700, color: 'var(--color-text)', letterSpacing: 1 }}>
             Quick alerts
           </Typography>
-          <NewFeaturePill />
+
         </Box>
         <Box sx={{
           display: 'flex', alignItems: 'center', justifyContent: 'center',
@@ -259,7 +278,7 @@ function DynamicIslandPill({ onNavigateToStudent, onNavigate, classrooms = [] })
           <Typography variant="overline" sx={{ fontWeight: 700, color: 'var(--color-text)', letterSpacing: 1 }}>
             Quick alerts
           </Typography>
-          <NewFeaturePill />
+
         </Box>
         <Typography sx={{ color: 'var(--color-text-soft)', fontSize: '0.85rem' }}>
           All clear this week
@@ -285,7 +304,6 @@ function DynamicIslandPill({ onNavigateToStudent, onNavigate, classrooms = [] })
         <Typography variant="overline" sx={{ fontWeight: 700, color: 'var(--color-text)', letterSpacing: 1 }}>
           Quick alerts
         </Typography>
-        <NewFeaturePill />
       </Box>
 
       <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
@@ -403,18 +421,67 @@ function DynamicIslandPill({ onNavigateToStudent, onNavigate, classrooms = [] })
               {ackDialog.subtitle}
             </Typography>
           )}
+
+          {/* ── Poll options (PEP-323a) ── */}
+          {ackDialog?.poll?.options?.length > 0 && (
+            <Box sx={{ mt: 2 }}>
+              <Typography sx={{ fontWeight: 600, fontSize: '0.9rem', mb: 1 }}>
+                {ackDialog.poll.question}
+              </Typography>
+              {ackDialog.poll.options.map(opt => {
+                const isSelected = pollChoices.includes(opt.id);
+                const toggle = () => {
+                  if (ackDialog.poll.multiSelect) {
+                    setPollChoices(prev => isSelected ? prev.filter(c => c !== opt.id) : [...prev, opt.id]);
+                  } else {
+                    setPollChoices([opt.id]);
+                  }
+                };
+                return (
+                  <FormControlLabel
+                    key={opt.id}
+                    control={ackDialog.poll.multiSelect
+                      ? <Checkbox checked={isSelected} onChange={toggle} size="small" />
+                      : <Radio checked={isSelected} onChange={toggle} size="small" />}
+                    label={<Typography sx={{ fontSize: '0.85rem' }}>{opt.label}</Typography>}
+                    sx={{ display: 'flex', mx: 0, mb: 0.5 }}
+                  />
+                );
+              })}
+              {ackDialog.poll.allowOther && (
+                <TextField
+                  size="small" fullWidth
+                  placeholder="Other (please specify)"
+                  value={pollOtherText}
+                  onChange={(e) => setPollOtherText(e.target.value)}
+                  sx={{ mt: 0.5 }}
+                />
+              )}
+            </Box>
+          )}
         </DialogContent>
         <DialogActions sx={{ px: 3, pb: 2 }}>
-          <Button onClick={() => setAckDialog(null)} sx={{ color: 'var(--color-text-faint)' }}>
+          <Button onClick={() => { setAckDialog(null); setPollChoices([]); setPollOtherText(''); }} sx={{ color: 'var(--color-text-faint)' }}>
             Close
           </Button>
-          <Button
-            variant="contained"
-            onClick={handleBroadcastAck}
-            sx={{ borderRadius: 2, textTransform: 'none', fontWeight: 600 }}
-          >
-            I've read this
-          </Button>
+          {ackDialog?.poll?.options?.length > 0 ? (
+            <Button
+              variant="contained"
+              onClick={handlePollSubmit}
+              disabled={pollChoices.length === 0}
+              sx={{ borderRadius: 2, textTransform: 'none', fontWeight: 600 }}
+            >
+              Respond
+            </Button>
+          ) : (
+            <Button
+              variant="contained"
+              onClick={handleBroadcastAck}
+              sx={{ borderRadius: 2, textTransform: 'none', fontWeight: 600 }}
+            >
+              I've read this
+            </Button>
+          )}
         </DialogActions>
       </Dialog>
     </>

@@ -1,5 +1,31 @@
 # Changelog
 
+# 10.38.0 — 2026-06-19
+
+### Added
+- MCQ poll composer for broadcasts — superadmins attach a poll with question, options, multi-select, and free-text "Other" toggle (PEP-323a)
+- Teacher poll voting flow in DIP dialog — radio/checkbox options with "Respond" submit button (PEP-323a)
+- Poll results infographic in broadcast detail — bar chart with vote counts, percentages, and collapsible voter lists (PEP-323b)
+- Auto-expiry Cloud Function — broadcasts auto-complete when all targeted teachers respond, with superadmin completion alert (PEP-323c)
+- Alert badge on footer bell icon — real-time count of undismissed system/agent alerts with role-based targeting (PEP-323c)
+- Active/History tabs on notifications alerts section (PEP-323c)
+- Deep-link from broadcast-complete system alerts to broadcast detail view (PEP-323c)
+- "When all respond" default expiry mode for poll broadcasts (PEP-323c)
+
+### Changed
+- Replaced `cleanupExpiredAlerts` scheduled CF with `autoExpireBroadcast` Firestore onUpdate trigger (PEP-323c)
+- Heatmap card header renamed "Flag pattern" to "Behaviour Pattern Trend"
+- Heatmap trend label renamed "escalated" to "worsened"
+- Search and classroom filter moved inside heatmap card
+- Broadcast ack label shows "responded" instead of "read" for poll broadcasts
+- Removed NewFeaturePill from DIP header and Settings broadcast button
+
+### Fixed
+- Firestore rules extended for atomic poll vote + dismiss writes with one-shot enforcement
+- Alert badge count now applies role and classroom targeting filters
+- Auto-expire broadcasts validate audience reach > 0 before publish
+- Broadcast-complete system alerts set 30-day TTL instead of permanent retention
+
 # 10.37.0 — 2026-06-15
 
 ### Added

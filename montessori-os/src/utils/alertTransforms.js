@@ -46,18 +46,22 @@ export function transformForDisplay(alert) {
         ctaParams: { studentId: payload.studentId },
       };
 
-    case 'broadcast':
+    case 'broadcast': {
+      const isPoll = alert.broadcastKind === 'poll';
       return {
         label: payload.label || 'BROADCAST',
         labelDetail: payload.senderName || null,
         title: payload.title || payload.message || '',
         subtitle: payload.subtitle || payload.audience || 'All staff',
-        ctaLabel: payload.ctaLabel || 'Mark as read',
+        ctaLabel: isPoll ? 'Respond' : (payload.ctaLabel || 'Mark as read'),
         ctaIcon: 'ShieldCheck',
         colorKey: 'broadcast',
         color: ALERT_COLORS.broadcast,
         message: payload.message || '',
+        broadcastKind: alert.broadcastKind || 'ack',
+        poll: alert.poll || null,
       };
+    }
 
     case 'system':
       return {

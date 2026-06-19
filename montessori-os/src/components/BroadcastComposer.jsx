@@ -13,7 +13,7 @@ import BroadcastCompose from './broadcasts/BroadcastCompose';
 import BroadcastDetail from './broadcasts/BroadcastDetail';
 import { userDisplayName } from './broadcasts/broadcastUtils';
 
-export default function BroadcastComposer({ currentUser, userRole }) {
+export default function BroadcastComposer({ currentUser, userRole, deepLinkBroadcastId, onDeepLinkConsumed }) {
   const [broadcasts, setBroadcasts] = useState([]);
   const [classrooms, setClassrooms] = useState([]);
   const [teachers, setTeachers] = useState([]);
@@ -72,6 +72,17 @@ export default function BroadcastComposer({ currentUser, userRole }) {
     };
     load();
   }, [isSuperAdminUser, loadBroadcasts]);
+
+  // ── Deep-link to broadcast detail from system alert (PEP-323c) ────────
+  useEffect(() => {
+    if (!deepLinkBroadcastId || !broadcasts.length) return;
+    const target = broadcasts.find(b => b.id === deepLinkBroadcastId);
+    if (target) {
+      setSelectedBroadcast(target);
+      setView('detail');
+      onDeepLinkConsumed?.();
+    }
+  }, [deepLinkBroadcastId, broadcasts, onDeepLinkConsumed]);
 
   // ── Navigation handlers ────────────────────────────────────────────────
 

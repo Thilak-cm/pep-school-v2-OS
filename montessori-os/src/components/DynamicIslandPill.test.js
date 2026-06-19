@@ -207,6 +207,44 @@ describe('DynamicIslandPill component (PEP-213 + PEP-296)', () => {
     });
   });
 
+  // --- PEP-323a: Poll voting in broadcast ack dialog ---
+  describe('Poll voting in broadcast dialog (PEP-323a)', () => {
+    it('imports voteOnBroadcast from alertService', () => {
+      assert.ok(
+        source.includes('voteOnBroadcast'),
+        'Should import voteOnBroadcast for poll submissions'
+      );
+    });
+
+    it('renders poll options when ackDialog has poll data', () => {
+      assert.ok(
+        source.includes('poll') && source.includes('options'),
+        'Should render poll options in ack dialog'
+      );
+    });
+
+    it('has a Respond/Submit button for poll broadcasts', () => {
+      assert.ok(
+        source.includes('Respond') || source.includes('Submit'),
+        'Should have a submit button for poll responses'
+      );
+    });
+
+    it('supports multi-select poll options', () => {
+      assert.ok(
+        source.includes('multiSelect') || source.includes('multi'),
+        'Should support multi-select for polls'
+      );
+    });
+
+    it('supports Other free-text input for polls', () => {
+      assert.ok(
+        source.includes('allowOther') || source.includes('Other'),
+        'Should support Other free-text option'
+      );
+    });
+  });
+
   // --- Alert type extensibility ---
   describe('Alert type extensibility', () => {
     it('accepts alerts as a typed array', () => {

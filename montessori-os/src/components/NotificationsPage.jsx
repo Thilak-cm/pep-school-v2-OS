@@ -231,6 +231,7 @@ function NotificationsPage() {
 
   // ── Alerts section state ─────────────────────────────────────────────────
   const [alertDocs, setAlertDocs] = useState([]);
+  const [alertTab, setAlertTab] = useState('active'); // 'active' | 'history'
 
   useEffect(() => { prepareNotificationsFeature(); }, []);
 
@@ -251,8 +252,6 @@ function NotificationsPage() {
       const docs = [];
       snapshot.forEach((d) => {
         const data = { id: d.id, ...(d.data() || {}) };
-        // Hide expired
-        if (data.expiresAt && data.expiresAt.toDate && data.expiresAt.toDate() < now) return;
         // Skip scheduled broadcasts not yet live
         if (data.startsAt && data.startsAt.toDate && data.startsAt.toDate() > now) return;
         // Apply same targeting as DIP
@@ -1186,70 +1185,6 @@ function NotificationsPage() {
         </Box>
       ) : (
         <>
-          {/* ── Search + Classroom filter toolbar ──────────────────────── */}
-          <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
-            {/* Persistent search field */}
-            <Box sx={{
-              flex: 1,
-              display: 'flex', alignItems: 'center', gap: 1,
-              backgroundColor: 'var(--color-paper)', border: '1px solid var(--color-border)', borderRadius: '10px',
-              px: '11px', py: '8px',
-            }}>
-              <Search size={14} style={{ color: 'var(--color-text-faint)', flexShrink: 0 }} />
-              <InputBase
-                value={searchQuery}
-                onChange={(e) => setSearchQuery(e.target.value)}
-                placeholder="Look up a student…"
-                fullWidth
-                sx={{ fontSize: '12.5px', '& input': { p: 0 } }}
-              />
-              {searchQuery && (
-                <IconButton size="small" onClick={() => setSearchQuery('')} sx={{ p: 0.25 }}>
-                  <CloseIcon size={13} />
-                </IconButton>
-              )}
-            </Box>
-
-            {/* Classroom dropdown */}
-            {classroomOptions.length > 1 && (
-              <Select
-                value={selectedClassroom}
-                onChange={(e) => setSelectedClassroom(e.target.value)}
-                size="small"
-                displayEmpty
-                renderValue={(value) => {
-                  if (value === 'all') return 'All classrooms';
-                  const opt = classroomOptions.find((c) => c.id === value);
-                  return (
-                    <Box sx={{ display: 'flex', alignItems: 'center', gap: 0.75 }}>
-                      {opt?.color && <MiniTangram size={16} color={opt.color} />}
-                      <span>{opt?.name || value}</span>
-                    </Box>
-                  );
-                }}
-                sx={{
-                  minWidth: 160,
-                  fontSize: '12.5px',
-                  fontWeight: 600,
-                  backgroundColor: 'var(--color-paper)',
-                  borderRadius: '10px',
-                  '& .MuiOutlinedInput-notchedOutline': { borderColor: 'var(--color-border)' },
-                  '& .MuiSelect-select': { py: '8px', display: 'flex', alignItems: 'center' },
-                }}
-              >
-                <MenuItem value="all" sx={{ fontSize: '12.5px', fontWeight: 600 }}>
-                  All classrooms
-                </MenuItem>
-                {classroomOptions.map((c) => (
-                  <MenuItem key={c.id} value={c.id} sx={{ fontSize: '12.5px', display: 'flex', alignItems: 'center', gap: 0.75 }}>
-                    {c.color && <MiniTangram size={16} color={c.color} />}
-                    {c.name}
-                  </MenuItem>
-                ))}
-              </Select>
-            )}
-          </Box>
-
           {/* ── Heatmap card ────────────────────────────────────────────── */}
           <Box sx={{
             backgroundColor: 'var(--color-paper)',
@@ -1261,7 +1196,7 @@ function NotificationsPage() {
             <Box sx={{ display: 'flex', alignItems: 'baseline', justifyContent: 'space-between', mb: 0.5 }}>
               <Box sx={{ display: 'flex', alignItems: 'baseline', gap: 1.5 }}>
                 <Typography sx={{ fontFamily: 'inherit', fontSize: '15px', fontWeight: 700, color: 'var(--grey-900)' }}>
-                  Flag pattern
+                  Behaviour Pattern Trend
                 </Typography>
                 <Typography sx={{ fontFamily: 'var(--f-mono, monospace)', fontSize: '9px', letterSpacing: '0.05em', color: 'var(--color-text-faint)', textTransform: 'uppercase' }}>
                   LAST 6 WEEKS
@@ -1272,10 +1207,71 @@ function NotificationsPage() {
               </Typography>
             </Box>
 
+            {/* Search + Classroom filter */}
+            <Box sx={{ display: 'flex', alignItems: 'center', gap: 1, mb: 1 }}>
+              <Box sx={{
+                flex: 1,
+                display: 'flex', alignItems: 'center', gap: 1,
+                backgroundColor: 'var(--color-bg)', border: '1px solid var(--color-border)', borderRadius: '8px',
+                px: '9px', py: '6px',
+              }}>
+                <Search size={13} style={{ color: 'var(--color-text-faint)', flexShrink: 0 }} />
+                <InputBase
+                  value={searchQuery}
+                  onChange={(e) => setSearchQuery(e.target.value)}
+                  placeholder="Look up a student…"
+                  fullWidth
+                  sx={{ fontSize: '12px', '& input': { p: 0 } }}
+                />
+                {searchQuery && (
+                  <IconButton size="small" onClick={() => setSearchQuery('')} sx={{ p: 0.25 }}>
+                    <CloseIcon size={12} />
+                  </IconButton>
+                )}
+              </Box>
+              {classroomOptions.length > 1 && (
+                <Select
+                  value={selectedClassroom}
+                  onChange={(e) => setSelectedClassroom(e.target.value)}
+                  size="small"
+                  displayEmpty
+                  renderValue={(value) => {
+                    if (value === 'all') return 'All classrooms';
+                    const opt = classroomOptions.find((c) => c.id === value);
+                    return (
+                      <Box sx={{ display: 'flex', alignItems: 'center', gap: 0.75 }}>
+                        {opt?.color && <MiniTangram size={16} color={opt.color} />}
+                        <span>{opt?.name || value}</span>
+                      </Box>
+                    );
+                  }}
+                  sx={{
+                    minWidth: 140,
+                    fontSize: '12px',
+                    fontWeight: 600,
+                    backgroundColor: 'var(--color-bg)',
+                    borderRadius: '8px',
+                    '& .MuiOutlinedInput-notchedOutline': { borderColor: 'var(--color-border)' },
+                    '& .MuiSelect-select': { py: '6px', display: 'flex', alignItems: 'center' },
+                  }}
+                >
+                  <MenuItem value="all" sx={{ fontSize: '12px', fontWeight: 600 }}>
+                    All classrooms
+                  </MenuItem>
+                  {classroomOptions.map((c) => (
+                    <MenuItem key={c.id} value={c.id} sx={{ fontSize: '12px', display: 'flex', alignItems: 'center', gap: 0.75 }}>
+                      {c.color && <MiniTangram size={16} color={c.color} />}
+                      {c.name}
+                    </MenuItem>
+                  ))}
+                </Select>
+              )}
+            </Box>
+
             {/* Trend summary */}
             <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', mb: 1.5, mt: 0.5 }}>
               {[
-                { count: escalatedCount, label: 'escalated', glyph: 'down' },
+                { count: escalatedCount, label: 'worsened', glyph: 'down' },
                 { count: steadyCount, label: 'steady', glyph: 'flat' },
                 { count: improvedCount, label: 'improved', glyph: 'up' },
               ].map(({ count, label, glyph }) => (
@@ -1402,27 +1398,72 @@ function NotificationsPage() {
 
           {/* ── Alerts section ──────────────────────────────────────────── */}
           <Box>
-            <Typography sx={{ fontFamily: 'inherit', fontSize: '16px', fontWeight: 700, color: 'var(--grey-900)', mb: 1 }}>
-              Alerts
-            </Typography>
+            {/* Tabs (PEP-323c) */}
+            {(() => {
+              const uid = auth?.currentUser?.uid;
+              const now = new Date();
+              const isHistory = (doc) => {
+                // Expired broadcasts → history
+                if (doc.expiresAt && doc.expiresAt.toDate && doc.expiresAt.toDate() < now) return true;
+                // Dismissed system/agent alerts → history
+                if (['system', 'agent'].includes(doc.type) && uid && doc.dismissedBy?.[uid]) return true;
+                return false;
+              };
+              const activeAlerts = alertDocs.filter(d => !isHistory(d));
+              const historyAlerts = alertDocs.filter(d => isHistory(d));
+              const filteredAlerts = alertTab === 'active' ? activeAlerts : historyAlerts;
 
-            {alertDocs.length === 0 ? (
-              <Box sx={{
-                backgroundColor: 'var(--color-bg)',
-                border: '1px dashed var(--color-border)',
-                borderRadius: '12px',
-                p: '22px 16px',
-                textAlign: 'center',
-              }}>
-                <Typography variant="body2" sx={{ color: 'var(--color-text-faint)' }}>
-                  All clear — no active alerts
-                </Typography>
-              </Box>
-            ) : (
-              <Box sx={{ display: 'flex', flexDirection: 'column', gap: 1 }}>
-                {alertDocs.map(alertDoc => {
+              return (
+                <>
+                  <Box sx={{
+                    display: 'flex', gap: 0,
+                    backgroundColor: 'var(--color-surface, #f1f3f7)',
+                    borderRadius: '10px', p: '3px', mb: 1.5,
+                  }}>
+                    {[
+                      { key: 'active', label: 'Active', count: activeAlerts.length },
+                      { key: 'history', label: 'History', count: historyAlerts.length },
+                    ].map(tab => {
+                      const isActive = alertTab === tab.key;
+                      return (
+                        <Box
+                          key={tab.key}
+                          onClick={() => setAlertTab(tab.key)}
+                          sx={{
+                            flex: 1, textAlign: 'center', py: 0.7,
+                            borderRadius: '8px', cursor: 'pointer',
+                            fontSize: '0.8rem', fontWeight: 600,
+                            transition: 'all 0.2s ease',
+                            ...(isActive
+                              ? { backgroundColor: '#fff', color: 'var(--color-text)', boxShadow: '0 1px 3px rgba(0,0,0,0.08)' }
+                              : { color: 'var(--color-text-faint)' }),
+                          }}
+                        >
+                          {tab.label} · {tab.count}
+                        </Box>
+                      );
+                    })}
+                  </Box>
+
+                  {filteredAlerts.length === 0 ? (
+                    <Box sx={{
+                      backgroundColor: 'var(--color-bg)',
+                      border: '1px dashed var(--color-border)',
+                      borderRadius: '12px',
+                      p: '22px 16px',
+                      textAlign: 'center',
+                    }}>
+                      <Typography variant="body2" sx={{ color: 'var(--color-text-faint)' }}>
+                        {alertTab === 'active' ? 'All clear — no active alerts' : 'No past alerts'}
+                      </Typography>
+                    </Box>
+                  ) : (
+                    <Box sx={{ display: 'flex', flexDirection: 'column', gap: 1 }}>
+                      {filteredAlerts.map(alertDoc => {
                   const uid = auth?.currentUser?.uid;
-                  const isDismissed = !!(uid && alertDoc.dismissedBy?.[uid]);
+                  const isDismissedByMe = !!(uid && alertDoc.dismissedBy?.[uid]);
+                  // Superadmins manage broadcasts — don't show as dismissed even if they acked
+                  const isDismissed = isDismissedByMe && !(alertDoc.type === 'broadcast' && currentRole === 'superadmin');
                   const display = transformForDisplay({ id: alertDoc.id, ...alertDoc });
                   const colorSet = ALERT_COLORS[display.colorKey] || ALERT_COLORS.system;
                   const typeBadge = (alertDoc.type || 'alert').toUpperCase();
@@ -1434,10 +1475,21 @@ function NotificationsPage() {
                     <Box
                       key={alertDoc.id}
                       onClick={() => {
-                        // Broadcast CTA for teachers: show ack dialog (handled by DIP)
                         // System/agent: dismiss on tap
                         if (['system', 'agent'].includes(alertDoc.type) && alertDoc.id && !isDismissed) {
                           dismissAlert(alertDoc.id);
+                          // Navigate to broadcast detail if this is a broadcast-complete alert (PEP-323c)
+                          if (alertDoc.payload?.broadcastId) {
+                            window.dispatchEvent(new CustomEvent('navigateToBroadcastDetail', {
+                              detail: { broadcastId: alertDoc.payload.broadcastId },
+                            }));
+                          }
+                        }
+                        // Broadcast: superadmins navigate to broadcast detail (PEP-323c)
+                        if (alertDoc.type === 'broadcast' && currentRole === 'superadmin' && alertDoc.id) {
+                          window.dispatchEvent(new CustomEvent('navigateToBroadcastDetail', {
+                            detail: { broadcastId: alertDoc.id },
+                          }));
                         }
                       }}
                       sx={{
@@ -1445,8 +1497,10 @@ function NotificationsPage() {
                         border: '1px solid var(--color-border)',
                         backgroundColor: '#fff',
                         opacity: isDismissed ? 0.6 : 1,
-                        cursor: ['system', 'agent'].includes(alertDoc.type) && !isDismissed ? 'pointer' : 'default',
-                        '&:active': ['system', 'agent'].includes(alertDoc.type) && !isDismissed ? { opacity: 0.85 } : {},
+                        cursor: (['system', 'agent'].includes(alertDoc.type) && !isDismissed)
+                          || (alertDoc.type === 'broadcast' && currentRole === 'superadmin') ? 'pointer' : 'default',
+                        '&:active': (['system', 'agent'].includes(alertDoc.type) && !isDismissed)
+                          || (alertDoc.type === 'broadcast' && currentRole === 'superadmin') ? { opacity: 0.85 } : {},
                       }}
                     >
                       {/* Meta row */}
@@ -1514,6 +1568,9 @@ function NotificationsPage() {
                 })}
               </Box>
             )}
+                </>
+              );
+            })()}
           </Box>
         </>
       )}

@@ -1,13 +1,13 @@
 // BroadcastDetail.jsx — Detail/receipts view for a broadcast
 // Shows full content, ack progress, who read / who hasn't, and actions (edit/end/delete).
 
-import React, { useState, useMemo } from 'react';
+import React, { useState, useMemo, useCallback } from 'react';
 import {
   Box, Typography, Button, Dialog, Paper,
   DialogTitle, DialogContent, DialogActions,
 } from '@mui/material';
 import { Timestamp } from 'firebase/firestore';
-import { X, Pencil, Trash2, CircleCheck, Clock } from '../../icons';
+import { X, Pencil, Trash2, CircleCheck, Clock, ChevronDown, ChevronUp } from '../../icons';
 import { deleteBroadcast, updateBroadcast } from '../../services/broadcastService';
 import useNotify from '../../notifications/useNotify';
 import {
@@ -26,6 +26,10 @@ export default function BroadcastDetail({
 }) {
   const [deleteConfirm, setDeleteConfirm] = useState(false);
   const [endConfirm, setEndConfirm] = useState(false);
+  const [expandedOptions, setExpandedOptions] = useState({});
+  const toggleOption = useCallback((optId) => {
+    setExpandedOptions(prev => ({ ...prev, [optId]: !prev[optId] }));
+  }, []);
   const notify = useNotify();
 
   // Build read / unread lists (hooks must be above early return)
@@ -198,6 +202,115 @@ export default function BroadcastDetail({
             </Typography>
           </Paper>
 
+          {/* Poll results (PEP-323b) */}
+          {broadcast.broadcastKind === 'poll' && broadcast.poll?.options?.length > 0 && (() => {
+            const responses = broadcast.responses || {};
+            const totalVoters = Object.keys(responses).length;
+            const teacherMap = {};
+            for (const t of teachers) teacherMap[t.id] = t;
+
+            // Count votes per option
+            const optionVotes = {};
+            for (const opt of broadcast.poll.options) optionVotes[opt.id] = [];
+            let otherVotes = [];
+            for (const [uid, resp] of Object.entries(responses)) {
+              const name = teacherMap[uid] ? userDisplayName(teacherMap[uid]) : uid;
+              for (const choiceId of (resp.choices || [])) {
+                if (optionVotes[choiceId]) optionVotes[choiceId].push(name);
+              }
+              if (resp.text) otherVotes.push({ name, text: resp.text });
+            }
+
+            const maxVotes = Math.max(1, ...broadcast.poll.options.map(o => (optionVotes[o.id] || []).length));
+
+            return (
+              <Paper elevation={0} sx={{
+                p: 2, borderRadius: 3, mb: 2,
+                border: '1px solid var(--color-border)',
+              }}>
+                <Typography sx={{ fontSize: '0.85rem', fontWeight: 700, mb: 0.5 }}>
+                  Poll Results
+                </Typography>
+                <Typography sx={{ fontSize: '0.72rem', color: 'var(--color-text-faint)', mb: 1.5 }}>
+                  {broadcast.poll.question} · {totalVoters} {totalVoters === 1 ? 'response' : 'responses'}
+                </Typography>
+
+                {broadcast.poll.options.map(opt => {
+                  const voters = optionVotes[opt.id] || [];
+                  const pct = totalVoters > 0 ? Math.round((voters.length / totalVoters) * 100) : 0;
+                  // Bar width relative to most-voted option (shows dominance), not total voters
+                  const barWidth = maxVotes > 0 ? (voters.length / maxVotes) * 100 : 0;
+
+                  return (
+                    <Box key={opt.id} sx={{ mb: 1.5 }}>
+                      <Box sx={{ display: 'flex', justifyContent: 'space-between', mb: 0.25 }}>
+                        <Typography sx={{ fontSize: '0.8rem', fontWeight: 600 }}>
+                          {opt.label}
+                        </Typography>
+                        <Typography sx={{ fontSize: '0.75rem', fontWeight: 600, color: 'var(--color-text-soft)' }}>
+                          {voters.length}{broadcast.poll.multiSelect ? `/${totalVoters}` : ` (${pct}%)`}
+                        </Typography>
+                      </Box>
+                      <Box sx={{
+                        height: 8, borderRadius: '4px',
+                        backgroundColor: 'var(--color-surface, #eef0f4)',
+                        overflow: 'hidden', mb: 0.5,
+                      }}>
+                        <Box sx={{
+                          width: `${barWidth}%`,
+                          height: '100%', borderRadius: '4px',
+                          backgroundColor: 'var(--color-primary)',
+                          transition: 'width 0.3s ease',
+                        }} />
+                      </Box>
+                      {voters.length > 0 && (
+                        <Box
+                          onClick={() => toggleOption(opt.id)}
+                          sx={{ cursor: 'pointer', display: 'flex', alignItems: 'center', gap: 0.5 }}
+                        >
+                          <Typography sx={{ fontSize: '0.65rem', color: 'var(--color-primary)', fontWeight: 600 }}>
+                            {expandedOptions[opt.id] ? 'Hide voters' : `Show ${voters.length} voter${voters.length !== 1 ? 's' : ''}`}
+                          </Typography>
+                          {expandedOptions[opt.id]
+                            ? <ChevronUp size={12} style={{ color: 'var(--color-primary)' }} />
+                            : <ChevronDown size={12} style={{ color: 'var(--color-primary)' }} />}
+                        </Box>
+                      )}
+                      {expandedOptions[opt.id] && voters.length > 0 && (
+                        <Box sx={{ mt: 0.5, pl: 0.5 }}>
+                          {voters.map((name, i) => (
+                            <Typography key={i} sx={{ fontSize: '0.72rem', color: 'var(--color-text-soft)', py: 0.15 }}>
+                              {name}
+                            </Typography>
+                          ))}
+                        </Box>
+                      )}
+                    </Box>
+                  );
+                })}
+
+                {/* Other free-text responses */}
+                {otherVotes.length > 0 && (
+                  <Box sx={{ mt: 1 }}>
+                    <Typography sx={{
+                      fontSize: '0.65rem', fontWeight: 700, letterSpacing: 1.2,
+                      textTransform: 'uppercase', color: 'var(--color-text-faint)', mb: 0.5,
+                    }}>
+                      OTHER RESPONSES
+                    </Typography>
+                    {otherVotes.map(({ name, text }, i) => (
+                      <Box key={i} sx={{ py: 0.4 }}>
+                        <Typography sx={{ fontSize: '0.75rem' }}>
+                          <strong>{name}:</strong> {text}
+                        </Typography>
+                      </Box>
+                    ))}
+                  </Box>
+                )}
+              </Paper>
+            );
+          })()}
+
           {/* Ack progress */}
           <Paper elevation={0} sx={{
             p: 2, borderRadius: 3, mb: 2,
@@ -208,7 +321,7 @@ export default function BroadcastDetail({
                 Acknowledgments
               </Typography>
               <Typography sx={{ fontSize: '0.85rem', fontWeight: 700, color: 'var(--color-primary)' }}>
-                {ackCount}/{reach} read
+                {ackCount}/{reach} {broadcast.broadcastKind === 'poll' ? 'responded' : 'read'}
               </Typography>
             </Box>
 
@@ -378,6 +491,8 @@ function broadcastFieldsFromDoc(broadcast) {
     audience: p.audience,
     priority: broadcast.priority,
     dip: broadcast.dip,
+    broadcastKind: broadcast.broadcastKind || 'ack',
+    ...(broadcast.poll && { poll: broadcast.poll }),
     expiresAt: broadcast.expiresAt,
     startsAt: broadcast.startsAt,
     reach: broadcast.reach,

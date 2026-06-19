@@ -52,7 +52,7 @@ const EXPECTED_EXPORTS = [
   // Stats
   "recomputeStats",
   // Alerts
-  "cleanupExpiredAlerts",
+  "autoExpireBroadcast",
   // Test Bench
   "testBenchRun",
   // Weekly Digest (PEP-297)

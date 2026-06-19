@@ -166,26 +166,22 @@ describe('Heatmap flag palette', () => {
 // --- Heatmap card structure ---
 
 describe('Heatmap card UI structure', () => {
-  it('renders "Flag pattern" header', () => {
-    assert.ok(source.includes('Flag pattern'), 'Missing "Flag pattern" header');
+  it('renders "Behaviour Pattern Trend" header', () => {
+    assert.ok(source.includes('Behaviour Pattern Trend'), 'Missing "Behaviour Pattern Trend" header');
   });
 
   it('renders "LAST 6 WEEKS" label', () => {
     assert.ok(source.includes('LAST 6 WEEKS'), 'Missing "LAST 6 WEEKS" label');
   });
 
-  it('renders dynamic week column headers with NOW as last label', () => {
-    assert.ok(source.includes("'NOW'"), 'Missing NOW column header');
-    assert.ok(source.includes('weekKeyToLabel'), 'Should use weekKeyToLabel for past week labels');
+  it('renders week column headers via weekKeyToLabel', () => {
+    assert.ok(source.includes('weekKeyToLabel'), 'Should use weekKeyToLabel for week labels');
   });
 
-  it('WEEK_LABELS maps past keys via weekKeyToLabel and appends NOW', () => {
-    // Accept either approach: ternary on last index, or spread pastKeys + 'NOW'
-    const hasTernary = /idx\s*===\s*arr\.length\s*-\s*1\s*\?\s*'NOW'\s*:\s*weekKeyToLabel\(key\)/.test(source);
-    const hasSpread = /pastKeys\.map\(weekKeyToLabel\).*'NOW'/.test(source);
+  it('WEEK_LABELS maps all week keys via weekKeyToLabel', () => {
     assert.ok(
-      hasTernary || hasSpread,
-      'WEEK_LABELS should map past weeks via weekKeyToLabel and use NOW for the current week'
+      source.includes('allWeekKeys.map(weekKeyToLabel)'),
+      'WEEK_LABELS should map all week keys via weekKeyToLabel'
     );
   });
 
