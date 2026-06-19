@@ -58,6 +58,51 @@ export async function createAlert(docId, alertData) {
 }
 
 /**
+ * Firestore trigger: auto-complete a broadcast when all targeted teachers
+ * have responded (dismissedBy count >= reach). Writes expiresAt: now().
+ * Applies to both 'ack' and 'poll' broadcasts (PEP-323c).
+ *
+ * Idempotency guards:
+ * - No-op if dismissedBy count unchanged from before
+ * - No-op if expiresAt is already set to a past or near-now time
+ * - No-op if doc type is not 'broadcast'
+ */
+export const onBroadcastAckComplete = functions
+  .region("asia-south1")
+  .firestore.document("alerts/{alertId}")
+  .onUpdate(async (change) => {
+    const before = change.before.data();
+    const after = change.after.data();
+
+    // Only applies to broadcasts
+    if (after.type !== "broadcast") return null;
+
+    // Skip if reach is 0 or missing (no targeted audience)
+    const reach = after.reach || 0;
+    if (reach <= 0) return null;
+
+    // Skip if ack count unchanged (avoids re-trigger from our own write)
+    const beforeCount = Object.keys(before.dismissedBy || {}).length;
+    const afterCount = Object.keys(after.dismissedBy || {}).length;
+    if (afterCount <= beforeCount) return null;
+
+    // Skip if already expired (our own write or manual expiry)
+    if (after.expiresAt && after.expiresAt.toMillis() <= Date.now() + 5000) {
+      return null;
+    }
+
+    // Check if all have responded
+    if (afterCount >= reach) {
+      functions.logger.info(
+        `onBroadcastAckComplete: alert ${change.after.id} — ${afterCount}/${reach} acked, auto-completing`
+      );
+      await change.after.ref.update({ expiresAt: Timestamp.now() });
+    }
+
+    return null;
+  });
+
+/**
  * Scheduled CF: delete expired alert docs where expiresAt < now.
  * Runs weekly on Monday 01:00 IST.
  */
