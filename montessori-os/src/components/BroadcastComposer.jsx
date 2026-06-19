@@ -80,8 +80,8 @@ export default function BroadcastComposer({ currentUser, userRole, deepLinkBroad
     if (target) {
       setSelectedBroadcast(target);
       setView('detail');
+      onDeepLinkConsumed?.();
     }
-    onDeepLinkConsumed?.();
   }, [deepLinkBroadcastId, broadcasts, onDeepLinkConsumed]);
 
   // ── Navigation handlers ────────────────────────────────────────────────

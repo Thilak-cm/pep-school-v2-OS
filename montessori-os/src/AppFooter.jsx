@@ -1,7 +1,6 @@
 import React, { useEffect, useState } from 'react';
-import { Box, BottomNavigation, BottomNavigationAction } from '@mui/material';
+import { Box, BottomNavigation, BottomNavigationAction, Badge } from '@mui/material';
 import { Home, Settings, Bell as Notifications, Inbox } from './icons';
-import { Badge } from '@mui/material';
 import { trackEvent } from './utils/analytics';
 
 const FOOTER_HEIGHT = 64;

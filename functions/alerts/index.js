@@ -113,7 +113,7 @@ export const autoExpireBroadcast = functions
           broadcastId: alertId,
         },
         targetRoles: ["superadmin"],
-        expiresAt: null,
+        expiresAt: Timestamp.fromMillis(Date.now() + 30 * 24 * 60 * 60 * 1000),
         createdBy: "system",
       });
     }

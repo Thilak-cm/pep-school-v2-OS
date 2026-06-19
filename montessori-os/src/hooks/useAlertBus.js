@@ -264,7 +264,7 @@ export function useAlertBus(classrooms = []) {
     for (const data of rawSnapshotDocsRef.current) {
       // Client-side dismissedBy filtering
       if (data.dismissedBy && data.dismissedBy[uid]) continue;
-      // expiresAt filtering (belt-and-suspenders with cleanup CF)
+      // expiresAt filtering — client-side guard; autoExpireBroadcast CF sets expiresAt when all teachers respond
       if (data.expiresAt && data.expiresAt.toDate && data.expiresAt.toDate() < new Date()) continue;
       // Skip scheduled broadcasts that haven't started yet (only applies to broadcast type)
       if (data.type === 'broadcast' && data.startsAt && data.startsAt.toDate && data.startsAt.toDate() > new Date()) continue;
