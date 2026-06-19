@@ -1,6 +1,9 @@
 # Firebase service account key (contains sensitive credentials)
 firebase-service-account.json
 
+# Local working principles (personal notes)
+principles.local.md
+
 # Node modules
 node_modules/
 
