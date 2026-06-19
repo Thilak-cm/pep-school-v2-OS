@@ -307,7 +307,7 @@ function renderScreen(screen, ctx) {
       return <BulkUploadPage currentUser={ctx.user} userRole={ctx.role} />;
 
     case "broadcastComposer":
-      return <BroadcastComposer currentUser={ctx.user} userRole={ctx.role} />;
+      return <BroadcastComposer currentUser={ctx.user} userRole={ctx.role} deepLinkBroadcastId={ctx.broadcastDeepLink} onDeepLinkConsumed={() => ctx.setBroadcastDeepLink?.(null)} />;
 
     case "configAiTools":
       return (

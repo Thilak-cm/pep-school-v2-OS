@@ -45,7 +45,7 @@ export const BROADCAST_PRIORITIES = [
 export async function createBroadcast(fields) {
   const uid = auth?.currentUser?.uid;
   if (!uid) throw new Error('Not authenticated');
-  if (!fields.expiresAt) throw new Error('expiresAt is required');
+  // expiresAt can be null for auto-expiry broadcasts (PEP-323c)
   if (!fields.label || !fields.title || !fields.message) {
     throw new Error('label, title, and message are required');
   }

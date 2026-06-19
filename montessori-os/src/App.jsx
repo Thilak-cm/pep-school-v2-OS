@@ -4,7 +4,7 @@ import { auth, db, cloudFunctions } from "./firebase";
 import SignIn from "./SignIn";
 import AppFooter from "./AppFooter";
 import { setAnalyticsUserId, setUserProperty, setAppVersionProperty, trackEvent } from './utils/analytics';
-import { doc, getDoc, collection, query, where, getDocs, documentId } from "firebase/firestore";
+import { doc, getDoc, collection, query, where, getDocs, documentId, onSnapshot } from "firebase/firestore";
 import { httpsCallable } from 'firebase/functions';
 import { Box, Typography, CircularProgress, Card } from "@mui/material";
 import AddNoteFab from './components/AddNoteFab';
@@ -36,6 +36,8 @@ function App() {
   const [classroomsLoaded, setClassroomsLoaded] = useState(false);
   const [inputFocused, setInputFocused] = useState(false);
   const [noteDrawerOpen, setNoteDrawerOpen] = useState(false);
+  const [broadcastDeepLink, setBroadcastDeepLink] = useState(null);
+  const [alertBadgeCount, setAlertBadgeCount] = useState(0);
 
   const {
     screen, setScreen,
@@ -192,11 +194,37 @@ function App() {
     window.addEventListener('navigateToStudentNotes', handleNavigateToStudentNotes);
     const handleNoteDrawerToggle = (e) => setNoteDrawerOpen(!!e?.detail?.open);
     window.addEventListener('noteDrawerToggle', handleNoteDrawerToggle);
+    // Navigate to broadcast detail from system alert (PEP-323c)
+    const handleNavigateToBroadcast = (e) => {
+      setBroadcastDeepLink(e.detail?.broadcastId || null);
+      setScreen('broadcastComposer');
+    };
+    window.addEventListener('navigateToBroadcastDetail', handleNavigateToBroadcast);
     return () => {
       window.removeEventListener('navigateToStudentNotes', handleNavigateToStudentNotes);
       window.removeEventListener('noteDrawerToggle', handleNoteDrawerToggle);
+      window.removeEventListener('navigateToBroadcastDetail', handleNavigateToBroadcast);
     };
   }, []);
+
+  // ── Alert badge count — undismissed non-DIP alerts (PEP-323c) ──────────
+  useEffect(() => {
+    const uid = auth?.currentUser?.uid;
+    if (!uid) return;
+    const q = query(collection(db, 'alerts'), where('dip', '==', false));
+    const unsub = onSnapshot(q, (snap) => {
+      let count = 0;
+      snap.forEach((d) => {
+        const data = d.data();
+        // Count alerts not dismissed by this user and not expired
+        if (data.dismissedBy?.[uid]) return;
+        if (data.expiresAt && data.expiresAt.toDate() < new Date()) return;
+        count++;
+      });
+      setAlertBadgeCount(count);
+    }, () => setAlertBadgeCount(0));
+    return unsub;
+  }, [user]);
 
   // ── Track screen views for GA4 path analysis ──
   useEffect(() => {
@@ -335,7 +363,7 @@ function App() {
     setStudentDashboardNoteType, setTimelineFilter, setUsersAccessView, setPendingViewReportId, setInitialStudentId,
     setLessonNoteEditObservation, setFeedbackReturnScreen, studentDashboardFlagOpen, setStudentDashboardFlagOpen,
     openFeedbackWithMessage, handleLessonNotesSaved, handleNavigation, handleSignOut,
-    getStudentDisplayName,
+    getStudentDisplayName, broadcastDeepLink, setBroadcastDeepLink,
     pageTitle, backNavigation, showBackButton,
   };
 
@@ -414,6 +442,7 @@ function App() {
                     onHome={handleHome}
                     onNavigate={handleNavigation}
                     active={FOOTER_TAB_SCREENS[screen] || null}
+                    alertBadgeCount={alertBadgeCount}
                   />
                 )}
               </>

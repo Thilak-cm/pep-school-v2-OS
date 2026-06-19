@@ -122,10 +122,10 @@ describe('broadcastService — broadcast CRUD contract (PEP-307)', () => {
     );
   });
 
-  it('requires expiresAt', () => {
+  it('includes expiresAt field (nullable for auto-expiry)', () => {
     assert.ok(
-      source.includes('expiresAt is required') || source.includes('expiresAt'),
-      'Should require expiresAt field'
+      source.includes('expiresAt'),
+      'Should include expiresAt field'
     );
   });
 
