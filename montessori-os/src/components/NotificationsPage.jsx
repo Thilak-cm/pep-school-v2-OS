@@ -1401,10 +1401,6 @@ function NotificationsPage() {
 
           {/* ── Alerts section ──────────────────────────────────────────── */}
           <Box>
-            <Typography sx={{ fontFamily: 'inherit', fontSize: '16px', fontWeight: 700, color: 'var(--grey-900)', mb: 1 }}>
-              Alerts
-            </Typography>
-
             {/* Tabs (PEP-323c) */}
             {(() => {
               const uid = auth?.currentUser?.uid;
