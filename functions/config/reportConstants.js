@@ -19,6 +19,14 @@ export const REPORT_PROMPT_DOCS = {
   toddler: "report_toddler",
 };
 
+// Monthly/baseline report prompt doc IDs (PEP-325)
+export const MONTHLY_REPORT_PROMPT_DOCS = {
+  adolescent: "report_monthly_adolescent",
+  elementary: "report_monthly_elementary",
+  primary: "report_monthly_primary",
+  toddler: "report_monthly_toddler",
+};
+
 // Report readiness checker (PEP-68)
 export const READINESS_DOC_ID = "report_readiness";
 
@@ -53,6 +61,16 @@ export function buildCsvFilename(classroomName) {
  */
 export function buildArchiveCsvFilename(classroomName) {
   return `${classroomName} | ${HARDCODED_TERM} | Report Consolidation Summary Archive.csv`;
+}
+
+/**
+ * Build the classroom-specific monthly baseline report CSV filename.
+ * Format: "{Classroom Name} | {Month Year} | Monthly Baseline Report Summary.csv"
+ */
+export function buildMonthlyBaselineCsvFilename(classroomName) {
+  const now = new Date();
+  const monthYear = now.toLocaleDateString("en-US", { month: "long", year: "numeric" });
+  return `${classroomName} | ${monthYear} | Monthly Baseline Report Summary.csv`;
 }
 
 // Google Drive export constants
