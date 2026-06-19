@@ -27,7 +27,7 @@ const INITIAL_FORM = {
   priority: 3,
   dip: true,
   expiresAt: '',
-  expiryChip: null, // 'week-end' | 'one-week' | 'custom' | null
+  expiryChip: 'auto', // 'auto' | 'week-end' | 'one-week' | 'custom'
   startsAt: '',
   startsAtMode: 'immediately', // 'immediately' | 'custom'
   targetClassrooms: [],
@@ -92,7 +92,7 @@ export default function BroadcastCompose({
         priority: editingBroadcast.priority ?? 3,
         dip: editingBroadcast.dip ?? true,
         expiresAt: toDatetimeLocal(editingBroadcast.expiresAt),
-        expiryChip: 'custom',
+        expiryChip: editingBroadcast.expiresAt ? 'custom' : 'auto',
         startsAt: toDatetimeLocal(editingBroadcast.startsAt),
         startsAtMode: editingBroadcast.startsAt ? 'custom' : 'immediately',
         targetClassrooms: editingBroadcast.targetClassrooms || [],
@@ -158,7 +158,7 @@ export default function BroadcastCompose({
             allowOther: form.pollAllowOther,
           },
         }),
-        expiresAt: Timestamp.fromDate(new Date(form.expiresAt)),
+        expiresAt: form.expiryChip === 'auto' ? null : Timestamp.fromDate(new Date(form.expiresAt)),
         startsAt: form.startsAtMode === 'custom' && form.startsAt
           ? Timestamp.fromDate(new Date(form.startsAt))
           : null,
@@ -190,7 +190,7 @@ export default function BroadcastCompose({
     // Validate required fields with specific toasts
     if (!form.title.trim()) { notify.warning('Add a title for the broadcast'); return; }
     if (!form.message.trim()) { notify.warning('Add a message body — teachers see this after tapping'); return; }
-    if (!form.expiresAt) { notify.warning('Pick an expiry date — broadcasts must have an end time'); return; }
+    if (form.expiryChip !== 'auto' && !form.expiresAt) { notify.warning('Pick an expiry date — broadcasts must have an end time'); return; }
     if (form.pollEnabled) {
       if (!form.pollQuestion.trim()) { notify.warning('Add a poll question'); return; }
       const filledOptions = form.pollOptions.filter(o => o.label.trim());
@@ -513,6 +513,22 @@ export default function BroadcastCompose({
               Expires
             </Typography>
             <Box sx={{ display: 'flex', gap: 0.75, flexWrap: 'wrap', mb: form.expiryChip === 'custom' ? 1 : 0 }}>
+              {/* Auto-expire chip (default) */}
+              <Box
+                onClick={() => { updateField('expiryChip', 'auto'); updateField('expiresAt', ''); }}
+                sx={{
+                  display: 'inline-flex', alignItems: 'center', gap: 0.5,
+                  px: 1.5, py: 0.6, borderRadius: '8px',
+                  cursor: 'pointer', fontSize: '0.78rem', fontWeight: 600,
+                  border: '1px solid',
+                  transition: 'all 0.15s ease',
+                  ...(form.expiryChip === 'auto'
+                    ? { borderColor: 'var(--color-primary)', backgroundColor: 'var(--color-indigo-bg, rgba(79,70,229,0.06))', color: 'var(--color-primary)' }
+                    : { borderColor: 'var(--color-border)', backgroundColor: 'transparent', color: 'var(--color-text-faint)' }),
+                }}
+              >
+                When all respond
+              </Box>
               {expiryChips.map((chip, i) => {
                 const chipKey = i === 0 ? 'week-end' : 'one-week';
                 const isActive = form.expiryChip === chipKey;

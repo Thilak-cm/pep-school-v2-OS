@@ -1438,6 +1438,12 @@ function NotificationsPage() {
                         // System/agent: dismiss on tap
                         if (['system', 'agent'].includes(alertDoc.type) && alertDoc.id && !isDismissed) {
                           dismissAlert(alertDoc.id);
+                          // Navigate to broadcast detail if this is a broadcast-complete alert (PEP-323c)
+                          if (alertDoc.payload?.broadcastId) {
+                            window.dispatchEvent(new CustomEvent('navigateToBroadcastDetail', {
+                              detail: { broadcastId: alertDoc.payload.broadcastId },
+                            }));
+                          }
                         }
                       }}
                       sx={{

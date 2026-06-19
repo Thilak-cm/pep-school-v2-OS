@@ -93,10 +93,29 @@ export const onBroadcastAckComplete = functions
 
     // Check if all have responded
     if (afterCount >= reach) {
+      const alertId = change.after.id;
+      const title = after.payload?.title || "Broadcast";
       functions.logger.info(
-        `onBroadcastAckComplete: alert ${change.after.id} — ${afterCount}/${reach} acked, auto-completing`
+        `onBroadcastAckComplete: alert ${alertId} — ${afterCount}/${reach} acked, auto-completing`
       );
       await change.after.ref.update({ expiresAt: Timestamp.now() });
+
+      // Create a system notification for superadmins (PEP-323c)
+      const kindLabel = after.broadcastKind === "poll" ? "responded to" : "read";
+      await createAlert(`broadcast-complete:${alertId}`, {
+        type: "system",
+        dip: false,
+        priority: 3,
+        source: "cf:broadcastComplete",
+        payload: {
+          message: `All ${reach} teachers ${kindLabel} "${title}"`,
+          detail: "Tap to view details",
+          broadcastId: alertId,
+        },
+        targetRoles: ["superadmin"],
+        expiresAt: null,
+        createdBy: "system",
+      });
     }
 
     return null;
