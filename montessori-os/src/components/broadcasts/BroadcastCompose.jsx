@@ -7,7 +7,7 @@ import {
   TextField, CircularProgress, DialogTitle, DialogContent, DialogActions,
 } from '@mui/material';
 import { Timestamp } from 'firebase/firestore';
-import { X, Send, ChevronRight, Users, Clock } from '../../icons';
+import { X, Send, ChevronRight, Users, Clock, Plus, Trash2 } from '../../icons';
 import { createBroadcast, updateBroadcast } from '../../services/broadcastService';
 import useNotify from '../../notifications/useNotify';
 import BroadcastPreviewPill from './BroadcastPreviewPill';
@@ -32,7 +32,15 @@ const INITIAL_FORM = {
   startsAtMode: 'immediately', // 'immediately' | 'custom'
   targetClassrooms: [],
   targetTeachers: [],
+  // Poll fields (PEP-323a)
+  pollEnabled: false,
+  pollQuestion: '',
+  pollOptions: [{ id: 'opt_1', label: '' }, { id: 'opt_2', label: '' }],
+  pollMultiSelect: false,
+  pollAllowOther: false,
 };
+
+let nextOptionId = 3;
 
 // ── Soft input style (shared) ──────────────────────────────────────────────────
 
@@ -74,6 +82,7 @@ export default function BroadcastCompose({
     if (!open) return;
     if (editingBroadcast) {
       const p = editingBroadcast.payload || {};
+      const poll = editingBroadcast.poll || null;
       setForm({
         label: p.label || 'FROM OFFICE',
         title: p.title || '',
@@ -88,6 +97,11 @@ export default function BroadcastCompose({
         startsAtMode: editingBroadcast.startsAt ? 'custom' : 'immediately',
         targetClassrooms: editingBroadcast.targetClassrooms || [],
         targetTeachers: editingBroadcast.targetTeachers || [],
+        pollEnabled: editingBroadcast.broadcastKind === 'poll',
+        pollQuestion: poll?.question || '',
+        pollOptions: poll?.options?.length ? poll.options : [{ id: 'opt_1', label: '' }, { id: 'opt_2', label: '' }],
+        pollMultiSelect: poll?.multiSelect || false,
+        pollAllowOther: poll?.allowOther || false,
       });
     } else {
       setForm(INITIAL_FORM);
@@ -124,16 +138,26 @@ export default function BroadcastCompose({
   const doSubmit = async (resetDismissals = false) => {
     setSubmitting(true);
     try {
+      const isPoll = form.pollEnabled;
       const broadcastFields = {
         label: form.label,
         title: form.title,
         subtitle: form.subtitle || `${senderName} · ${audienceSummary}`,
-        ctaLabel: form.ctaLabel || 'Mark as read',
+        ctaLabel: isPoll ? 'Respond' : (form.ctaLabel || 'Mark as read'),
         message: form.message,
         senderName,
         audience: audienceSummary,
         priority: form.priority,
         dip: form.dip,
+        broadcastKind: isPoll ? 'poll' : 'ack',
+        ...(isPoll && {
+          poll: {
+            question: form.pollQuestion,
+            options: form.pollOptions.filter(o => o.label.trim()),
+            multiSelect: form.pollMultiSelect,
+            allowOther: form.pollAllowOther,
+          },
+        }),
         expiresAt: Timestamp.fromDate(new Date(form.expiresAt)),
         startsAt: form.startsAtMode === 'custom' && form.startsAt
           ? Timestamp.fromDate(new Date(form.startsAt))
@@ -167,6 +191,11 @@ export default function BroadcastCompose({
     if (!form.title.trim()) { notify.warning('Add a title for the broadcast'); return; }
     if (!form.message.trim()) { notify.warning('Add a message body — teachers see this after tapping'); return; }
     if (!form.expiresAt) { notify.warning('Pick an expiry date — broadcasts must have an end time'); return; }
+    if (form.pollEnabled) {
+      if (!form.pollQuestion.trim()) { notify.warning('Add a poll question'); return; }
+      const filledOptions = form.pollOptions.filter(o => o.label.trim());
+      if (filledOptions.length < 2) { notify.warning('Add at least 2 poll options'); return; }
+    }
 
     // Check for existing acks when editing
     if (isEditing) {
@@ -258,6 +287,115 @@ export default function BroadcastCompose({
               onChange={(e) => updateField('message', e.target.value)}
               sx={softInputSx}
             />
+          </GroupCard>
+
+          {/* ── POLL card (PEP-323a) ── */}
+          <GroupCard label="POLL">
+            <FormControlLabel
+              control={
+                <Switch
+                  checked={form.pollEnabled}
+                  onChange={(e) => updateField('pollEnabled', e.target.checked)}
+                  color="primary"
+                  size="small"
+                />
+              }
+              label={
+                <Typography sx={{ fontSize: '0.85rem', fontWeight: 600 }}>
+                  Attach a poll
+                </Typography>
+              }
+              sx={{ mx: 0, mb: form.pollEnabled ? 1.5 : 0 }}
+            />
+            {form.pollEnabled && (
+              <>
+                <TextField
+                  size="small" fullWidth
+                  placeholder="Poll question"
+                  value={form.pollQuestion}
+                  onChange={(e) => updateField('pollQuestion', e.target.value)}
+                  sx={{ ...softInputSx, mb: 1.5 }}
+                />
+
+                {/* Options */}
+                {form.pollOptions.map((opt, i) => (
+                  <Box key={opt.id} sx={{ display: 'flex', gap: 0.75, mb: 0.75, alignItems: 'center' }}>
+                    <TextField
+                      size="small" fullWidth
+                      placeholder={`Option ${i + 1}`}
+                      value={opt.label}
+                      onChange={(e) => {
+                        const updated = form.pollOptions.map(o =>
+                          o.id === opt.id ? { ...o, label: e.target.value } : o
+                        );
+                        updateField('pollOptions', updated);
+                      }}
+                      sx={softInputSx}
+                    />
+                    {form.pollOptions.length > 2 && (
+                      <Box
+                        onClick={() => updateField('pollOptions', form.pollOptions.filter(o => o.id !== opt.id))}
+                        sx={{ cursor: 'pointer', color: 'var(--color-text-faint)', flexShrink: 0, p: 0.5,
+                          '&:hover': { color: 'var(--color-error)' } }}
+                      >
+                        <Trash2 size={16} />
+                      </Box>
+                    )}
+                  </Box>
+                ))}
+
+                {/* Add option */}
+                <Box
+                  onClick={() => {
+                    const id = `opt_${nextOptionId++}`;
+                    updateField('pollOptions', [...form.pollOptions, { id, label: '' }]);
+                  }}
+                  sx={{
+                    display: 'flex', alignItems: 'center', gap: 0.5,
+                    cursor: 'pointer', color: 'var(--color-primary)',
+                    fontSize: '0.8rem', fontWeight: 600, mt: 0.5, mb: 1.5,
+                    '&:hover': { opacity: 0.8 },
+                  }}
+                >
+                  <Plus size={14} />
+                  Add option
+                </Box>
+
+                {/* Multi-select & Other toggles */}
+                <Box sx={{ display: 'flex', flexDirection: 'column', gap: 0.5 }}>
+                  <FormControlLabel
+                    control={
+                      <Switch
+                        checked={form.pollMultiSelect}
+                        onChange={(e) => updateField('pollMultiSelect', e.target.checked)}
+                        color="primary" size="small"
+                      />
+                    }
+                    label={
+                      <Typography sx={{ fontSize: '0.8rem' }}>
+                        Allow multiple selections
+                      </Typography>
+                    }
+                    sx={{ mx: 0 }}
+                  />
+                  <FormControlLabel
+                    control={
+                      <Switch
+                        checked={form.pollAllowOther}
+                        onChange={(e) => updateField('pollAllowOther', e.target.checked)}
+                        color="primary" size="small"
+                      />
+                    }
+                    label={
+                      <Typography sx={{ fontSize: '0.8rem' }}>
+                        Include &ldquo;Other&rdquo; free-text option
+                      </Typography>
+                    }
+                    sx={{ mx: 0 }}
+                  />
+                </Box>
+              </>
+            )}
           </GroupCard>
 
           {/* ── AUDIENCE card ── */}
