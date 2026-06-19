@@ -1422,7 +1422,9 @@ function NotificationsPage() {
               <Box sx={{ display: 'flex', flexDirection: 'column', gap: 1 }}>
                 {alertDocs.map(alertDoc => {
                   const uid = auth?.currentUser?.uid;
-                  const isDismissed = !!(uid && alertDoc.dismissedBy?.[uid]);
+                  const isDismissedByMe = !!(uid && alertDoc.dismissedBy?.[uid]);
+                  // Superadmins manage broadcasts — don't show as dismissed even if they acked
+                  const isDismissed = isDismissedByMe && !(alertDoc.type === 'broadcast' && currentRole === 'superadmin');
                   const display = transformForDisplay({ id: alertDoc.id, ...alertDoc });
                   const colorSet = ALERT_COLORS[display.colorKey] || ALERT_COLORS.system;
                   const typeBadge = (alertDoc.type || 'alert').toUpperCase();
@@ -1434,7 +1436,6 @@ function NotificationsPage() {
                     <Box
                       key={alertDoc.id}
                       onClick={() => {
-                        // Broadcast CTA for teachers: show ack dialog (handled by DIP)
                         // System/agent: dismiss on tap
                         if (['system', 'agent'].includes(alertDoc.type) && alertDoc.id && !isDismissed) {
                           dismissAlert(alertDoc.id);
@@ -1445,14 +1446,22 @@ function NotificationsPage() {
                             }));
                           }
                         }
+                        // Broadcast: superadmins navigate to broadcast detail (PEP-323c)
+                        if (alertDoc.type === 'broadcast' && currentRole === 'superadmin' && alertDoc.id) {
+                          window.dispatchEvent(new CustomEvent('navigateToBroadcastDetail', {
+                            detail: { broadcastId: alertDoc.id },
+                          }));
+                        }
                       }}
                       sx={{
                         p: 1.5, borderRadius: '12px',
                         border: '1px solid var(--color-border)',
                         backgroundColor: '#fff',
                         opacity: isDismissed ? 0.6 : 1,
-                        cursor: ['system', 'agent'].includes(alertDoc.type) && !isDismissed ? 'pointer' : 'default',
-                        '&:active': ['system', 'agent'].includes(alertDoc.type) && !isDismissed ? { opacity: 0.85 } : {},
+                        cursor: (['system', 'agent'].includes(alertDoc.type) && !isDismissed)
+                          || (alertDoc.type === 'broadcast' && currentRole === 'superadmin') ? 'pointer' : 'default',
+                        '&:active': (['system', 'agent'].includes(alertDoc.type) && !isDismissed)
+                          || (alertDoc.type === 'broadcast' && currentRole === 'superadmin') ? { opacity: 0.85 } : {},
                       }}
                     >
                       {/* Meta row */}
