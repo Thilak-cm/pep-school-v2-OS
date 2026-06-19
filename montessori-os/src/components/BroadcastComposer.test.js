@@ -172,6 +172,35 @@ describe('BroadcastComposer — broadcast admin screen (PEP-307 redesign)', () =
     );
   });
 
+  // ── Poll results in detail (PEP-323b) ──
+  it('detail shows poll results section for poll broadcasts', () => {
+    assert.ok(
+      detailSource.includes('Poll Results') || detailSource.includes('poll'),
+      'Detail should show poll results for poll broadcasts'
+    );
+  });
+
+  it('detail shows vote counts and percentage per option', () => {
+    assert.ok(
+      detailSource.includes('pct') || detailSource.includes('%'),
+      'Detail should show vote percentage per option'
+    );
+  });
+
+  it('detail shows voter names per option', () => {
+    assert.ok(
+      detailSource.includes('voters') && detailSource.includes('join'),
+      'Detail should list voter names per option'
+    );
+  });
+
+  it('detail shows Other free-text responses', () => {
+    assert.ok(
+      detailSource.includes('otherVotes') || detailSource.includes('OTHER'),
+      'Detail should show Other free-text responses'
+    );
+  });
+
   // ── Superadmin guard ──
   it('checks for superadmin role', () => {
     assert.ok(source.includes('isSuperAdmin'), 'Should verify superadmin role');
