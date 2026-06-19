@@ -45,7 +45,7 @@ export async function voteOnBroadcast(alertId, choices, text) {
       },
       [`dismissedBy.${uid}`]: serverTimestamp(),
     });
-  } catch {
-    // Silently degrade — alert stays visible, which is safe
+  } catch (err) {
+    console.error('voteOnBroadcast failed:', err);
   }
 }
