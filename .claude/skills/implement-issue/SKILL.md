@@ -1,464 +1,215 @@
 ---
 name: implement-issue
-description: Start implementation of a Linear issue with automatic context loading, implementation-path tradeoff discussion, technical planning iteration, test-driven development, and Linear sync. Use when starting work on a Linear issue—helps bridge from issue creation to code execution with structured planning, user-aligned approach selection, and test coverage enforcement.
+description: Implement an approved Pep OS issue plan with TDD, commit and push the current Conductor workspace branch, open a PR against master, monitor CI, and run a CI diagnose/fix loop on failures. Use after /plan-issue has created .context/issue-plans/PEP-{id}.md.
 ---
 
 # Implement Issue
 
-Bridge the gap between Linear issue creation and implementation. This skill automates the workflow of selecting a Linear issue, loading relevant codebase context, generating a technical execution plan with test specifications, discussing tradeoffs between viable implementation paths with the user, iterating until one path is finalized, discovering existing tests, implementing via TDD, and syncing progress back to Linear.
+## Goal
 
-## When to Use This Skill
+Execute an approved `/plan-issue` artifact for Pep OS, then ship the branch far enough that CI has proven it or produced actionable failures.
 
-- You want to start work on a Linear issue from `pep-os` workspace
-- You need a structured execution plan before writing code
-- You need to compare multiple implementation paths with the user before coding
-- You want to enforce Test-Driven Development (TDD) for quality assurance
-- You want test coverage requirements tracked and enforced
-- You want implementation progress synced back to Linear automatically
+This command is the implementation half of the old `/implement-issue` workflow. It assumes planning has already happened and keeps the main session focused on execution, verification, PR creation, and CI recovery.
 
-## Workflow Overview
+## When to Use
 
-The skill follows an 8-phase workflow:
+- After `/plan-issue PEP-{id}` has produced `.context/issue-plans/PEP-{id}.md`.
+- When the user wants code written from an approved plan.
+- When the branch should be pushed to remote and checked by GitHub Actions.
+- When CI failures should trigger a diagnosis subagent followed by a code-fixer subagent.
 
-1. **Issue Selection** - Interactively filter and select a Linear issue
-2. **Context Loading** - Auto-load codebase overview, staleness check, optional explore
-3. **Plan Generation** - Generate technical execution plan with file paths, test specs, and implementation path options
-4. **Test Discovery** - Auto-detect related tests and establish baseline
-5. **Plan Approval** - User reviews tradeoffs, iterates on plan, and approves a final implementation path before implementation
-6. **Implementation** - Execute plan using TDD (write tests first, then code)
-7. **Linear Sync** - Update Linear issue with branch, commits, and test results
-8. **Manual Verification** - User manually verifies the e2e flow before moving to review
+## Prerequisites
 
-## Phase 1: Issue Selection
+- An approved plan artifact exists at `.context/issue-plans/PEP-{id}.md`.
+- The Linear issue ID is known from the user, branch name, or plan artifact.
+- The workspace is on a task branch or can safely create one from `origin/master`.
+- `gh` is authenticated for this repository.
 
-Start by selecting which Linear issue to work on. Use interactive filtering to narrow down options.
+## Workflow
 
-**Steps:**
-1. Ask user for optional filters using AskUserQuestion:
-   - Assignee (default: "me")
-   - State (default: "Todo")
-   - Team (default: "Pep school v2 os")
-   - Labels (optional multi-select)
-   - Priority (optional)
+### Phase 1: Load Plan And Confirm Scope
 
-2. Call `list_issues` with user-specified filters
+1. Resolve the issue ID:
+   - prefer explicit user input
+   - else infer `PEP-{id}` from the current branch
+   - else ask the user
+2. Read `.context/issue-plans/PEP-{id}.md`.
+3. Confirm the plan has:
+   - `Final Decision`
+   - `Files To Modify`
+   - `Test Plan`
+   - `Implementation Steps`
+4. Fetch the Linear issue and verify the title/acceptance criteria still match the plan.
+5. If the plan is missing, stale, or materially mismatched, stop and ask the user to run `/plan-issue` again.
 
-3. Present top 20 results with format: `[PEP-123] Issue Title [High] [label1, label2]`
+### Phase 2: Branch And Worktree Safety
 
-4. User selects issue by ID or number
+1. Check status with `git status --short --branch`.
+2. Determine the base branch for comparisons and PRs:
+   - Use `origin/master` for diffs.
+   - Open PRs against `master`.
+3. Branch handling in Conductor:
+   - Do not rename the current branch.
+   - If already on a Conductor workspace/task branch, use it.
+   - If on `master`, `main`, or `dev`, create a new branch named `PEP-{id}-{short-slug}` from `origin/master`.
+4. If unrelated uncommitted changes exist, stop and ask whether to exclude, stash, or move them.
 
-5. Call `get_issue` with selected issue ID, `includeRelations=true`
+### Phase 3: TDD Implementation
 
-**Output:** Selected issue details (title, description, acceptance criteria, labels, state)
+Follow the approved plan exactly unless implementation reveals a blocker.
 
-## Phase 2: Context Loading
+1. Write tests first for each acceptance criterion.
+2. Run the new/changed tests and confirm they fail for the expected reason.
+3. Implement the smallest code change that satisfies the tests.
+4. Re-run the related tests until green.
+5. Refactor only while tests remain green.
+6. If the plan needs a material change, pause and get user approval before continuing.
 
-Auto-load high-level overview, check for staleness, and spawn Explore subagent when deeper context is needed.
+Pep OS command hints:
+- Frontend tests: `cd montessori-os && npm run test -- {pattern}`
+- Frontend lint: `cd montessori-os && npm run lint`
+- Frontend build: `cd montessori-os && npm run build`
+- Security rules tests: follow `tests/security/README.md`
+- Functions lint: `cd functions && npm run lint`
 
-**Steps:**
-1. Read `.claude/skills/codebase-context-scan/references/pep-os-overview.md`
-   - Extract Area Map for reference
+### Phase 4: Local Verification
 
-2. **Check overview staleness**
-   - Read `Generated:` timestamp from line 3 of `pep-os-overview.md`
-   - Count commits since: `git log --oneline --after="{date}" | wc -l`
-   - Calculate days elapsed
-   - If 5+ commits OR 7+ days old: warn user, ask "Refresh with /codebase-context-scan?" via AskUserQuestion (yes/skip)
-   - If yes: invoke codebase-context-scan, re-read overview
-   - If skip: proceed with stale overview
-   - If neither threshold met: proceed silently
+Run the narrowest meaningful checks from the plan, then broaden based on touched files:
 
-3. Infer relevant area tags from issue:
-   - Use issue labels first (e.g., "observation-capture" → "observation-capture" area)
-   - Fall back to keyword matching on title/description
-   - Area mapping examples:
-     - "voice note", "voice transcription" → "observation-capture"
-     - "timeline", "student timeline" → "timelines-and-media"
-     - "permission", "role", "admin" → "auth-and-access"
-     - "firebase", "rules", "security" → "firebase-infrastructure"
+- React component or utility changes: related `npm run test -- {pattern}`.
+- Shared frontend behavior: `cd montessori-os && npm run test`.
+- UI or build-sensitive changes: `cd montessori-os && npm run build`.
+- Firestore/Storage rules: security rules test suite.
+- Functions: functions lint and any targeted callable tests available.
 
-4. If the overview context is insufficient for the inferred areas, spawn the **codebase-explorer agent** (`.claude/agents/codebase-explorer.md`) to gather deeper context on the relevant files and patterns.
+Do not invent test results. If a command cannot run, record why.
 
-   **Data to pass to the codebase-explorer agent:**
-   - `overview_content`: The full text of `pep-os-overview.md` (already loaded in step 1)
-   - `target_areas`: The inferred area tags from step 3
-   - `issue_context`: Issue title + key requirements/acceptance criteria
-   - `exploration_focus`: `"implementation"` (find patterns to follow, reusable code, data flow, hook APIs, prop contracts)
-   - `specific_files`: Any files explicitly mentioned in the issue description
+### Phase 5: Commit
 
-5. Extract requirements from issue:
-   - Parse issue description for user story, acceptance criteria
-   - For bugs: Steps to reproduce, expected vs actual behavior
+1. Review `git diff origin/master...HEAD` and `git diff`.
+2. Confirm changed files match the approved plan.
+3. Stage only issue-related files.
+4. Commit with issue reference:
+   - `test: add coverage for {scope} (PEP-{id})`
+   - `feat: {description} (PEP-{id})`
+   - `fix: {description} (PEP-{id})`
+5. Include the Claude co-author footer if that is the local convention.
 
-**Output:**
-- Inferred area tags
-- Loaded context (overview + codebase-explorer summary)
-- Parsed requirements and acceptance criteria
+### Phase 6: Push And Open PR
 
-## Phase 3: Plan Generation
-
-Create a technical execution plan with specific file paths, test specifications, and explicit tradeoff analysis across viable implementation paths.
-
-**Steps:**
-1. Analyze requirements + context:
-   - Map each acceptance criterion to code changes
-   - Identify files to modify (from overview and explore context)
-   - Consider constraints (e.g., Firebase Storage rules, role-based access)
-   - Review related/blocking issues for additional context
-   - Identify 2-3 viable implementation paths when reasonable (or explain why only one is viable)
-   - Compare tradeoffs for each path (delivery speed, regression risk, complexity, maintainability, test impact)
-
-2. Generate execution plan with sections:
+1. Push the branch:
+   - `git push -u origin {branch}`
+2. Create or update a PR:
+   - If a PR already exists for the branch, update its body if needed.
+   - Otherwise run `gh pr create --base master --head {branch}`.
+3. PR title:
+   - concise, under 70 characters, includes `PEP-{id}`
+4. PR body:
 
 ```markdown
 ## Summary
-[1-2 sentence description of implementation approach]
+- {what changed}
 
-## Implementation Path Options
+## Plan
+- Source: `.context/issue-plans/PEP-{id}.md`
+- Selected option: {option}
 
-### Option A (Recommended): [Approach name]
-- **What it changes:** [Short summary]
-- **Pros:** [Speed, reuse, lower risk, etc.]
-- **Cons:** [Complexity, technical debt, migration cost, etc.]
-- **Risk Profile:** Low | Medium | High
-- **Test Impact:** [Which tests are affected / need additions]
+## Tests
+- {local command}: {result}
 
-### Option B: [Approach name]
-- **What it changes:** [Short summary]
-- **Pros:** [...]
-- **Cons:** [...]
-- **Risk Profile:** Low | Medium | High
-- **Test Impact:** [...]
+## Linear
+- Issue: PEP-{id}
+- Branch: `{branch}`
 
-### Decision Notes (Working Draft)
-- Recommended option: [A/B]
-- Open questions for user: [Tradeoffs to confirm before approval]
-
-## Files to Modify
-- `path/to/file1.js` - [What changes, which components affected]
-- `path/to/file2.jsx` - [What changes]
-
-## Files to Create (if any)
-- `path/to/newfile.js` - [Purpose]
-
-## Test Specification
-
-### Acceptance Criterion 1: [Criterion text]
-- **Test Type:** Unit | Integration | E2E
-- **Test File:** `path/to/test-file.test.js` (new or existing)
-- **Test Description:** Should [expected behavior]
-- **Edge Cases:** [list edge cases to test]
-
-### Acceptance Criterion 2: [Criterion text]
-- **Test Type:** Integration
-- **Test File:** `path/to/test-file.test.js`
-- **Test Description:** Should [expected behavior]
-- **Edge Cases:** [list edge cases to test]
-
-## Implementation Approach
-[Step-by-step technical approach - TDD style: write tests first, then implementation]
-
-## Related Context
-- [Reference overview sections or explore findings that informed this plan]
-- [Any architectural constraints or patterns to follow]
-
-## Verification Checklist
-- [ ] All acceptance criteria have test coverage
-- [ ] All new tests written and passing
-- [ ] Existing related tests still passing (no regressions)
-- [ ] Manual testing completed (if UI changes)
+Generated with Claude Code.
 ```
 
-**CRITICAL REQUIREMENT:** Every acceptance criterion MUST map to at least one test.
+### Phase 7: CI Monitor
 
-**Output:** Complete technical execution plan with test specifications and implementation path tradeoffs
+After the PR is opened or updated, monitor GitHub Actions.
 
-## Phase 4: Test Discovery & Baseline
+1. Get the PR number:
+   - `gh pr view --json number,url,headRefName,baseRefName`
+2. Poll checks:
+   - `gh pr checks {pr_number} --watch`
+   - If `--watch` is not suitable, use `gh pr checks {pr_number}` and ask the user before waiting again.
+3. Outcomes:
+   - All checks passing: proceed to Phase 9.
+   - Pending after a long wait: summarize pending checks and ask whether to keep waiting.
+   - Any check failing: proceed to Phase 8.
 
-Identify existing tests and establish baseline test results.
+### Phase 8: CI Failure Diagnose/Fix Loop
 
-**Steps:**
-1. Auto-detect related test files:
-   - For each file to modify (e.g., `AddNoteModal.jsx`), search for test files
-   - Patterns: `{filename}.test.{js,jsx,mjs}`, `__tests__/{filename}.{js,jsx}`
-   - Search frontend: `montessori-os/src/**/*.test.js`
-   - Search functions: `functions/**/*.test.{js,mjs}`
+Run at most 3 CI repair iterations.
 
-2. Run baseline tests:
-   - Frontend tests: `cd montessori-os && npm run test -- {test-file-pattern}`
-   - Capture baseline results (pass/fail counts, timing)
-   - Report any existing test failures
+For each iteration:
 
-3. Identify test gaps:
-   - Compare acceptance criteria against existing test coverage
-   - Highlight which criteria lack tests
-   - List test files to create
+1. Spawn the `ci-diagnostician` agent (`.claude/agents/ci-diagnostician.md`) with:
+   - PR number and URL
+   - branch name
+   - failing check names from `gh pr checks`
+   - relevant workflow/job logs, fetched with `gh run view`, `gh run list`, or `gh api` as needed
+   - local diff against `origin/master`
+   - approved plan artifact
+2. The diagnostician returns a structured CI Failure Report with root cause, suspect files, and suggested fix.
+3. Spawn the `code-fixer` agent (`.claude/agents/code-fixer.md`) with:
+   - the CI Failure Report converted into blocker/warning findings
+   - the approved plan artifact
+   - Linear issue context
+4. After fixes:
+   - run the relevant local failing command if it can be reproduced
+   - commit with `fix: address CI failure (PEP-{id})`
+   - push to the same branch
+   - return to Phase 7
 
-4. Update plan with test discovery results:
-   - Add "Existing Tests" section listing detected files and results
-   - Confirm test file paths in "Test Specification" section
-   - Flag if no tests exist (requires creating new test files)
+Stop and escalate to the user if:
+- 3 repair iterations fail to produce green CI
+- the diagnosis points to infrastructure/secrets/flakiness outside the code change
+- the fix would materially change the approved product behavior
 
-**Output:** Test discovery report with baseline results and identified gaps
+### Phase 9: Linear Sync And Handoff
 
-## Phase 5: Plan Approval
-
-Get explicit user approval before making any code changes.
-
-**Steps:**
-1. Present complete execution plan (all sections above)
-2. Explain inferred area tags and loaded context
-3. Show implementation path options and discuss tradeoffs with user:
-   - Why the recommended option was chosen
-   - What is gained/lost vs alternatives
-   - Risks, rollout concerns, and testing implications
-4. Show test discovery results and baseline
-5. Ask user to confirm the implementation path (approve/edit/switch option)
-6. If "edit": Ask what needs changing, iterate on plan and tradeoff analysis
-7. If "switch option": Revise plan for selected path, then re-review
-8. If "no": Ask what needs revision, go back to Phase 3
-9. If "yes": Proceed to Phase 6 with finalized path
-
-**GUARDRAIL:** Do not modify any files until plan is approved, the implementation path is explicitly finalized with the user, and a new feature branch has been created for the issue.
-
-## Phase 6: Implementation (TDD Approach)
-
-Execute the approved plan using Test-Driven Development.
-
-**Steps:**
-1. Create a new git feature branch (mandatory) before any file edits:
-   - Branch name: `{issue-id}-{slug}` (e.g., `PEP-123-fix-voice-upload`)
-   - Check current branch: `git branch --show-current`
-   - Do NOT make any file edits on `dev`, `main`, or a reused branch from another task
-   - Stash uncommitted changes if needed
-
-2. **Write tests FIRST** (for each acceptance criterion):
-   - Create/modify test files as specified in Test Specification
-   - Write test cases capturing expected behavior + edge cases
-   - Run tests to confirm FAIL (Red phase: `npm run test -- {test-file}`)
-   - Do NOT skip this step—all acceptance criteria must have tests
-
-3. **Implement code to pass tests**:
-   - Use Edit tool for file modifications
-   - Use Write tool for new files
-   - Follow implementation approach from plan
-   - After logical changes, run related tests
-   - Continue until all tests PASS (Green phase)
-
-4. **Verify test coverage**:
-   - Run ALL related tests (baseline + new tests)
-   - Confirm all acceptance criteria have passing tests
-   - Check for regressions in existing tests
-   - **BLOCK IF:** Any criterion lacks test coverage or tests are failing
-
-5. **Refactor if needed** (Refactor phase):
-   - Clean up code while keeping tests green
-   - Ensure consistent patterns with existing codebase
-   - Update tests if refactoring changes interfaces
-
-6. Create commits:
-   - Commit tests separately: `test: add tests for [feature/fix] (PEP-123)`
-   - Commit implementation: `feat/fix: [description] (PEP-123)`
-   - Co-authored-by: Claude
-
-**TDD Cycle Summary:**
-```
-For each acceptance criterion:
-  1. RED: Write failing test (captures requirement)
-  2. GREEN: Implement code to pass test (minimal implementation)
-  3. REFACTOR: Clean up code while keeping tests green
-```
-
-**Verification Requirements:**
-- ✅ All acceptance criteria have test coverage
-- ✅ All tests passing (new + existing)
-- ✅ No test regressions
-- ❌ BLOCK if any criterion lacks tests
-
-## Phase 7: Linear Sync
-
-Update Linear issue with implementation progress and test results.
-
-**Steps:**
-1. Gather implementation details:
-   - Git branch name
-   - Commit hashes (test commits + implementation commits)
-   - Files modified
-   - Test results (pass/fail counts)
-
-2. Compose Linear comment:
+Comment on the Linear issue:
 
 ```markdown
-## Implementation Completed
+## Implementation Ready
 
-**Branch:** `{branch-name}`
+**Branch:** `{branch}`
+**PR:** {pr_url}
+**Base:** `master`
 
-**Commits:**
-- {commit-hash}: test: add tests for [feature] (PEP-123)
-- {commit-hash}: feat/fix: [implementation] (PEP-123)
+**Plan:** `.context/issue-plans/PEP-{id}.md`
 
-**Files Modified:**
-- {file1}
-- {file2}
+**Local verification:**
+- {command}: {result}
 
-**Test Coverage:**
-- ✅ Acceptance Criterion 1: Covered by {test-name}
-- ✅ Acceptance Criterion 2: Covered by {test-name}
-- ✅ All {N} tests passing
-- ✅ No regressions in existing tests
+**CI:**
+- {passing checks summary}
+- {CI repair iterations, if any}
 
-**Ready for independent review**
+**Status:** Ready for review/merge.
 ```
 
-3. Call `create_comment` with composed comment
+Move the Linear issue to `In Review` only after the PR exists and CI is passing, unless the user asks to leave state unchanged.
 
-4. Do NOT change the issue state — `/review-issue` will move it to "In Review" after independent audit passes.
+## Guardrails
 
-**Output:** Linear issue updated with implementation progress. Issue stays in current state.
-
-## Phase 8: Manual Verification Gate
-
-Require the user to manually verify the implementation before moving to review.
-
-**Steps:**
-1. Present a verification prompt that strongly encourages manual testing:
-   - Start the dev server if not running (`npm run dev` in `montessori-os/`)
-   - Walk through the feature/fix end-to-end in the browser
-   - Check both the happy path and edge cases
-
-2. Provide a tailored checklist based on the change type:
-   - **UI changes:** Visual appearance, responsiveness, interaction states, loading/error states
-   - **Data changes:** Data persists correctly, Firestore documents created/updated as expected
-   - **Role/permission changes:** Test with different roles (teacher, classroomadmin, superadmin)
-   - **API/Cloud Function changes:** Verify function triggers correctly, check Firebase console logs
-   - **Bug fixes:** Confirm the original bug no longer reproduces
-
-3. Ask user to confirm verification using AskUserQuestion:
-   - Question: "Have you manually verified the e2e flow of this feature?"
-   - Options: "Yes, verified and working" / "Found issues (describe)"
-   - If "Found issues": Address the issues, re-run tests, then ask again
-   - If "Yes": Proceed to Next Step
-
-**GUARDRAIL:** Do NOT suggest `/clear` + `/review-issue` until the user explicitly confirms manual verification is complete.
-
-## Edge Cases & Guardrails
-
-**Edge Case: Issue has no labels**
-- Use keyword matching on title/description to infer area tags
-- If ambiguous, ask user to specify relevant area(s)
-
-**Edge Case: Plan seems too broad**
-- Suggest splitting into multiple issues
-- Ask user if they want to proceed with full scope or narrow focus
-
-**Edge Case: Multiple viable implementation paths**
-- Present at least 2 options with explicit tradeoffs
-- Recommend one option, but ask the user to confirm priorities (speed vs maintainability vs risk)
-- Iterate on the plan until a single path is selected
-
-**Edge Case: Issue already "In Progress"**
-- Warn user, ask if they want to take ownership and proceed
-
-**Edge Case: No existing tests found**
-- Create new test files following project conventions
-- Ensure first test is written (red phase) before implementation
-
-**Edge Case: Baseline tests failing**
-- Warn user about existing failures
-- Ask if they should be fixed first or if implementation should proceed
-- Do NOT proceed if failures are in areas being modified (risk of hidden bugs)
-
-**GUARDRAIL: Test Coverage Blocking**
-- Do NOT complete implementation if any acceptance criterion lacks test coverage
-- Do NOT complete if any tests are failing
-- These are hard stops—enforce strictly
-
-**GUARDRAIL: Feature Branch First**
-- ALWAYS create a new feature branch for the selected issue before making any file edits (tests or implementation)
-- Do NOT edit files on `dev`, `main`, or on a reused branch
-- If branch creation is blocked, STOP and resolve branch setup before any edits
-
-**GUARDRAIL: No Pre-Plan Changes**
-- Do NOT modify any files until plan is approved
-- Do NOT create/edit tests or implementation files until after plan approval AND branch creation
-- This prevents rework, misalignment, and accidental edits on the wrong branch
-
-**GUARDRAIL: No Unilateral Path Selection**
-- Do NOT silently choose among materially different implementation paths
-- Discuss tradeoffs with the user and finalize one path through planning iteration before coding
-
-## Tools Used
-
-- `mcp__linear-server__list_issues` - List filtered issues
-- `mcp__linear-server__get_issue` - Get issue details
-- `mcp__linear-server__create_comment` - Add comment to issue
-- `mcp__linear-server__update_issue` - Update issue state
-- `Bash` - Git operations, run tests
-- `Edit` - Modify existing files
-- `Write` - Create new files
-- `Read` - Load context files
-- `Glob` - Find test files
-- `AskUserQuestion` - Interactive filtering and approval
-
-## Workflow Commands Reference
-
-### Frontend (from `montessori-os/`)
-```bash
-npm run test -- {pattern}       # Run tests matching pattern
-npm run test                     # Run all tests
-npm run dev                      # Start dev server
-```
-
-### View Test Results
-```bash
-npm run test -- --reporter=spec  # Verbose test output
-```
-
-### Git Operations
-```bash
-git branch --show-current        # Show current branch
-git checkout -b {branch}         # Create new branch
-git add {files}                  # Stage changes
-git commit -m "message"          # Create commit
-git log --oneline -5             # Show recent commits
-```
+- Do not proceed without an approved `.context/issue-plans/PEP-{id}.md`.
+- Do not rename the current Conductor workspace branch.
+- Use `origin/master` for diffs and `master` as the PR base.
+- Do not edit unrelated files.
+- Do not skip test coverage for acceptance criteria unless the plan has an explicit user-approved exception.
+- Do not push if local related tests are failing, unless the user explicitly accepts the risk.
+- Do not mark Linear `In Review` until CI passes.
+- Do not merge the PR. Merging is a separate user decision.
 
 ## Success Criteria
 
-The implementation is complete when:
-
-1. ✅ Issue selected interactively with filters
-2. ✅ Relevant codebase context auto-loaded (overview + explore context)
-3. ✅ Technical execution plan generated with specific file paths and test specs
-4. ✅ Existing related tests auto-detected with baseline results
-5. ✅ Tradeoffs across implementation paths discussed with the user
-6. ✅ User finalizes and approves one implementation path before any changes
-7. ✅ Tests written FIRST (red phase) for each acceptance criterion
-8. ✅ ALL acceptance criteria have test coverage (enforced)
-9. ✅ All tests passing (new + existing, no regressions)
-10. ✅ Implementation executed following approved plan
-11. ✅ Linear issue updated with branch, commits, and test results
-12. ✅ Linear issue updated (state NOT changed — that's `/review-issue`'s job)
-13. ✅ User has manually verified the e2e flow and confirmed it works
-
-## Next Step
-
-> **After the user has confirmed manual verification in Phase 8:**
->
-> Implementation is done and manually verified. Now clear your context and run an independent review:
->
-> 1. Run `/clear` to wipe the implementation context (the branch stays checked out)
-> 2. Run `/review-issue` — it will auto-detect the issue from the branch name and audit the diff with fresh eyes
->
-> This ensures the code review is independent — no implementation bias carrying over.
->
-> **Do NOT present this section until Phase 8 is complete and the user has explicitly confirmed "Yes, verified and working".**
-
-## Important Notes
-
-- **No regressions:** Always run baseline tests before implementation to verify no existing functionality breaks
-- **Tradeoff discussion required:** Compare viable implementation paths with the user and finalize one through plan iteration before writing code
-- **TDD mandatory:** Tests must be written before implementation code for every acceptance criterion
-- **Test coverage required:** No acceptance criterion should be without test coverage—this is a hard requirement
-- **Linear sync automatic:** Update Linear issue automatically after implementation completes with detailed test results
-- **Git hygiene:** Each commit should reference the issue ID (e.g., `(PEP-123)`) in the message
+1. Approved plan loaded and followed.
+2. Every acceptance criterion has passing test coverage or an explicit approved exception.
+3. Related local verification completed and reported.
+4. Issue-related commits created.
+5. Branch pushed to origin.
+6. PR opened against `master`.
+7. CI monitored to a passing state, or failures diagnosed/fixed for up to 3 iterations before escalation.
+8. Linear updated with branch, PR, local verification, and CI status.

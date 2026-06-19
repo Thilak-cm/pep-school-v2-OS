@@ -1,0 +1,4 @@
+interface:
+  display_name: "Plan Issue"
+  short_description: "Plan a Pep OS Linear issue without editing product code"
+  default_prompt: "Run the plan-issue workflow: select or load a Linear issue, gather Pep OS context, compare implementation options, map acceptance criteria to tests, run baseline discovery, and write the approved plan to .context/issue-plans/."

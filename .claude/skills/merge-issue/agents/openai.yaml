@@ -1,4 +1,4 @@
 interface:
   display_name: "Merge Issue"
-  short_description: "Merge reviewed PR into dev, clean up branches, and move Linear issue to Done"
-  default_prompt: "Run the merge-issue workflow: check the PR status for unresolved review comments and failing CI, merge the PR into dev via gh pr merge, checkout dev and pull, delete the local feature branch, and update the Linear issue to Done."
+  short_description: "Merge reviewed PR into master, clean up branches, and move Linear issue to Done"
+  default_prompt: "Run the merge-issue workflow: check the PR status for unresolved review comments and failing CI, merge the PR into master via gh pr merge, checkout master and pull, delete the local feature branch, and update the Linear issue to Done."

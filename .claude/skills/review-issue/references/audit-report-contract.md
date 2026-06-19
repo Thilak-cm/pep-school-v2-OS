@@ -167,7 +167,7 @@ The orchestrator uses the verdict to decide whether to loop:
 The orchestrator provides the audit agent with:
 
 1. **Linear issue** — full title, description, acceptance criteria (the source of truth)
-2. **Diff** — output of `git diff dev...HEAD` (or `git diff` for uncommitted changes)
+2. **Diff** — output of `git diff origin/master...HEAD` (or `git diff` for uncommitted changes)
 3. **High-level overview** — the codebase overview file for orientation
 4. **Explore summary** — (only if the orchestrator spawned an Explore agent) contextual summary of areas touched by the diff
 

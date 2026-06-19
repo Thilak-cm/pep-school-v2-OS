@@ -32,7 +32,7 @@ Collect from the current conversation:
 Also capture Pep OS-specific state that a fresh agent needs:
 
 - **Linear issue ID** (e.g., PEP-297) and current status.
-- **Which worktree** — `alt-pepos` (port 5174, PRs target `alt-dev`) or main `pep-school-project-work` (port 5173, PRs target `dev`). This matters for deploy and PR targets.
+- **Which worktree/workspace** — current Conductor workspace name, port, and PR target. For this project workflow, PRs target `master` unless the user explicitly says otherwise.
 - **Firebase deploy state** — were functions deployed? Any pending deploys?
 - **Firestore schema changes** — did `DATA_STRUCTURE.md` need updating? Was `/check-schema-sync` run?
 - **Cloud Function changes** — note that `functions/index.js` is a single ~3800-line file; mention line ranges if relevant.
@@ -51,7 +51,7 @@ Structure:
 **Branch:** {current branch}
 **Working directory:** {cwd}
 **Linear issue:** {PEP-XXX if applicable}
-**PR target:** {alt-dev | dev}
+**PR target:** {master}
 
 ## Context
 {1-3 sentences: what the user was doing and why}
@@ -86,5 +86,5 @@ Tell the user the file path and give a 1-2 sentence summary of what's in it.
 - **Be concise.** The handoff should be skimmable in under 60 seconds. No prose paragraphs — bullets and short sentences.
 - **Temp dir only.** Never write handoff files into the workspace/repo.
 - **Include branch state.** Always note if there are uncommitted changes, unpushed commits, or open PRs.
-- **Never merge to master.** If the handoff suggests next steps involving PRs, always specify the correct target branch (`alt-dev` for alt-pepos, `dev` for main worktree).
+- **Use the correct PR target.** If the handoff suggests next steps involving PRs, specify the target branch explicitly. For this workflow, use `master` unless the user says otherwise.
 - **No secrets in handoff.** Even though it's in temp dir, never include Firebase config values, API keys, or `.env` contents.

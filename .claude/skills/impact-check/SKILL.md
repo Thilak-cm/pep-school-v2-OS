@@ -21,11 +21,11 @@ Surface every downstream effect of the current code changes — intended or not.
 Auto-detect what to analyze, in this priority order:
 
 1. If there are **uncommitted changes** (`git diff` is non-empty) — analyze those
-2. If the current branch has **commits ahead of dev** (`git diff dev...HEAD` is non-empty) — analyze the branch diff
+2. If the current branch has **commits ahead of master** (`git diff origin/master...HEAD` is non-empty) — analyze the branch diff
 3. If neither — ask the user what to analyze
 
 Also capture:
-- `git diff --stat` (or `git diff dev...HEAD --stat`) for the file-level summary
+- `git diff --stat` (or `git diff origin/master...HEAD --stat`) for the file-level summary
 - `git branch --show-current` for context
 
 ### Step 2: Load Context

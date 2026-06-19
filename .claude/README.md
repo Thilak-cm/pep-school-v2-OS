@@ -8,6 +8,12 @@ This repo shares Claude skills for Linear issue management:
 - `/refine-linear-issue` — Refine an existing issue with full context, clarifying questions, and polished descriptions
   - Skill file: `.claude/skills/refine-linear-issue/SKILL.md`
   - Goal: fetch issue -> load context -> clarify -> draft refined description -> review -> update in Linear
+- `/plan-issue` — Plan a Linear issue without editing product code
+  - Skill file: `.claude/skills/plan-issue/SKILL.md`
+  - Goal: fetch issue -> load Pep OS context -> compare implementation options -> map acceptance criteria to tests -> save approved plan in `.context/issue-plans/`
+- `/implement-issue` — Implement an approved plan and push it through PR CI
+  - Skill file: `.claude/skills/implement-issue/SKILL.md`
+  - Goal: load `.context/issue-plans/PEP-{id}.md` -> implement with TDD -> commit/push -> open PR against `master` -> monitor CI -> diagnose/fix CI failures with subagents
 
 ## What Is Shared vs Local
 
@@ -39,10 +45,12 @@ Shared template:
    - Team access includes `Pep school v2 os`.
 6. Run a smoke test prompt in Claude:
    - `Use /draft-linear-issues to triage meeting notes into Backlog issues.`
+   - `Use /plan-issue PEP-42 to create an implementation plan without code edits.`
 7. Verify behavior:
    - Claude extracts action items from the notes.
    - Claude walks through each item one-at-a-time.
    - Claude asks for explicit approval before creating each issue.
+   - For `/plan-issue`, Claude writes only under `.context/issue-plans/`.
 
 ## Refinement Demo Flow
 

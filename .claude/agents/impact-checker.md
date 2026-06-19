@@ -32,7 +32,7 @@ The code audit checks "is the diff correct?" You check "does the diff break or c
 
 ## What You Receive From the Orchestrator
 
-1. **Diff** — output of `git diff dev...HEAD` (or `git diff` for uncommitted changes)
+1. **Diff** — output of `git diff origin/master...HEAD` (or `git diff` for uncommitted changes)
 2. **Diff stat** — file-level summary (`git diff --stat`)
 3. **Linear issue context** — title, description, acceptance criteria (defines what's *intended*)
 4. **Codebase overview** — high-level area map and architecture summary

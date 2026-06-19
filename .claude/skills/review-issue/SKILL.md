@@ -1,6 +1,6 @@
 ---
 name: review-issue
-description: "Independent code review in a fresh session: audit diff against Linear issue, fix-loop until clean, version bump, commit, push, open PR against dev, and move Linear to In Review. Use after /implement-issue completes, in a NEW Claude session."
+description: "Independent code review in a fresh session: audit diff against Linear issue, fix-loop until clean, version bump, commit, push, open PR against master, and move Linear to In Review."
 ---
 
 # Review Issue
@@ -13,7 +13,7 @@ The orchestrator itself stays thin. Heavy work (reading diffs, auditing code, ma
 
 ## When to Use
 
-- After `/implement-issue` completes in a separate session
+- When the user wants an independent pre-merge audit of an issue branch
 - You are in a **new Claude session** (fresh context, no implementation bias)
 - The feature branch has committed or uncommitted changes ready for review
 - You want the only quality gate before prod to be rigorous
@@ -70,9 +70,9 @@ Gather everything the audit agent will need. The orchestrator does this directly
 
 2. **Capture the diff**
    - `git branch --show-current` — confirm on feature branch
-   - `git diff dev...HEAD` — committed changes vs dev
+   - `git diff origin/master...HEAD` — committed changes vs master
    - `git diff` — any uncommitted changes
-   - `git diff --stat dev...HEAD` — file-level summary for complexity assessment
+   - `git diff --stat origin/master...HEAD` — file-level summary for complexity assessment
    - `git log --oneline dev..HEAD` — commits on the branch
 
 3. **Load the high-level overview**
@@ -154,7 +154,7 @@ Concatenate both reports into a single merged report for the user. Use the deep 
 **3a. Launch impact checker**
 
 Spawn the **`impact-checker` agent** (`.claude/agents/impact-checker.md`) with:
-- **Diff:** The full diff from Phase 1 (`git diff dev...HEAD` + any uncommitted changes)
+- **Diff:** The full diff from Phase 1 (`git diff origin/master...HEAD` + any uncommitted changes)
 - **Diff stat:** The file-level summary from Phase 1
 - **Linear issue context:** Title + acceptance criteria (so it can distinguish intended from unintended effects)
 - **Codebase overview:** The full text of `pep-os-overview.md` (already loaded in Phase 1)
@@ -325,10 +325,10 @@ Check whether the diff involves Firestore schema changes. Run this check automat
 
 2. **Push feature branch**
    - `git push origin {branch} -u`
-   - Do NOT checkout or merge into `dev`
+   - Do NOT checkout or merge into `master`
 
 3. **Open PR via `gh pr create`**
-   - Target branch: `dev`
+   - Target branch: `master`
    - PR title: concise, under 70 characters, references issue ID
    - PR body (use HEREDOC):
      ```markdown
@@ -443,7 +443,7 @@ After the PR is opened, Devin (AI code reviewer) will automatically review it. T
 - **Each audit is fresh:** Re-audits spawn a new audit agent. No memory of previous audits. This prevents the audit from becoming lenient after seeing fixes.
 - **Impact check always runs:** The impact checker runs on every diff. It conditionally skips internal phases (e.g., rule cascade analysis only runs if rules changed), but Phase 1 (change classification) and Phase 2 (transitive consumer tracing) always execute. If Phase 1 finds NO external-facing changes, the agent returns NO_IMPACT quickly.
 - **Max 3 fix iterations:** If 3 rounds of fix+audit don't resolve everything, stop and escalate to the user. Don't loop forever.
-- **Do not merge:** This skill opens a PR. It does NOT merge into `dev`. That's `/merge-issue`'s job.
+- **Do not merge:** This skill opens a PR. It does NOT merge into `master`. That's `/merge-issue`'s job.
 - **Do not invent test results:** Report actual test output. If tests weren't run, say so.
 - **Do not push if tests fail:** Unless user explicitly accepts the risk.
 - **Do not update the wrong Linear issue:** Confirm issue ID before updating.
@@ -458,7 +458,7 @@ After the PR is opened, Devin (AI code reviewer) will automatically review it. T
 6. Version bumped (or user chose skip) with changelog updated
 7. Clean commit(s) created with issue references
 8. Feature branch pushed to origin
-9. PR opened against `dev` with audit + integration summary in body
+9. PR opened against `master` with audit + integration summary in body
 10. Devin review is APPROVED (or user chose to skip/proceed)
 11. Linear issue commented and moved to `In Review`
 

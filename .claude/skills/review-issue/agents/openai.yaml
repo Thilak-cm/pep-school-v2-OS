@@ -17,7 +17,7 @@ spec:
     4. Spawn audit subagent with diff + issue + context → get structured report
     5. If findings exist: spawn fix subagent → spawn audit subagent → loop (max 3)
     6. Handle version bump inline (ask user, run script, update changelog)
-    7. Commit, push, open PR, update Linear
+    7. Commit, push, open PR against master, update Linear
 
     Key Principles:
     - **Stay thin:** Do NOT read the full diff yourself. Pass it to the audit agent.
@@ -58,7 +58,7 @@ spec:
     - "Do not read the full diff in main context — pass it to audit subagent"
     - "Each re-audit must be a fresh subagent spawn"
     - "Max 3 fix-audit iterations before escalating to user"
-    - "Do not merge into dev — only open PR"
+    - "Do not merge into master — only open PR"
     - "Do not skip human approval gates"
     - "Do not invent test results"
 

@@ -1,31 +1,31 @@
 ---
 name: merge-issue
-description: "Merge a reviewed PR into dev via gh pr merge, clean up local and remote branches, move Linear issue to Done, and prompt for codebase overview refresh. Use after CI passes on a PR opened by /review-issue."
+description: "Merge a reviewed PR into master via gh pr merge, clean up local and remote branches, move Linear issue to Done, and prompt for codebase overview refresh. Use after CI passes on a PR opened by /implement-issue or /review-issue."
 ---
 
 # Merge Issue
 
 ## Goal
 
-Land a reviewed PR into `dev`, clean up branches, close out the Linear issue, and keep the codebase overview fresh. This is the final step after `/review-issue` opens a PR and CI passes.
+Land a reviewed PR into `master`, clean up branches, close out the Linear issue, and keep the codebase overview fresh. This is the final step after `/implement-issue` or `/review-issue` opens a PR and CI passes.
 
 This skill covers:
 
 1. Pre-merge checks (CI status, unresolved comments)
 2. Merge the PR via `gh pr merge`
-3. Local branch cleanup (checkout dev, pull, delete feature branch)
+3. Local branch cleanup (checkout master, pull, delete feature branch)
 4. Update the Linear issue and move it to `Done`
 5. Prompt to refresh the codebase overview
 
 ## When to Use
 
-- A PR opened by `/review-issue` has passed CI
-- You want to land the change into `dev` with proper cleanup
+- A PR opened by `/implement-issue` or `/review-issue` has passed CI
+- You want to land the change into `master` with proper cleanup
 - You want Linear to reflect the completed state
 
 ## Prerequisites
 
-- An open PR exists for the current feature branch targeting `dev`
+- An open PR exists for the current feature branch targeting `master`
 - CI checks have passed (this skill enforces this)
 - You know which Linear issue this work belongs to (from session context, branch name, or PR description)
 
@@ -57,7 +57,7 @@ This skill covers:
 ### Phase 2: Merge PR (High Risk — Approval Gate)
 
 1. Confirm merge target
-- Verify the PR targets `dev`
+- Verify the PR targets `master`
 - If targeting a different branch, stop and ask the user
 
 2. Merge via `gh pr merge`
@@ -69,11 +69,11 @@ This skill covers:
 
 ### Phase 3: Local Cleanup (Required)
 
-1. Switch to dev
-- `git checkout dev`
+1. Switch to master
+- `git checkout master`
 
 2. Pull merged changes
-- `git pull origin dev` (fast-forward)
+- `git pull origin master` (fast-forward)
 - If pull fails, stop and report
 
 3. Delete feature branch (local + remote)
@@ -133,8 +133,8 @@ Ask for explicit approval at these points:
 ## Success Criteria
 
 1. CI checks confirmed passing before merge
-2. PR was merged into `dev` via `gh pr merge`
-3. Local dev branch is up to date with the merged changes
+2. PR was merged into `master` via `gh pr merge`
+3. Local master branch is up to date with the merged changes
 4. Feature branch was deleted (local + remote)
 5. Linear issue was commented and moved to `Done`
 6. `.playwright-mcp/` cleaned up if present
