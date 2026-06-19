@@ -1,6 +1,6 @@
 import { describe, it, before } from 'node:test';
 import assert from 'node:assert/strict';
-import { getDefaultReportDateRange, parseReportSections, renderSectionContent } from './reportUtils.js';
+import { getDefaultReportDateRange, getDefaultMonthlyDateRange, parseReportSections, renderSectionContent } from './reportUtils.js';
 
 describe('getDefaultReportDateRange', () => {
   it('returns Oct 15 of previous year when current month is before October', () => {
@@ -59,6 +59,36 @@ describe('getDefaultReportDateRange', () => {
     const after = new Date();
     assert.equal(start.getMonth(), 9);
     assert.equal(start.getDate(), 15);
+    assert.ok(end >= before && end <= after);
+  });
+});
+
+describe('getDefaultMonthlyDateRange', () => {
+  it('returns start as 30 days before now', () => {
+    const now = new Date(2026, 5, 19); // June 19, 2026
+    const { start, end } = getDefaultMonthlyDateRange(now);
+    const expected = new Date(2026, 4, 20); // May 20, 2026
+    assert.equal(start.getFullYear(), expected.getFullYear());
+    assert.equal(start.getMonth(), expected.getMonth());
+    assert.equal(start.getDate(), expected.getDate());
+    assert.equal(end, now);
+  });
+
+  it('handles month boundary (start in previous month)', () => {
+    const now = new Date(2026, 0, 15); // Jan 15, 2026
+    const { start, end } = getDefaultMonthlyDateRange(now);
+    assert.equal(start.getMonth(), 11); // December
+    assert.equal(start.getFullYear(), 2025);
+    assert.equal(end, now);
+  });
+
+  it('uses current time as default when no argument passed', () => {
+    const before = new Date();
+    const { start, end } = getDefaultMonthlyDateRange();
+    const after = new Date();
+    const diffMs = end.getTime() - start.getTime();
+    const diffDays = diffMs / (1000 * 60 * 60 * 24);
+    assert.ok(diffDays >= 29 && diffDays <= 31, `Expected ~30 days diff, got ${diffDays}`);
     assert.ok(end >= before && end <= after);
   });
 });
@@ -270,5 +300,23 @@ describe('buildReportList', () => {
     const result = buildReportList(docs);
     assert.equal(result[0].generatedBy, '');
     assert.equal(result[0].generatedByName, null);
+  });
+
+  it('normalizes reportType field from doc', () => {
+    const docs = [
+      { id: 'report_1', generatedAt: new Date('2026-06-01'), reportText: 'Monthly', reportType: 'monthly' },
+      { id: 'report_2', generatedAt: new Date('2026-06-02'), reportText: 'Term', reportType: 'term' },
+    ];
+    const result = buildReportList(docs);
+    assert.equal(result[0].reportType, 'term');
+    assert.equal(result[1].reportType, 'monthly');
+  });
+
+  it('defaults reportType to "term" when missing', () => {
+    const docs = [
+      { id: 'report_old', generatedAt: new Date('2026-01-01'), reportText: 'Legacy report' },
+    ];
+    const result = buildReportList(docs);
+    assert.equal(result[0].reportType, 'term');
   });
 });
