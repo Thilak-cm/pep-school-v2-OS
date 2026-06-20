@@ -53,6 +53,7 @@ export default function PromptEditor({ label, value, onChange, helperText, place
         value={value}
         onChange={(e) => onChange(e.target.value)}
         helperText={helperText}
+        placeholder={placeholder}
         slotProps={{
           input: {
             sx: { fontFamily: "monospace", fontSize: 13, lineHeight: 1.5 },

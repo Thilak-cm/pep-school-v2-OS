@@ -8,6 +8,7 @@ import ToggleButtonGroup from "@mui/material/ToggleButtonGroup";
 import TextField from "@mui/material/TextField";
 import Stack from "@mui/material/Stack";
 import CircularProgress from "@mui/material/CircularProgress";
+import Alert from "@mui/material/Alert";
 
 /**
  * Compute default date range for term reports (academic year start → today).
@@ -35,6 +36,7 @@ function toIso(d) {
 
 export default function ReportConfig({ selectedStudent, reportType, onReportTypeChange, onConfigLoaded, onDateRangeChange }) {
   const [loading, setLoading] = useState(false);
+  const [configNotFound, setConfigNotFound] = useState(null);
   const [dateRange, setDateRange] = useState(() =>
     reportType === "monthly" ? getDefaultMonthlyRange() : getDefaultTermRange()
   );
@@ -50,22 +52,34 @@ export default function ReportConfig({ selectedStudent, reportType, onReportType
     const newRange = reportType === "monthly" ? getDefaultMonthlyRange() : getDefaultTermRange();
     setDateRange(newRange);
     onDateRangeChange?.(newRange);
-  }, [reportType]);
+  }, [reportType, onDateRangeChange]);
 
   async function loadConfig(programId, type) {
     if (!programId) return;
     setLoading(true);
+    setConfigNotFound(null);
     const prefix = type === "monthly" ? "baseline_report" : "term_report";
     const docId = `${prefix}_${programId}`;
     try {
       const snap = await getDoc(doc(db, "config", docId));
-      const data = snap.exists() ? snap.data() : {};
-      onConfigLoaded({
-        systemPrompt: data.staticSystemPrompt || data.systemPrompt || "",
-        model: data.model || "gpt-5.4",
-        temperature: data.temperature ?? 0.4,
-        max_tokens: data.max_tokens || 4096,
-      });
+      if (!snap.exists()) {
+        setConfigNotFound(docId);
+        onConfigLoaded({
+          systemPrompt: "",
+          model: "gpt-5.4",
+          temperature: 0.4,
+          max_tokens: 4096,
+        });
+      } else {
+        setConfigNotFound(null);
+        const data = snap.data();
+        onConfigLoaded({
+          systemPrompt: data.staticSystemPrompt || data.systemPrompt || "",
+          model: data.model || "gpt-5.4",
+          temperature: data.temperature ?? 0.4,
+          max_tokens: data.max_tokens || 4096,
+        });
+      }
     } catch (err) {
       console.error("[ReportConfig] loadConfig failed:", err);
     } finally {
@@ -120,6 +134,11 @@ export default function ReportConfig({ selectedStudent, reportType, onReportType
         />
         {loading && <CircularProgress size={18} />}
       </Stack>
+      {configNotFound && (
+        <Alert severity="warning" variant="outlined" sx={{ py: 0.25 }}>
+          Config doc <strong>config/{configNotFound}</strong> not found — enter a prompt manually
+        </Alert>
+      )}
     </Box>
   );
 }

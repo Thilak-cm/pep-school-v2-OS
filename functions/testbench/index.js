@@ -50,9 +50,14 @@ export const testBenchRun = functions
     const maxTokens = data?.max_tokens || 2000;
 
     // Digest uses classroomId instead of studentId — skip studentId check
+    // Report loads prompt from config after student selection — skip systemPrompt check
     const isDigest = feature === "digest_generation";
-    if (!isDigest && (!studentId || !systemPrompt)) {
+    const isReport = feature === "report_generation";
+    if (!isDigest && !isReport && (!studentId || !systemPrompt)) {
       throw new functions.https.HttpsError("invalid-argument", "studentId and systemPrompt are required");
+    }
+    if (isReport && !studentId) {
+      throw new functions.https.HttpsError("invalid-argument", "studentId is required for report generation");
     }
     if (isDigest && !systemPrompt) {
       throw new functions.https.HttpsError("invalid-argument", "systemPrompt is required");
