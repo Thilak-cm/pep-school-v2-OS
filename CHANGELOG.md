@@ -1,5 +1,24 @@
 # Changelog
 
+# 10.39.0 — 2026-06-20
+
+### Added
+- Promote-to-Live flow in prompt test bench — superadmins can push a winning variant's config (prompt, model, temperature, max_tokens) to live Firestore config docs via Cloud Function (PEP-326)
+- Field-level diff confirmation dialog with per-field select/deselect before promoting (PEP-326)
+- Promotion history tracking — `_promotionHistory` array on config docs with snapshot, metadata, and cap at 10 entries (PEP-326)
+- Program-aware config loading in handwriting workbench — toggle between toddler/primary/elementary/adolescent (PEP-326)
+- Support for all 5 testbench features: handwriting analysis, soul generation, monthly plan, digest generation (PEP-326)
+
+### Changed
+- Monthly plan config cache TTL reduced from 24 hours to 5 minutes to match project-wide convention (PEP-326)
+- `VALID_PROGRAMS` in promote field map now imported from shared `soulHelpers.js` instead of duplicated (PEP-326)
+
+### Fixed
+- Promote CF uses Firestore transactions for atomic read-snapshot-write on config docs (PEP-326)
+- Validation order in promote CF — `programId`/`promptType` validated before resolving target docs (PEP-326)
+- PromoteConfirmDialog checkbox state resets correctly when opened for a different variant (PEP-326)
+- DigestWorkbench live config stored in state instead of ref for reactive diff display (PEP-326)
+
 # 10.38.0 — 2026-06-19
 
 ### Added
