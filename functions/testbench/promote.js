@@ -168,7 +168,7 @@ export const promoteTestBenchConfig = functions
     // 2. Superadmin check
     const callerSnap = await db.collection("users").doc(context.auth.uid).get();
     const callerRole = callerSnap.exists ? callerSnap.data().role : null;
-    const callerName = callerSnap.exists ? callerSnap.data().name : "Unknown";
+    const callerName = callerSnap.exists ? (callerSnap.data().displayName || callerSnap.data().name || "Unknown") : "Unknown";
     if (callerRole !== "superadmin") {
       throw new functions.https.HttpsError("permission-denied", "Only superadmins can promote test bench configs");
     }
