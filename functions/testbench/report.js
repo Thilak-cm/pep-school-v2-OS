@@ -12,7 +12,7 @@ import {
   formatObservationForPrompt,
   chooseObservationTimestamp,
 } from "../shared/studentHelpers.js";
-import { assembleReportSystemContent } from "../utils/reportHelpers.js";
+import { assembleReportSystemContent, normalizeEndOfDay } from "../utils/reportHelpers.js";
 
 const REPORT_JSON_WRAPPER = `
 
@@ -66,6 +66,7 @@ export function parseReportOutput(rawContent) {
  */
 async function fetchStudentNotesForDateRange(studentId, startDate, endDate) {
   const notesMap = new Map();
+  const fetchWarnings = [];
   const studentObsRef = db.collection("students").doc(studentId).collection("observations");
 
   const collect = async (field) => {
@@ -78,7 +79,9 @@ async function fetchStudentNotesForDateRange(studentId, startDate, endDate) {
         notesMap.set(d.id, { id: d.id, ...d.data() });
       });
     } catch (err) {
-      console.warn(`[testBenchReport] query failed for field ${field}:`, err);
+      const msg = `Query failed for field ${field}: ${err.message || err}`;
+      console.warn(`[testBenchReport] ${msg}`);
+      fetchWarnings.push(msg);
     }
   };
 
@@ -97,7 +100,7 @@ async function fetchStudentNotesForDateRange(studentId, startDate, endDate) {
     return (ta?.getTime() || 0) - (tb?.getTime() || 0);
   });
 
-  return notes;
+  return { notes, fetchWarnings };
 }
 
 /**
@@ -130,10 +133,10 @@ export async function testBenchReport({
     const year = now.getMonth() >= 10 ? now.getFullYear() : now.getFullYear() - 1;
     startDate = new Date(year, 10, 1);
   }
-  endDate = dateRangeEnd ? new Date(dateRangeEnd) : now;
+  endDate = dateRangeEnd ? normalizeEndOfDay(new Date(dateRangeEnd)) : now;
 
   // Fetch observations
-  const notes = await fetchStudentNotesForDateRange(studentId, startDate, endDate);
+  const { notes, fetchWarnings } = await fetchStudentNotesForDateRange(studentId, startDate, endDate);
   const formatted = notes.map(formatObservationForPrompt);
 
   // Build prompt
@@ -189,5 +192,6 @@ export async function testBenchReport({
     totalTokens,
     noteCount: formatted.length,
     programId: studentInfo.programId || null,
+    fetchWarnings: fetchWarnings.length > 0 ? fetchWarnings : undefined,
   };
 }

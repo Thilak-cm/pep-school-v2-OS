@@ -103,6 +103,7 @@ export default function ReportWorkbench() {
             tokens: result.data.totalTokens,
             latencyMs: Date.now() - start,
             noteCount: result.data.noteCount,
+            fetchWarnings: result.data.fetchWarnings || null,
           },
         };
       } catch (err) { return { idx, error: err.message || "Unknown error" }; }
@@ -144,7 +145,7 @@ export default function ReportWorkbench() {
     <Box sx={{ p: 3 }}>
       <Box sx={{ display: "flex", alignItems: "flex-start", gap: 3, mb: 3, flexWrap: "wrap" }}>
         <StudentPicker
-          scope="school"
+          scope="school-wide"
           onSelect={setSelectedStudent}
         />
         <ReportConfig
@@ -155,7 +156,7 @@ export default function ReportWorkbench() {
           onDateRangeChange={setDateRange}
         />
         <Box sx={{ ml: "auto", display: "flex", gap: 1 }}>
-          <Button variant="contained" startIcon={<PlayArrowIcon />} onClick={runAll} disabled={!selectedStudent || variants.some((v) => v.loading)}>Run All</Button>
+          <Button variant="contained" startIcon={<PlayArrowIcon />} onClick={runAll} disabled={!selectedStudent || !variants[0]?.systemPrompt || variants.some((v) => v.loading)}>Run All</Button>
           <TextField label="Session Name" value={sessionName} onChange={(e) => setSessionName(e.target.value)} size="small" placeholder="Optional" sx={{ minWidth: 200 }} />
           <Button variant="outlined" startIcon={<SaveIcon />} onClick={saveRun} disabled={saving || !variants.some((v) => v.output)}>{saving ? "Saving..." : "Save Run"}</Button>
           <Button variant="outlined" startIcon={<HistoryIcon />} onClick={() => setHistoryOpen(true)}>History</Button>

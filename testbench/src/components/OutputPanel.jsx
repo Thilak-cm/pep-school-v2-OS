@@ -72,7 +72,7 @@ function MonthlyPlanOutput({ output }) {
 }
 
 function formatOutput(output, featureId) {
-  if (featureId === "soul_generation") {
+  if (featureId === "soul_generation" || featureId === "report_generation") {
     return <ReactMarkdown>{output}</ReactMarkdown>;
   }
 
@@ -134,7 +134,7 @@ export default function OutputPanel({ output, loading, error, meta, featureId })
   }
 
   const isDigest = featureId === "digest_generation";
-  const isProseOutput = featureId === "soul_generation" || featureId === "monthly_plan";
+  const isProseOutput = featureId === "soul_generation" || featureId === "monthly_plan" || featureId === "report_generation";
 
   // Digest: tabbed view — Email Preview + Agent Trace
   if (isDigest) {
@@ -192,6 +192,8 @@ export default function OutputPanel({ output, loading, error, meta, featureId })
           {meta.model && <Chip label={meta.model} size="small" variant="outlined" />}
           {meta.tokens && <Chip label={`${meta.tokens} tokens`} size="small" variant="outlined" />}
           {meta.latencyMs && <Chip label={`${(meta.latencyMs / 1000).toFixed(1)}s`} size="small" variant="outlined" />}
+          {meta.noteCount != null && <Chip label={`${meta.noteCount} notes`} size="small" variant="outlined" />}
+          {meta.fetchWarnings && <Chip label={`${meta.fetchWarnings.length} fetch warning(s)`} size="small" variant="outlined" color="warning" title={meta.fetchWarnings.join("\n")} />}
         </Box>
       )}
       <Paper
