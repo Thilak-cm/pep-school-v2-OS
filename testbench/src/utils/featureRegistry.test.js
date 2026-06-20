@@ -19,8 +19,15 @@ describe("featureRegistry", () => {
     assert.ok(active, "monthly_plan should appear in ACTIVE_FEATURES");
   });
 
-  it("has 5 active features", () => {
-    assert.equal(ACTIVE_FEATURES.length, 5);
+  it("has 6 active features", () => {
+    assert.equal(ACTIVE_FEATURES.length, 6);
+  });
+
+  it("includes report_generation as an active feature", () => {
+    const report = FEATURES.find((f) => f.id === "report_generation");
+    assert.ok(report, "report_generation should exist in FEATURES");
+    assert.equal(report.status, "active");
+    assert.ok(report.configDoc, "report_generation should have a configDoc");
   });
 
   it("includes digest_generation as an active feature", () => {

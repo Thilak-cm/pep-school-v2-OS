@@ -34,6 +34,13 @@ export const FEATURES = [
     configDoc: "weekly_digest",
     status: "active",
   },
+  {
+    id: "report_generation",
+    label: "Report Generation",
+    description: "Compare report generation prompts across term and monthly baseline types with side-by-side student output",
+    configDoc: "term_report_primary",
+    status: "active",
+  },
 ];
 
 export const ACTIVE_FEATURES = FEATURES.filter((f) => f.status === "active");

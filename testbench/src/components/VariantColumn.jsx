@@ -143,12 +143,20 @@ export default function VariantColumn({
       </Box>
 
       {/* Prompt editor(s) */}
-      <PromptEditor
-        label={isInterview ? "Instruction Template" : "System Prompt"}
-        value={v.systemPrompt}
-        onChange={(val) => onUpdate(idx, "systemPrompt", val)}
-        rows={isSoul || isInterview ? 10 : 14}
-      />
+      {featureId === "report_generation" && !v.systemPrompt ? (
+        <Box sx={{ border: 1, borderColor: "divider", borderRadius: 1, p: 3, minHeight: 200, display: "flex", alignItems: "center", justifyContent: "center" }}>
+          <Typography variant="body1" color="text.secondary" sx={{ fontWeight: 500, fontSize: "1.1rem" }}>
+            Select a student to load the report prompt
+          </Typography>
+        </Box>
+      ) : (
+        <PromptEditor
+          label={isInterview ? "Instruction Template" : "System Prompt"}
+          value={v.systemPrompt}
+          onChange={(val) => onUpdate(idx, "systemPrompt", val)}
+          rows={isSoul || isInterview ? 10 : 14}
+        />
+      )}
       {isSoul && (
         <PromptEditor
           label="Guidelines Template"

@@ -7,7 +7,7 @@ import AccordionSummary from "@mui/material/AccordionSummary";
 import AccordionDetails from "@mui/material/AccordionDetails";
 import ExpandMoreIcon from "@mui/icons-material/ExpandMore";
 
-export default function PromptEditor({ label, value, onChange, helperText, rows = 12, collapsed = false }) {
+export default function PromptEditor({ label, value, onChange, helperText, placeholder, rows = 12, collapsed = false }) {
   const [expanded, setExpanded] = useState(!collapsed);
   const charCount = value?.length || 0;
 
@@ -28,6 +28,7 @@ export default function PromptEditor({ label, value, onChange, helperText, rows 
             value={value}
             onChange={(e) => onChange(e.target.value)}
             helperText={helperText}
+            placeholder={placeholder}
             slotProps={{
               input: {
                 sx: { fontFamily: "monospace", fontSize: 13, lineHeight: 1.5 },
@@ -52,6 +53,7 @@ export default function PromptEditor({ label, value, onChange, helperText, rows 
         value={value}
         onChange={(e) => onChange(e.target.value)}
         helperText={helperText}
+        placeholder={placeholder}
         slotProps={{
           input: {
             sx: { fontFamily: "monospace", fontSize: 13, lineHeight: 1.5 },
