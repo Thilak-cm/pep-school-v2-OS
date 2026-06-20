@@ -13,6 +13,16 @@ export function getDefaultReportDateRange(now = new Date()) {
 }
 
 /**
+ * Returns the default date range for monthly/baseline report generation.
+ * Start = 30 days before now. End = now.
+ */
+export function getDefaultMonthlyDateRange(now = new Date()) {
+  const start = new Date(now);
+  start.setDate(start.getDate() - 30);
+  return { start, end: now };
+}
+
+/**
  * Format a Date as yyyy-mm-dd (native input[type=date] format).
  */
 export function toIsoDate(date) {
@@ -50,6 +60,7 @@ export function buildReportList(docs) {
       dateRangeEnd: toDate(d.dateRangeEnd),
       noteCount: d.noteCount ?? null,
       reportText: d.reportText || '',
+      reportType: d.reportType || 'term',
       status: d.status || null,
       missingInputFlags: d.missingInputFlags || [],
       sentimentScore: d.sentimentScore ?? null,

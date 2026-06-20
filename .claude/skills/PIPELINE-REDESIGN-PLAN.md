@@ -9,7 +9,7 @@ Redesigning the post-implementation pipeline. The old flow (`/implement-issue` �
 
 ### New Pipeline
 ```
-/draft-linear-issues → /refine-linear-issue → /implement-issue
+/draft-linear-issues → /refine-linear-issue → /plan-issue → /implement-issue
                                                     ↓
                                                /clear
                                                     ↓

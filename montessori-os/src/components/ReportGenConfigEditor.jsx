@@ -106,7 +106,7 @@ export default function ReportGenConfigEditor({ currentUser, userRole }) {
     [programId],
   );
 
-  // PEP-139: single config/report_{prog} doc has both prompt and model fields
+  // PEP-139: single config/term_report_{prog} doc has both prompt and model fields
   const loadConfig = useCallback(async () => {
     if (!isAdmin || !promptDocId) { setLoading(false); return; }
     setLoading(true);
@@ -188,7 +188,7 @@ export default function ReportGenConfigEditor({ currentUser, userRole }) {
         name: currentUser?.displayName || '',
       };
 
-      // PEP-139: write everything to config/report_{prog}
+      // PEP-139: write everything to config/term_report_{prog}
       if (promptDocId) {
         const curr = promptDocState || { version: 0, versions: [] };
         const prevSnapshot = (curr.staticSystemPrompt || curr.dynamicSystemPrompt) ? {
@@ -360,7 +360,7 @@ export default function ReportGenConfigEditor({ currentUser, userRole }) {
         <CardContent sx={{ display: 'flex', flexDirection: 'column', gap: 2 }}>
           <Typography variant="h6" sx={{ fontWeight: 700 }}>Model Settings</Typography>
           <Typography variant="body2" color="text.secondary">
-            These settings apply to report generation for the selected program. Saved to <code>/config/report_{'{program}'}</code>.
+            These settings apply to report generation for the selected program. Saved to <code>/config/term_report_{'{program}'}</code>.
           </Typography>
           <Stack direction={{ xs: 'column', sm: 'row' }} spacing={2}>
             <FormControl fullWidth size="small">

@@ -244,17 +244,18 @@ export default function ReportsPage({
     }
   };
 
-  const handleGenerate = async ({ dateRangeStart, dateRangeEnd }) => {
+  const handleGenerate = async ({ dateRangeStart, dateRangeEnd, reportType = 'term' }) => {
     try {
       setGenerating(true);
-      trackEvent('report_generate_start', { studentId }).catch(() => {});
+      trackEvent('report_generate_start', { studentId, reportType }).catch(() => {});
       const call = httpsCallable(cloudFunctions, 'generateStudentReport', { timeout: 300_000 });
-      const result = await call({ studentId, dateRangeStart, dateRangeEnd });
+      const result = await call({ studentId, dateRangeStart, dateRangeEnd, reportType });
       const draft = {
         // No id — this is a draft, not yet in Firestore
         generatedAt: result.data.generatedAt ? new Date(result.data.generatedAt) : new Date(),
         noteCount: result.data.noteCount ?? null,
         reportText: result.data.reportText || '',
+        reportType: result.data.reportType || reportType,
         status: result.data.status || null,
         dateRangeStart: result.data.dateRangeStart || null,
         dateRangeEnd: result.data.dateRangeEnd || null,
@@ -575,6 +576,18 @@ export default function ReportsPage({
                   )}
                 </Box>
                 <Stack direction="row" spacing={0.5} alignItems="center" sx={{ flexShrink: 0 }}>
+                  <Chip
+                    label={report.reportType === 'monthly' ? 'Monthly' : 'Term'}
+                    size="small"
+                    variant="outlined"
+                    sx={{
+                      height: 22,
+                      fontSize: '0.7rem',
+                      fontWeight: 700,
+                      borderColor: report.reportType === 'monthly' ? 'var(--color-secondary)' : 'var(--color-primary)',
+                      color: report.reportType === 'monthly' ? 'var(--color-secondary)' : 'var(--color-primary)',
+                    }}
+                  />
                   {report.noteCount != null && (
                     <Chip label={`${report.noteCount} notes`} size="small" variant="outlined" sx={{ height: 22, fontSize: '0.7rem' }} />
                   )}
@@ -669,6 +682,7 @@ export default function ReportsPage({
           if (draftReport) setDraftReport(null);
         }}
         reportText={selectedReport?.reportText || ''}
+        reportType={selectedReport?.reportType || 'term'}
         missingInputFlags={selectedReport?.missingInputFlags || readiness?.missingInputFlags || []}
         generatedAt={selectedReport?.generatedAt || null}
         studentLabel={studentLabel}

@@ -13,7 +13,7 @@ The orchestrator itself stays thin. Heavy work (reading diffs, auditing code, ma
 
 ## When to Use
 
-- After `/implement-issue` completes in a separate session
+- After `/plan-issue` + `/implement-issue` completes in a separate session
 - You are in a **new Claude session** (fresh context, no implementation bias)
 - The feature branch has committed or uncommitted changes ready for review
 - You want the only quality gate before prod to be rigorous

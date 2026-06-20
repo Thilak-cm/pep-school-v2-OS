@@ -98,11 +98,11 @@ describe("parseReportResponse", () => {
 
 describe("getReportPromptDocId", () => {
   it("returns correct doc ID for adolescent program", () => {
-    assert.equal(getReportPromptDocId("adolescent"), "report_adolescent");
+    assert.equal(getReportPromptDocId("adolescent"), "term_report_adolescent");
   });
 
   it("returns correct doc ID for elementary program", () => {
-    assert.equal(getReportPromptDocId("elementary"), "report_elementary");
+    assert.equal(getReportPromptDocId("elementary"), "term_report_elementary");
   });
 
   it("returns null for unsupported program", () => {

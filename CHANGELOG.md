@@ -1,5 +1,15 @@
 # Changelog
 
+# 10.38.0 — 2026-06-19
+
+### Added
+- Monthly Baseline Report type — teachers can generate a 30-day baseline report alongside the existing term report via a Term/Monthly toggle in the generate dialog (PEP-325)
+- Monthly reports export to a "Monthly Reports" subfolder in Google Drive with separate summary and archive CSVs
+- Report type chip (Monthly/Term) on report cards in the reports list
+- Backfill script for existing reports missing `reportType` field (`scripts/admin/backfill-report-type.mjs`)
+- Migration script for report config doc ID rename (`scripts/admin/migrate-report-config-doc-ids.mjs`)
+- Seed script for monthly baseline report prompts across all 4 programs (`scripts/admin/seed-monthly-report-prompts.mjs`)
+
 # 10.37.0 — 2026-06-15
 
 ### Added
