@@ -58,12 +58,16 @@ function ClassroomTimeline({ classroom, currentUser, userRole, manageableClassro
   const mediaUrlInFlightRef = useRef(new Set());
   const [reportPreviewData, setReportPreviewData] = useState(null);
   const [expandedReportGroups, setExpandedReportGroups] = useState(new Set());
+  const [displayLimit, setDisplayLimit] = useState(NOTES_PAGE_SIZE);
   // searchInputRef removed — HFSearchInput is always visible
   const unsubscribeRef = useRef(null);
   const [notesReloadToken] = useState(0);
   const batchCursorsRef = useRef(new Map());
   const exhaustedBatchesRef = useRef(new Set());
   const studentIdsRef = useRef([]);
+  const notesTabRef = useRef(null);
+  const studentsTabRef = useRef(null);
+  const [tabHeights, setTabHeights] = useState({ notes: 'auto', students: 'auto' });
 
   // showSearch/searchInputRef focus effect removed — HFSearchInput is always visible
 
@@ -79,6 +83,7 @@ function ClassroomTimeline({ classroom, currentUser, userRole, manageableClassro
       setClassroomStudents([]);
       setClassroomTeachers([]);
       setClassroomMediaDocs([]);
+      setDisplayLimit(NOTES_PAGE_SIZE);
       setLoading(false);
       return;
     }
@@ -138,6 +143,7 @@ function ClassroomTimeline({ classroom, currentUser, userRole, manageableClassro
         studentIdsRef.current = studentIds;
         batchCursorsRef.current = new Map();
         exhaustedBatchesRef.current = new Set();
+        setDisplayLimit(NOTES_PAGE_SIZE);
 
         // Query notes for all students in the classroom
         // Firestore 'in' queries support up to 10 items, so we need to batch if more
@@ -430,6 +436,13 @@ function ClassroomTimeline({ classroom, currentUser, userRole, manageableClassro
     const studentIds = studentIdsRef.current;
     if (!studentIds || studentIds.length === 0) return;
 
+    // If we have more already-fetched notes to reveal, just bump the display limit
+    const totalFetched = filteredObservations?.length || 0;
+    if (displayLimit < totalFetched) {
+      setDisplayLimit(prev => prev + NOTES_PAGE_SIZE);
+      return;
+    }
+
     setLoadingMore(true);
     try {
       const moreQueries = [];
@@ -496,6 +509,7 @@ function ClassroomTimeline({ classroom, currentUser, userRole, manageableClassro
 
       const totalBatches = Math.ceil(studentIds.length / batchSize);
       setHasMoreNotes(exhaustedBatchesRef.current.size < totalBatches);
+      setDisplayLimit(prev => prev + NOTES_PAGE_SIZE);
     } catch {
       notify.error('Failed to load more notes. Please try again.', { duration: 3000 });
     } finally {
@@ -522,6 +536,7 @@ function ClassroomTimeline({ classroom, currentUser, userRole, manageableClassro
   // Calculate container width for swipe feedback
   const containerWidthRef = useRef(null);
   const containerWidth = containerWidthRef.current?.offsetWidth || 0;
+
 
   // Calculate transform based on active tab and swipe delta
   const getTransform = () => {
@@ -599,9 +614,15 @@ function ClassroomTimeline({ classroom, currentUser, userRole, manageableClassro
     return [...areas].sort();
   }, [classroomMediaDocs]);
 
+  // Slice to display limit — show only `displayLimit` notes at a time
+  const displayedObservations = useMemo(() => {
+    if (!filteredObservations) return [];
+    return filteredObservations.slice(0, displayLimit);
+  }, [filteredObservations, displayLimit]);
+
   // Group notes by groupId, then sort
   const groupedAndSortedObservations = useMemo(() => {
-    if (!filteredObservations || filteredObservations.length === 0) {
+    if (!displayedObservations || displayedObservations.length === 0) {
       return { grouped: [], ungrouped: [] };
     }
 
@@ -609,7 +630,7 @@ function ClassroomTimeline({ classroom, currentUser, userRole, manageableClassro
     const groupMap = new Map();
     const ungrouped = [];
 
-    filteredObservations.forEach((note) => {
+    displayedObservations.forEach((note) => {
       if (note.groupId) {
         if (!groupMap.has(note.groupId)) {
           groupMap.set(note.groupId, []);
@@ -666,7 +687,7 @@ function ClassroomTimeline({ classroom, currentUser, userRole, manageableClassro
     });
 
     return { grouped: filteredGrouped, ungrouped };
-  }, [filteredObservations]);
+  }, [displayedObservations]);
 
   const groupedReports = useMemo(() => groupReportsByDate(classroomReports), [classroomReports]);
 
@@ -690,6 +711,20 @@ function ClassroomTimeline({ classroom, currentUser, userRole, manageableClassro
 
     return groupByCalendarDay(merged);
   }, [groupedAndSortedObservations, groupedReports]);
+
+  // Measure tab panel heights so the swipe container matches the active tab
+  useEffect(() => {
+    const measure = () => {
+      const notesH = notesTabRef.current?.scrollHeight || 0;
+      const studentsH = studentsTabRef.current?.scrollHeight || 0;
+      setTabHeights({ notes: notesH, students: studentsH });
+    };
+    measure();
+    const t = setTimeout(measure, 100);
+    return () => clearTimeout(t);
+  }, [activeTab, dayGroups, sortedFilteredStudents, displayLimit, loading]);
+
+  const activeTabHeight = activeTab === 0 ? tabHeights.notes : tabHeights.students;
 
   const toggleReportGroup = (groupKey) => {
     setExpandedReportGroups((prev) => {
@@ -920,10 +955,12 @@ function ClassroomTimeline({ classroom, currentUser, userRole, manageableClassro
             }
           }
         }}
-        sx={{ 
+        sx={{
           touchAction: 'pan-x pan-y', // Allow both horizontal and vertical panning
           overflow: 'hidden', // Hide tabs that are off-screen
           position: 'relative',
+          height: activeTabHeight > 0 ? activeTabHeight : 'auto',
+          transition: isDragging ? 'none' : 'height 0.3s ease',
         }}
       >
         <Box
@@ -933,10 +970,12 @@ function ClassroomTimeline({ classroom, currentUser, userRole, manageableClassro
             transform: getTransform(),
             transition: isDragging ? 'none' : 'transform 0.3s cubic-bezier(0.4, 0, 0.2, 1)',
             willChange: isDragging ? 'transform' : 'auto',
+            alignItems: 'flex-start',
           }}
         >
           {/* Tab 0: Notes */}
-          <Box 
+          <Box
+            ref={notesTabRef}
             sx={{
               width: '50%',
               flexShrink: 0,
@@ -968,7 +1007,7 @@ function ClassroomTimeline({ classroom, currentUser, userRole, manageableClassro
               ))}
 
               {/* Show More Button */}
-              {hasMoreNotes && (
+              {(hasMoreNotes || displayLimit < (filteredObservations?.length || 0)) && (
                 <Box sx={{ textAlign: 'center', pt: 2 }}>
                   <Button
                     variant="outlined"
@@ -977,7 +1016,7 @@ function ClassroomTimeline({ classroom, currentUser, userRole, manageableClassro
                     startIcon={loadingMore ? <CircularProgress size={16} /> : <ExpandMore />}
                     sx={{ textTransform: 'none' }}
                   >
-                    {loadingMore ? 'Loading...' : 'Show 20 More'}
+                    {loadingMore ? 'Loading...' : 'Show More'}
                   </Button>
                 </Box>
               )}
@@ -986,7 +1025,8 @@ function ClassroomTimeline({ classroom, currentUser, userRole, manageableClassro
           </Box>
           
           {/* Tab 1: Students */}
-          <Box 
+          <Box
+            ref={studentsTabRef}
             sx={{
               width: '50%',
               flexShrink: 0,
