@@ -8,9 +8,11 @@ import Slider from "@mui/material/Slider";
 import TextField from "@mui/material/TextField";
 import Chip from "@mui/material/Chip";
 import ListSubheader from "@mui/material/ListSubheader";
+import Tooltip from "@mui/material/Tooltip";
 import CloseIcon from "@mui/icons-material/Close";
 import EditIcon from "@mui/icons-material/Edit";
 import CheckIcon from "@mui/icons-material/Check";
+import PublishIcon from "@mui/icons-material/Publish";
 import PromptEditor from "./PromptEditor.jsx";
 import OutputPanel from "./OutputPanel.jsx";
 import RatingWidget from "./RatingWidget.jsx";
@@ -27,6 +29,8 @@ import { MODELS_BY_PROVIDER, TEST_BENCH_MODELS } from "../utils/variantHelpers.j
  * - canRemove: whether this column can be closed
  * - onUpdate(idx, field, value): update variant field
  * - onRemove(idx): remove/close this column
+ * - onPromote(idx): trigger promote-to-live flow for this variant
+ * - canPromote: whether promote button is visible (superadmin only)
  * - conversations: conversation turns for this variant (interview mode)
  * - teacherInput: current teacher input (interview mode, shared across columns)
  * - onTeacherInputChange: setter for teacher input
@@ -41,6 +45,8 @@ export default function VariantColumn({
   canRemove,
   onUpdate,
   onRemove,
+  onPromote,
+  canPromote,
   conversations,
   teacherInput,
   onTeacherInputChange,
@@ -104,11 +110,20 @@ export default function VariantColumn({
             </>
           )}
         </Box>
-        {canRemove && (
-          <IconButton size="small" onClick={() => onRemove(idx)}>
-            <CloseIcon fontSize="small" />
-          </IconButton>
-        )}
+        <Box sx={{ display: "flex", alignItems: "center", gap: 0.5 }}>
+          {canPromote && (
+            <Tooltip title="Promote to Live">
+              <IconButton size="small" onClick={() => onPromote(idx)} color="success">
+                <PublishIcon fontSize="small" />
+              </IconButton>
+            </Tooltip>
+          )}
+          {canRemove && (
+            <IconButton size="small" onClick={() => onRemove(idx)}>
+              <CloseIcon fontSize="small" />
+            </IconButton>
+          )}
+        </Box>
       </Box>
 
       {/* Model + temperature */}

@@ -1,4 +1,4 @@
-import { useState, useCallback, useEffect, useRef } from "react";
+import { useState, useCallback, useEffect, useRef, useMemo } from "react";
 import { httpsCallable } from "firebase/functions";
 import { collection, addDoc, Timestamp } from "firebase/firestore";
 import { cloudFunctions, db, auth } from "../../firebase.js";
@@ -38,10 +38,14 @@ import { pickRandomAreas, pickRandomQuestion, buildSyntheticTurn } from "../../.
 import { createVariant, updateVariant as updateVariantHelper, hasUnsavedWork, SCROLL_AFTER } from "../../utils/variantHelpers.js";
 import { buildSavePayload, restoreVariantsFromRun, restoreConversationsFromRun } from "../../hooks/useRunPersistence.js";
 import { buildMessageHistory, getQuestionCount, serializeConversations, getElapsedMinutes as calcElapsedMinutes } from "../../hooks/useInterviewSession.js";
+import { useAuth } from "../../contexts/AuthContext.js";
+import usePromoteToLive from "../../hooks/usePromoteToLive.js";
+import PromoteConfirmDialog from "../PromoteConfirmDialog.jsx";
 
 const FEATURE_ID = "interview_question_gen";
 
 export default function InterviewWorkbench() {
+  const { role } = useAuth();
   const [selectedStudent, setSelectedStudent] = useState(null);
   const [variants, setVariants] = useState([createVariant(null, 0), createVariant(null, 1)]);
   const [saving, setSaving] = useState(false);
@@ -61,6 +65,9 @@ export default function InterviewWorkbench() {
   const [contextReloadKey, setContextReloadKey] = useState(0);
   const [soulDialogOpen, setSoulDialogOpen] = useState(false);
   const soulGenCompleted = useRef(null);
+  const [promoteIdx, setPromoteIdx] = useState(null);
+  const liveConfigRef = useRef(null);
+  const { promote, promoting } = usePromoteToLive();
 
   // Mode + area selection (PEP-220)
   const [interviewMode, setInterviewMode] = useState("random"); // "random" | "teacher_pick"
@@ -89,10 +96,27 @@ export default function InterviewWorkbench() {
   }, [variants]);
 
   const handleConfigLoaded = useCallback((config) => {
+    liveConfigRef.current = config;
     setVariants((prev) => prev.map((v, i) =>
       i === 0 ? { ...v, ...config, dirty: false } : { ...v, systemPrompt: config.systemPrompt, max_tokens: config.max_tokens || v.max_tokens, dirty: false }
     ));
   }, []);
+
+  const promoteVariantConfig = useMemo(() => {
+    if (promoteIdx === null) return null;
+    const v = variants[promoteIdx];
+    return { systemPrompt: v.systemPrompt, model: v.model, temperature: v.temperature, max_tokens: v.max_tokens };
+  }, [promoteIdx, variants]);
+
+  async function handlePromoteConfirm({ fields }) {
+    try {
+      await promote({ featureId: FEATURE_ID, fields });
+      setPromoteIdx(null);
+      setSnackbar({ open: true, message: "Promoted to live config", severity: "success" });
+    } catch (err) {
+      setSnackbar({ open: true, message: `Promote failed: ${err.message}`, severity: "error" });
+    }
+  }
 
   // Proactive soul/open_questions detection (PEP-222)
   useEffect(() => {
@@ -324,7 +348,7 @@ export default function InterviewWorkbench() {
       <Box sx={{ display: "flex", gap: 2, overflowX: "auto", pb: 2 }}>
         {variants.map((v, idx) => (
           <Box key={idx} sx={{ flex: variants.length <= SCROLL_AFTER ? `1 0 ${100 / variants.length - 2}%` : "0 0 auto", width: variants.length > SCROLL_AFTER ? 450 : undefined }}>
-            <VariantColumn variant={v} idx={idx} featureId={FEATURE_ID} canRemove={variants.length > 1} onUpdate={handleUpdateVariant} onRemove={tryRemoveColumn} conversations={conversations[idx]} teacherInput={teacherInput} onTeacherInputChange={setTeacherInput} onSendAnswer={sendAnswer} anyLoading={variants.some((vr) => vr.loading)} interviewEnded={interviewEnded} areaPickPhase={areaPickPhase} areaPool={areaPool} pickedAreas={teacherPickedAreas} onToggleArea={handleToggleAreaPick} onConfirmAreas={confirmAreaPicks} onCancelAreas={cancelAreaPicks} allVariantsReady={areasReady} studentName={selectedStudent?.displayName} />
+            <VariantColumn variant={v} idx={idx} featureId={FEATURE_ID} canRemove={variants.length > 1} onUpdate={handleUpdateVariant} onRemove={tryRemoveColumn} canPromote={role === "superadmin"} onPromote={setPromoteIdx} conversations={conversations[idx]} teacherInput={teacherInput} onTeacherInputChange={setTeacherInput} onSendAnswer={sendAnswer} anyLoading={variants.some((vr) => vr.loading)} interviewEnded={interviewEnded} areaPickPhase={areaPickPhase} areaPool={areaPool} pickedAreas={teacherPickedAreas} onToggleArea={handleToggleAreaPick} onConfirmAreas={confirmAreaPicks} onCancelAreas={cancelAreaPicks} allVariantsReady={areasReady} studentName={selectedStudent?.displayName} />
           </Box>
         ))}
         <Box sx={{ minWidth: 80, flexShrink: 0, display: "flex", flexDirection: "column", alignItems: "center", justifyContent: "center", gap: 1, border: 2, borderColor: "divider", borderRadius: 2, borderStyle: "dashed", cursor: "pointer", position: "sticky", right: 0, bgcolor: "background.default", "&:hover": { borderColor: "primary.main", bgcolor: "action.hover" } }} onClick={addColumn}>
@@ -351,6 +375,16 @@ export default function InterviewWorkbench() {
         studentId={selectedStudent?.id || ""}
         onSuccess={handleSoulGenerated}
         onClose={() => setSoulDialogOpen(false)}
+      />
+
+      <PromoteConfirmDialog
+        open={promoteIdx !== null}
+        onClose={() => setPromoteIdx(null)}
+        onConfirm={handlePromoteConfirm}
+        featureId={FEATURE_ID}
+        liveConfig={liveConfigRef.current}
+        variantConfig={promoteVariantConfig}
+        promoting={promoting}
       />
 
       <RunHistory open={historyOpen} onClose={() => setHistoryOpen(false)} featureId={FEATURE_ID} onLoad={loadRun} />
