@@ -719,15 +719,16 @@ Current documents
 - `coach_{program}` — per-program Coach nudge configuration (program ∈ toddler | primary | elementary | adolescent)
 - `chat_{program}` — per-program AI chat configuration
 - `report_{program}` — per-program parent progress report prompts + model config
-- `soul_guidelines_{program}` — per-program developmental guidelines markdown (areas, skill areas, benchmarks from report cards)
-- `soul_generation` — soul generation instruction prompt + model config (PEP-163). Shape: `{ systemPrompt: string, model: string, temperature: number, max_tokens: number }`. Fallback defaults in `functions/utils/soulHelpers.js:SOUL_DEFAULTS`.
+- `soul_guidelines_{program}` — per-program developmental guidelines markdown (areas, skill areas, benchmarks from report cards). Shape: `{ markdown: string, programId: ProgramId, benchmarkCount: number, updatedBy: string, updatedAt: Timestamp }`.
+- `soul_generation` — soul generation instruction prompt + model config (PEP-163). Shape: `{ systemPrompt: string, model: string, temperature: number, max_tokens: number }`. Fallback defaults in `functions/utils/soulHelpers.js:SOUL_DEFAULTS`. Note: this doc may not exist in Firestore — CFs fall back to hardcoded defaults when missing.
 - `readiness_{program}` — per-program report readiness checker prompts + model config
 - `baseball_card` — prompts + model config for student baseball card generation
 - `photo_classification` — prompts + model config for photo classification (Call 1, gpt-5.4-nano)
-- `writing_analysis_{programId}` — per-program prompts + model config for writing analysis (PEP-132, PEP-263). Doc IDs: `writing_analysis_primary`, `writing_analysis_elementary`, `writing_analysis_toddler`, `writing_analysis_adolescent`. Shape: `{ systemPrompt: string, model: string, temperature: number, max_tokens: number, minSamples: number }`. Fallback defaults in `functions/config/handwritingAnalysisFallbacks.js`. Legacy `handwriting_analysis` doc deleted by seeding script.
+- `writing_analysis_{programId}` — per-program prompts + model config for writing analysis (PEP-132, PEP-263). Doc IDs: `writing_analysis_primary`, `writing_analysis_elementary`, `writing_analysis_toddler`, `writing_analysis_adolescent`. Shape: `{ systemPrompt: string, model: string, temperature: number, max_tokens: number, minSamples: number, description: string, programId: ProgramId, createdAt: Timestamp, updatedAt: Timestamp }`. Fallback defaults in `functions/config/handwritingAnalysisFallbacks.js`. Legacy `handwriting_analysis` doc deleted by seeding script.
+- `interview_question_gen` — interview agent turn-by-turn prompt template with placeholders for student-specific data. Shape: `{ systemPrompt: string, model: string, temperature: number, max_tokens: number, description: string, createdAt: Timestamp, updatedAt: Timestamp }`. Not read by any production CF at runtime — serves as the default config source for the prompt test bench only.
 - `monthly_plan` — prompts + model config for monthly plan generation (PEP-260). Shape: `{ systemPrompt: string, model: string, temperature: number, max_tokens: number, description: string, createdAt: Timestamp, updatedAt: Timestamp }`. Seeded by `scripts/admin/seed-monthly-plan-config.mjs`.
 - `telegram_bot` — Telegram bot configuration
-- `weekly_digest` — weekly digest agent config: system prompts, model, contextual notes, superadmin overrides, test trigger gate (PEP-297). Seeded by `scripts/admin/seed-digest-config.mjs`.
+- `weekly_digest` — weekly digest agent config (PEP-297). Shape: `{ classroomPrompt: string, superadminPrompt: string, model: string, temperature: number, max_tokens: number, allowedTools: string[], allowedToolScopes: string[], contextualNotes: string[], superadminClassroomOverrides: Record<string, string[]>, testOverrideEmails: string[], enableTestTrigger: boolean }`. Seeded by `scripts/admin/seed-digest-config.mjs`. `contextualNotes` managed via PEP-324 UI editor. `testOverrideEmails` and `enableTestTrigger` are dev/test infrastructure.
 
 `config/lessonNote`
 ```typescript

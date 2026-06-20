@@ -55,6 +55,7 @@ const EXPECTED_EXPORTS = [
   "autoExpireBroadcast",
   // Test Bench
   "testBenchRun",
+  "promoteTestBenchConfig",
   // Weekly Digest (PEP-297)
   "weeklyDigestClassroomAdmin",
   "weeklyDigestSuperadmin",
