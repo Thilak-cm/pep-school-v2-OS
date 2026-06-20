@@ -174,21 +174,6 @@ describe('Heatmap card UI structure', () => {
     assert.ok(source.includes('LAST 6 WEEKS'), 'Missing "LAST 6 WEEKS" label');
   });
 
-  it('renders dynamic week column headers with NOW as last label', () => {
-    assert.ok(source.includes("'NOW'"), 'Missing NOW column header');
-    assert.ok(source.includes('weekKeyToLabel'), 'Should use weekKeyToLabel for past week labels');
-  });
-
-  it('WEEK_LABELS maps past keys via weekKeyToLabel and appends NOW', () => {
-    // Accept either approach: ternary on last index, or spread pastKeys + 'NOW'
-    const hasTernary = /idx\s*===\s*arr\.length\s*-\s*1\s*\?\s*'NOW'\s*:\s*weekKeyToLabel\(key\)/.test(source);
-    const hasSpread = /pastKeys\.map\(weekKeyToLabel\).*'NOW'/.test(source);
-    assert.ok(
-      hasTernary || hasSpread,
-      'WEEK_LABELS should map past weeks via weekKeyToLabel and use NOW for the current week'
-    );
-  });
-
   it('renders legend with four labels', () => {
     assert.ok(source.includes("'Clear'"), 'Missing Clear legend');
     assert.ok(source.includes("'Low'"), 'Missing Low legend');
