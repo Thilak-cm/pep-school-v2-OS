@@ -216,6 +216,7 @@ export default function SoulWorkbench() {
       </Dialog>
 
       <PromoteConfirmDialog
+        key={promoteIdx ?? "closed"}
         open={promoteIdx !== null}
         onClose={() => setPromoteIdx(null)}
         onConfirm={handlePromoteConfirm}

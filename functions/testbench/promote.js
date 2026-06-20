@@ -45,6 +45,20 @@ export function validatePromoteRequest(data) {
 
   const entry = PROMOTE_MAP[featureId];
 
+  // programId requirement — must validate before targets() which uses it
+  if (entry.requiresProgramId) {
+    if (!data?.programId || !VALID_PROGRAMS.includes(data.programId)) {
+      return { valid: false, error: `programId is required for ${featureId}. Must be one of: ${VALID_PROGRAMS.join(", ")}` };
+    }
+  }
+
+  // promptType requirement — must validate before targets() which uses it
+  if (entry.requiresPromptType) {
+    if (!data?.promptType || !VALID_PROMPT_TYPES.includes(data.promptType)) {
+      return { valid: false, error: `promptType is required for ${featureId}. Must be one of: ${VALID_PROMPT_TYPES.join(", ")}` };
+    }
+  }
+
   // Collect all valid field names for this feature
   const targets = entry.targets(data?.programId, data?.promptType);
   const allowedFields = new Set();
@@ -68,20 +82,6 @@ export function validatePromoteRequest(data) {
     }
     if (NUMBER_FIELDS.has(key) && typeof value !== "number") {
       return { valid: false, error: `${key} must be a number, got ${typeof value}` };
-    }
-  }
-
-  // programId requirement
-  if (entry.requiresProgramId) {
-    if (!data?.programId || !VALID_PROGRAMS.includes(data.programId)) {
-      return { valid: false, error: `programId is required for ${featureId}. Must be one of: ${VALID_PROGRAMS.join(", ")}` };
-    }
-  }
-
-  // promptType requirement
-  if (entry.requiresPromptType) {
-    if (!data?.promptType || !VALID_PROMPT_TYPES.includes(data.promptType)) {
-      return { valid: false, error: `promptType is required for ${featureId}. Must be one of: ${VALID_PROMPT_TYPES.join(", ")}` };
     }
   }
 
@@ -145,7 +145,6 @@ export function buildHistoryEntry(currentDoc, fieldsBeingWritten, meta) {
 
   return {
     snapshot,
-    replacedAt: new Date().toISOString(),
     replacedBy: { uid: meta.uid, name: meta.name },
     promotedFromRun: meta.runId || null,
     featureId: meta.featureId,
@@ -194,35 +193,38 @@ export const promoteTestBenchConfig = functions
       }
 
       const docRef = db.doc(target.docPath);
-      const currentSnap = await docRef.get();
-      const currentData = currentSnap.exists ? currentSnap.data() : {};
-
-      // Build history entry (only if doc exists and has data to snapshot)
       let previousVersionIndex = -1;
-      if (currentSnap.exists) {
-        const historyEntry = buildHistoryEntry(currentData, writePayload, {
-          uid: context.auth.uid,
-          name: callerName,
-          runId: runId || null,
-          featureId,
-        });
-        // Use server timestamp for the history entry
-        historyEntry.replacedAt = Timestamp.now();
 
-        const history = currentData._promotionHistory || [];
-        history.unshift(historyEntry);
-        // Cap at MAX_HISTORY_ENTRIES
-        const cappedHistory = history.slice(0, MAX_HISTORY_ENTRIES);
-        writePayload._promotionHistory = cappedHistory;
-        previousVersionIndex = 0;
-      }
+      await db.runTransaction(async (tx) => {
+        const currentSnap = await tx.get(docRef);
+        const currentData = currentSnap.exists ? currentSnap.data() : {};
 
-      // Add audit metadata
-      writePayload.updatedAt = Timestamp.now();
-      writePayload.updatedBy = `testbench:${context.auth.uid}`;
+        // Build history entry (only if doc exists and has data to snapshot)
+        if (currentSnap.exists) {
+          const historyEntry = buildHistoryEntry(currentData, writePayload, {
+            uid: context.auth.uid,
+            name: callerName,
+            runId: runId || null,
+            featureId,
+          });
+          // Use server timestamp for the history entry
+          historyEntry.replacedAt = Timestamp.now();
 
-      // Merge write — only touches specified fields
-      await docRef.set(writePayload, { merge: true });
+          const history = currentData._promotionHistory || [];
+          history.unshift(historyEntry);
+          // Cap at MAX_HISTORY_ENTRIES
+          const cappedHistory = history.slice(0, MAX_HISTORY_ENTRIES);
+          writePayload._promotionHistory = cappedHistory;
+          previousVersionIndex = 0;
+        }
+
+        // Add audit metadata
+        writePayload.updatedAt = Timestamp.now();
+        writePayload.updatedBy = `testbench:${context.auth.uid}`;
+
+        // Merge write — only touches specified fields
+        tx.set(docRef, writePayload, { merge: true });
+      });
 
       results.push({
         docPath: target.docPath,

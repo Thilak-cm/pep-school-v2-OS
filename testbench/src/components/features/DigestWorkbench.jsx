@@ -52,7 +52,7 @@ export default function DigestWorkbench() {
   const [sessionName, setSessionName] = useState("");
 
   const [promoteIdx, setPromoteIdx] = useState(null);
-  const liveConfigRef = useRef(null);
+  const [liveConfig, setLiveConfig] = useState(null);
   const { promote, promoting } = usePromoteToLive();
 
   // Tool selection
@@ -76,7 +76,7 @@ export default function DigestWorkbench() {
       classroomPrompt: config.classroomPrompt,
       superadminPrompt: config.superadminPrompt,
     };
-    liveConfigRef.current = config;
+    setLiveConfig(config);
     // Seed tool permissions from config
     if (config.allowedTools) {
       setAllowedTools(config.allowedTools);
@@ -101,15 +101,15 @@ export default function DigestWorkbench() {
 
   // Build liveConfig for the diff dialog — map to the variant's field names
   const promoteLiveConfig = useMemo(() => {
-    if (!liveConfigRef.current) return null;
-    const c = liveConfigRef.current;
+    if (!liveConfig) return null;
+    const c = liveConfig;
     return {
       systemPrompt: promptType === "superadmin" ? c.superadminPrompt : c.classroomPrompt,
       model: c.model,
       temperature: c.temperature,
       max_tokens: c.max_tokens,
     };
-  }, [promptType, promoteIdx]);
+  }, [promptType, liveConfig]);
 
   async function handlePromoteConfirm({ fields }) {
     try {
@@ -314,6 +314,7 @@ export default function DigestWorkbench() {
       </Dialog>
 
       <PromoteConfirmDialog
+        key={promoteIdx ?? "closed"}
         open={promoteIdx !== null}
         onClose={() => setPromoteIdx(null)}
         onConfirm={handlePromoteConfirm}

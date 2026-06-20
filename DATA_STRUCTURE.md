@@ -730,6 +730,8 @@ Current documents
 - `telegram_bot` — Telegram bot configuration
 - `weekly_digest` — weekly digest agent config (PEP-297). Shape: `{ classroomPrompt: string, superadminPrompt: string, model: string, temperature: number, max_tokens: number, allowedTools: string[], allowedToolScopes: string[], contextualNotes: string[], superadminClassroomOverrides: Record<string, string[]>, testOverrideEmails: string[], enableTestTrigger: boolean }`. Seeded by `scripts/admin/seed-digest-config.mjs`. `contextualNotes` managed via PEP-324 UI editor. `testOverrideEmails` and `enableTestTrigger` are dev/test infrastructure.
 
+**Promotion metadata (PEP-326):** Config docs promoted via the test bench `promoteTestBenchConfig` CF gain these additional fields: `_promotionHistory: Array<{ snapshot: Record<string, any>, replacedAt: Timestamp, replacedBy: { uid: string, name: string }, promotedFromRun: string | null, featureId: string }>` (capped at 10 entries, most recent first), `updatedAt: Timestamp`, `updatedBy: "testbench:{uid}"`. These fields are added via `set({ merge: true })` and do not affect production config consumers. Promotable docs: `writing_analysis_{programId}`, `soul_generation`, `soul_guidelines_{programId}`, `monthly_plan`, `weekly_digest`.
+
 `config/lessonNote`
 ```typescript
 interface LessonNoteConfig {

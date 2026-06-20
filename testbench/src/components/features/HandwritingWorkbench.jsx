@@ -236,6 +236,7 @@ export default function HandwritingWorkbench() {
       </Dialog>
 
       <PromoteConfirmDialog
+        key={promoteIdx ?? "closed"}
         open={promoteIdx !== null}
         onClose={() => setPromoteIdx(null)}
         onConfirm={handlePromoteConfirm}
