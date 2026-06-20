@@ -1,7 +1,7 @@
 # Pep OS Overview
 
-Generated: 2026-06-19T22:46:00.627Z
-App version: 10.38.0
+Generated: 2026-06-20T09:04:57.690Z
+App version: 10.39.0
 
 ## App Snapshot
 
@@ -148,6 +148,11 @@ App version: 10.38.0
 
 ## Recent Changes
 
+### 10.39.0 (2026-06-20)
+- Promote-to-Live flow in prompt test bench — superadmins can push a winning variant's config (prompt, model, temperature, max_tokens) to live Firestore config docs via Cloud Function (PEP-326)
+- Field-level diff confirmation dialog with per-field select/deselect before promoting (PEP-326)
+- Promotion history tracking — `_promotionHistory` array on config docs with snapshot, metadata, and cap at 10 entries (PEP-326)
+
 ### 10.38.0 (2026-06-19)
 - MCQ poll composer for broadcasts — superadmins attach a poll with question, options, multi-select, and free-text "Other" toggle (PEP-323a)
 - Teacher poll voting flow in DIP dialog — radio/checkbox options with "Respond" submit button (PEP-323a)
@@ -162,9 +167,4 @@ App version: 10.38.0
 - Digest Generation feature in prompt test bench — full agent loop with 8 digest tools, HTML email preview, side-by-side variant comparison, and run history with classroom context (PEP-304)
 - Shared tool registry (`functions/shared/toolRegistry.js`) with scope permissions, prerequisite enforcement, and static frontend metadata mirror (`toolCatalog.js`) (PEP-304)
 - Role-scoped ClassroomPicker for testbench — teachers see assigned, classroomadmins see manageable, superadmins see all (PEP-304)
-
-### 10.35.0 (2026-06-09)
-- Superadmin broadcast composer in Settings → Admin Tools — compose, edit, and manage broadcast alerts with label, title, message body, audience targeting, priority, DIP toggle, and expiry (PEP-307)
-- Broadcast acknowledgment modal in DIP — tapping a broadcast CTA shows the full message with "I've read this" confirmation before dismissing (PEP-307)
-- Broadcast management view — list all published broadcasts (live + expired) with edit, delete, and DIP visibility toggle (PEP-307)
 
