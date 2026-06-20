@@ -1,6 +1,6 @@
 # Pep OS Overview
 
-Generated: 2026-06-20T09:21:57.669Z
+Generated: 2026-06-20T09:04:57.690Z
 App version: 10.39.0
 
 ## App Snapshot
@@ -57,10 +57,9 @@ App version: 10.39.0
 - `montessori-os/src/components/FilterPanel.jsx`
 
 ### Analytics and Notifications (`analytics-and-notifications`)
-- Count: 7
-- Components: `NewFeaturePill`, `NotificationsPage`, `NotificationsPage.heatmap.test`, `PerformanceSummaryCard`, `StatsPage`, `StatsPage.noteTypes.test`, `UpdateNotification`
+- Count: 6
+- Components: `NotificationsPage`, `NotificationsPage.heatmap.test`, `PerformanceSummaryCard`, `StatsPage`, `StatsPage.noteTypes.test`, `UpdateNotification`
 - Representative paths:
-- `montessori-os/src/components/NewFeaturePill.jsx`
 - `montessori-os/src/components/NotificationsPage.jsx`
 - `montessori-os/src/components/NotificationsPage.heatmap.test.js`
 - `montessori-os/src/components/PerformanceSummaryCard.jsx`
@@ -150,14 +149,14 @@ App version: 10.39.0
 ## Recent Changes
 
 ### 10.39.0 (2026-06-20)
-- Report Generation feature in prompt test bench — compare term and monthly baseline report prompts side-by-side with real student observations, markdown-rendered output, date range selection, and run history (PEP-328)
-- Config-not-found warning in test bench when Firestore prompt config doc is missing
-- Fetch warning chips in test bench output when observation queries fail partially
+- Promote-to-Live flow in prompt test bench — superadmins can push a winning variant's config (prompt, model, temperature, max_tokens) to live Firestore config docs via Cloud Function (PEP-326)
+- Field-level diff confirmation dialog with per-field select/deselect before promoting (PEP-326)
+- Promotion history tracking — `_promotionHistory` array on config docs with snapshot, metadata, and cap at 10 entries (PEP-326)
 
 ### 10.38.0 (2026-06-19)
-- Monthly Baseline Report type — teachers can generate a 30-day baseline report alongside the existing term report via a Term/Monthly toggle in the generate dialog (PEP-325)
-- Monthly reports export to a "Monthly Reports" subfolder in Google Drive with separate summary and archive CSVs
-- Report type chip (Monthly/Term) on report cards in the reports list
+- MCQ poll composer for broadcasts — superadmins attach a poll with question, options, multi-select, and free-text "Other" toggle (PEP-323a)
+- Teacher poll voting flow in DIP dialog — radio/checkbox options with "Respond" submit button (PEP-323a)
+- Poll results infographic in broadcast detail — bar chart with vote counts, percentages, and collapsible voter lists (PEP-323b)
 
 ### 10.37.0 (2026-06-15)
 - School Context Notes editor on Configurations page — superadmins can add, edit, and delete contextual notes injected into weekly digest LLM calls (PEP-324)

@@ -7,7 +7,7 @@ import {
   TextField, CircularProgress, DialogTitle, DialogContent, DialogActions,
 } from '@mui/material';
 import { Timestamp } from 'firebase/firestore';
-import { X, Send, ChevronRight, Users, Clock } from '../../icons';
+import { X, Send, ChevronRight, Users, Clock, Plus, Trash2 } from '../../icons';
 import { createBroadcast, updateBroadcast } from '../../services/broadcastService';
 import useNotify from '../../notifications/useNotify';
 import BroadcastPreviewPill from './BroadcastPreviewPill';
@@ -27,12 +27,21 @@ const INITIAL_FORM = {
   priority: 3,
   dip: true,
   expiresAt: '',
-  expiryChip: null, // 'week-end' | 'one-week' | 'custom' | null
+  expiryChip: 'auto', // 'auto' | 'week-end' | 'one-week' | 'custom'
   startsAt: '',
   startsAtMode: 'immediately', // 'immediately' | 'custom'
   targetClassrooms: [],
   targetTeachers: [],
+  // Poll fields (PEP-323a)
+  pollEnabled: false,
+  pollQuestion: '',
+  pollOptions: [{ id: 'opt_1', label: '' }, { id: 'opt_2', label: '' }],
+  pollMultiSelect: false,
+  pollAllowOther: false,
 };
+
+// Unique option ID generator — uses timestamp to avoid collisions across sessions
+const nextOptionId = () => `opt_${Date.now()}_${Math.random().toString(36).slice(2, 6)}`;
 
 // ── Soft input style (shared) ──────────────────────────────────────────────────
 
@@ -74,6 +83,7 @@ export default function BroadcastCompose({
     if (!open) return;
     if (editingBroadcast) {
       const p = editingBroadcast.payload || {};
+      const poll = editingBroadcast.poll || null;
       setForm({
         label: p.label || 'FROM OFFICE',
         title: p.title || '',
@@ -83,11 +93,16 @@ export default function BroadcastCompose({
         priority: editingBroadcast.priority ?? 3,
         dip: editingBroadcast.dip ?? true,
         expiresAt: toDatetimeLocal(editingBroadcast.expiresAt),
-        expiryChip: 'custom',
+        expiryChip: editingBroadcast.expiresAt ? 'custom' : 'auto',
         startsAt: toDatetimeLocal(editingBroadcast.startsAt),
         startsAtMode: editingBroadcast.startsAt ? 'custom' : 'immediately',
         targetClassrooms: editingBroadcast.targetClassrooms || [],
         targetTeachers: editingBroadcast.targetTeachers || [],
+        pollEnabled: editingBroadcast.broadcastKind === 'poll',
+        pollQuestion: poll?.question || '',
+        pollOptions: poll?.options?.length ? poll.options : [{ id: 'opt_1', label: '' }, { id: 'opt_2', label: '' }],
+        pollMultiSelect: poll?.multiSelect || false,
+        pollAllowOther: poll?.allowOther || false,
       });
     } else {
       setForm(INITIAL_FORM);
@@ -124,17 +139,27 @@ export default function BroadcastCompose({
   const doSubmit = async (resetDismissals = false) => {
     setSubmitting(true);
     try {
+      const isPoll = form.pollEnabled;
       const broadcastFields = {
         label: form.label,
         title: form.title,
         subtitle: form.subtitle || `${senderName} · ${audienceSummary}`,
-        ctaLabel: form.ctaLabel || 'Mark as read',
+        ctaLabel: isPoll ? 'Respond' : (form.ctaLabel || 'Mark as read'),
         message: form.message,
         senderName,
         audience: audienceSummary,
         priority: form.priority,
         dip: form.dip,
-        expiresAt: Timestamp.fromDate(new Date(form.expiresAt)),
+        broadcastKind: isPoll ? 'poll' : 'ack',
+        ...(isPoll && {
+          poll: {
+            question: form.pollQuestion,
+            options: form.pollOptions.filter(o => o.label.trim()),
+            multiSelect: form.pollMultiSelect,
+            allowOther: form.pollAllowOther,
+          },
+        }),
+        expiresAt: form.expiryChip === 'auto' ? null : Timestamp.fromDate(new Date(form.expiresAt)),
         startsAt: form.startsAtMode === 'custom' && form.startsAt
           ? Timestamp.fromDate(new Date(form.startsAt))
           : null,
@@ -166,7 +191,13 @@ export default function BroadcastCompose({
     // Validate required fields with specific toasts
     if (!form.title.trim()) { notify.warning('Add a title for the broadcast'); return; }
     if (!form.message.trim()) { notify.warning('Add a message body — teachers see this after tapping'); return; }
-    if (!form.expiresAt) { notify.warning('Pick an expiry date — broadcasts must have an end time'); return; }
+    if (form.expiryChip !== 'auto' && !form.expiresAt) { notify.warning('Pick an expiry date — broadcasts must have an end time'); return; }
+    if (form.expiryChip === 'auto' && reach === 0) { notify.warning('Select an audience — auto-expiry needs at least one teacher'); return; }
+    if (form.pollEnabled) {
+      if (!form.pollQuestion.trim()) { notify.warning('Add a poll question'); return; }
+      const filledOptions = form.pollOptions.filter(o => o.label.trim());
+      if (filledOptions.length < 2) { notify.warning('Add at least 2 poll options'); return; }
+    }
 
     // Check for existing acks when editing
     if (isEditing) {
@@ -258,6 +289,115 @@ export default function BroadcastCompose({
               onChange={(e) => updateField('message', e.target.value)}
               sx={softInputSx}
             />
+          </GroupCard>
+
+          {/* ── POLL card (PEP-323a) ── */}
+          <GroupCard label="POLL">
+            <FormControlLabel
+              control={
+                <Switch
+                  checked={form.pollEnabled}
+                  onChange={(e) => updateField('pollEnabled', e.target.checked)}
+                  color="primary"
+                  size="small"
+                />
+              }
+              label={
+                <Typography sx={{ fontSize: '0.85rem', fontWeight: 600 }}>
+                  Attach a poll
+                </Typography>
+              }
+              sx={{ mx: 0, mb: form.pollEnabled ? 1.5 : 0 }}
+            />
+            {form.pollEnabled && (
+              <>
+                <TextField
+                  size="small" fullWidth
+                  placeholder="Poll question"
+                  value={form.pollQuestion}
+                  onChange={(e) => updateField('pollQuestion', e.target.value)}
+                  sx={{ ...softInputSx, mb: 1.5 }}
+                />
+
+                {/* Options */}
+                {form.pollOptions.map((opt, i) => (
+                  <Box key={opt.id} sx={{ display: 'flex', gap: 0.75, mb: 0.75, alignItems: 'center' }}>
+                    <TextField
+                      size="small" fullWidth
+                      placeholder={`Option ${i + 1}`}
+                      value={opt.label}
+                      onChange={(e) => {
+                        const updated = form.pollOptions.map(o =>
+                          o.id === opt.id ? { ...o, label: e.target.value } : o
+                        );
+                        updateField('pollOptions', updated);
+                      }}
+                      sx={softInputSx}
+                    />
+                    {form.pollOptions.length > 2 && (
+                      <Box
+                        onClick={() => updateField('pollOptions', form.pollOptions.filter(o => o.id !== opt.id))}
+                        sx={{ cursor: 'pointer', color: 'var(--color-text-faint)', flexShrink: 0, p: 0.5,
+                          '&:hover': { color: 'var(--color-error)' } }}
+                      >
+                        <Trash2 size={16} />
+                      </Box>
+                    )}
+                  </Box>
+                ))}
+
+                {/* Add option */}
+                <Box
+                  onClick={() => {
+                    const id = nextOptionId();
+                    updateField('pollOptions', [...form.pollOptions, { id, label: '' }]);
+                  }}
+                  sx={{
+                    display: 'flex', alignItems: 'center', gap: 0.5,
+                    cursor: 'pointer', color: 'var(--color-primary)',
+                    fontSize: '0.8rem', fontWeight: 600, mt: 0.5, mb: 1.5,
+                    '&:hover': { opacity: 0.8 },
+                  }}
+                >
+                  <Plus size={14} />
+                  Add option
+                </Box>
+
+                {/* Multi-select & Other toggles */}
+                <Box sx={{ display: 'flex', flexDirection: 'column', gap: 0.5 }}>
+                  <FormControlLabel
+                    control={
+                      <Switch
+                        checked={form.pollMultiSelect}
+                        onChange={(e) => updateField('pollMultiSelect', e.target.checked)}
+                        color="primary" size="small"
+                      />
+                    }
+                    label={
+                      <Typography sx={{ fontSize: '0.8rem' }}>
+                        Allow multiple selections
+                      </Typography>
+                    }
+                    sx={{ mx: 0 }}
+                  />
+                  <FormControlLabel
+                    control={
+                      <Switch
+                        checked={form.pollAllowOther}
+                        onChange={(e) => updateField('pollAllowOther', e.target.checked)}
+                        color="primary" size="small"
+                      />
+                    }
+                    label={
+                      <Typography sx={{ fontSize: '0.8rem' }}>
+                        Include &ldquo;Other&rdquo; free-text option
+                      </Typography>
+                    }
+                    sx={{ mx: 0 }}
+                  />
+                </Box>
+              </>
+            )}
           </GroupCard>
 
           {/* ── AUDIENCE card ── */}
@@ -375,6 +515,22 @@ export default function BroadcastCompose({
               Expires
             </Typography>
             <Box sx={{ display: 'flex', gap: 0.75, flexWrap: 'wrap', mb: form.expiryChip === 'custom' ? 1 : 0 }}>
+              {/* Auto-expire chip (default) */}
+              <Box
+                onClick={() => { updateField('expiryChip', 'auto'); updateField('expiresAt', ''); }}
+                sx={{
+                  display: 'inline-flex', alignItems: 'center', gap: 0.5,
+                  px: 1.5, py: 0.6, borderRadius: '8px',
+                  cursor: 'pointer', fontSize: '0.78rem', fontWeight: 600,
+                  border: '1px solid',
+                  transition: 'all 0.15s ease',
+                  ...(form.expiryChip === 'auto'
+                    ? { borderColor: 'var(--color-primary)', backgroundColor: 'var(--color-indigo-bg, rgba(79,70,229,0.06))', color: 'var(--color-primary)' }
+                    : { borderColor: 'var(--color-border)', backgroundColor: 'transparent', color: 'var(--color-text-faint)' }),
+                }}
+              >
+                When all respond
+              </Box>
               {expiryChips.map((chip, i) => {
                 const chipKey = i === 0 ? 'week-end' : 'one-week';
                 const isActive = form.expiryChip === chipKey;

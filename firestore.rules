@@ -626,10 +626,22 @@ service cloud.firestore {
       allow create: if isSuperAdmin();
       allow update: if (isSuperAdmin() && resource.data.type == 'broadcast')
         || (isSignedIn()
-          && request.resource.data.diff(resource.data).affectedKeys().hasOnly(['dismissedBy'])
-          && request.resource.data.dismissedBy is map
-          && resource.data.dismissedBy is map
-          && request.resource.data.dismissedBy.diff(resource.data.dismissedBy).affectedKeys().hasOnly([request.auth.uid]));
+          && request.resource.data.diff(resource.data).affectedKeys().hasOnly(['dismissedBy', 'responses'])
+          && (
+            // dismissedBy-only arm (ack broadcasts)
+            (request.resource.data.diff(resource.data).affectedKeys().hasOnly(['dismissedBy'])
+              && request.resource.data.dismissedBy is map
+              && resource.data.dismissedBy is map
+              && request.resource.data.dismissedBy.diff(resource.data.dismissedBy).affectedKeys().hasOnly([request.auth.uid]))
+            // dismissedBy + responses arm (poll vote — atomic write)
+            || (request.resource.data.diff(resource.data).affectedKeys().hasOnly(['dismissedBy', 'responses'])
+              && request.resource.data.dismissedBy is map
+              && resource.data.dismissedBy is map
+              && request.resource.data.dismissedBy.diff(resource.data.dismissedBy).affectedKeys().hasOnly([request.auth.uid])
+              && request.resource.data.responses is map
+              && request.resource.data.responses.diff(resource.data.get('responses', {})).affectedKeys().hasOnly([request.auth.uid])
+              && !(request.auth.uid in resource.data.get('responses', {})))
+          ));
       allow delete: if isSuperAdmin();
     }
 

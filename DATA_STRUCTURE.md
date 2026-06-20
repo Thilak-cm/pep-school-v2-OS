@@ -719,15 +719,18 @@ Current documents
 - `coach_{program}` — per-program Coach nudge configuration (program ∈ toddler | primary | elementary | adolescent)
 - `chat_{program}` — per-program AI chat configuration
 - `report_{program}` — per-program parent progress report prompts + model config
-- `soul_guidelines_{program}` — per-program developmental guidelines markdown (areas, skill areas, benchmarks from report cards)
-- `soul_generation` — soul generation instruction prompt + model config (PEP-163). Shape: `{ systemPrompt: string, model: string, temperature: number, max_tokens: number }`. Fallback defaults in `functions/utils/soulHelpers.js:SOUL_DEFAULTS`.
+- `soul_guidelines_{program}` — per-program developmental guidelines markdown (areas, skill areas, benchmarks from report cards). Shape: `{ markdown: string, programId: ProgramId, benchmarkCount: number, updatedBy: string, updatedAt: Timestamp }`.
+- `soul_generation` — soul generation instruction prompt + model config (PEP-163). Shape: `{ systemPrompt: string, model: string, temperature: number, max_tokens: number }`. Fallback defaults in `functions/utils/soulHelpers.js:SOUL_DEFAULTS`. Note: this doc may not exist in Firestore — CFs fall back to hardcoded defaults when missing.
 - `readiness_{program}` — per-program report readiness checker prompts + model config
 - `baseball_card` — prompts + model config for student baseball card generation
 - `photo_classification` — prompts + model config for photo classification (Call 1, gpt-5.4-nano)
-- `writing_analysis_{programId}` — per-program prompts + model config for writing analysis (PEP-132, PEP-263). Doc IDs: `writing_analysis_primary`, `writing_analysis_elementary`, `writing_analysis_toddler`, `writing_analysis_adolescent`. Shape: `{ systemPrompt: string, model: string, temperature: number, max_tokens: number, minSamples: number }`. Fallback defaults in `functions/config/handwritingAnalysisFallbacks.js`. Legacy `handwriting_analysis` doc deleted by seeding script.
+- `writing_analysis_{programId}` — per-program prompts + model config for writing analysis (PEP-132, PEP-263). Doc IDs: `writing_analysis_primary`, `writing_analysis_elementary`, `writing_analysis_toddler`, `writing_analysis_adolescent`. Shape: `{ systemPrompt: string, model: string, temperature: number, max_tokens: number, minSamples: number, description: string, programId: ProgramId, createdAt: Timestamp, updatedAt: Timestamp }`. Fallback defaults in `functions/config/handwritingAnalysisFallbacks.js`. Legacy `handwriting_analysis` doc deleted by seeding script.
+- `interview_question_gen` — interview agent turn-by-turn prompt template with placeholders for student-specific data. Shape: `{ systemPrompt: string, model: string, temperature: number, max_tokens: number, description: string, createdAt: Timestamp, updatedAt: Timestamp }`. Not read by any production CF at runtime — serves as the default config source for the prompt test bench only.
 - `monthly_plan` — prompts + model config for monthly plan generation (PEP-260). Shape: `{ systemPrompt: string, model: string, temperature: number, max_tokens: number, description: string, createdAt: Timestamp, updatedAt: Timestamp }`. Seeded by `scripts/admin/seed-monthly-plan-config.mjs`.
 - `telegram_bot` — Telegram bot configuration
-- `weekly_digest` — weekly digest agent config: system prompts, model, contextual notes, superadmin overrides, test trigger gate (PEP-297). Seeded by `scripts/admin/seed-digest-config.mjs`.
+- `weekly_digest` — weekly digest agent config (PEP-297). Shape: `{ classroomPrompt: string, superadminPrompt: string, model: string, temperature: number, max_tokens: number, allowedTools: string[], allowedToolScopes: string[], contextualNotes: string[], superadminClassroomOverrides: Record<string, string[]>, testOverrideEmails: string[], enableTestTrigger: boolean }`. Seeded by `scripts/admin/seed-digest-config.mjs`. `contextualNotes` managed via PEP-324 UI editor. `testOverrideEmails` and `enableTestTrigger` are dev/test infrastructure.
+
+**Promotion metadata (PEP-326):** Config docs promoted via the test bench `promoteTestBenchConfig` CF gain these additional fields: `_promotionHistory: Array<{ snapshot: Record<string, any>, replacedAt: Timestamp, replacedBy: { uid: string, name: string }, promotedFromRun: string | null, featureId: string }>` (capped at 10 entries, most recent first), `updatedAt: Timestamp`, `updatedBy: "testbench:{uid}"`. These fields are added via `set({ merge: true })` and do not affect production config consumers. Promotable docs: `writing_analysis_{programId}`, `soul_generation`, `soul_guidelines_{programId}`, `monthly_plan`, `weekly_digest`.
 
 `config/lessonNote`
 ```typescript
@@ -996,15 +999,29 @@ interface AlertDoc {
 
   // Lifecycle
   dismissedBy: Record<string, Timestamp>;  // { [uid]: Timestamp } — per-user ack
-  expiresAt: Timestamp | null;     // auto-hide after this time; cleanup CF deletes weekly
+  expiresAt: Timestamp | null;     // auto-hide after this time; null = auto-expiry via autoExpireBroadcast CF
   startsAt: Timestamp | null;      // schedule for later (null = publish immediately; DIP skips if startsAt > now)
   reach: number;                   // resolved audience count at publish time (denominator for ack progress)
+
+  // Broadcast subtype (PEP-323)
+  broadcastKind?: 'ack' | 'poll';  // defaults to 'ack' when missing (backward-compatible)
+  poll?: {                         // present only when broadcastKind === 'poll'
+    question: string;
+    options: { id: string; label: string }[];
+    multiSelect: boolean;
+    allowOther: boolean;
+  };
+  responses?: Record<string, {     // present only when broadcastKind === 'poll'; { [uid]: vote }
+    choices: string[];             // selected option IDs
+    text?: string;                 // free-text "Other" response
+    ts: Timestamp;
+  }>;
 }
 ```
 
 Type-specific payloads:
 - `interview`: `{ studentName, interviewTime, classroomName, prepStatus, studentId }`
-- `broadcast`: `{ label, title, subtitle, ctaLabel, message, senderName, audience }`
+- `broadcast`: `{ label, title, subtitle, ctaLabel, message, senderName, audience }` (poll broadcasts also have top-level `broadcastKind`, `poll`, `responses` fields)
 - `system`: `{ message, severity, detail }`
 - `agent`: `{ message, detail }`
 
@@ -1013,8 +1030,9 @@ Display contract: NOT stored in Firestore. The DIP component transforms `type` +
 Security rules:
 - **Read**: any authenticated user (`isSignedIn()`)
 - **Create**: superadmins only (`isSuperAdmin()`); CFs use admin SDK (bypasses rules)
-- **Update**: superadmins can update broadcast-type alerts (`isSuperAdmin() && type == 'broadcast'`); any authenticated user can update `dismissedBy` field only (`affectedKeys().hasOnly(['dismissedBy'])`)
-- **Delete**: superadmins only (`isSuperAdmin()`); cleanup CF uses admin SDK
+- **Update**: superadmins can update broadcast-type alerts (`isSuperAdmin() && type == 'broadcast'`); any authenticated user can update `dismissedBy` only (ack) or `dismissedBy` + `responses` atomically (poll vote, one-shot — rejects if `responses.{uid}` already exists)
+- **Delete**: superadmins only (`isSuperAdmin()`)
+- **Auto-expiry**: `autoExpireBroadcast` Firestore onUpdate trigger sets `expiresAt: now()` when `dismissedBy` count reaches `reach`, and creates a `broadcast-complete:` system alert for superadmins (30-day TTL)
 
 ---
 

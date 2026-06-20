@@ -1,11 +1,11 @@
 import React, { useEffect, useState } from 'react';
-import { Box, BottomNavigation, BottomNavigationAction } from '@mui/material';
+import { Box, BottomNavigation, BottomNavigationAction, Badge } from '@mui/material';
 import { Home, Settings, Bell as Notifications, Inbox } from './icons';
 import { trackEvent } from './utils/analytics';
 
 const FOOTER_HEIGHT = 64;
 
-function AppFooter({ onHome, onNavigate, active = null }) {
+function AppFooter({ onHome, onNavigate, active = null, alertBadgeCount = 0 }) {
   const [value, setValue] = useState(active || 'none');
 
   useEffect(() => {
@@ -109,7 +109,12 @@ function AppFooter({ onHome, onNavigate, active = null }) {
           <BottomNavigationAction
             label="Alerts"
             value="alerts"
-            icon={<Notifications />}
+            icon={
+              <Badge badgeContent={alertBadgeCount} color="error" max={9}
+                sx={{ '& .MuiBadge-badge': { fontSize: '0.6rem', minWidth: 16, height: 16, p: '0 4px' } }}>
+                <Notifications />
+              </Badge>
+            }
             onClick={() => handleClickSelected('alerts')}
             disableRipple
           />

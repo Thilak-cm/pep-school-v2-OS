@@ -7,6 +7,21 @@
 - Config-not-found warning in test bench when Firestore prompt config doc is missing
 - Fetch warning chips in test bench output when observation queries fail partially
 - Note count chip in test bench output meta for report runs
+- Promote-to-Live flow in prompt test bench — superadmins can push a winning variant's config (prompt, model, temperature, max_tokens) to live Firestore config docs via Cloud Function (PEP-326)
+- Field-level diff confirmation dialog with per-field select/deselect before promoting (PEP-326)
+- Promotion history tracking — `_promotionHistory` array on config docs with snapshot, metadata, and cap at 10 entries (PEP-326)
+- Program-aware config loading in handwriting workbench — toggle between toddler/primary/elementary/adolescent (PEP-326)
+- Support for all 5 testbench features: handwriting analysis, soul generation, monthly plan, digest generation (PEP-326)
+
+### Changed
+- Monthly plan config cache TTL reduced from 24 hours to 5 minutes to match project-wide convention (PEP-326)
+- `VALID_PROGRAMS` in promote field map now imported from shared `soulHelpers.js` instead of duplicated (PEP-326)
+
+### Fixed
+- Promote CF uses Firestore transactions for atomic read-snapshot-write on config docs (PEP-326)
+- Validation order in promote CF — `programId`/`promptType` validated before resolving target docs (PEP-326)
+- PromoteConfirmDialog checkbox state resets correctly when opened for a different variant (PEP-326)
+- DigestWorkbench live config stored in state instead of ref for reactive diff display (PEP-326)
 
 # 10.38.0 — 2026-06-19
 
@@ -17,6 +32,28 @@
 - Backfill script for existing reports missing `reportType` field (`scripts/admin/backfill-report-type.mjs`)
 - Migration script for report config doc ID rename (`scripts/admin/migrate-report-config-doc-ids.mjs`)
 - Seed script for monthly baseline report prompts across all 4 programs (`scripts/admin/seed-monthly-report-prompts.mjs`)
+- MCQ poll composer for broadcasts — superadmins attach a poll with question, options, multi-select, and free-text "Other" toggle (PEP-323a)
+- Teacher poll voting flow in DIP dialog — radio/checkbox options with "Respond" submit button (PEP-323a)
+- Poll results infographic in broadcast detail — bar chart with vote counts, percentages, and collapsible voter lists (PEP-323b)
+- Auto-expiry Cloud Function — broadcasts auto-complete when all targeted teachers respond, with superadmin completion alert (PEP-323c)
+- Alert badge on footer bell icon — real-time count of undismissed system/agent alerts with role-based targeting (PEP-323c)
+- Active/History tabs on notifications alerts section (PEP-323c)
+- Deep-link from broadcast-complete system alerts to broadcast detail view (PEP-323c)
+- "When all respond" default expiry mode for poll broadcasts (PEP-323c)
+
+### Changed
+- Replaced `cleanupExpiredAlerts` scheduled CF with `autoExpireBroadcast` Firestore onUpdate trigger (PEP-323c)
+- Heatmap card header renamed "Flag pattern" to "Behaviour Pattern Trend"
+- Heatmap trend label renamed "escalated" to "worsened"
+- Search and classroom filter moved inside heatmap card
+- Broadcast ack label shows "responded" instead of "read" for poll broadcasts
+- Removed NewFeaturePill from DIP header and Settings broadcast button
+
+### Fixed
+- Firestore rules extended for atomic poll vote + dismiss writes with one-shot enforcement
+- Alert badge count now applies role and classroom targeting filters
+- Auto-expire broadcasts validate audience reach > 0 before publish
+- Broadcast-complete system alerts set 30-day TTL instead of permanent retention
 
 # 10.37.0 — 2026-06-15
 

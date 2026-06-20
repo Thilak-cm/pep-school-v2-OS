@@ -79,9 +79,10 @@ export { recomputeStats } from "./stats/index.js";
 
 // Test Bench
 export { testBenchRun } from "./testbench/index.js";
+export { promoteTestBenchConfig } from "./testbench/promote.js";
 
-// Alerts (PEP-296)
-export { cleanupExpiredAlerts } from "./alerts/index.js";
+// Alerts (PEP-296, PEP-323c)
+export { autoExpireBroadcast } from "./alerts/index.js";
 
 // Weekly Digest (PEP-297)
 export { weeklyDigestClassroomAdmin, weeklyDigestSuperadmin, triggerDigestTest } from "./digest/index.js";
