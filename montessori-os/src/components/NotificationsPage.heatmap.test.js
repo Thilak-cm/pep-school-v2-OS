@@ -174,7 +174,6 @@ describe('Heatmap card UI structure', () => {
     assert.ok(source.includes('LAST 6 WEEKS'), 'Missing "LAST 6 WEEKS" label');
   });
 
-
   it('renders legend with four labels', () => {
     assert.ok(source.includes("'Clear'"), 'Missing Clear legend');
     assert.ok(source.includes("'Low'"), 'Missing Low legend');
