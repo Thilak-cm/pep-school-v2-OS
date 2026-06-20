@@ -75,6 +75,7 @@ export default function StudentPicker({ scope = "program", defaults, pinnedOptio
           displayName: data.displayName || d.id,
           classroomId: data.classroomId || "",
           classroomName: classroomMap[data.classroomId]?.name || data.classroomId || "",
+          programId: classroomMap[data.classroomId]?.programId || "",
         });
       }
       all.sort((a, b) => a.displayName.localeCompare(b.displayName));
