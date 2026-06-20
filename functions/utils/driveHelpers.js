@@ -25,11 +25,12 @@ export function capitalize(str) {
  * Build the Google Doc title for a student report.
  * Format: "Child Name | Educator Summary | Month-Year" (e.g. "March 2026")
  */
-export function buildReportDocTitle(studentName, generatedAt) {
+export function buildReportDocTitle(studentName, generatedAt, reportType) {
   const name = (studentName || "").trim();
   const date = generatedAt ? new Date(generatedAt) : new Date();
   const monthYear = date.toLocaleDateString("en-US", { month: "long", year: "numeric", timeZone: "UTC" });
-  return `${name} | Educator Summary | ${monthYear}`;
+  const label = reportType === "monthly" ? "Monthly Baseline Report" : "Educator Summary";
+  return `${name} | ${label} | ${monthYear}`;
 }
 
 /**
@@ -133,7 +134,7 @@ export async function createReportDoc(
   drive, docs, folderId, studentName, reportMarkdown, generatedAt,
   formatOpts,
 ) {
-  const title = buildReportDocTitle(studentName, generatedAt);
+  const title = buildReportDocTitle(studentName, generatedAt, formatOpts?.reportType);
 
   // Create blank doc in the folder
   const file = await drive.files.create({
@@ -155,6 +156,7 @@ export async function createReportDoc(
     programName: formatOpts.programName,
     academicYear: formatOpts.academicYear,
     startDate: formatOpts.startDate,
+    reportType: formatOpts.reportType,
     logoUrl: LOGO_URL,
   } : undefined;
   const requests = buildDocInsertRequests(reportMarkdown, docOpts);
@@ -258,10 +260,11 @@ export function buildDocInsertRequests(markdown, opts) {
     });
     idx += nameText.length;
 
-    // 3. Metadata line: "{Program} | Educator Summary | {DD/MM/YYYY} to date | AY {YYYY-YY}"
+    // 3. Metadata line: "{Program} | {Report Label} | {DD/MM/YYYY} to date | AY {YYYY-YY}"
+    const reportLabel = opts.reportType === "monthly" ? "Monthly Baseline Report" : "Educator Summary";
     const startStr = formatDateForMeta(opts.startDate);
     const datePipe = startStr ? ` | ${startStr} to date` : "";
-    const metaText = `${opts.programName || ""} | Educator Summary${datePipe} | AY ${opts.academicYear || ""}\n`;
+    const metaText = `${opts.programName || ""} | ${reportLabel}${datePipe} | AY ${opts.academicYear || ""}\n`;
     requests.push({
       insertText: { location: { index: idx }, text: metaText },
     });

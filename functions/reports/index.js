@@ -1,7 +1,7 @@
 import * as functions from "firebase-functions/v1";
 import { db } from "../shared/firebase.js";
 import { OPENAI_API_KEY, getOpenAiKey, buildChatBody, CHAT_ENDPOINT } from "../shared/openai.js";
-import { REPORT_DEFAULTS, READINESS_DEFAULTS, READINESS_DOC_ID, DRIVE_CONSTANTS, buildCsvFilename, buildArchiveCsvFilename } from "../config/reportConstants.js";
+import { REPORT_DEFAULTS, READINESS_DEFAULTS, READINESS_DOC_ID, DRIVE_CONSTANTS, buildCsvFilename, buildArchiveCsvFilename, buildMonthlyBaselineCsvFilename, buildMonthlyBaselineArchiveCsvFilename } from "../config/reportConstants.js";
 import { getDefaultDateRange, parseReportResponse, parseReadinessResponse, getReportPromptDocId, getReadinessPromptDocId, mergeReportConfig, formatCsvRow, updateCsvContent, removeCsvRow, appendCsvContent, normalizeEndOfDay, assembleReportSystemContent, buildReadinessArchive } from "../utils/reportHelpers.js";
 import {
   getDriveClients,
@@ -28,8 +28,8 @@ const REPORT_PROMPT_CACHE_TTL_MS = 5 * 60 * 1000;
 
 const reportConfigCache = {};
 
-async function getReportConfig(programId, { forceRefresh = false } = {}) {
-  const docId = getReportPromptDocId(programId);
+async function getReportConfig(programId, { forceRefresh = false, reportType = "term" } = {}) {
+  const docId = getReportPromptDocId(programId, reportType);
   if (!docId) {
     throw new functions.https.HttpsError(
       "invalid-argument",
@@ -132,7 +132,7 @@ IMPORTANT: You must output your response as a JSON object with exactly this stru
 The reportText should contain the complete parent-facing report following the prompt instructions above.
 Output ONLY the JSON object, nothing else.`;
 
-async function callReportGeneration(notes, prompt, studentContext, dateRange, config = REPORT_DEFAULTS) {
+async function callReportGeneration(notes, prompt, studentContext, dateRange, config = REPORT_DEFAULTS, reportType = "term") {
   const openAiKey = getOpenAiKey();
   if (!openAiKey) {
     throw new functions.https.HttpsError("failed-precondition", "OpenAI key not configured");
@@ -158,7 +158,7 @@ async function callReportGeneration(notes, prompt, studentContext, dateRange, co
     : String(dateRange.end);
 
   const userContent = [
-    `Generate the Educator Summary report for the period ${startStr} to ${endStr}.`,
+    `Generate the ${reportType === "monthly" ? "Monthly Baseline Report" : "Educator Summary"} for the period ${startStr} to ${endStr}.`,
     "",
     `Student: ${JSON.stringify(safeContext)}`,
     "",
@@ -215,7 +215,7 @@ async function writeReportDoc(studentId, payload, docId) {
   return resolvedId;
 }
 
-async function runSingleReport({ studentId, dateRangeStart, dateRangeEnd, requesterId, requesterName, configOverrides, promptOverride, dryRun = false }) {
+async function runSingleReport({ studentId, dateRangeStart, dateRangeEnd, requesterId, requesterName, configOverrides, promptOverride, dryRun = false, reportType = "term" }) {
   const studentInfo = await getStudentWithProgram(studentId);
   if (!studentInfo.programId) {
     throw new functions.https.HttpsError(
@@ -224,7 +224,7 @@ async function runSingleReport({ studentId, dateRangeStart, dateRangeEnd, reques
     );
   }
 
-  const baseConfig = await getReportConfig(studentInfo.programId);
+  const baseConfig = await getReportConfig(studentInfo.programId, { reportType });
   const config = configOverrides
     ? mergeReportConfig(configOverrides, baseConfig)
     : baseConfig;
@@ -249,6 +249,7 @@ async function runSingleReport({ studentId, dateRangeStart, dateRangeEnd, reques
     const payload = {
       reportText: "",
       noteCount: 0,
+      reportType,
       dateRangeStart: startDate,
       dateRangeEnd: endDate,
       programId: studentInfo.programId,
@@ -268,12 +269,13 @@ async function runSingleReport({ studentId, dateRangeStart, dateRangeEnd, reques
   }
 
   const formatted = notes.map(formatObservationForPrompt);
-  const aiResult = await callReportGeneration(formatted, prompt, studentInfo, { start: startDate, end: endDate }, config);
+  const aiResult = await callReportGeneration(formatted, prompt, studentInfo, { start: startDate, end: endDate }, config, reportType);
   const sourceNoteIds = notes.map((n) => n.id).filter(Boolean);
 
   const payload = {
     reportText: aiResult.reportText,
     noteCount: formatted.length,
+    reportType,
     dateRangeStart: startDate,
     dateRangeEnd: endDate,
     programId: studentInfo.programId,
@@ -344,6 +346,7 @@ export const generateStudentReport = functions
     }
 
     const { displayName: requesterName } = await checkReportPermission(context.auth.uid, studentId);
+    const reportType = data?.reportType === "monthly" ? "monthly" : "term";
 
     const result = await runSingleReport({
       studentId,
@@ -351,6 +354,7 @@ export const generateStudentReport = functions
       dateRangeEnd: data?.dateRangeEnd || null,
       requesterId: context.auth.uid,
       requesterName,
+      reportType,
       dryRun: true,
     });
 
@@ -359,6 +363,7 @@ export const generateStudentReport = functions
       studentId: result.studentId,
       noteCount: result.payload.noteCount,
       reportText: result.payload.reportText,
+      reportType: result.payload.reportType,
       dateRangeStart: result.payload.dateRangeStart?.toISOString?.() || null,
       dateRangeEnd: result.payload.dateRangeEnd?.toISOString?.() || null,
       programId: result.payload.programId,
@@ -490,6 +495,7 @@ export const exportReportToDrive = functions
         report = {
           reportText: reportPayload.reportText,
           noteCount: reportPayload.noteCount ?? 0,
+          reportType: reportPayload.reportType || "term",
           dateRangeStart: reportPayload.dateRangeStart ? new Date(reportPayload.dateRangeStart) : null,
           dateRangeEnd: reportPayload.dateRangeEnd ? new Date(reportPayload.dateRangeEnd) : null,
           programId: reportPayload.programId || "",
@@ -582,18 +588,24 @@ export const exportReportToDrive = functions
       drive, classroomFolderId, studentName,
     );
 
+    // For monthly reports, create a "Monthly Reports" subfolder; term reports go directly in student folder (PEP-325)
+    const isMonthly = (report.reportType || "term") === "monthly";
+    const reportFolderId = isMonthly
+      ? await getOrCreateFolder(drive, studentFolderId, "Monthly Reports")
+      : studentFolderId;
+
     // Handle both Firestore Timestamp (.toDate()) and plain JS Date (.toISOString())
     const generatedAtIso = (report.generatedAt?.toDate?.() || report.generatedAt)?.toISOString?.() || new Date().toISOString();
 
-    // Create the Google Doc in student folder (Drive first to minimize orphans)
+    // Create the Google Doc in the appropriate folder (Drive first to minimize orphans)
     const academicYear = deriveAcademicYear(new Date());
     const reportStartDate = reportDocId
       ? (report.dateRangeStart?.toDate?.() || report.dateRangeStart)
       : report.dateRangeStart;
     const { docId: driveDocId, docLink } = await createReportDoc(
-      drive, docs, studentFolderId, studentName, report.reportText,
+      drive, docs, reportFolderId, studentName, report.reportText,
       generatedAtIso,
-      { programName, academicYear, startDate: reportStartDate },
+      { programName, academicYear, startDate: reportStartDate, reportType: report.reportType || "term" },
     );
 
     // Persist driveDocId immediately so retries find it and skip Drive creation.
@@ -632,17 +644,26 @@ export const exportReportToDrive = functions
         classroom: classroomName,
         generatedAt: generatedAtIso,
         author: report.generatedByName || "",
-        sentimentScore: readinessScores.sentimentScore,
-        areaBalanceScore: readinessScores.areaBalanceScore,
-        missingInputFlags: readinessScores.missingInputFlags,
+        sentimentScore: isMonthly ? null : readinessScores.sentimentScore,
+        areaBalanceScore: isMonthly ? null : readinessScores.areaBalanceScore,
+        missingInputFlags: isMonthly ? [] : readinessScores.missingInputFlags,
         docLink,
       });
 
-      const summaryCsvName = buildCsvFilename(classroomName);
-      const archiveCsvName = buildArchiveCsvFilename(classroomName);
+      const monthlyDateAnchor = report.dateRangeEnd
+        ? (report.dateRangeEnd?.toDate?.() || report.dateRangeEnd)
+        : new Date();
+      const summaryCsvName = isMonthly
+        ? buildMonthlyBaselineCsvFilename(classroomName, monthlyDateAnchor)
+        : buildCsvFilename(classroomName);
+      const archiveCsvName = isMonthly
+        ? buildMonthlyBaselineArchiveCsvFilename(classroomName, monthlyDateAnchor)
+        : buildArchiveCsvFilename(classroomName);
 
-      // Migrate legacy CSV if it exists under the old name
-      await migrateLegacyCsv(drive, classroomFolderId, summaryCsvName);
+      // Migrate legacy CSV if it exists under the old name (term reports only)
+      if (!isMonthly) {
+        await migrateLegacyCsv(drive, classroomFolderId, summaryCsvName);
+      }
 
       // Summary CSV: one row per student (replace on regeneration)
       const existingCsv = await downloadCsvContent(drive, classroomFolderId, summaryCsvName);

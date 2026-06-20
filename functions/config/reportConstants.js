@@ -13,10 +13,18 @@ export const REPORT_DEFAULTS = {
 
 // Supported programs and their Firestore prompt doc IDs
 export const REPORT_PROMPT_DOCS = {
-  adolescent: "report_adolescent",
-  elementary: "report_elementary",
-  primary: "report_primary",
-  toddler: "report_toddler",
+  adolescent: "term_report_adolescent",
+  elementary: "term_report_elementary",
+  primary: "term_report_primary",
+  toddler: "term_report_toddler",
+};
+
+// Monthly/baseline report prompt doc IDs (PEP-325)
+export const BASELINE_REPORT_PROMPT_DOCS = {
+  adolescent: "baseline_report_adolescent",
+  elementary: "baseline_report_elementary",
+  primary: "baseline_report_primary",
+  toddler: "baseline_report_toddler",
 };
 
 // Report readiness checker (PEP-68)
@@ -53,6 +61,24 @@ export function buildCsvFilename(classroomName) {
  */
 export function buildArchiveCsvFilename(classroomName) {
   return `${classroomName} | ${HARDCODED_TERM} | Report Consolidation Summary Archive.csv`;
+}
+
+/**
+ * Build the classroom-specific monthly baseline report CSV filename.
+ * Format: "{Classroom Name} | {Month Year} | Monthly Baseline Report Summary.csv"
+ */
+export function buildMonthlyBaselineCsvFilename(classroomName, now = new Date()) {
+  const monthYear = now.toLocaleDateString("en-US", { month: "long", year: "numeric" });
+  return `${classroomName} | ${monthYear} | Monthly Baseline Report Summary.csv`;
+}
+
+/**
+ * Build the classroom-specific monthly baseline archive CSV filename.
+ * Format: "{Classroom Name} | {Month Year} | Monthly Baseline Report Summary Archive.csv"
+ */
+export function buildMonthlyBaselineArchiveCsvFilename(classroomName, now = new Date()) {
+  const monthYear = now.toLocaleDateString("en-US", { month: "long", year: "numeric" });
+  return `${classroomName} | ${monthYear} | Monthly Baseline Report Summary Archive.csv`;
 }
 
 // Google Drive export constants

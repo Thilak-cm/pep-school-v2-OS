@@ -463,7 +463,7 @@ export const TOOL_DEFINITIONS = [
         docId: {
           type: "string",
           description:
-            "Document ID in config collection (e.g., baseball_card, report_primary, coach_elementary, text_summarizer, lessonNote, soul_generation, chat_elementary).",
+            "Document ID in config collection (e.g., baseball_card, term_report_primary, baseline_report_primary, coach_elementary, text_summarizer, lessonNote, soul_generation, chat_elementary).",
         },
       },
       required: ["docId"],

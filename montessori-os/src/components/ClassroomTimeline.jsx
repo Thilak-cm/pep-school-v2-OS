@@ -339,6 +339,7 @@ function ClassroomTimeline({ classroom, currentUser, userRole, manageableClassro
                       missingInputFlags: data.missingInputFlags || [],
                       driveDocLink: data.driveDocLink || null,
                       status: data.status || 'ok',
+                      reportType: data.reportType || 'term',
                     };
                   })
                   .filter((r) => r.status === 'ok');
@@ -1071,6 +1072,7 @@ function ClassroomTimeline({ classroom, currentUser, userRole, manageableClassro
         open={!!reportPreviewData}
         onClose={() => setReportPreviewData(null)}
         reportText={reportPreviewData?.reportText || ''}
+        reportType={reportPreviewData?.reportType || 'term'}
         missingInputFlags={reportPreviewData?.missingInputFlags || []}
         generatedAt={reportPreviewData?.generatedAt || null}
         studentLabel={reportPreviewData?.studentName || 'Student'}
