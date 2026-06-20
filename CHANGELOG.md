@@ -1,5 +1,13 @@
 # Changelog
 
+# 10.39.0 — 2026-06-20
+
+### Added
+- Report Generation feature in prompt test bench — compare term and monthly baseline report prompts side-by-side with real student observations, markdown-rendered output, date range selection, and run history (PEP-328)
+- Config-not-found warning in test bench when Firestore prompt config doc is missing
+- Fetch warning chips in test bench output when observation queries fail partially
+- Note count chip in test bench output meta for report runs
+
 # 10.38.0 — 2026-06-19
 
 ### Added
