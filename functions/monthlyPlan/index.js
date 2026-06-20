@@ -42,7 +42,7 @@ import { fetchActiveStudentIds, runWithConcurrency } from "../shared/scheduling.
 // ---------------------------------------------------------------------------
 // Config cache (1-day TTL)
 // ---------------------------------------------------------------------------
-const CONFIG_TTL_MS = 24 * 60 * 60 * 1000; // 1 day
+const CONFIG_TTL_MS = 5 * 60 * 1000; // 5 minutes (matches project-wide convention)
 let cachedConfig = null;
 let configFetchedAt = 0;
 

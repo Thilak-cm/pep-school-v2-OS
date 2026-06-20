@@ -6,6 +6,7 @@
  *   - promotable field names (with optional rename rules)
  *   - validation requirements (programId, promptType)
  */
+import { VALID_PROGRAMS } from "../utils/soulHelpers.js";
 
 const PROMOTE_MAP = {
   handwriting_analysis: {
@@ -96,7 +97,6 @@ const PROMOTE_MAP = {
 };
 
 const VALID_FEATURE_IDS = Object.keys(PROMOTE_MAP);
-const VALID_PROGRAMS = ["toddler", "primary", "elementary", "adolescent"];
 const VALID_PROMPT_TYPES = ["classroom", "superadmin"];
 const MAX_HISTORY_ENTRIES = 10;
 

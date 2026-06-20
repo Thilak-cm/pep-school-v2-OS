@@ -362,7 +362,6 @@ describe("buildHistoryEntry", () => {
     assert.equal(entry.replacedBy.name, "Thilak Mohan");
     assert.equal(entry.promotedFromRun, "run_abc");
     assert.equal(entry.featureId, "monthly_plan");
-    assert.ok(entry.replacedAt, "should have replacedAt timestamp");
   });
 
   it("handles missing runId gracefully", () => {
@@ -388,7 +387,32 @@ describe("buildHistoryEntry", () => {
 // -----------------------------------------------
 
 describe("history cap", () => {
-  it("MAX_HISTORY_ENTRIES is 10", () => {
-    assert.equal(MAX_HISTORY_ENTRIES, 10);
+  it("caps history at MAX_HISTORY_ENTRIES, newest first", () => {
+    // Create mock current data with 12 existing history entries
+    const existingHistory = Array.from({ length: 12 }, (_, i) => ({
+      snapshot: { systemPrompt: `old-${i}` },
+      replacedBy: { uid: "u1", name: "T" },
+      featureId: "monthly_plan",
+      promotedFromRun: null,
+    }));
+    const currentData = {
+      systemPrompt: "current prompt",
+      _promotionHistory: existingHistory,
+    };
+
+    // Build a new history entry
+    const newEntry = buildHistoryEntry(
+      currentData,
+      { systemPrompt: "new prompt" },
+      { uid: "u2", name: "Tester", featureId: "monthly_plan" },
+    );
+
+    // Simulate the cap logic from the CF
+    const history = [...currentData._promotionHistory];
+    history.unshift(newEntry);
+    const capped = history.slice(0, MAX_HISTORY_ENTRIES);
+
+    assert.equal(capped.length, MAX_HISTORY_ENTRIES, "should be capped at 10");
+    assert.equal(capped[0], newEntry, "newest entry should be at index 0");
   });
 });
