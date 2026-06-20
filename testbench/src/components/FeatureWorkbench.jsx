@@ -8,6 +8,7 @@ import SoulWorkbench from "./features/SoulWorkbench.jsx";
 import InterviewWorkbench from "./features/InterviewWorkbench.jsx";
 import MonthlyPlanWorkbench from "./features/MonthlyPlanWorkbench.jsx";
 import DigestWorkbench from "./features/DigestWorkbench.jsx";
+import ReportWorkbench from "./features/ReportWorkbench.jsx";
 
 /**
  * Feature router — delegates to per-feature workbench based on featureId.
@@ -39,6 +40,8 @@ export default function FeatureWorkbench({ featureId, onBack }) {
       return <MonthlyPlanWorkbench />;
     case "digest_generation":
       return <DigestWorkbench />;
+    case "report_generation":
+      return <ReportWorkbench />;
     default:
       return <div>Unknown feature: {featureId}</div>;
   }
