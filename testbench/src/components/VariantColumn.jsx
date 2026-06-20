@@ -1,5 +1,6 @@
 import { useState } from "react";
 import Box from "@mui/material/Box";
+import Button from "@mui/material/Button";
 import IconButton from "@mui/material/IconButton";
 import Typography from "@mui/material/Typography";
 import Select from "@mui/material/Select";
@@ -8,7 +9,6 @@ import Slider from "@mui/material/Slider";
 import TextField from "@mui/material/TextField";
 import Chip from "@mui/material/Chip";
 import ListSubheader from "@mui/material/ListSubheader";
-import Tooltip from "@mui/material/Tooltip";
 import CloseIcon from "@mui/icons-material/Close";
 import EditIcon from "@mui/icons-material/Edit";
 import CheckIcon from "@mui/icons-material/Check";
@@ -112,11 +112,16 @@ export default function VariantColumn({
         </Box>
         <Box sx={{ display: "flex", alignItems: "center", gap: 0.5 }}>
           {canPromote && (
-            <Tooltip title="Promote to Live">
-              <IconButton size="small" onClick={() => onPromote(idx)} color="success">
-                <PublishIcon fontSize="small" />
-              </IconButton>
-            </Tooltip>
+            <Button
+              size="small"
+              variant="outlined"
+              color="success"
+              startIcon={<PublishIcon />}
+              onClick={() => onPromote(idx)}
+              sx={{ textTransform: "none", fontWeight: 600 }}
+            >
+              Promote
+            </Button>
           )}
           {canRemove && (
             <IconButton size="small" onClick={() => onRemove(idx)}>
