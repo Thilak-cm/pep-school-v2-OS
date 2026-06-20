@@ -1,4 +1,4 @@
-import { useState, useCallback, useEffect } from "react";
+import { useState, useCallback, useEffect, useRef, useMemo } from "react";
 import { httpsCallable } from "firebase/functions";
 import { collection, addDoc, Timestamp } from "firebase/firestore";
 import { cloudFunctions, db, auth } from "../../firebase.js";
@@ -31,6 +31,9 @@ import HandwritingPromptPipeline from "../pipeline/HandwritingPromptPipeline.jsx
 import HandwritingGallery from "../HandwritingGallery.jsx";
 import { createVariant, updateVariant as updateVariantHelper, hasUnsavedWork, SCROLL_AFTER } from "../../utils/variantHelpers.js";
 import { buildSavePayload, restoreVariantsFromRun } from "../../hooks/useRunPersistence.js";
+import { useAuth } from "../../contexts/AuthContext.js";
+import usePromoteToLive from "../../hooks/usePromoteToLive.js";
+import PromoteConfirmDialog from "../PromoteConfirmDialog.jsx";
 
 const FEATURE_ID = "handwriting_analysis";
 
@@ -41,6 +44,7 @@ const HANDWRITING_DEFAULTS = [
 ];
 
 export default function HandwritingWorkbench() {
+  const { role } = useAuth();
   const [selectedStudent, setSelectedStudent] = useState(null);
   const [handwrittenCount, setHandwrittenCount] = useState(null);
   const [variants, setVariants] = useState([createVariant(null, 0), createVariant(null, 1)]);
@@ -50,6 +54,10 @@ export default function HandwritingWorkbench() {
   const [pendingLoadRun, setPendingLoadRun] = useState(null);
   const [historyOpen, setHistoryOpen] = useState(false);
   const [sessionName, setSessionName] = useState("");
+  const [program, setProgram] = useState("primary");
+  const [promoteIdx, setPromoteIdx] = useState(null);
+  const liveConfigRef = useRef(null);
+  const { promote, promoting } = usePromoteToLive();
 
   const handleCountLoaded = useCallback((count) => setHandwrittenCount(count), []);
 
@@ -68,10 +76,27 @@ export default function HandwritingWorkbench() {
 
   // HandwritingConfig always passes an object, never a function updater
   const handleConfigLoaded = useCallback((config) => {
+    liveConfigRef.current = config;
     setVariants((prev) => prev.map((v, i) =>
       i === 0 ? { ...v, ...config, dirty: false } : { ...v, systemPrompt: config.systemPrompt, max_tokens: config.max_tokens || v.max_tokens, dirty: false }
     ));
   }, []);
+
+  const promoteVariantConfig = useMemo(() => {
+    if (promoteIdx === null) return null;
+    const v = variants[promoteIdx];
+    return { systemPrompt: v.systemPrompt, model: v.model, temperature: v.temperature, max_tokens: v.max_tokens };
+  }, [promoteIdx, variants]);
+
+  async function handlePromoteConfirm({ fields }) {
+    try {
+      await promote({ featureId: FEATURE_ID, fields, programId: program });
+      setPromoteIdx(null);
+      setSnackbar({ open: true, message: `Promoted to live config (${program})`, severity: "success" });
+    } catch (err) {
+      setSnackbar({ open: true, message: `Promote failed: ${err.message}`, severity: "error" });
+    }
+  }
 
   function addColumn() {
     setVariants((prev) => [...prev, createVariant(prev[0], prev.length)]);
@@ -145,7 +170,7 @@ export default function HandwritingWorkbench() {
             <Chip label={`${handwrittenCount} handwriting sample${handwrittenCount !== 1 ? "s" : ""}`} size="small" color="success" variant="filled" />
           )}
         </Box>
-        <HandwritingConfig onConfigLoaded={handleConfigLoaded} />
+        <HandwritingConfig onConfigLoaded={handleConfigLoaded} onProgramChange={setProgram} />
         <Box sx={{ ml: "auto", display: "flex", gap: 1 }}>
           <Button variant="contained" startIcon={<PlayArrowIcon />} onClick={runAll} disabled={!selectedStudent || variants.some((v) => v.loading)}>Run All</Button>
           <TextField label="Session Name" value={sessionName} onChange={(e) => setSessionName(e.target.value)} size="small" placeholder="Optional" sx={{ minWidth: 200 }} />
@@ -189,7 +214,7 @@ export default function HandwritingWorkbench() {
       <Box sx={{ display: "flex", gap: 2, overflowX: "auto", pb: 2 }}>
         {variants.map((v, idx) => (
           <Box key={idx} sx={{ flex: variants.length <= SCROLL_AFTER ? `1 0 ${100 / variants.length - 2}%` : "0 0 auto", width: variants.length > SCROLL_AFTER ? 450 : undefined }}>
-            <VariantColumn variant={v} idx={idx} featureId={FEATURE_ID} canRemove={variants.length > 1} onUpdate={handleUpdateVariant} onRemove={tryRemoveColumn} />
+            <VariantColumn variant={v} idx={idx} featureId={FEATURE_ID} canRemove={variants.length > 1} onUpdate={handleUpdateVariant} onRemove={tryRemoveColumn} canPromote={role === "superadmin"} onPromote={setPromoteIdx} />
           </Box>
         ))}
         <Box sx={{ minWidth: 80, flexShrink: 0, display: "flex", flexDirection: "column", alignItems: "center", justifyContent: "center", gap: 1, border: 2, borderColor: "divider", borderRadius: 2, borderStyle: "dashed", cursor: "pointer", position: "sticky", right: 0, bgcolor: "background.default", "&:hover": { borderColor: "primary.main", bgcolor: "action.hover" } }} onClick={addColumn}>
@@ -209,6 +234,18 @@ export default function HandwritingWorkbench() {
         <DialogContent><DialogContentText>You have unsaved work. Loading will discard current variants.</DialogContentText></DialogContent>
         <DialogActions><Button onClick={() => setPendingLoadRun(null)}>Cancel</Button><Button onClick={() => { applyLoadRun(pendingLoadRun); setPendingLoadRun(null); }} color="error">Discard & Load</Button></DialogActions>
       </Dialog>
+
+      <PromoteConfirmDialog
+        key={promoteIdx ?? "closed"}
+        open={promoteIdx !== null}
+        onClose={() => setPromoteIdx(null)}
+        onConfirm={handlePromoteConfirm}
+        featureId={FEATURE_ID}
+        liveConfig={liveConfigRef.current}
+        variantConfig={promoteVariantConfig}
+        programId={program}
+        promoting={promoting}
+      />
 
       <RunHistory open={historyOpen} onClose={() => setHistoryOpen(false)} featureId={FEATURE_ID} onLoad={loadRun} />
       <Snackbar open={snackbar.open} autoHideDuration={3000} onClose={() => setSnackbar((s) => ({ ...s, open: false }))} anchorOrigin={{ vertical: "bottom", horizontal: "center" }}>
