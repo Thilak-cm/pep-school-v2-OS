@@ -131,14 +131,15 @@ describe("filterFeaturesByAccess", () => {
 // ---------------------------------------------------------------------------
 
 describe("featureRegistry cleanup", () => {
-  test("ACTIVE_FEATURES contains only the 5 active features", () => {
-    assert.equal(ACTIVE_FEATURES.length, 5);
+  test("ACTIVE_FEATURES contains only the 6 active features", () => {
+    assert.equal(ACTIVE_FEATURES.length, 6);
     const ids = ACTIVE_FEATURES.map((f) => f.id);
     assert.ok(ids.includes("handwriting_analysis"));
     assert.ok(ids.includes("soul_generation"));
     assert.ok(ids.includes("interview_question_gen"));
     assert.ok(ids.includes("monthly_plan"));
     assert.ok(ids.includes("digest_generation"));
+    assert.ok(ids.includes("report_generation"));
   });
 
   test("COMING_SOON_FEATURES export no longer exists", async () => {
