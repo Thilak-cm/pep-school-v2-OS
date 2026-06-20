@@ -92,6 +92,11 @@ export default function ReportConfig({ selectedStudent, reportType, onReportType
           <ToggleButton value="term">Term</ToggleButton>
           <ToggleButton value="monthly">Monthly Baseline</ToggleButton>
         </ToggleButtonGroup>
+        {selectedStudent?.programId && (
+          <Typography variant="caption" color="text.secondary" sx={{ ml: 1.5 }}>
+            Program: <strong>{selectedStudent.programId}</strong>
+          </Typography>
+        )}
       </Box>
 
       <Stack direction="row" spacing={1} alignItems="center">

@@ -148,6 +148,7 @@ export default function VariantColumn({
         value={v.systemPrompt}
         onChange={(val) => onUpdate(idx, "systemPrompt", val)}
         rows={isSoul || isInterview ? 10 : 14}
+        placeholder={featureId === "report_generation" && !v.systemPrompt ? "Select a student to load the report prompt" : undefined}
       />
       {isSoul && (
         <PromptEditor
