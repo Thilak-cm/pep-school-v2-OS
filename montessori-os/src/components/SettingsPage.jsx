@@ -21,25 +21,18 @@ import {
   FileUp,
   Sparkles,
   Megaphone,
-  Send,
 } from '../icons';
 import { collectionGroup, query, where, getDocs, Timestamp } from 'firebase/firestore';
-import { httpsCallable } from 'firebase/functions';
-import { db, cloudFunctions } from '../firebase';
+import { db } from '../firebase';
 import { Avatar } from './ui';
 import VersionBadge from './VersionBadge';
 import { trackEvent } from '../utils/analytics';
 import { isSuperAdmin, isAdminRole, isClassroomAdmin, getRoleLabel } from '../utils/roleUtils';
-import useNotify from '../notifications/useNotify';
 
 function SettingsPage({ user, userRole, classrooms = [], onNavigate, onSignOut }) {
   const [confirmOpen, setConfirmOpen] = useState(false);
-  const [digestConfirmOpen, setDigestConfirmOpen] = useState(false);
-  const [digestRunning, setDigestRunning] = useState(false);
   const [notesThisWeek, setNotesThisWeek] = useState(null);
   const [notesLoading, setNotesLoading] = useState(true);
-  const notify = useNotify();
-
   const isSuperAdminUser = isSuperAdmin(userRole);
   const isAdmin = isAdminRole(userRole);
 
@@ -227,12 +220,6 @@ function SettingsPage({ user, userRole, classrooms = [], onNavigate, onSignOut }
                 label="Broadcast Message"
                 onClick={() => onNavigate('/broadcastComposer')}
               />
-              <SettingsRow
-                icon={<Send size={20} />}
-                iconColor="var(--color-violet)"
-                label={digestRunning ? 'Digest Running...' : 'Test Weekly Digest'}
-                onClick={() => setDigestConfirmOpen(true)}
-              />
             </>
           )}
         </Paper>
@@ -259,49 +246,6 @@ function SettingsPage({ user, userRole, classrooms = [], onNavigate, onSignOut }
       </Paper>
 
       <VersionBadge userRole={userRole} showInProfile />
-
-      {/* ── Digest Confirm Dialog ──────────────────────────── */}
-      <Dialog
-        open={digestConfirmOpen}
-        onClose={() => !digestRunning && setDigestConfirmOpen(false)}
-        PaperProps={{ sx: { borderRadius: 3, maxWidth: 400, width: '90%' } }}
-      >
-        <DialogTitle component="div" sx={{ pb: 1 }}>
-          <Typography component="h2" variant="h6">Run Test Digest</Typography>
-        </DialogTitle>
-        <DialogContent sx={{ pb: 2 }}>
-          <DialogContentText>
-            Run the full weekly digest pipeline? Emails will be sent to your account only.
-          </DialogContentText>
-        </DialogContent>
-        <DialogActions sx={{ px: 3, pb: 3, gap: 1 }}>
-          <Button onClick={() => setDigestConfirmOpen(false)} variant="outlined" disabled={digestRunning} sx={{ minWidth: 80 }}>
-            Cancel
-          </Button>
-          <Button
-            variant="contained"
-            disabled={digestRunning}
-            sx={{ minWidth: 80 }}
-            onClick={async () => {
-              setDigestRunning(true);
-              setDigestConfirmOpen(false);
-              try {
-                const call = httpsCallable(cloudFunctions, 'triggerDigestTest', { timeout: 540_000 });
-                const result = await call();
-                notify.success(
-                  `Digest complete! CF1: ${result.data.cf1.classrooms} classrooms, ${result.data.cf1.errors} errors. Week: ${result.data.weekKey}`
-                );
-              } catch (err) {
-                notify.error(`Digest failed: ${err.message}`);
-              } finally {
-                setDigestRunning(false);
-              }
-            }}
-          >
-            Run
-          </Button>
-        </DialogActions>
-      </Dialog>
 
       {/* ── Confirm Dialog ───────────────────────────────── */}
       <Dialog

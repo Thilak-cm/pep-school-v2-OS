@@ -479,6 +479,44 @@ export const TOOL_DEFINITIONS = [
     },
   },
 
+  // ── Digests ──
+  {
+    name: "get_digest",
+    description:
+      "Fetch the current weekly digest for a classroom (or the superadmin consolidated digest). Returns weekKey, htmlContent, recipients, red flag status, and generation metadata. Use classroomId '_digest_all' for the superadmin digest.",
+    inputSchema: {
+      type: "object",
+      properties: {
+        classroomId: {
+          type: "string",
+          description:
+            "Classroom ID (e.g., 'amazing', 'periwinkle'). Use '_digest_all' for superadmin digest.",
+        },
+      },
+      required: ["classroomId"],
+    },
+  },
+  {
+    name: "list_digest_history",
+    description:
+      "List archived weekly digests for a classroom (or superadmin). Returns weekKey, generatedAt, hasRedFlags, and toolCallCount for each historical digest.",
+    inputSchema: {
+      type: "object",
+      properties: {
+        classroomId: {
+          type: "string",
+          description:
+            "Classroom ID (e.g., 'amazing', 'periwinkle'). Use '_digest_all' for superadmin digest.",
+        },
+        limit: {
+          type: "number",
+          description: "Max results (default: 10).",
+        },
+      },
+      required: ["classroomId"],
+    },
+  },
+
   // ── Alerts ──
   {
     name: "list_alerts",
@@ -1099,6 +1137,55 @@ export async function handleListAlerts(db, params) {
   const results = [];
   snap.forEach((doc) => {
     results.push(serializeTimestamps({ id: doc.id, ...doc.data() }));
+  });
+
+  return results;
+}
+
+// ── Digests ──
+
+export async function handleGetDigest(db, params) {
+  const { classroomId } = params;
+  if (!classroomId) return null;
+
+  const doc = await db
+    .doc(`classrooms/${classroomId}/digests/weekly_email`)
+    .get();
+
+  if (!doc.exists) return null;
+  const data = serializeTimestamps({ id: doc.id, classroomId, ...doc.data() });
+  // Truncate htmlContent for readability — full content can be large
+  if (data.htmlContent && data.htmlContent.length > 500) {
+    data.htmlContentPreview = data.htmlContent.slice(0, 500) + "…";
+    data.htmlContentLength = data.htmlContent.length;
+    delete data.htmlContent;
+  }
+  return data;
+}
+
+export async function handleListDigestHistory(db, params) {
+  const { classroomId, limit: maxResults = 10 } = params;
+  if (!classroomId) return [];
+
+  const snap = await db
+    .collection(`classrooms/${classroomId}/digests/weekly_email/history`)
+    .orderBy("generatedAt", "desc")
+    .limit(maxResults)
+    .get();
+
+  const results = [];
+  snap.forEach((doc) => {
+    const d = doc.data();
+    results.push({
+      weekKey: d.weekKey,
+      generatedAt: d.generatedAt?.toDate?.()?.toISOString() ?? d.generatedAt,
+      archivedAt: d.archivedAt?.toDate?.()?.toISOString() ?? d.archivedAt,
+      hasRedFlags: d.hasRedFlags || false,
+      toolCallCount: d.toolCallCount || 0,
+      iterations: d.iterations || 0,
+      recipientEmails: d.recipientEmails || [],
+      agentModel: d.agentModel || null,
+    });
   });
 
   return results;

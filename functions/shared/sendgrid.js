@@ -17,7 +17,7 @@ export const SENDGRID_API_KEY = defineSecret("RESEND_API_KEY");
  * @param {string} opts.to       - Recipient email
  * @param {string} opts.subject  - Email subject line
  * @param {string} opts.html     - HTML body
- * @param {string} [opts.from]   - Sender email (default: onboarding@resend.dev — temporary until domain verified)
+ * @param {string} [opts.from]   - Sender email (default: tech@pepschoolv2.com)
  */
 export async function sendEmail({ to, subject, html, from }) {
   const key = process.env.RESEND_API_KEY ||
@@ -27,7 +27,7 @@ export async function sendEmail({ to, subject, html, from }) {
   const resend = new Resend(key);
   await resend.emails.send({
     to,
-    from: from || "onboarding@resend.dev",
+    from: from || "tech@pepschoolv2.com",
     subject,
     html,
   });

@@ -197,20 +197,7 @@ async function fetchDigestConfig() {
     superadminPrompt: d.superadminPrompt || DEFAULT_SUPERADMIN_PROMPT,
     superadminClassroomOverrides: d.superadminClassroomOverrides || {},
     contextualNotes: d.contextualNotes || "",
-    testOverrideEmails: d.testOverrideEmails || null,
-    enableTestTrigger: d.enableTestTrigger || false,
   };
-}
-
-/**
- * Apply test email override if configured.
- * When testOverrideEmails is set, ALL emails go to those addresses only.
- */
-function applyEmailOverride(emails, config) {
-  if (Array.isArray(config.testOverrideEmails) && config.testOverrideEmails.length > 0) {
-    return config.testOverrideEmails;
-  }
-  return emails;
 }
 
 async function archivePreviousDigest(digestRef, weekKey) {
@@ -377,9 +364,8 @@ export const weeklyDigestClassroomAdmin = functions
               ? `⚠️ ${classroomName} — Weekly Digest — Action Required`
               : `${classroomName} — Weekly Digest`;
 
-            const sendTo = applyEmailOverride(recipientEmails, config);
             const emailResults = [];
-            for (const email of sendTo) {
+            for (const email of recipientEmails) {
               try {
                 await sendEmail({ to: email, subject, html: result.content });
                 emailResults.push({ email, status: "sent" });
@@ -577,9 +563,8 @@ export const weeklyDigestSuperadmin = functions
         ? "⚠️ Weekly School Digest — Action Required"
         : "Weekly School Digest";
 
-      const sendTo = applyEmailOverride(recipientEmails, config);
       const emailResults = [];
-      for (const email of sendTo) {
+      for (const email of recipientEmails) {
         try {
           await sendEmail({ to: email, subject, html: result.content });
           emailResults.push({ email, status: "sent" });
@@ -630,15 +615,19 @@ export const triggerDigestTest = functions
       throw new functions.https.HttpsError("permission-denied", "Superadmin only");
     }
     const config = await fetchDigestConfig();
-    if (!config.enableTestTrigger) {
+
+    // Read test-specific fields directly from Firestore
+    const digestConfigSnap = await db.collection("config").doc("weekly_digest").get();
+    const digestConfigData = digestConfigSnap.exists ? digestConfigSnap.data() : {};
+    if (!digestConfigData.enableTestTrigger) {
       throw new functions.https.HttpsError(
         "failed-precondition",
         "Test trigger is disabled in config. Set enableTestTrigger: true in config/weekly_digest to enable."
       );
     }
-    if (!config.testOverrideEmails?.length) {
-      config.testOverrideEmails = [callerSnap.data().email];
-    }
+    const testOverrideEmails = digestConfigData.testOverrideEmails?.length
+      ? digestConfigData.testOverrideEmails
+      : [callerSnap.data().email];
 
     const langfuse = createLangfuse();
     const weekKey = getWeekKey();
@@ -737,8 +726,7 @@ export const triggerDigestTest = functions
         const subject = hasRedFlags
           ? `⚠️ ${classroomName} — Weekly Digest — Action Required`
           : `${classroomName} — Weekly Digest`;
-        const sendTo = applyEmailOverride(recipientEmails, config);
-        for (const email of sendTo) {
+        for (const email of testOverrideEmails) {
           try {
             await sendEmail({ to: email, subject, html: result.content });
           } catch (emailErr) {
@@ -825,9 +813,8 @@ export const triggerDigestTest = functions
       const subject = hasRedFlags
         ? "⚠️ Weekly School Digest — Action Required"
         : "Weekly School Digest";
-      const sendTo = applyEmailOverride(recipientEmails, config);
       const emailResults = [];
-      for (const email of sendTo) {
+      for (const email of testOverrideEmails) {
         try {
           await sendEmail({ to: email, subject, html: result.content });
           emailResults.push({ email, status: "sent" });
@@ -836,7 +823,7 @@ export const triggerDigestTest = functions
         }
       }
 
-      cf2Result = { sent: sendTo.length, toolCalls: result.toolCallLog.length, emailDelivery: emailResults };
+      cf2Result = { sent: testOverrideEmails.length, toolCalls: result.toolCallLog.length, emailDelivery: emailResults };
     }
 
     cf2Trace.update({ output: cf2Result || "No digests to consolidate" });

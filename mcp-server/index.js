@@ -48,6 +48,8 @@ import {
   handleGetConfig,
   handleListConfig,
   handleListAlerts,
+  handleGetDigest,
+  handleListDigestHistory,
 } from "./tools.js";
 
 const __dirname = dirname(fileURLToPath(import.meta.url));
@@ -113,6 +115,8 @@ const HANDLERS = {
   get_config: (p) => handleGetConfig(db, p),
   list_config: () => handleListConfig(db),
   list_alerts: (p) => handleListAlerts(db, p),
+  get_digest: (p) => handleGetDigest(db, p),
+  list_digest_history: (p) => handleListDigestHistory(db, p),
 };
 
 server.setRequestHandler(CallToolRequestSchema, async (request) => {
