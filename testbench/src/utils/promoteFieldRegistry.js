@@ -62,6 +62,17 @@ const PROMOTABLE_FIELDS = {
       { key: "max_tokens", label: "Max Tokens", type: "number" },
     ],
   },
+
+  report_generation: {
+    requiresProgramId: true,
+    requiresPromptType: true,
+    fields: [
+      { key: "systemPrompt", label: "System Prompt", type: "string" },
+      { key: "model", label: "Model", type: "string" },
+      { key: "temperature", label: "Temperature", type: "number" },
+      { key: "max_tokens", label: "Max Tokens", type: "number" },
+    ],
+  },
 };
 
 /**

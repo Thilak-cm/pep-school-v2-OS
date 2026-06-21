@@ -25,12 +25,13 @@ import {
 // -----------------------------------------------
 
 describe("PROMOTE_MAP", () => {
-  it("has entries for all 5 testbench features", () => {
+  it("has entries for all 6 testbench features", () => {
     assert.deepEqual(VALID_FEATURE_IDS.sort(), [
       "digest_generation",
       "handwriting_analysis",
       "interview_question_gen",
       "monthly_plan",
+      "report_generation",
       "soul_generation",
     ]);
   });
@@ -64,6 +65,11 @@ describe("PROMOTE_MAP", () => {
   it("monthly_plan requires neither", () => {
     assert.equal(PROMOTE_MAP.monthly_plan.requiresProgramId, false);
     assert.equal(PROMOTE_MAP.monthly_plan.requiresPromptType, false);
+  });
+
+  it("report_generation requires both programId and promptType", () => {
+    assert.equal(PROMOTE_MAP.report_generation.requiresProgramId, true);
+    assert.equal(PROMOTE_MAP.report_generation.requiresPromptType, true);
   });
 
   it("MAX_HISTORY_ENTRIES is 10", () => {
@@ -112,6 +118,20 @@ describe("resolveTargets", () => {
   it("monthly_plan maps to config/monthly_plan", () => {
     const targets = resolveTargets("monthly_plan", null, null);
     assert.equal(targets[0].docPath, "config/monthly_plan");
+  });
+
+  it("report_generation term maps to term_report_{programId}", () => {
+    const targets = resolveTargets("report_generation", "primary", "term");
+    assert.equal(targets.length, 1);
+    assert.equal(targets[0].docPath, "config/term_report_primary");
+    assert.equal(targets[0].fields.systemPrompt, "staticSystemPrompt");
+  });
+
+  it("report_generation monthly maps to baseline_report_{programId}", () => {
+    const targets = resolveTargets("report_generation", "elementary", "monthly");
+    assert.equal(targets.length, 1);
+    assert.equal(targets[0].docPath, "config/baseline_report_elementary");
+    assert.equal(targets[0].fields.systemPrompt, "staticSystemPrompt");
   });
 });
 

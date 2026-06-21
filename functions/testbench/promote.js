@@ -20,7 +20,7 @@ import {
 // Field type rules — which variant fields are strings vs numbers
 // -----------------------------------------------
 
-const STRING_FIELDS = new Set(["systemPrompt", "model", "guidelinesContent"]);
+const STRING_FIELDS = new Set(["systemPrompt", "model", "guidelinesContent", "staticSystemPrompt"]);
 const NUMBER_FIELDS = new Set(["temperature", "max_tokens"]);
 
 // -----------------------------------------------
