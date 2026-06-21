@@ -13,6 +13,7 @@ import {
   ToggleButtonGroup,
 } from '@mui/material';
 import { FileText as ReportIcon } from '../icons';
+import NewFeaturePill from './NewFeaturePill';
 import { getDefaultReportDateRange, getDefaultMonthlyDateRange, toIsoDate } from '../utils/reportUtils';
 
 export default function ReportGenerateDialog({
@@ -129,39 +130,44 @@ export default function ReportGenerateDialog({
             }}
           >
             <ToggleButton value="term">Term Report</ToggleButton>
-            <ToggleButton value="monthly">Monthly Baseline</ToggleButton>
+            <ToggleButton value="monthly" disabled>
+              Monthly Baseline
+            </ToggleButton>
           </ToggleButtonGroup>
+          <NewFeaturePill label="Coming Soon" size="sm" sx={{ mt: 0.5, alignSelf: 'flex-end' }} />
 
-          <Stack direction="row" spacing={2}>
-            <TextField
-              label="From"
-              type="date"
-              value={startDate}
-              onChange={(e) => setStartDate(e.target.value)}
-              size="small"
-              fullWidth
-              disabled={generating}
-              slotProps={{
-                inputLabel: { shrink: true },
-                htmlInput: { max: endDate || undefined },
-              }}
-            />
-            <TextField
-              label="To"
-              type="date"
-              value={endDate}
-              onChange={(e) => setEndDate(e.target.value)}
-              size="small"
-              fullWidth
-              disabled={generating}
-              error={rangeError}
-              helperText={rangeError ? "'To' must be after 'From'" : ''}
-              slotProps={{
-                inputLabel: { shrink: true },
-                htmlInput: { min: startDate || undefined },
-              }}
-            />
-          </Stack>
+          {reportType !== 'monthly' && (
+            <Stack direction="row" spacing={2}>
+              <TextField
+                label="From"
+                type="date"
+                value={startDate}
+                onChange={(e) => setStartDate(e.target.value)}
+                size="small"
+                fullWidth
+                disabled={generating}
+                slotProps={{
+                  inputLabel: { shrink: true },
+                  htmlInput: { max: endDate || undefined },
+                }}
+              />
+              <TextField
+                label="To"
+                type="date"
+                value={endDate}
+                onChange={(e) => setEndDate(e.target.value)}
+                size="small"
+                fullWidth
+                disabled={generating}
+                error={rangeError}
+                helperText={rangeError ? "'To' must be after 'From'" : ''}
+                slotProps={{
+                  inputLabel: { shrink: true },
+                  htmlInput: { min: startDate || undefined },
+                }}
+              />
+            </Stack>
+          )}
 
           {generating && (
             <Stack direction="row" spacing={1.5} alignItems="center" sx={{ py: 0.5 }}>
