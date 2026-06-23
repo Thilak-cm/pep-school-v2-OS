@@ -517,7 +517,7 @@ const StatsPage = ({ user, role, manageableClassrooms = [], onBack, onNavigateTo
               axisLine={{ stroke: '#e2e8f0' }} /* Recharts */
               tickLine={false}
               width={40}
-              tickFormatter={(value) => Math.round(value)}
+              tickFormatter={(value) => value >= 1000 ? `${Math.round(value / 100) / 10}k` : Math.round(value)}
             />
             <RechartsTooltip 
               contentStyle={{ 
@@ -675,8 +675,8 @@ const StatsPage = ({ user, role, manageableClassrooms = [], onBack, onNavigateTo
               tick={{ fontSize: 12, fill: '#64748b' }} /* Recharts */
               axisLine={{ stroke: '#e2e8f0' }} /* Recharts */
               tickLine={false}
-              width={40}
-              tickFormatter={(value) => Math.round(value)}
+              width={45}
+              tickFormatter={(value) => value >= 1000 ? `${Math.round(value / 100) / 10}k` : Math.round(value)}
             />
             <RechartsTooltip
               contentStyle={{
