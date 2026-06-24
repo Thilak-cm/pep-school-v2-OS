@@ -8,9 +8,8 @@ import {
   Card,
   CardContent,
   Button,
-  Collapse,
 } from '@mui/material';
-import { Users as Group, StickyNote as Notes, ChevronDown as ExpandMore, ChevronDown as KeyboardArrowDown, Eye as Visibility, FileText as Description } from '../icons';
+import { Users as Group, StickyNote as Notes, ChevronDown as ExpandMore, Eye as Visibility, FileText as Description } from '../icons';
 import { collection, collectionGroup, query, where, orderBy, limit, onSnapshot, getDocs, doc, getDoc, startAfter } from 'firebase/firestore';
 import { db, storage } from '../firebase';
 import { ref, getDownloadURL } from 'firebase/storage';
@@ -33,7 +32,6 @@ import useStudentNoteCounts from '../hooks/useStudentNoteCounts';
 // lessonNoteConstraints moved into extracted card components
 import { reportCaughtError } from '../utils/reportCaughtError.js';
 import { toDate, groupByCalendarDay } from './classroomTimelineUtils.js';
-import { groupReportsByDate } from '../utils/reportTimelineUtils.js';
 import { HFTabs, DayHeader, HFSearchInput, HFFilterChip } from './ui';
 import { trackEvent } from '../utils/analytics';
 
@@ -57,7 +55,6 @@ function ClassroomTimeline({ classroom, currentUser, userRole, manageableClassro
   const mediaUrlsRef = useRef({});
   const mediaUrlInFlightRef = useRef(new Set());
   const [reportPreviewData, setReportPreviewData] = useState(null);
-  const [expandedReportGroups, setExpandedReportGroups] = useState(new Set());
   const [displayLimit, setDisplayLimit] = useState(NOTES_PAGE_SIZE);
   // searchInputRef removed — HFSearchInput is always visible
   const unsubscribeRef = useRef(null);
@@ -330,9 +327,10 @@ function ClassroomTimeline({ classroom, currentUser, userRole, manageableClassro
                     const data = d.data();
                     return {
                       id: d.id,
+                      type: 'report',
                       studentId: s.id,
                       studentName: s.displayName || s.firstName || 'Unknown Student',
-                      generatedAt: data.generatedAt || null,
+                      observedAt: data.generatedAt || null,
                       generatedByName: data.generatedByName || null,
                       noteCount: data.noteCount || 0,
                       reportText: data.reportText || '',
@@ -570,9 +568,9 @@ function ClassroomTimeline({ classroom, currentUser, userRole, manageableClassro
 
   // Filter notes based on search query (only show notes from students whose names match)
   const filteredNotes = useMemo(() => {
-    // Merge observation notes with media docs, deduplicating by id
+    // Merge observation notes, media docs, and reports — deduplicating by id
     const seen = new Set();
-    const merged = [...classroomNotes, ...classroomMediaDocs].filter(note => {
+    const merged = [...classroomNotes, ...classroomMediaDocs, ...classroomReports].filter(note => {
       if (seen.has(note.id)) return false;
       seen.add(note.id);
       return true;
@@ -591,7 +589,7 @@ function ClassroomTimeline({ classroom, currentUser, userRole, manageableClassro
     return merged.filter(note =>
       matchingStudentIds.includes(note.studentId)
     );
-  }, [classroomNotes, classroomMediaDocs, filteredStudents, searchQuery]);
+  }, [classroomNotes, classroomMediaDocs, classroomReports, filteredStudents, searchQuery]);
 
   // Group filtered notes by time periods
   // Apply advanced filters (date, creator, type) on top of search-filtered notes
@@ -690,9 +688,7 @@ function ClassroomTimeline({ classroom, currentUser, userRole, manageableClassro
     return { grouped: filteredGrouped, ungrouped };
   }, [displayedObservations]);
 
-  const groupedReports = useMemo(() => groupReportsByDate(classroomReports), [classroomReports]);
-
-  // All fetched notes + report groups — merged chronologically into day-grouped buckets
+  // All fetched notes (including reports) — merged chronologically into day-grouped buckets
   const dayGroups = useMemo(() => {
     const { grouped, ungrouped } = groupedAndSortedObservations;
 
@@ -700,18 +696,16 @@ function ClassroomTimeline({ classroom, currentUser, userRole, manageableClassro
     const merged = [];
     for (const g of grouped) merged.push({ ...g, isGrouped: true });
     for (const n of ungrouped) merged.push({ ...n, isGrouped: false });
-    // Add report groups
-    for (const rg of groupedReports) merged.push({ ...rg, isReportGroup: true });
 
     // Sort by date so within-day items are chronologically ordered (newest first)
     merged.sort((a, b) => {
-      const aDate = a.isReportGroup ? a.date : toDate(a.earliestObservedAt || a.observedAt || a.timestamp);
-      const bDate = b.isReportGroup ? b.date : toDate(b.earliestObservedAt || b.observedAt || b.timestamp);
+      const aDate = toDate(a.earliestObservedAt || a.observedAt || a.timestamp);
+      const bDate = toDate(b.earliestObservedAt || b.observedAt || b.timestamp);
       return bDate - aDate;
     });
 
     return groupByCalendarDay(merged);
-  }, [groupedAndSortedObservations, groupedReports]);
+  }, [groupedAndSortedObservations]);
 
   // Measure tab panel heights so the swipe container matches the active tab
   useEffect(() => {
@@ -727,14 +721,6 @@ function ClassroomTimeline({ classroom, currentUser, userRole, manageableClassro
 
   const activeTabHeight = activeTab === 0 ? tabHeights.notes : tabHeights.students;
 
-  const toggleReportGroup = (groupKey) => {
-    setExpandedReportGroups((prev) => {
-      const next = new Set(prev);
-      if (next.has(groupKey)) next.delete(groupKey);
-      else next.add(groupKey);
-      return next;
-    });
-  };
 
   const lessonTitleById = useMemo(() => {
     const map = {};
@@ -752,14 +738,12 @@ function ClassroomTimeline({ classroom, currentUser, userRole, manageableClassro
     return student?.displayName || student?.firstName || 'Unknown Student';
   };
 
-  // Render a single timeline item (note, grouped note, or report group)
+  // Render a single timeline item (note, grouped note, or report)
   const renderTimelineItem = (item) => {
-    if (item.isReportGroup) {
-      const group = item;
-      const isExpanded = expandedReportGroups.has(group.key);
+    if (item.type === 'report') {
       return (
         <Card
-          key={`report-group-${group.key}`}
+          key={`report-${item.studentId}-${item.id}`}
           sx={{
             borderLeft: '3px solid',
             borderLeftColor: 'secondary.main',
@@ -771,57 +755,27 @@ function ClassroomTimeline({ classroom, currentUser, userRole, manageableClassro
             <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
               <Description size={18} style={{ color: 'var(--color-secondary)' }} />
               <Typography variant="body2" sx={{ fontWeight: 600 }}>
-                {group.reports.length} report{group.reports.length !== 1 ? 's' : ''} generated
+                {item.reportType === 'monthly' ? 'Monthly Baseline' : 'Term Report'}
               </Typography>
             </Box>
-            <Box sx={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', ml: 3.5, mt: 0.5 }}>
-              <Typography variant="caption" color="text.secondary">
-                {group.dateLabel}
-              </Typography>
+            <Box sx={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', mt: 0.5, ml: 3.5 }}>
               <Typography
-                variant="caption"
+                variant="body2"
                 color="primary"
-                onClick={() => toggleReportGroup(group.key)}
-                sx={{ cursor: 'pointer', fontWeight: 600, display: 'flex', alignItems: 'center', gap: 0.25 }}
+                onClick={() => {
+                  const student = classroomStudents.find(s => s.id === item.studentId);
+                  if (student) onNavigateToStudent(student);
+                }}
+                sx={{ cursor: 'pointer', textDecoration: 'underline' }}
               >
-                {isExpanded ? 'Hide' : 'See'} students
-                <KeyboardArrowDown size={16} style={{ transform: isExpanded ? 'rotate(180deg)' : 'rotate(0deg)', transition: 'transform 0.2s' }} />
+                {item.studentName}
               </Typography>
+              <Visibility
+                size={18}
+                onClick={() => setReportPreviewData(item)}
+                style={{ color: 'var(--color-text-soft)', cursor: 'pointer' }}
+              />
             </Box>
-            <Collapse in={isExpanded}>
-              <Box sx={{ ml: 3.5, mt: 0.75, display: 'flex', flexDirection: 'column' }}>
-                {group.reports.map((report) => (
-                  <Box
-                    key={`${report.studentId}-${report.id}`}
-                    sx={{
-                      display: 'flex',
-                      alignItems: 'center',
-                      justifyContent: 'space-between',
-                      py: 0.5,
-                      px: 1,
-                      borderRadius: 1,
-                    }}
-                  >
-                    <Typography
-                      variant="body2"
-                      color="primary"
-                      onClick={() => {
-                        const student = classroomStudents.find(s => s.id === report.studentId);
-                        if (student) onNavigateToStudent(student);
-                      }}
-                      sx={{ cursor: 'pointer', textDecoration: 'underline' }}
-                    >
-                      {report.studentName}
-                    </Typography>
-                    <Visibility
-                      size={18}
-                      onClick={() => setReportPreviewData(report)}
-                      style={{ color: 'var(--color-text-soft)', cursor: 'pointer' }}
-                    />
-                  </Box>
-                ))}
-              </Box>
-            </Collapse>
           </CardContent>
         </Card>
       );
@@ -992,7 +946,7 @@ function ClassroomTimeline({ classroom, currentUser, userRole, manageableClassro
           </Box>
 
           {/* Notes Timeline — day-grouped */}
-          {filteredObservations.length === 0 && groupedReports.length === 0 ? (
+          {filteredObservations.length === 0 ? (
             <Box sx={{ textAlign: 'center', py: 4 }}>
               <Typography variant="body2" color="text.secondary">
                 {searchQuery ? `No students or observations found for "${searchQuery}"` : 'No activity here yet'}
@@ -1074,7 +1028,7 @@ function ClassroomTimeline({ classroom, currentUser, userRole, manageableClassro
         reportText={reportPreviewData?.reportText || ''}
         reportType={reportPreviewData?.reportType || 'term'}
         missingInputFlags={reportPreviewData?.missingInputFlags || []}
-        generatedAt={reportPreviewData?.generatedAt || null}
+        generatedAt={reportPreviewData?.observedAt || null}
         studentLabel={reportPreviewData?.studentName || 'Student'}
         noteCount={reportPreviewData?.noteCount || null}
         driveDocLink={reportPreviewData?.driveDocLink || null}
