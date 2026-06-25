@@ -10,7 +10,7 @@ export const TOOL_CATALOG_META = [
     id: "fetch_weekly_snapshot",
     scope: "student",
     label: "Weekly Snapshot",
-    description: "Current behavioral flags, severity, escalation status, red flags",
+    description: "Full narrative summary for a student's current weekly snapshot",
   },
   {
     id: "fetch_snapshot_history",

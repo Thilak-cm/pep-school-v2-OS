@@ -65,11 +65,11 @@ function resolveSuperAdminOverrides(config, superAdmins) {
  * Build the first user message for the per-classroom agent.
  * Contains mandatory context: classroom doc + statsCache.
  */
-function buildFirstUserMessage(classroomDoc, statsCacheDoc, contextualNotes) {
+function buildFirstUserMessage(classroomDoc, statsCacheDoc, contextualNotes, snapshotsMap = null) {
   const classroom = {
     id: classroomDoc.id,
     name: classroomDoc.name || classroomDoc.id,
-    program: classroomDoc.program || "unknown",
+    program: classroomDoc.programId || "unknown",
     teacherIds: classroomDoc.teacherIds || [],
   };
 
@@ -94,6 +94,18 @@ function buildFirstUserMessage(classroomDoc, statsCacheDoc, contextualNotes) {
     ? ["## School Contextual Notes", contextualNotes, ""]
     : [];
 
+  const studentLines = students.map((s) => {
+    const notePart = `this week ${s.thisWeekNotes}, last 42d ${s.last42DaysNotes}, total ${s.totalNotes}`;
+    const snap = snapshotsMap?.get(s.id);
+    if (!snap) return `- ${s.name} [${s.id}]: ${notePart} | no weekly snapshot yet`;
+    const severity = snap.severity || "none";
+    const escalated = snap.escalatedThisWeek ? " | ESCALATED" : "";
+    const improved = snap.improvedThisWeek ? " | improved" : "";
+    const redFlag = snap.redFlag ? ` | RED FLAG: ${snap.redFlag.severity} — ${snap.redFlag.reason}` : "";
+    const gaps = snap.coverageGaps?.length ? ` | gaps: ${snap.coverageGaps.join(", ")}` : "";
+    return `- ${s.name} [${s.id}]: ${notePart} | severity ${severity}${escalated}${improved}${redFlag}${gaps}`;
+  });
+
   return [
     `# Classroom: ${classroom.name}`,
     `Program: ${classroom.program}`,
@@ -107,13 +119,10 @@ function buildFirstUserMessage(classroomDoc, statsCacheDoc, contextualNotes) {
         `- ${t.name}: ${t.total7d} notes (${t.observations7d} obs, ${t.lessons7d} lessons) | all-time: ${t.observations + t.lessons}`
     ),
     "",
-    "## Student Note Counts",
-    ...students.map(
-      (s) =>
-        `- ${s.name} [${s.id}]: this week ${s.thisWeekNotes}, last 42d ${s.last42DaysNotes}, total ${s.totalNotes}`
-    ),
+    "## Students",
+    ...studentLines,
     "",
-    "Generate a weekly digest email for this classroom. Use the tools available to investigate any anomalies, trends, or students who need attention. Start by checking weekly snapshots for students with low or declining activity.",
+    "Generate a weekly digest email for this classroom.",
   ].join("\n");
 }
 
@@ -260,7 +269,7 @@ test("resolveSuperAdminOverrides handles missing config", () => {
 // ── First User Message ──────────────────────────────────────────────
 
 test("buildFirstUserMessage includes classroom, stats, and contextual notes", () => {
-  const classroomDoc = { id: "amazing", name: "Amazing", program: "primary", teacherIds: ["t1", "t2"], studentCount: 20 };
+  const classroomDoc = { id: "amazing", name: "Amazing", programId: "primary", teacherIds: ["t1", "t2"], studentCount: 20 };
   const statsDoc = {
     teachers: [
       { name: "Geetha", observations7d: 5, lessons7d: 3, observations: 421, lessons: 577 },
@@ -288,8 +297,46 @@ test("buildFirstUserMessage handles missing statsCache and empty notes", () => {
   const msg = buildFirstUserMessage({ id: "test", name: "Test" }, null, "");
   assert.ok(msg.includes("# Classroom: Test"));
   assert.ok(msg.includes("## Teacher Activity"));
-  assert.ok(msg.includes("## Student Note Counts"));
+  assert.ok(msg.includes("## Students"));
   assert.ok(!msg.includes("## School Contextual Notes"));
+});
+
+test("buildFirstUserMessage shows 'no weekly snapshot yet' when snapshotsMap is null", () => {
+  const statsDoc = {
+    teachers: [],
+    students: [{ id: "s1", name: "Alice", thisWeekNotes: 1, last42DaysNotes: 5, totalNotes: 10 }],
+  };
+  const msg = buildFirstUserMessage({ id: "test", name: "Test" }, statsDoc, "", null);
+  assert.ok(msg.includes("no weekly snapshot yet"), "should indicate missing snapshot");
+});
+
+test("buildFirstUserMessage merges note counts and snapshot flags per student", () => {
+  const classroomDoc = { id: "cosmos", name: "Cosmos", programId: "elementary", teacherIds: ["t1"] };
+  const statsDoc = {
+    teachers: [{ name: "Geetha", observations7d: 3, lessons7d: 1, observations: 100, lessons: 50 }],
+    students: [
+      { id: "s1", name: "Alice", thisWeekNotes: 2, last42DaysNotes: 10, totalNotes: 25 },
+      { id: "s2", name: "Bob", thisWeekNotes: 0, last42DaysNotes: 0, totalNotes: 0 },
+    ],
+  };
+  const snapshots = new Map([
+    ["s1", { severity: "low", summary: "Alice showed steady engagement.", coverageGaps: ["Sensorial"], redFlag: null, escalatedThisWeek: false, improvedThisWeek: true }],
+    ["s2", { severity: "high", summary: "Bob has zero notes.", coverageGaps: [], redFlag: { severity: "high", reason: "No activity in 42 days" }, escalatedThisWeek: true, improvedThisWeek: false }],
+  ]);
+  const msg = buildFirstUserMessage(classroomDoc, statsDoc, "", snapshots);
+  assert.ok(msg.includes("## Students"));
+  assert.ok(!msg.includes("## Student Note Counts"), "should be merged into Students");
+  assert.ok(!msg.includes("## Weekly Snapshots"), "should be merged into Students");
+  // Alice: note counts + flags on one line
+  assert.ok(msg.includes("Alice [s1]: this week 2, last 42d 10, total 25 | severity low"));
+  assert.ok(msg.includes("improved"));
+  assert.ok(!msg.includes("Alice showed steady engagement."), "summary should not be in prompt");
+  // Bob: note counts + flags on one line
+  assert.ok(msg.includes("Bob [s2]: this week 0, last 42d 0, total 0 | severity high"));
+  assert.ok(msg.includes("ESCALATED"));
+  assert.ok(msg.includes("RED FLAG: high"));
+  assert.ok(msg.includes("No activity in 42 days"));
+  assert.ok(!msg.includes("Bob has zero notes."), "summary should not be in prompt");
 });
 
 // ── Progressive Disclosure ──────────────────────────────────────────

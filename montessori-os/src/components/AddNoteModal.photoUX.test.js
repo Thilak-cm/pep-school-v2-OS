@@ -88,9 +88,9 @@ describe('PEP-243: Photo note UX polish', () => {
   });
 
   describe('AC5 — Age moved to header', () => {
-    it('AppHeader defines AGE_SCREENS with all 5 student screens', () => {
+    it('AppHeader defines AGE_SCREENS with all student screens', () => {
       assert.ok(headerSource.includes("AGE_SCREENS"), 'AppHeader should define AGE_SCREENS constant');
-      for (const screen of ['studentDashboard', 'timeline', 'studentStats', 'studentReports', 'childChat']) {
+      for (const screen of ['studentDashboard', 'timeline', 'studentReports', 'childChat']) {
         assert.ok(headerSource.includes(screen), `AGE_SCREENS should include '${screen}'`);
       }
     });

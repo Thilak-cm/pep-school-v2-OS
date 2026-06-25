@@ -41,8 +41,12 @@ export class ToolGatekeeper {
 /**
  * Create a tool executor. Gatekeeper param kept for API compat but ignored —
  * prerequisite enforcement is handled by the registry.
+ *
+ * @param {Object} [_gatekeeper] - Deprecated, ignored.
+ * @param {Object} [opts] - Options forwarded to registry executor.
+ * @param {Map<string, boolean>} [opts.preloadedPrereqs] - Pre-seeded prerequisite
+ *   fulfillments for students whose snapshots were pre-loaded into the prompt.
  */
-// eslint-disable-next-line no-unused-vars
-export function createToolExecutor(_gatekeeper) {
-  return createRegistryExecutor(digestTools);
+export function createToolExecutor(_gatekeeper, opts = {}) {
+  return createRegistryExecutor(digestTools, opts);
 }

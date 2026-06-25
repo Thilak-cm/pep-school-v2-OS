@@ -22,13 +22,13 @@ const TOOL_CATALOG = [
     id: "fetch_weekly_snapshot",
     scope: "student",
     label: "Weekly Snapshot",
-    description: "Current behavioral flags, severity, escalation status, red flags, and coverage gaps",
+    description: "Full narrative summary for a student's current weekly snapshot",
     prerequisites: [],
     definition: {
       type: "function",
       function: {
         name: "fetch_weekly_snapshot",
-        description: "Fetch the current weekly snapshot for a student. Contains behavioral flags, severity, escalation status, red flags, and coverage gaps. Call this first before accessing snapshot history.",
+        description: "Fetch the full narrative summary for a student's weekly snapshot. Severity, flags, and coverage gaps are already in your input — use this tool when you need the detailed behavioral narrative to understand WHY a student has a particular severity or flag. Must be called before accessing snapshot history.",
         parameters: {
           type: "object",
           properties: { studentId: { type: "string", description: "The student document ID" } },
@@ -42,14 +42,7 @@ const TOOL_CATALOG = [
       const d = snap.data();
       return {
         studentId: args.studentId,
-        severity: d.severity,
-        severityScore: d.severityScore,
-        escalatedThisWeek: d.escalatedThisWeek,
-        improvedThisWeek: d.improvedThisWeek,
-        redFlag: d.redFlag || null,
-        coverageGaps: d.coverageGaps || [],
-        status: d.status,
-        studentName: d.studentName,
+        summary: d.summary || null,
       };
     },
   },
@@ -294,12 +287,16 @@ export function getToolDefinitions(tools) {
  * Do NOT reuse across separate runs (e.g., different classrooms).
  *
  * @param {Object[]} tools - Tool entries from getTools()
+ * @param {Object} [opts] - Options
+ * @param {Map<string, boolean>} [opts.preloadedPrereqs] - Pre-seeded prerequisite
+ *   fulfillments, keyed as "toolId:studentId". Use when data is pre-loaded into the
+ *   prompt (e.g., weekly snapshots) so downstream tools aren't blocked.
  * @returns {Function} async (name, args) => result
  */
-export function createToolExecutor(tools) {
+export function createToolExecutor(tools, opts = {}) {
   const toolMap = new Map(tools.map((t) => [t.id, t]));
   // Track prerequisite state (e.g., snapshot fetched per student)
-  const fulfilled = new Map(); // "toolId:key" → true
+  const fulfilled = new Map(opts.preloadedPrereqs || []);
 
   return async (name, args) => {
     const tool = toolMap.get(name);

@@ -9,7 +9,6 @@ import ChatCommandCentreEditor from "./components/ChatCommandCentreEditor.jsx";
 import ClassroomList from "./components/ClassroomList";
 import StudentTimeline from "./components/StudentTimeline";
 import StudentDashboard from "./components/StudentDashboard";
-import StudentStatsPage from "./components/StudentStatsPage";
 import ChildChat from "./components/ChildChat";
 import ReportsPage from "./components/ReportsPage";
 import LessonNotesPage from "./components/LessonNotesPage";
@@ -150,9 +149,6 @@ function renderScreen(screen, ctx) {
           onPendingViewHandled={() => ctx.setPendingViewReportId(null)}
         />
       );
-
-    case "studentStats":
-      return <StudentStatsPage student={ctx.selectedStudent} />;
 
     case "childChat":
       return (
