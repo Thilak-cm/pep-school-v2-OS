@@ -1,7 +1,7 @@
 # Pep OS Overview
 
-Generated: 2026-06-20T09:27:34.006Z
-App version: 10.39.0
+Generated: 2026-06-25T22:35:52.065Z
+App version: 11.0.1
 
 ## App Snapshot
 
@@ -22,7 +22,7 @@ App version: 10.39.0
 | area_tag | area_name | intent | key_paths |
 | --- | --- | --- | --- |
 | observation-capture | Observation Capture | Teachers capture text, voice, lesson, and media observations with low-friction mobile flows. | `montessori-os/src/components/AddNoteFab.jsx`<br>`montessori-os/src/components/AddNoteModal.jsx`<br>`montessori-os/src/components/LessonNotesPage.jsx`<br>`montessori-os/src/components/LessonNotes.jsx`<br>`montessori-os/src/VoiceRecorder.jsx`<br>`montessori-os/src/components/MentionTextArea.jsx`<br>`montessori-os/src/components/ClassroomStudentPicker.jsx` |
-| timelines-and-media | Timelines and Media | Student and classroom timelines surface text/voice/lesson/media events with filtering and expansion flows. | `montessori-os/src/components/StudentTimeline.jsx`<br>`montessori-os/src/components/ClassroomTimeline.jsx`<br>`montessori-os/src/components/FilterPanel.jsx`<br>`montessori-os/src/components/StudentDashboard.jsx`<br>`montessori-os/src/components/StudentStatsPage.jsx` |
+| timelines-and-media | Timelines and Media | Student and classroom timelines surface text/voice/lesson/media events with filtering and expansion flows. | `montessori-os/src/components/StudentTimeline.jsx`<br>`montessori-os/src/components/ClassroomTimeline.jsx`<br>`montessori-os/src/components/FilterPanel.jsx`<br>`montessori-os/src/components/StudentDashboard.jsx` |
 | analytics-and-notifications | Analytics and Notifications | Stats, performance cards, and escalation notifications highlight behavior/engagement patterns. | `montessori-os/src/components/StatsPage.jsx`<br>`montessori-os/src/components/NotificationsPage.jsx`<br>`montessori-os/src/components/PerformanceSummaryCard.jsx`<br>`montessori-os/src/notifications/NotificationStack.jsx` |
 | ai-tools-and-chat | AI Tools and Chat | Admin-configurable AI prompts and teacher-facing copilots (cleanup, transcriber, coach, chat). | `montessori-os/src/components/AIHomePage.jsx`<br>`montessori-os/src/components/AITextCleanupEditor.jsx`<br>`montessori-os/src/components/AIVoiceTranscriberEditor.jsx`<br>`montessori-os/src/components/AICoachEditor.jsx`<br>`montessori-os/src/components/ChatCommandCentreEditor.jsx`<br>`montessori-os/src/components/ChildChat.jsx`<br>`montessori-os/src/services/promptProvider.js` |
 | admin-and-access | Admin and Access | Role-aware access, user management, classroom operations, aliases, and graduation workflows. | `montessori-os/src/components/UsersAccessPage.jsx`<br>`montessori-os/src/components/GraduateStudentsPage.jsx`<br>`montessori-os/src/components/StudentAliasesPage.jsx`<br>`montessori-os/src/components/ConfigHomePage.jsx`<br>`montessori-os/src/components/LessonNoteConfigEditor.jsx`<br>`montessori-os/src/utils/roleUtils.js`<br>`firestore.rules` |
@@ -44,8 +44,8 @@ App version: 10.39.0
 - `montessori-os/src/components/LessonNotes.jsx`
 
 ### Timelines and Media (`timelines-and-media`)
-- Count: 12
-- Components: `ClassroomList`, `ClassroomTimeline`, `ClassroomTimeline.pagination.test`, `classroomTimelineUtils`, `classroomTimelineUtils.extraction.test`, `ExportWizard`, `FeedbackTimeline`, `FilterPanel`, `StudentDashboard`, `StudentDashboard.test`, `StudentStatsPage`, `StudentTimeline`
+- Count: 11
+- Components: `ClassroomList`, `ClassroomTimeline`, `ClassroomTimeline.pagination.test`, `classroomTimelineUtils`, `classroomTimelineUtils.extraction.test`, `ExportWizard`, `FeedbackTimeline`, `FilterPanel`, `StudentDashboard`, `StudentDashboard.test`, `StudentTimeline`
 - Representative paths:
 - `montessori-os/src/components/ClassroomList.jsx`
 - `montessori-os/src/components/ClassroomTimeline.jsx`
@@ -57,9 +57,10 @@ App version: 10.39.0
 - `montessori-os/src/components/FilterPanel.jsx`
 
 ### Analytics and Notifications (`analytics-and-notifications`)
-- Count: 6
-- Components: `NotificationsPage`, `NotificationsPage.heatmap.test`, `PerformanceSummaryCard`, `StatsPage`, `StatsPage.noteTypes.test`, `UpdateNotification`
+- Count: 7
+- Components: `NewFeaturePill`, `NotificationsPage`, `NotificationsPage.heatmap.test`, `PerformanceSummaryCard`, `StatsPage`, `StatsPage.noteTypes.test`, `UpdateNotification`
 - Representative paths:
+- `montessori-os/src/components/NewFeaturePill.jsx`
 - `montessori-os/src/components/NotificationsPage.jsx`
 - `montessori-os/src/components/NotificationsPage.heatmap.test.js`
 - `montessori-os/src/components/PerformanceSummaryCard.jsx`
@@ -148,6 +149,16 @@ App version: 10.39.0
 
 ## Recent Changes
 
+### 11.0.1 (2026-06-25)
+- Digest agent prompt rewrite — consultant role with 5-section priority structure (Urgent/Watch/Curriculum/Bright/Teachers), action-oriented writing rules, silent contextual notes handling
+- Context distillation — snapshot flags (severity, escalation, red flags, coverage gaps) preloaded into prompt; full narrative summary behind selective tool call
+- LLM outputs structured JSON, code renders into fixed HTML template for consistent email styling across runs
+
+### 11.0.0 (2026-06-21)
+- **Weekly Digest Agent (PEP-297)** — two-stage agentic pipeline generating per-classroom and consolidated superadmin digest emails every Sunday 6 PM IST via tool-calling agent loops with Langfuse tracing
+- Production email delivery via Resend with verified sender (tech@pepschoolv2.com)
+- Digest history archival to Firestore subcollections
+
 ### 10.39.0 (2026-06-20)
 - Report Generation feature in prompt test bench — compare term and monthly baseline report prompts side-by-side with real student observations, markdown-rendered output, date range selection, and run history (PEP-328)
 - Config-not-found warning in test bench when Firestore prompt config doc is missing
@@ -157,14 +168,4 @@ App version: 10.39.0
 - Monthly Baseline Report type — teachers can generate a 30-day baseline report alongside the existing term report via a Term/Monthly toggle in the generate dialog (PEP-325)
 - Monthly reports export to a "Monthly Reports" subfolder in Google Drive with separate summary and archive CSVs
 - Report type chip (Monthly/Term) on report cards in the reports list
-
-### 10.37.0 (2026-06-15)
-- School Context Notes editor on Configurations page — superadmins can add, edit, and delete contextual notes injected into weekly digest LLM calls (PEP-324)
-- Reusable coachmark system for feature discovery — floating tooltip with backdrop overlay, pulse animation, session and permanent dismiss, and guided tour scaffolding (PEP-322)
-- Plan feedback coachmark on StudentDashboard plan tab — guides teachers to the feedback chip on first visit (PEP-322)
-
-### 10.36.0 (2026-06-09)
-- Digest Generation feature in prompt test bench — full agent loop with 8 digest tools, HTML email preview, side-by-side variant comparison, and run history with classroom context (PEP-304)
-- Shared tool registry (`functions/shared/toolRegistry.js`) with scope permissions, prerequisite enforcement, and static frontend metadata mirror (`toolCatalog.js`) (PEP-304)
-- Role-scoped ClassroomPicker for testbench — teachers see assigned, classroomadmins see manageable, superadmins see all (PEP-304)
 
