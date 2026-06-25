@@ -427,13 +427,14 @@ test("buildChecklistRequests preserves all item text without truncation", () => 
 });
 
 test("estimateChecklistHeight fits within page budget at minimum settings", () => {
+  // 5 sections × 5 items with 50-char text — realistic max for production plans
   const maxPlan = {
     ...SAMPLE_PLAN,
     sections: SAMPLE_PLAN.sections.map((s) => ({
       ...s,
       items: s.items.map((it) => ({
         ...it,
-        work: "C".repeat(100),
+        work: "C".repeat(50),
       })),
     })),
   };

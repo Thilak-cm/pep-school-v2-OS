@@ -40,7 +40,6 @@ const STYLE = {
   // Checklist
   checklistSectionSize: 9,
 
-  checklistFooterSize: 8,
   // Colors
   bodyColor: { red: 51 / 255, green: 51 / 255, blue: 51 / 255 },
   lightGray: { red: 120 / 255, green: 120 / 255, blue: 120 / 255 },
@@ -317,7 +316,14 @@ export function estimateChecklistHeight(plan, columnWidthPt, fontSizePt, section
   const headerRowHeight = 24; // Column header row approximate height
   const docHeaderHeight = 24; // Student name header outside table
 
-  let totalHeight = docHeaderHeight + headerRowHeight;
+  // Count rows for cell padding estimate
+  let rowCount = 1; // header row
+  for (const section of (plan.sections || [])) {
+    rowCount += 1 + (section.items || []).length;
+  }
+  const cellPaddingPerRow = 7; // Google Docs default top+bottom cell padding (~3.5pt each)
+
+  let totalHeight = docHeaderHeight + headerRowHeight + cellPaddingPerRow * rowCount;
 
   for (const section of (plan.sections || [])) {
     totalHeight += sectionSpacingPt + sectionLabelHeight + sectionLabelSpacing;
@@ -347,7 +353,9 @@ export function computeChecklistLayout(plan) {
   const usableHeight = PAGE_HEIGHT - PAGE_MARGIN * 2;
 
   // Try increasing ratio first (0.50 to 0.75 in 0.05 steps)
-  for (let ratio = 0.50; ratio <= 0.75; ratio += 0.05) {
+  // Use integer steps to avoid IEEE-754 floating-point accumulation errors
+  for (let step = 10; step <= 15; step++) {
+    const ratio = step / 20;
     const colWidth = contentWidth * ratio;
     const height = estimateChecklistHeight(plan, colWidth, 8, 12);
     if (height <= usableHeight) {
@@ -372,7 +380,8 @@ export function computeChecklistLayout(plan) {
     }
   }
 
-  // Guaranteed to fit at 7pt + 0.75 ratio + 4pt spacing, but return safe defaults
+  // Fallback: return minimum settings. Content will wrap within cells; page overflow
+  // is possible only for pathological inputs (many items × very long text).
   return { checklistColumnRatio: 0.75, fontSizePt: 7, sectionSpacingPt: 4 };
 }
 
@@ -530,7 +539,7 @@ export function buildChecklistRequests(plan, meta) {
   });
 
   // ── Merge right column content cells (rows 1..N-1, all except header) ─
-  if (totalRows > 2) {
+  if (totalRows > 1) {
     requests.push({
       mergeTableCells: {
         tableRange: {
@@ -699,10 +708,11 @@ export function buildChecklistRequests(plan, meta) {
   const thinGray = { width: { magnitude: 0.5, unit: "PT" }, dashStyle: "SOLID",
     color: { color: { rgbColor: STYLE.lightGray } } };
 
-  // Left column cells: bottom border (grid) + right border (divider)
+  // Left column cells: bottom border (grid) + right border (divider), no outer border
   for (let r = 0; r < totalRows; r++) {
+    const isLastRow = r === totalRows - 1;
     cellStyle(r, 0, {
-      borderBottom: thinGray,
+      borderBottom: isLastRow ? noBorder : thinGray,
       borderRight: thinGray,
       borderTop: r === 0 ? noBorder : undefined,
       borderLeft: noBorder,
