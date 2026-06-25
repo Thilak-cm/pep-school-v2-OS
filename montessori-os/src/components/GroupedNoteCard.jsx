@@ -143,6 +143,7 @@ export default function GroupedNoteCard({
   groupedNote,
   classroomStudents,
   classroomTeachers = [],
+  transferredStudents = new Map(),
   onNoteClick,
   onNavigateToStudent,
   lessonTitleById,
@@ -153,8 +154,9 @@ export default function GroupedNoteCard({
   const isLesson = note.type === 'lesson';
 
   const studentsInGroup = groupedNote.studentIds
-    .map((sid) => classroomStudents.find((s) => s.id === sid))
+    .map((sid) => classroomStudents.find((s) => s.id === sid) || transferredStudents.get(sid))
     .filter(Boolean);
+  const hasTransferredStudents = groupedNote.studentIds.some((sid) => transferredStudents.has(sid));
 
   return (
     <Card
@@ -178,6 +180,27 @@ export default function GroupedNoteCard({
           <StudentNames studentsInGroup={studentsInGroup} onNavigateToStudent={onNavigateToStudent} />
           <TypeIcon config={chipConfig} />
         </Box>
+
+        {/* Transferred indicator */}
+        {hasTransferredStudents && (
+          <Typography
+            component="span"
+            sx={{
+              display: 'inline-block',
+              fontSize: '0.65rem',
+              fontWeight: 600,
+              color: '#b45309',
+              backgroundColor: '#fef3c7',
+              px: 0.75,
+              py: 0.15,
+              borderRadius: 'var(--radius-pill)',
+              border: '1px solid #fde68a',
+              mb: 0.5,
+            }}
+          >
+            Includes transferred students
+          </Typography>
+        )}
 
         {/* Row 2: Teacher icon + name (simple) */}
         <Box sx={{ display: 'flex', alignItems: 'center', gap: 0.75, mb: 1 }}>

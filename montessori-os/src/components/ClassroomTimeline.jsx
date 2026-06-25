@@ -59,9 +59,8 @@ function ClassroomTimeline({ classroom, currentUser, userRole, manageableClassro
   // searchInputRef removed — HFSearchInput is always visible
   const unsubscribeRef = useRef(null);
   const [notesReloadToken] = useState(0);
-  const batchCursorsRef = useRef(new Map());
-  const exhaustedBatchesRef = useRef(new Set());
-  const studentIdsRef = useRef([]);
+  const lastDocRef = useRef(null);
+  const [transferredStudents, setTransferredStudents] = useState(new Map());
   const notesTabRef = useRef(null);
   const studentsTabRef = useRef(null);
   const [tabHeights, setTabHeights] = useState({ notes: 'auto', students: 'auto' });
@@ -128,146 +127,23 @@ function ClassroomTimeline({ classroom, currentUser, userRole, manageableClassro
       }
     };
 
-    // Fetch classroom notes by studentId (not classroomId) to include notes from previous classrooms
-    const fetchNotes = async (studentIds) => {
-      try {
-        if (!studentIds || studentIds.length === 0) {
-          setClassroomNotes([]);
-          setHasMoreNotes(false);
-          return () => {};
-        }
+    // Single classroomId query for observations (PEP-333)
+    const observationsQuery = query(
+      collectionGroup(db, 'observations'),
+      where('classroomId', '==', classroom.id),
+      orderBy('observedAt', 'desc'),
+      limit(NOTES_PAGE_SIZE)
+    );
 
-        studentIdsRef.current = studentIds;
-        batchCursorsRef.current = new Map();
-        exhaustedBatchesRef.current = new Set();
-        setDisplayLimit(NOTES_PAGE_SIZE);
+    // Single classroomId query for media (PEP-333)
+    const mediaQuery = query(
+      collectionGroup(db, 'media'),
+      where('classroomId', '==', classroom.id),
+      orderBy('observedAt', 'desc'),
+      limit(100)
+    );
 
-        // Query notes for all students in the classroom
-        // Firestore 'in' queries support up to 10 items, so we need to batch if more
-        const batchSize = 10;
-        const noteQueries = [];
-
-        for (let i = 0; i < studentIds.length; i += batchSize) {
-          const batch = studentIds.slice(i, i + batchSize);
-          noteQueries.push(
-            query(
-              collectionGroup(db, 'observations'),
-              where('studentId', 'in', batch),
-              orderBy('observedAt', 'desc'),
-              limit(NOTES_PAGE_SIZE)
-            )
-          );
-        }
-
-        // Execute all queries and combine results
-        const allSnapshots = await Promise.all(noteQueries.map(q => getDocs(q)));
-        const allNotes = [];
-        allSnapshots.forEach((snapshot, batchIndex) => {
-          // Store cursor for each batch
-          if (snapshot.docs.length > 0) {
-            batchCursorsRef.current.set(batchIndex, snapshot.docs[snapshot.docs.length - 1]);
-          }
-          if (snapshot.docs.length < NOTES_PAGE_SIZE) {
-            exhaustedBatchesRef.current.add(batchIndex);
-          }
-          snapshot.docs.forEach(doc => {
-            allNotes.push({
-              id: doc.id,
-              parentStudentId: doc.ref.parent?.parent?.id,
-              docPath: doc.ref.path,
-              ...doc.data()
-            });
-          });
-        });
-
-        // Sort by observedAt descending (since we combined multiple queries)
-        allNotes.sort((a, b) => {
-          const aDate = a.observedAt?.toDate?.() || (a.observedAt?.seconds ? new Date(a.observedAt.seconds * 1000) : new Date(0));
-          const bDate = b.observedAt?.toDate?.() || (b.observedAt?.seconds ? new Date(b.observedAt.seconds * 1000) : new Date(0));
-          return bDate - aDate;
-        });
-
-        setClassroomNotes(allNotes);
-        // Check if any batch is not exhausted
-        const totalBatches = Math.ceil(studentIds.length / batchSize);
-        setHasMoreNotes(exhaustedBatchesRef.current.size < totalBatches);
-
-        // Set up listener for real-time updates
-        // Listen to students query changes and re-fetch notes when students change
-        const unsubscribe = onSnapshot(studentsQuery, async (snapshot) => {
-          const updatedStudentIds = snapshot.docs.map(doc => doc.id);
-
-          if (updatedStudentIds.length === 0) {
-            setClassroomNotes([]);
-            setHasMoreNotes(false);
-            return;
-          }
-
-          // Update student IDs but preserve pagination state for older notes
-          studentIdsRef.current = updatedStudentIds;
-
-          const updatedNoteQueries = [];
-          for (let i = 0; i < updatedStudentIds.length; i += batchSize) {
-            const batch = updatedStudentIds.slice(i, i + batchSize);
-            updatedNoteQueries.push(
-              query(
-                collectionGroup(db, 'observations'),
-                where('studentId', 'in', batch),
-                orderBy('observedAt', 'desc'),
-                limit(NOTES_PAGE_SIZE)
-              )
-            );
-          }
-
-          const updatedSnapshots = await Promise.all(updatedNoteQueries.map(q => getDocs(q)));
-          // Reset pagination state for the new student list
-          batchCursorsRef.current = new Map();
-          exhaustedBatchesRef.current = new Set();
-          const freshNotes = [];
-          updatedSnapshots.forEach((snapshot, batchIndex) => {
-            if (snapshot.docs.length > 0) {
-              batchCursorsRef.current.set(batchIndex, snapshot.docs[snapshot.docs.length - 1]);
-            }
-            if (snapshot.docs.length < NOTES_PAGE_SIZE) {
-              exhaustedBatchesRef.current.add(batchIndex);
-            }
-            snapshot.docs.forEach(doc => {
-              freshNotes.push({
-                id: doc.id,
-                parentStudentId: doc.ref.parent?.parent?.id,
-                docPath: doc.ref.path,
-                ...doc.data()
-              });
-            });
-          });
-
-          // Merge fresh first-page notes with previously loaded older notes
-          // Fresh notes take priority (they have real-time updates)
-          const freshIds = new Set(freshNotes.map(n => n.id));
-          const updatedStudentIdSet = new Set(updatedStudentIds);
-          setClassroomNotes(prev => {
-            const olderNotes = prev.filter(n => !freshIds.has(n.id) && updatedStudentIdSet.has(n.studentId));
-            const merged = [...freshNotes, ...olderNotes];
-            merged.sort((a, b) => {
-              const aDate = a.observedAt?.toDate?.() || (a.observedAt?.seconds ? new Date(a.observedAt.seconds * 1000) : new Date(0));
-              const bDate = b.observedAt?.toDate?.() || (b.observedAt?.seconds ? new Date(b.observedAt.seconds * 1000) : new Date(0));
-              return bDate - aDate;
-            });
-            return merged;
-          });
-          const updatedTotalBatches = Math.ceil(updatedStudentIds.length / batchSize);
-          setHasMoreNotes(exhaustedBatchesRef.current.size < updatedTotalBatches);
-        }, () => {
-          /* ignored */
-        });
-
-        return unsubscribe;
-      } catch {
-        // error handled by caller
-      }
-    };
-
-    // Fetch data sequentially: students first, then notes (to avoid duplicate queries)
+    // Fetch data: students, teachers, observations (with real-time), media, reports
     (async () => {
       try {
         // Clean up any existing listener
@@ -276,41 +152,65 @@ function ClassroomTimeline({ classroom, currentUser, userRole, manageableClassro
           unsubscribeRef.current = null;
         }
 
+        lastDocRef.current = null;
+        setDisplayLimit(NOTES_PAGE_SIZE);
+
         const students = await fetchStudents();
-        const studentIds = students.map(s => s.id);
         fetchTeachers(); // Teachers can load in parallel
 
-        // Fetch notes, media docs, and reports in parallel, then mark loading done
-        const batchSize = 10;
-        const [notesUnsub] = await Promise.all([
-          fetchNotes(studentIds),
-          // Fetch media docs for all students in classroom
+        // Fetch observations, media, and reports in parallel
+        await Promise.all([
+          // Observations — initial fetch + real-time listener
+          (async () => {
+            const snap = await getDocs(observationsQuery);
+            const notes = snap.docs.map(d => ({
+              id: d.id,
+              parentStudentId: d.ref.parent?.parent?.id,
+              docPath: d.ref.path,
+              ...d.data(),
+            }));
+            if (snap.docs.length > 0) {
+              lastDocRef.current = snap.docs[snap.docs.length - 1];
+            }
+            setHasMoreNotes(snap.docs.length >= NOTES_PAGE_SIZE);
+            setClassroomNotes(notes);
+
+            // Real-time listener on observations for this classroom (PEP-333)
+            const unsub = onSnapshot(observationsQuery, (snapshot) => {
+              const freshNotes = snapshot.docs.map(d => ({
+                id: d.id,
+                parentStudentId: d.ref.parent?.parent?.id,
+                docPath: d.ref.path,
+                ...d.data(),
+              }));
+              if (snapshot.docs.length > 0) {
+                lastDocRef.current = snapshot.docs[snapshot.docs.length - 1];
+              }
+              // Merge fresh first-page notes with previously loaded older notes
+              const freshIds = new Set(freshNotes.map(n => n.id));
+              setClassroomNotes(prev => {
+                const olderNotes = prev.filter(n => !freshIds.has(n.id));
+                const merged = [...freshNotes, ...olderNotes];
+                merged.sort((a, b) => {
+                  const aDate = a.observedAt?.toDate?.() || (a.observedAt?.seconds ? new Date(a.observedAt.seconds * 1000) : new Date(0));
+                  const bDate = b.observedAt?.toDate?.() || (b.observedAt?.seconds ? new Date(b.observedAt.seconds * 1000) : new Date(0));
+                  return bDate - aDate;
+                });
+                return merged;
+              });
+            }, () => { /* listener error ignored */ });
+            unsubscribeRef.current = unsub;
+          })(),
+          // Media — single classroomId query (PEP-333)
           (async () => {
             try {
-              const mediaQueries = [];
-              for (let i = 0; i < studentIds.length; i += batchSize) {
-                const batch = studentIds.slice(i, i + batchSize);
-                mediaQueries.push(
-                  query(
-                    collectionGroup(db, 'media'),
-                    where('studentId', 'in', batch),
-                    orderBy('observedAt', 'desc'),
-                    limit(100)
-                  )
-                );
-              }
-              const mediaSnapshots = await Promise.all(mediaQueries.map(q => getDocs(q)));
-              const allMedia = [];
-              mediaSnapshots.forEach((snap) => {
-                snap.docs.forEach((d) => {
-                  allMedia.push({
-                    id: d.id,
-                    parentStudentId: d.ref.parent?.parent?.id,
-                    docPath: d.ref.path,
-                    ...d.data(),
-                  });
-                });
-              });
+              const snap = await getDocs(mediaQuery);
+              const allMedia = snap.docs.map(d => ({
+                id: d.id,
+                parentStudentId: d.ref.parent?.parent?.id,
+                docPath: d.ref.path,
+                ...d.data(),
+              }));
               setClassroomMediaDocs(allMedia);
             } catch {
               setClassroomMediaDocs([]);
@@ -350,7 +250,6 @@ function ClassroomTimeline({ classroom, currentUser, userRole, manageableClassro
             setClassroomReports(results.flat());
           }),
         ]);
-        unsubscribeRef.current = notesUnsub;
       } catch (err) {
         reportCaughtError(err, 'ClassroomTimeline', 'data fetch IIFE');
       } finally {
@@ -389,6 +288,39 @@ function ClassroomTimeline({ classroom, currentUser, userRole, manageableClassro
     })();
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [classroomNotes]);
+
+  // Detect transferred students — observations from students no longer in this classroom (PEP-333)
+  useEffect(() => {
+    if (!classroomNotes.length && !classroomMediaDocs.length) return;
+    const currentStudentIds = new Set(classroomStudents.map(s => s.id));
+    const missingIds = new Set();
+    classroomNotes.forEach(n => {
+      if (n.studentId && !currentStudentIds.has(n.studentId)) missingIds.add(n.studentId);
+    });
+    classroomMediaDocs.forEach(n => {
+      if (n.studentId && !currentStudentIds.has(n.studentId)) missingIds.add(n.studentId);
+    });
+    // Remove IDs we already fetched
+    transferredStudents.forEach((_, id) => missingIds.delete(id));
+    if (missingIds.size === 0) return;
+    (async () => {
+      const entries = (await Promise.all([...missingIds].map(async (sid) => {
+        try {
+          const snap = await getDoc(doc(db, 'students', sid));
+          if (snap.exists()) return [sid, { id: sid, ...snap.data(), isTransferred: true }];
+        } catch { /* ignore */ }
+        return null;
+      }))).filter(Boolean);
+      if (entries.length > 0) {
+        setTransferredStudents(prev => {
+          const next = new Map(prev);
+          entries.forEach(([id, data]) => next.set(id, data));
+          return next;
+        });
+      }
+    })();
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [classroomNotes, classroomMediaDocs, classroomStudents]);
 
   // Fetch media URLs for classroom media docs (PEP-33)
   useEffect(() => {
@@ -432,10 +364,6 @@ function ClassroomTimeline({ classroom, currentUser, userRole, manageableClassro
   };
 
   const handleLoadMore = async () => {
-    const batchSize = 10;
-    const studentIds = studentIdsRef.current;
-    if (!studentIds || studentIds.length === 0) return;
-
     // If we have more already-fetched notes to reveal, just bump the display limit
     const totalFetched = filteredObservations?.length || 0;
     if (displayLimit < totalFetched) {
@@ -443,55 +371,31 @@ function ClassroomTimeline({ classroom, currentUser, userRole, manageableClassro
       return;
     }
 
+    if (!lastDocRef.current || !classroom) return;
+
     setLoadingMore(true);
     try {
-      const moreQueries = [];
-      const batchIndices = [];
+      // Single-cursor pagination — fetch next page after the last doc (PEP-333)
+      const moreQuery = query(
+        collectionGroup(db, 'observations'),
+        where('classroomId', '==', classroom.id),
+        orderBy('observedAt', 'desc'),
+        startAfter(lastDocRef.current),
+        limit(NOTES_PAGE_SIZE)
+      );
 
-      for (let i = 0; i < studentIds.length; i += batchSize) {
-        const batchIndex = i / batchSize;
-        if (exhaustedBatchesRef.current.has(batchIndex)) continue;
-        const cursor = batchCursorsRef.current.get(batchIndex);
-        if (!cursor) continue;
+      const snapshot = await getDocs(moreQuery);
+      const newNotes = snapshot.docs.map(d => ({
+        id: d.id,
+        parentStudentId: d.ref.parent?.parent?.id,
+        docPath: d.ref.path,
+        ...d.data(),
+      }));
 
-        const batch = studentIds.slice(i, i + batchSize);
-        moreQueries.push(
-          query(
-            collectionGroup(db, 'observations'),
-            where('studentId', 'in', batch),
-            orderBy('observedAt', 'desc'),
-            startAfter(cursor),
-            limit(NOTES_PAGE_SIZE)
-          )
-        );
-        batchIndices.push(batchIndex);
+      if (snapshot.docs.length > 0) {
+        lastDocRef.current = snapshot.docs[snapshot.docs.length - 1];
       }
-
-      if (moreQueries.length === 0) {
-        setHasMoreNotes(false);
-        setLoadingMore(false);
-        return;
-      }
-
-      const snapshots = await Promise.all(moreQueries.map(q => getDocs(q)));
-      const newNotes = [];
-      snapshots.forEach((snapshot, idx) => {
-        const batchIndex = batchIndices[idx];
-        if (snapshot.docs.length > 0) {
-          batchCursorsRef.current.set(batchIndex, snapshot.docs[snapshot.docs.length - 1]);
-        }
-        if (snapshot.docs.length < NOTES_PAGE_SIZE) {
-          exhaustedBatchesRef.current.add(batchIndex);
-        }
-        snapshot.docs.forEach(doc => {
-          newNotes.push({
-            id: doc.id,
-            parentStudentId: doc.ref.parent?.parent?.id,
-            docPath: doc.ref.path,
-            ...doc.data()
-          });
-        });
-      });
+      setHasMoreNotes(snapshot.docs.length >= NOTES_PAGE_SIZE);
 
       if (newNotes.length > 0) {
         setClassroomNotes(prev => {
@@ -507,8 +411,6 @@ function ClassroomTimeline({ classroom, currentUser, userRole, manageableClassro
         });
       }
 
-      const totalBatches = Math.ceil(studentIds.length / batchSize);
-      setHasMoreNotes(exhaustedBatchesRef.current.size < totalBatches);
       setDisplayLimit(prev => prev + NOTES_PAGE_SIZE);
     } catch {
       notify.error('Failed to load more notes. Please try again.', { duration: 3000 });
@@ -732,10 +634,13 @@ function ClassroomTimeline({ classroom, currentUser, userRole, manageableClassro
     return map;
   }, [classroomNotes]);
 
-  // Get student name for a note
+  // Get student name for a note — checks both current and transferred students
   const getStudentName = (note) => {
     const student = classroomStudents.find(s => s.id === note.studentId);
-    return student?.displayName || student?.firstName || 'Unknown Student';
+    if (student) return student.displayName || student.firstName || 'Unknown Student';
+    const transferred = transferredStudents.get(note.studentId);
+    if (transferred) return transferred.displayName || transferred.firstName || 'Unknown Student';
+    return 'Unknown Student';
   };
 
   // Render a single timeline item (note, grouped note, or report)
@@ -787,6 +692,7 @@ function ClassroomTimeline({ classroom, currentUser, userRole, manageableClassro
           groupedNote={item}
           classroomStudents={classroomStudents}
           classroomTeachers={classroomTeachers}
+          transferredStudents={transferredStudents}
           onNoteClick={() => setSelectedGroupNote(item)}
           onNavigateToStudent={onNavigateToStudent}
           lessonTitleById={lessonTitleById}
@@ -798,9 +704,10 @@ function ClassroomTimeline({ classroom, currentUser, userRole, manageableClassro
         key={item.id}
         note={item}
         studentName={getStudentName(item)}
+        isTransferred={transferredStudents.has(item.studentId)}
         classroomTeachers={classroomTeachers}
         onStudentClick={() => {
-          const student = classroomStudents.find(s => s.id === item.studentId);
+          const student = classroomStudents.find(s => s.id === item.studentId) || transferredStudents.get(item.studentId);
           if (student) {
             trackEvent('student_card_click', { source: 'classroom_timeline' });
             onNavigateToStudent(student);
@@ -1039,7 +946,7 @@ function ClassroomTimeline({ classroom, currentUser, userRole, manageableClassro
         open={!!selectedNote}
         onClose={() => setSelectedNote(null)}
         observation={selectedNote}
-        student={selectedNote ? classroomStudents.find(s => s.id === selectedNote.studentId) : null}
+        student={selectedNote ? (classroomStudents.find(s => s.id === selectedNote.studentId) || transferredStudents.get(selectedNote.studentId) || null) : null}
         currentUser={currentUser}
         userRole={userRole}
         isClassroomContext={true}
@@ -1055,6 +962,7 @@ function ClassroomTimeline({ classroom, currentUser, userRole, manageableClassro
         groupedNote={selectedGroupNote}
         classroomStudents={classroomStudents}
         classroomTeachers={classroomTeachers}
+        transferredStudents={transferredStudents}
         userRole={userRole}
         onNavigateToStudent={onNavigateToStudent}
       />
