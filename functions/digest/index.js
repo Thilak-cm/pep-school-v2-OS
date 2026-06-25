@@ -113,11 +113,11 @@ export function resolveSuperAdminOverrides(config, superAdmins) {
   return result;
 }
 
-export function buildFirstUserMessage(classroomDoc, statsCacheDoc, contextualNotes) {
+export function buildFirstUserMessage(classroomDoc, statsCacheDoc, contextualNotes, snapshotsMap = null) {
   const classroom = {
     id: classroomDoc.id,
     name: classroomDoc.name || classroomDoc.id,
-    program: classroomDoc.program || "unknown",
+    program: classroomDoc.programId || "unknown",
     teacherIds: classroomDoc.teacherIds || [],
   };
 
@@ -142,6 +142,28 @@ export function buildFirstUserMessage(classroomDoc, statsCacheDoc, contextualNot
     ? ["## School Contextual Notes", contextualNotes, ""]
     : [];
 
+  const snapshotSection = [];
+  if (snapshotsMap && snapshotsMap.size > 0) {
+    snapshotSection.push("## Weekly Snapshots (pre-loaded)");
+    for (const student of students) {
+      const snap = snapshotsMap.get(student.id);
+      if (snap) {
+        const severity = snap.severity || "none";
+        const escalated = snap.escalatedThisWeek ? " | ESCALATED" : "";
+        const improved = snap.improvedThisWeek ? " | improved" : "";
+        const redFlag = snap.redFlag ? ` | RED FLAG: ${snap.redFlag.severity} — ${snap.redFlag.reason}` : "";
+        const gaps = snap.coverageGaps?.length ? ` | gaps: ${snap.coverageGaps.join(", ")}` : "";
+        snapshotSection.push(`### ${student.name} [${student.id}] — severity: ${severity}${escalated}${improved}${redFlag}${gaps}`);
+        if (snap.summary) snapshotSection.push(snap.summary);
+        snapshotSection.push("");
+      }
+    }
+  }
+
+  const instruction = snapshotsMap && snapshotsMap.size > 0
+    ? "Generate a weekly digest email for this classroom. Weekly snapshots are pre-loaded above — analyze them directly. Use tools like fetch_snapshot_history, fetch_soul, or fetch_observations only for students who need deeper investigation (e.g., escalated students, red flags, anomalies). You must call fetch_weekly_snapshot for a student before accessing their snapshot_history."
+    : "Generate a weekly digest email for this classroom. Use the tools available to investigate any anomalies, trends, or students who need attention. Start by checking weekly snapshots for students with low or declining activity.";
+
   return [
     `# Classroom: ${classroom.name}`,
     `Program: ${classroom.program}`,
@@ -161,7 +183,8 @@ export function buildFirstUserMessage(classroomDoc, statsCacheDoc, contextualNot
         `- ${s.name} [${s.id}]: this week ${s.thisWeekNotes}, last 42d ${s.last42DaysNotes}, total ${s.totalNotes}`
     ),
     "",
-    "Generate a weekly digest email for this classroom. Use the tools available to investigate any anomalies, trends, or students who need attention. Start by checking weekly snapshots for students with low or declining activity.",
+    ...snapshotSection,
+    instruction,
   ].join("\n");
 }
 
@@ -179,7 +202,7 @@ async function fetchDigestConfig() {
   const snap = await db.collection("config").doc("weekly_digest").get();
   if (!snap.exists) {
     return {
-      model: "openai/gpt-4.1-mini",
+      model: "openai/gpt-5.5",
       temperature: 0.4,
       maxTokens: 4000,
       classroomPrompt: DEFAULT_CLASSROOM_PROMPT,
@@ -190,7 +213,7 @@ async function fetchDigestConfig() {
   }
   const d = snap.data();
   return {
-    model: d.model || "openai/gpt-4.1-mini",
+    model: d.model || "openai/gpt-5.5",
     temperature: d.temperature ?? 0.4,
     maxTokens: d.max_tokens || 4000,
     classroomPrompt: d.classroomPrompt || DEFAULT_CLASSROOM_PROMPT,
@@ -296,19 +319,42 @@ export const weeklyDigestClassroomAdmin = functions
             metadata: {
               classroomName,
               classroomId: classroom.id,
-              program: classroom.program,
+              program: classroom.programId,
               teacherCount: (classroom.teacherIds || []).length,
             },
           });
 
           try {
             const statsDoc = statsDocs.get(classroom.id) || null;
-            const userMessage = buildFirstUserMessage(classroom, statsDoc, config.contextualNotes);
+
+            // Pre-load weekly snapshots for all students in this classroom
+            const studentIds = (statsDoc?.students || []).map((s) => s.id);
+            const snapshotsMap = new Map();
+            if (studentIds.length > 0) {
+              const refs = studentIds.map((id) =>
+                db.doc(`students/${id}/ai_summaries/weekly_snapshot`)
+              );
+              const snapDocs = await db.getAll(...refs);
+              for (const snapDoc of snapDocs) {
+                if (snapDoc.exists) {
+                  const studentId = snapDoc.ref.parent.parent.id;
+                  snapshotsMap.set(studentId, snapDoc.data());
+                }
+              }
+            }
+
+            const userMessage = buildFirstUserMessage(classroom, statsDoc, config.contextualNotes, snapshotsMap);
 
             classroomSpan.update({ input: userMessage });
 
+            // Pre-seed prerequisite gate for preloaded snapshots
+            const preloadedPrereqs = new Map();
+            for (const sid of snapshotsMap.keys()) {
+              preloadedPrereqs.set(`fetch_weekly_snapshot:${sid}`, true);
+            }
+
             const gatekeeper = new ToolGatekeeper();
-            const toolExecutor = createToolExecutor(gatekeeper);
+            const toolExecutor = createToolExecutor(gatekeeper, { preloadedPrereqs });
 
             const result = await runAgentLoop({
               messages: [
@@ -325,12 +371,16 @@ export const weeklyDigestClassroomAdmin = functions
               trace: classroomSpan,
             });
 
-            // Determine red flag status from tool call results
-            const hasRedFlags = result.toolCallLog.some(
-              (tc) =>
-                tc.name === "fetch_weekly_snapshot" &&
-                (tc.result?.redFlag || tc.result?.escalatedThisWeek === true)
-            );
+            // Determine red flag status from preloaded snapshots + any tool call results
+            const hasRedFlags =
+              [...snapshotsMap.values()].some(
+                (s) => s.redFlag || s.escalatedThisWeek === true
+              ) ||
+              result.toolCallLog.some(
+                (tc) =>
+                  tc.name === "fetch_weekly_snapshot" &&
+                  (tc.result?.redFlag || tc.result?.escalatedThisWeek === true)
+              );
 
             // Resolve recipients for this classroom (users pre-fetched above)
             const recipientEmails = [
@@ -684,9 +734,33 @@ export const triggerDigestTest = functions
       const span = cf1Trace.span({ name: `classroom-${classroom.id}` });
       try {
         const statsDoc = statsDocs.get(classroom.id) || null;
-        const userMessage = buildFirstUserMessage(classroom, statsDoc, config.contextualNotes);
+
+        // Pre-load weekly snapshots for all students in this classroom
+        const studentIds = (statsDoc?.students || []).map((s) => s.id);
+        const snapshotsMap = new Map();
+        if (studentIds.length > 0) {
+          const refs = studentIds.map((id) =>
+            db.doc(`students/${id}/ai_summaries/weekly_snapshot`)
+          );
+          const snapDocs = await db.getAll(...refs);
+          for (const snapDoc of snapDocs) {
+            if (snapDoc.exists) {
+              const studentId = snapDoc.ref.parent.parent.id;
+              snapshotsMap.set(studentId, snapDoc.data());
+            }
+          }
+        }
+
+        const userMessage = buildFirstUserMessage(classroom, statsDoc, config.contextualNotes, snapshotsMap);
+
+        // Pre-seed prerequisite gate for preloaded snapshots
+        const preloadedPrereqs = new Map();
+        for (const sid of snapshotsMap.keys()) {
+          preloadedPrereqs.set(`fetch_weekly_snapshot:${sid}`, true);
+        }
+
         const gatekeeper = new ToolGatekeeper();
-        const toolExecutor = createToolExecutor(gatekeeper);
+        const toolExecutor = createToolExecutor(gatekeeper, { preloadedPrereqs });
 
         const result = await runAgentLoop({
           messages: [
@@ -699,9 +773,13 @@ export const triggerDigestTest = functions
           trace: span,
         });
 
-        const hasRedFlags = result.toolCallLog.some(
-          (tc) => tc.name === "fetch_weekly_snapshot" && (tc.result?.redFlag || tc.result?.escalatedThisWeek === true)
-        );
+        const hasRedFlags =
+          [...snapshotsMap.values()].some(
+            (s) => s.redFlag || s.escalatedThisWeek === true
+          ) ||
+          result.toolCallLog.some(
+            (tc) => tc.name === "fetch_weekly_snapshot" && (tc.result?.redFlag || tc.result?.escalatedThisWeek === true)
+          );
 
         // Resolve recipients + override (users pre-fetched above)
         const recipientEmails = [

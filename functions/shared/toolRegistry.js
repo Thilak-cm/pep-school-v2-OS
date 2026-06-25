@@ -294,12 +294,16 @@ export function getToolDefinitions(tools) {
  * Do NOT reuse across separate runs (e.g., different classrooms).
  *
  * @param {Object[]} tools - Tool entries from getTools()
+ * @param {Object} [opts] - Options
+ * @param {Map<string, boolean>} [opts.preloadedPrereqs] - Pre-seeded prerequisite
+ *   fulfillments, keyed as "toolId:studentId". Use when data is pre-loaded into the
+ *   prompt (e.g., weekly snapshots) so downstream tools aren't blocked.
  * @returns {Function} async (name, args) => result
  */
-export function createToolExecutor(tools) {
+export function createToolExecutor(tools, opts = {}) {
   const toolMap = new Map(tools.map((t) => [t.id, t]));
   // Track prerequisite state (e.g., snapshot fetched per student)
-  const fulfilled = new Map(); // "toolId:key" → true
+  const fulfilled = new Map(opts.preloadedPrereqs || []);
 
   return async (name, args) => {
     const tool = toolMap.get(name);
