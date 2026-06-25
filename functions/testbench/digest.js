@@ -15,6 +15,7 @@ import {
   createToolExecutor,
 } from "../shared/toolRegistry.js";
 import { buildFirstUserMessage } from "../digest/index.js";
+import { parseAndRender, renderClassroomDigest, renderSuperadminDigest } from "../digest/renderHtml.js";
 
 // Default tool set for digest agent
 const DEFAULT_DIGEST_TOOLS = [
@@ -35,9 +36,9 @@ async function fetchDigestConfig() {
   const snap = await db.collection("config").doc("weekly_digest").get();
   if (!snap.exists) {
     return {
-      model: "openai/gpt-4.1-mini",
+      model: "openai/gpt-5.5",
       temperature: 0.4,
-      maxTokens: 4000,
+      maxTokens: 8000,
       classroomPrompt: "",
       superadminPrompt: "",
       contextualNotes: "",
@@ -47,9 +48,9 @@ async function fetchDigestConfig() {
   }
   const d = snap.data();
   return {
-    model: d.model || "openai/gpt-4.1-mini",
+    model: d.model || "openai/gpt-5.5",
     temperature: d.temperature ?? 0.4,
-    maxTokens: d.max_tokens || 4000,
+    maxTokens: d.max_tokens || 8000,
     classroomPrompt: d.classroomPrompt || "",
     superadminPrompt: d.superadminPrompt || "",
     contextualNotes: d.contextualNotes || "",
@@ -165,9 +166,11 @@ export async function testBenchDigest({
       collectTrace: true,
     });
 
+    const htmlContent = parseAndRender(result.content, renderSuperadminDigest);
+
     await langfuse.flushAsync();
     return {
-      output: result.content,
+      output: htmlContent,
       totalTokens: result.totalTokens || 0,
       toolCallLog: result.toolCallLog,
       iterations: result.iterations,
@@ -203,9 +206,11 @@ export async function testBenchDigest({
     collectTrace: true,
   });
 
+  const htmlContent = parseAndRender(result.content, renderClassroomDigest);
+
   await langfuse.flushAsync();
   return {
-    output: result.content,
+    output: htmlContent,
     totalTokens: result.totalTokens || 0,
     toolCallLog: result.toolCallLog,
     iterations: result.iterations,

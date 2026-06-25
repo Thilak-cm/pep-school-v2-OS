@@ -97,7 +97,7 @@ function buildFirstUserMessage(classroomDoc, statsCacheDoc, contextualNotes, sna
   const studentLines = students.map((s) => {
     const notePart = `this week ${s.thisWeekNotes}, last 42d ${s.last42DaysNotes}, total ${s.totalNotes}`;
     const snap = snapshotsMap?.get(s.id);
-    if (!snap) return `- ${s.name} [${s.id}]: ${notePart}`;
+    if (!snap) return `- ${s.name} [${s.id}]: ${notePart} | no weekly snapshot yet`;
     const severity = snap.severity || "none";
     const escalated = snap.escalatedThisWeek ? " | ESCALATED" : "";
     const improved = snap.improvedThisWeek ? " | improved" : "";
@@ -299,6 +299,15 @@ test("buildFirstUserMessage handles missing statsCache and empty notes", () => {
   assert.ok(msg.includes("## Teacher Activity"));
   assert.ok(msg.includes("## Students"));
   assert.ok(!msg.includes("## School Contextual Notes"));
+});
+
+test("buildFirstUserMessage shows 'no weekly snapshot yet' when snapshotsMap is null", () => {
+  const statsDoc = {
+    teachers: [],
+    students: [{ id: "s1", name: "Alice", thisWeekNotes: 1, last42DaysNotes: 5, totalNotes: 10 }],
+  };
+  const msg = buildFirstUserMessage({ id: "test", name: "Test" }, statsDoc, "", null);
+  assert.ok(msg.includes("no weekly snapshot yet"), "should indicate missing snapshot");
 });
 
 test("buildFirstUserMessage merges note counts and snapshot flags per student", () => {

@@ -911,8 +911,7 @@ const StatsPage = ({ user, role, manageableClassrooms = [], onBack, onNavigateTo
                       Note Distribution
                     </Typography>
                     <Typography variant="body2" color="text.secondary">
-                      {timePeriod === '1D' ? 'Last 24 Hours' : 
-                       timePeriod === '1W' ? 'Last 7 Days' :
+                      {timePeriod === '1W' ? 'Last 7 Days' :
                        timePeriod === '1M' ? 'Last 4 Weeks' :
                        timePeriod === '3M' ? 'Last 3 Months' :
                        timePeriod === '6M' ? 'Last 6 Months' :

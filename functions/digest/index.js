@@ -27,7 +27,7 @@ const LANGFUSE_SECRET_KEY = defineSecret("LANGFUSE_SECRET_KEY");
 const LANGFUSE_PUBLIC_KEY = defineSecret("LANGFUSE_PUBLIC_KEY");
 import { runWithConcurrency } from "../shared/scheduling.js";
 import { runAgentLoop } from "../shared/agentLoop.js";
-import { DIGEST_TOOLS, ToolGatekeeper, createToolExecutor } from "./tools.js";
+import { DIGEST_TOOLS, createToolExecutor } from "./tools.js";
 import { parseAndRender, renderClassroomDigest, renderSuperadminDigest } from "./renderHtml.js";
 import { createLangfuse } from "../shared/langfuse.js";
 
@@ -263,7 +263,7 @@ async function fetchDigestConfig() {
   return {
     model: d.model || "openai/gpt-5.5",
     temperature: d.temperature ?? 0.4,
-    maxTokens: d.max_tokens || 4000,
+    maxTokens: d.max_tokens || 8000,
     classroomPrompt: d.classroomPrompt || DEFAULT_CLASSROOM_PROMPT,
     superadminPrompt: d.superadminPrompt || DEFAULT_SUPERADMIN_PROMPT,
     superadminClassroomOverrides: d.superadminClassroomOverrides || {},
@@ -280,6 +280,28 @@ async function archivePreviousDigest(digestRef, weekKey) {
     .collection("history")
     .doc(prev.weekKey)
     .set({ ...prev, archivedAt: Timestamp.now() });
+}
+
+async function preloadSnapshots(statsDoc) {
+  const studentIds = (statsDoc?.students || []).map((s) => s.id);
+  const snapshotsMap = new Map();
+  if (studentIds.length > 0) {
+    const refs = studentIds.map((id) =>
+      db.doc(`students/${id}/ai_summaries/weekly_snapshot`)
+    );
+    const snapDocs = await db.getAll(...refs);
+    for (const snapDoc of snapDocs) {
+      if (snapDoc.exists) {
+        const studentId = snapDoc.ref.parent.parent.id;
+        snapshotsMap.set(studentId, snapDoc.data());
+      }
+    }
+  }
+  const preloadedPrereqs = new Map();
+  for (const sid of snapshotsMap.keys()) {
+    preloadedPrereqs.set(`fetch_weekly_snapshot:${sid}`, true);
+  }
+  return { snapshotsMap, preloadedPrereqs };
 }
 
 // ── CF 1: Per-Classroom Digest ──────────────────────────────────────
@@ -375,34 +397,13 @@ export const weeklyDigestClassroomAdmin = functions
           try {
             const statsDoc = statsDocs.get(classroom.id) || null;
 
-            // Pre-load weekly snapshots for all students in this classroom
-            const studentIds = (statsDoc?.students || []).map((s) => s.id);
-            const snapshotsMap = new Map();
-            if (studentIds.length > 0) {
-              const refs = studentIds.map((id) =>
-                db.doc(`students/${id}/ai_summaries/weekly_snapshot`)
-              );
-              const snapDocs = await db.getAll(...refs);
-              for (const snapDoc of snapDocs) {
-                if (snapDoc.exists) {
-                  const studentId = snapDoc.ref.parent.parent.id;
-                  snapshotsMap.set(studentId, snapDoc.data());
-                }
-              }
-            }
+            const { snapshotsMap, preloadedPrereqs } = await preloadSnapshots(statsDoc);
 
             const userMessage = buildFirstUserMessage(classroom, statsDoc, config.contextualNotes, snapshotsMap);
 
             classroomSpan.update({ input: userMessage });
 
-            // Pre-seed prerequisite gate for preloaded snapshots
-            const preloadedPrereqs = new Map();
-            for (const sid of snapshotsMap.keys()) {
-              preloadedPrereqs.set(`fetch_weekly_snapshot:${sid}`, true);
-            }
-
-            const gatekeeper = new ToolGatekeeper();
-            const toolExecutor = createToolExecutor(gatekeeper, { preloadedPrereqs });
+            const toolExecutor = createToolExecutor(null, { preloadedPrereqs });
 
             const result = await runAgentLoop({
               messages: [
@@ -422,16 +423,10 @@ export const weeklyDigestClassroomAdmin = functions
             // Render JSON → HTML
             const htmlContent = parseAndRender(result.content, renderClassroomDigest);
 
-            // Determine red flag status from preloaded snapshots + any tool call results
-            const hasRedFlags =
-              [...snapshotsMap.values()].some(
-                (s) => s.redFlag || s.escalatedThisWeek === true
-              ) ||
-              result.toolCallLog.some(
-                (tc) =>
-                  tc.name === "fetch_weekly_snapshot" &&
-                  (tc.result?.redFlag || tc.result?.escalatedThisWeek === true)
-              );
+            // Determine red flag status from preloaded snapshots
+            const hasRedFlags = [...snapshotsMap.values()].some(
+              (s) => s.redFlag || s.escalatedThisWeek === true
+            );
 
             // Resolve recipients for this classroom (users pre-fetched above)
             const recipientEmails = [
@@ -542,14 +537,18 @@ export const weeklyDigestSuperadmin = functions
       const config = await fetchDigestConfig();
 
       // Read all classroom digests written by CF 1
-      const classroomsSnap = await db
-        .collection("classrooms")
-        .where("status", "==", "active")
-        .get();
+      const [classroomsSnap, usersSnap] = await Promise.all([
+        db.collection("classrooms").where("status", "==", "active").get(),
+        db.collection("users").get(),
+      ]);
       const classroomIds = classroomsSnap.docs.map((d) => d.id);
       const classroomNames = new Map(
         classroomsSnap.docs.map((d) => [d.id, d.data().name || d.id])
       );
+      const allUsers = usersSnap.docs.map((d) => ({
+        id: d.id,
+        ...d.data(),
+      }));
 
       const digests = [];
       for (const cid of classroomIds) {
@@ -615,8 +614,7 @@ export const weeklyDigestSuperadmin = functions
       // Agent loop for superadmin digest
       trace.update({ input: userMessage });
 
-      const gatekeeper = new ToolGatekeeper();
-      const toolExecutor = createToolExecutor(gatekeeper);
+      const toolExecutor = createToolExecutor(null);
 
       const result = await runAgentLoop({
         messages: [
@@ -643,11 +641,6 @@ export const weeklyDigestSuperadmin = functions
       await archivePreviousDigest(digestRef, weekKey);
 
       const hasRedFlags = digests.some((d) => d.hasRedFlags);
-      const usersSnap = await db.collection("users").get();
-      const allUsers = usersSnap.docs.map((d) => ({
-        id: d.id,
-        ...d.data(),
-      }));
       const superAdmins = resolveSuperAdminRecipients(allUsers);
       const recipientEmails = superAdmins.map((sa) => sa.email);
 
@@ -789,32 +782,11 @@ export const triggerDigestTest = functions
       try {
         const statsDoc = statsDocs.get(classroom.id) || null;
 
-        // Pre-load weekly snapshots for all students in this classroom
-        const studentIds = (statsDoc?.students || []).map((s) => s.id);
-        const snapshotsMap = new Map();
-        if (studentIds.length > 0) {
-          const refs = studentIds.map((id) =>
-            db.doc(`students/${id}/ai_summaries/weekly_snapshot`)
-          );
-          const snapDocs = await db.getAll(...refs);
-          for (const snapDoc of snapDocs) {
-            if (snapDoc.exists) {
-              const studentId = snapDoc.ref.parent.parent.id;
-              snapshotsMap.set(studentId, snapDoc.data());
-            }
-          }
-        }
+        const { snapshotsMap, preloadedPrereqs } = await preloadSnapshots(statsDoc);
 
         const userMessage = buildFirstUserMessage(classroom, statsDoc, config.contextualNotes, snapshotsMap);
 
-        // Pre-seed prerequisite gate for preloaded snapshots
-        const preloadedPrereqs = new Map();
-        for (const sid of snapshotsMap.keys()) {
-          preloadedPrereqs.set(`fetch_weekly_snapshot:${sid}`, true);
-        }
-
-        const gatekeeper = new ToolGatekeeper();
-        const toolExecutor = createToolExecutor(gatekeeper, { preloadedPrereqs });
+        const toolExecutor = createToolExecutor(null, { preloadedPrereqs });
 
         const result = await runAgentLoop({
           messages: [
@@ -829,13 +801,9 @@ export const triggerDigestTest = functions
 
         const htmlContent = parseAndRender(result.content, renderClassroomDigest);
 
-        const hasRedFlags =
-          [...snapshotsMap.values()].some(
-            (s) => s.redFlag || s.escalatedThisWeek === true
-          ) ||
-          result.toolCallLog.some(
-            (tc) => tc.name === "fetch_weekly_snapshot" && (tc.result?.redFlag || tc.result?.escalatedThisWeek === true)
-          );
+        const hasRedFlags = [...snapshotsMap.values()].some(
+          (s) => s.redFlag || s.escalatedThisWeek === true
+        );
 
         // Resolve recipients + override (users pre-fetched above)
         const recipientEmails = [
@@ -911,8 +879,7 @@ export const triggerDigestTest = functions
         "Generate a consolidated executive summary email for superadmins. Highlight the most critical items across all classrooms. Identify cross-classroom patterns. Use tools to investigate specific cases if needed.",
       ].join("\n");
 
-      const gatekeeper = new ToolGatekeeper();
-      const toolExecutor = createToolExecutor(gatekeeper);
+      const toolExecutor = createToolExecutor(null);
 
       const result = await runAgentLoop({
         messages: [
@@ -928,9 +895,7 @@ export const triggerDigestTest = functions
       const htmlContent = parseAndRender(result.content, renderSuperadminDigest);
 
       const hasRedFlags = digests.some((d) => d.hasRedFlags);
-      const usersSnap = await db.collection("users").get();
-      const allUsers = usersSnap.docs.map((d) => ({ id: d.id, ...d.data() }));
-      const superAdmins = resolveSuperAdminRecipients(allUsers);
+      const superAdmins = resolveSuperAdminRecipients(testAllUsers);
       const recipientEmails = superAdmins.map((sa) => sa.email);
 
       const digestRef = db.doc("classrooms/_digest_all/digests/weekly_email");

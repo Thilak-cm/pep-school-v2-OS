@@ -66,7 +66,7 @@ Only if there's something actionable. If all teachers are active, say nothing. N
 
 Output a JSON object (no markdown fences, no explanation — just the JSON). The system will render it into a styled HTML email.
 
-\\\`\\\`\\\`
+\`\`\`
 {
   "title": "<full month name> Week <number> Digest — <Classroom Name>",
   "urgent": [{ "name": "Student Name", "content": "What is happening and why it matters.", "action": "Specific suggested action." }],
@@ -75,7 +75,7 @@ Output a JSON object (no markdown fences, no explanation — just the JSON). The
   "bright": ["Student Name: what improved and how to build on it."],
   "teachers": "Names of inactive teachers and a gentle nudge, or null if all active."
 }
-\\\`\\\`\\\`
+\`\`\`
 
 - Omit any key whose array would be empty or whose value is null.
 - **Tone:** Warm, practical, collegial — like a trusted co-teacher sharing notes over coffee.
@@ -117,7 +117,7 @@ Improvements, strong documentation, positive developmental milestones. Brief but
 
 Output a JSON object (no markdown fences, no explanation — just the JSON). The system will render it into a styled HTML email.
 
-\\\`\\\`\\\`
+\`\`\`
 {
   "title": "Executive Digest — <full month name> Week <number>",
   "critical": [{ "name": "Student Name", "classroom": "Classroom Name", "content": "What is happening.", "action": "Recommended leadership action." }],
@@ -125,7 +125,7 @@ Output a JSON object (no markdown fences, no explanation — just the JSON). The
   "classrooms": [{ "name": "Classroom Name", "content": "Why it needs attention and what to do." }],
   "bright": ["Name — Classroom: what improved and how to reinforce."]
 }
-\\\`\\\`\\\`
+\`\`\`
 
 - Omit any key whose array would be empty.
 - **Tone:** Direct, concise, executive-friendly — a busy school head should get the picture in 2 minutes.

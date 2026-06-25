@@ -166,24 +166,20 @@ function esc(text) {
     .replace(/&/g, "&amp;")
     .replace(/</g, "&lt;")
     .replace(/>/g, "&gt;")
-    .replace(/"/g, "&quot;");
+    .replace(/"/g, "&quot;")
+    .replace(/'/g, "&#x27;");
 }
 
 /**
- * Try to parse LLM output as JSON and render to HTML.
- * Falls back to raw content if parsing fails (backward compat).
+ * Parse LLM output as JSON and render to HTML.
+ * Throws on invalid JSON so the classroom is marked as errored
+ * and no broken email is sent.
  */
 export function parseAndRender(content, renderer) {
-  try {
-    // Strip markdown code fences if present
-    let json = content.trim();
-    if (json.startsWith("```")) {
-      json = json.replace(/^```(?:json)?\n?/, "").replace(/\n?```$/, "");
-    }
-    const data = JSON.parse(json);
-    return renderer(data);
-  } catch {
-    // LLM didn't produce valid JSON — use raw content as fallback
-    return content;
+  let json = content.trim();
+  if (json.startsWith("```")) {
+    json = json.replace(/^```(?:json)?\n?/, "").replace(/\n?```$/, "");
   }
+  const data = JSON.parse(json);
+  return renderer(data);
 }
