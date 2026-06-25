@@ -205,7 +205,7 @@ describe("FAB_HIDDEN_SCREENS", () => {
 
   it("contains all non-observation screens", () => {
     const expected = [
-      "profile", "stats", "studentStats", "feedback", "feedbackTimeline",
+      "profile", "stats", "feedback", "feedbackTimeline",
       "accessDenied", "classroomNotesReview", "graduateStudents", "lessonNotes",
       "studentAliases", "settings", "addUser", "childChat", "config",
       "configLessonNotes", "configAiTools", "chatCommandCentre", "baseballCardConfig",

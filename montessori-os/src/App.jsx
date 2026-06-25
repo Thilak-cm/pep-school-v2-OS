@@ -449,7 +449,7 @@ function App() {
                   open={addNoteOpen}
                   onClose={() => { setAddNoteOpen(false); setAddNoteInitialStep('record'); }}
                   initialStep={addNoteInitialStep}
-                  initialStudents={selectedStudent && (screen === 'timeline' || screen === 'studentDashboard' || screen === 'studentStats' || screen === 'studentReports') ? [selectedStudent.id] : []}
+                  initialStudents={selectedStudent && (screen === 'timeline' || screen === 'studentDashboard' || screen === 'studentReports') ? [selectedStudent.id] : []}
                   currentUser={user}
                   userRole={role}
                 />

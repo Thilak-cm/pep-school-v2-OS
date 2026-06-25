@@ -12,7 +12,6 @@ function getHeaderActions(screen, ctx) {
       return <MiniTangram size={28} />;
     case 'studentDashboard':
     case 'timeline':
-    case 'studentStats':
     case 'studentReports':
     case 'childChat':
       return ctx.selectedStudent ? (
@@ -23,7 +22,7 @@ function getHeaderActions(screen, ctx) {
   }
 }
 
-const AGE_SCREENS = new Set(['studentDashboard', 'timeline', 'studentStats', 'studentReports', 'childChat']);
+const AGE_SCREENS = new Set(['studentDashboard', 'timeline', 'studentReports', 'childChat']);
 
 export default function AppHeader({ screen, ctx, onTitleClick }) {
   const onBack = ctx.showBackButton ? ctx.backNavigation : undefined;

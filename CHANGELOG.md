@@ -1,5 +1,24 @@
 # Changelog
 
+# 11.0.1 — 2026-06-25
+
+### Changed
+- Digest agent prompt rewrite — consultant role with 5-section priority structure (Urgent/Watch/Curriculum/Bright/Teachers), action-oriented writing rules, silent contextual notes handling
+- Context distillation — snapshot flags (severity, escalation, red flags, coverage gaps) preloaded into prompt; full narrative summary behind selective tool call
+- LLM outputs structured JSON, code renders into fixed HTML template for consistent email styling across runs
+- Model upgrade from gpt-4.1-mini to gpt-5.5 with max_tokens bumped from 4000 to 8000
+
+### Fixed
+- Classroom program field showing "unknown" in all digests (`program` → `programId`)
+- Stale `hasRedFlags` check reading fields the tool no longer returns
+- Testbench rendering raw JSON instead of styled HTML after JSON output format change
+- Tool catalog and pipeline preview descriptions updated to match new `fetch_weekly_snapshot` return shape
+- `parseAndRender` now throws on invalid JSON instead of sending unformatted text as email
+
+### Removed
+- 1D time period from stats overview (StatsPage and StudentStatsPage)
+- Unreachable `StudentStatsPage` component and all references
+
 # 11.0.0 — 2026-06-21
 
 ### Added
