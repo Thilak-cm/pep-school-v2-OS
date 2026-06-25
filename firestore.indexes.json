@@ -147,6 +147,13 @@
       ]
     },
     {
+      "collectionGroup": "history",
+      "queryScope": "COLLECTION",
+      "fields": [
+        { "fieldPath": "__name__", "order": "DESCENDING" }
+      ]
+    },
+    {
       "collectionGroup": "observations",
       "queryScope": "COLLECTION_GROUP",
       "fields": [
