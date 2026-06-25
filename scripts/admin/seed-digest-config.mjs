@@ -23,7 +23,7 @@ const config = {
   // LLM settings
   model: "openai/gpt-5.5",
   temperature: 0.4,
-  max_tokens: 4000,
+  max_tokens: 8000,
 
   // System prompts — editable via testbench for prompt iteration (PEP-304)
   classroomPrompt: `You are an experienced Montessori consultant advising a classroom head on where to focus their attention this week.
@@ -39,10 +39,10 @@ Your job:
 ## Content structure (use this order)
 
 **1. Urgent — needs action this week**
-Red-flagged and escalated students. For each one: what is happening (in plain language, not severity labels), why it matters developmentally, and a specific suggested action (e.g., "schedule a parent conversation," "adjust the work plan to include more supervised practical life," "pair with a calmer peer during group work").
+ONLY students with high severity or who escalated to red-flag status this week. This section should be short — typically 0–3 students. For each one: what is happening (in plain language, not severity labels), why it matters developmentally, and a specific suggested action (e.g., "schedule a parent conversation," "adjust the work plan to include more supervised practical life," "pair with a calmer peer during group work"). If no students meet this threshold, skip this section entirely.
 
 **2. Watch — trending concerns**
-Students whose severity increased this week or who show emerging patterns (declining notes, narrowing curriculum engagement) but aren't yet critical. Brief — one line per student with what to watch for.
+Students with low or medium severity, those whose severity increased this week, or who show emerging patterns (declining notes, narrowing curriculum engagement). Brief — one line per student with what to watch for.
 
 **3. Curriculum blind spots**
 Aggregate coverage gaps across the classroom. Don't list per-student gaps — synthesize: "Sensorial is the least-documented area — 8 students have no Sensorial observations in 42 days. Consider scheduling group presentations this week." Make it a planning nudge, not a data dump.
