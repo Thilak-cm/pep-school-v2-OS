@@ -36,7 +36,7 @@ import {
   LESSON_RATING_COLORS,
 } from '../utils/lessonNoteConstraints';
 
-export default function GroupedNoteDialog({ open, onClose, groupedNote, classroomStudents, classroomTeachers = [], userRole, onNavigateToStudent, onNotesChanged }) {
+export default function GroupedNoteDialog({ open, onClose, groupedNote, classroomStudents, classroomTeachers = [], transferredStudents = new Map(), userRole, onNavigateToStudent, onNotesChanged }) {
   const notify = useNotify();
   const note = groupedNote?.representativeNote;
   const isLesson = note?.type === 'lesson';
@@ -47,7 +47,7 @@ export default function GroupedNoteDialog({ open, onClose, groupedNote, classroo
   const canDeleteGroupedNote = isAdminRole(userRole);
 
   const studentsInGroup = (groupedNote?.studentIds || [])
-    .map(studentId => classroomStudents.find(s => s.id === studentId))
+    .map(studentId => classroomStudents.find(s => s.id === studentId) || transferredStudents.get(studentId))
     .filter(Boolean);
 
   const getStudentDisplayName = (student) => {

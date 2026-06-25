@@ -94,6 +94,7 @@ export default function NoteBottomSheet({
 
   // ----- Previous classroom -----
   const [previousClassroomName, setPreviousClassroomName] = useState(null);
+  const [currentClassroomName, setCurrentClassroomName] = useState(null);
 
   // ----- Lesson tag dialog -----
   const [tagDialogOpen, setTagDialogOpen] = useState(false);
@@ -157,7 +158,11 @@ export default function NoteBottomSheet({
           const snap = await getDoc(doc(db, 'classrooms', noteId));
           setPreviousClassroomName(snap.exists() ? (snap.data().name || noteId) : noteId);
         } catch { setPreviousClassroomName(noteId); }
-      } else { setPreviousClassroomName(null); }
+        try {
+          const cSnap = await getDoc(doc(db, 'classrooms', studentId));
+          setCurrentClassroomName(cSnap.exists() ? (cSnap.data().name || studentId) : studentId);
+        } catch { setCurrentClassroomName(studentId); }
+      } else { setPreviousClassroomName(null); setCurrentClassroomName(null); }
     };
     check();
   }, [observation, student, open]);
@@ -431,7 +436,7 @@ export default function NoteBottomSheet({
               border: '1px solid var(--color-amber-yellow)',
             }}>
               <Typography variant="body2" sx={{ color: 'var(--color-amber-text)', fontStyle: 'italic', fontSize: '0.78rem' }}>
-                Note logged when {student?.name || student?.displayName || 'this student'} was in {previousClassroomName}
+                Note logged when {student?.name || student?.displayName || 'this student'} was in {previousClassroomName}{currentClassroomName ? `. Now transferred to ${currentClassroomName}` : ''}
               </Typography>
             </Box>
           )}

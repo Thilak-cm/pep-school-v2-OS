@@ -61,6 +61,8 @@ function renderLessonSummary(note) {
 export default function ClassroomNoteCard({
   note,
   studentName,
+  isTransferred = false,
+  transferredToClassroomName,
   classroomTeachers = [],
   onStudentClick,
   onNoteClick,
@@ -106,22 +108,42 @@ export default function ClassroomNoteCard({
               </Typography>
             </Box>
           ) : (
-            <Typography
-              variant="subtitle2"
-              sx={{
-                fontWeight: 700,
-                color: 'var(--color-primary)',
-                cursor: 'pointer',
-                fontSize: '0.92rem',
-                '&:hover': { textDecoration: 'underline' },
-              }}
-              onClick={(e) => {
-                e.stopPropagation();
-                onStudentClick();
-              }}
-            >
-              {studentName}
-            </Typography>
+            <Box sx={{ display: 'flex', alignItems: 'center', gap: 0.75 }}>
+              <Typography
+                variant="subtitle2"
+                sx={{
+                  fontWeight: 700,
+                  color: 'var(--color-primary)',
+                  cursor: 'pointer',
+                  fontSize: '0.92rem',
+                  '&:hover': { textDecoration: 'underline' },
+                }}
+                onClick={(e) => {
+                  e.stopPropagation();
+                  onStudentClick();
+                }}
+              >
+                {studentName}
+              </Typography>
+              {isTransferred && (
+                <Typography
+                  component="span"
+                  sx={{
+                    fontSize: '0.65rem',
+                    fontWeight: 600,
+                    color: '#b45309',
+                    backgroundColor: '#fef3c7',
+                    px: 0.75,
+                    py: 0.15,
+                    borderRadius: 'var(--radius-pill)',
+                    border: '1px solid #fde68a',
+                    whiteSpace: 'nowrap',
+                  }}
+                >
+                  {transferredToClassroomName ? `Transferred to ${transferredToClassroomName}` : 'Transferred'}
+                </Typography>
+              )}
+            </Box>
           )}
           <TypeIcon config={chipConfig} />
         </Box>
