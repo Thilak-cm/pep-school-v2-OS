@@ -94,23 +94,17 @@ function buildFirstUserMessage(classroomDoc, statsCacheDoc, contextualNotes, sna
     ? ["## School Contextual Notes", contextualNotes, ""]
     : [];
 
-  const snapshotSection = ["## Weekly Snapshots"];
-  if (snapshotsMap && snapshotsMap.size > 0) {
-    for (const student of students) {
-      const snap = snapshotsMap.get(student.id);
-      if (snap) {
-        const severity = snap.severity || "none";
-        const escalated = snap.escalatedThisWeek ? " | ESCALATED" : "";
-        const improved = snap.improvedThisWeek ? " | improved" : "";
-        const redFlag = snap.redFlag ? ` | RED FLAG: ${snap.redFlag.severity} — ${snap.redFlag.reason}` : "";
-        const gaps = snap.coverageGaps?.length ? ` | gaps: ${snap.coverageGaps.join(", ")}` : "";
-        snapshotSection.push(`- ${student.name} [${student.id}]: severity ${severity}${escalated}${improved}${redFlag}${gaps}`);
-      }
-    }
-  } else {
-    snapshotSection.push("No weekly snapshots available for this classroom.");
-    snapshotSection.push("");
-  }
+  const studentLines = students.map((s) => {
+    const notePart = `this week ${s.thisWeekNotes}, last 42d ${s.last42DaysNotes}, total ${s.totalNotes}`;
+    const snap = snapshotsMap?.get(s.id);
+    if (!snap) return `- ${s.name} [${s.id}]: ${notePart}`;
+    const severity = snap.severity || "none";
+    const escalated = snap.escalatedThisWeek ? " | ESCALATED" : "";
+    const improved = snap.improvedThisWeek ? " | improved" : "";
+    const redFlag = snap.redFlag ? ` | RED FLAG: ${snap.redFlag.severity} — ${snap.redFlag.reason}` : "";
+    const gaps = snap.coverageGaps?.length ? ` | gaps: ${snap.coverageGaps.join(", ")}` : "";
+    return `- ${s.name} [${s.id}]: ${notePart} | severity ${severity}${escalated}${improved}${redFlag}${gaps}`;
+  });
 
   return [
     `# Classroom: ${classroom.name}`,
@@ -125,13 +119,9 @@ function buildFirstUserMessage(classroomDoc, statsCacheDoc, contextualNotes, sna
         `- ${t.name}: ${t.total7d} notes (${t.observations7d} obs, ${t.lessons7d} lessons) | all-time: ${t.observations + t.lessons}`
     ),
     "",
-    "## Student Note Counts",
-    ...students.map(
-      (s) =>
-        `- ${s.name} [${s.id}]: this week ${s.thisWeekNotes}, last 42d ${s.last42DaysNotes}, total ${s.totalNotes}`
-    ),
+    "## Students",
+    ...studentLines,
     "",
-    ...snapshotSection,
     "Generate a weekly digest email for this classroom.",
   ].join("\n");
 }
@@ -307,13 +297,11 @@ test("buildFirstUserMessage handles missing statsCache and empty notes", () => {
   const msg = buildFirstUserMessage({ id: "test", name: "Test" }, null, "");
   assert.ok(msg.includes("# Classroom: Test"));
   assert.ok(msg.includes("## Teacher Activity"));
-  assert.ok(msg.includes("## Student Note Counts"));
-  assert.ok(msg.includes("## Weekly Snapshots"));
-  assert.ok(msg.includes("No weekly snapshots available"));
+  assert.ok(msg.includes("## Students"));
   assert.ok(!msg.includes("## School Contextual Notes"));
 });
 
-test("buildFirstUserMessage includes pre-loaded weekly snapshots", () => {
+test("buildFirstUserMessage merges note counts and snapshot flags per student", () => {
   const classroomDoc = { id: "cosmos", name: "Cosmos", programId: "elementary", teacherIds: ["t1"] };
   const statsDoc = {
     teachers: [{ name: "Geetha", observations7d: 3, lessons7d: 1, observations: 100, lessons: 50 }],
@@ -327,16 +315,19 @@ test("buildFirstUserMessage includes pre-loaded weekly snapshots", () => {
     ["s2", { severity: "high", summary: "Bob has zero notes.", coverageGaps: [], redFlag: { severity: "high", reason: "No activity in 42 days" }, escalatedThisWeek: true, improvedThisWeek: false }],
   ]);
   const msg = buildFirstUserMessage(classroomDoc, statsDoc, "", snapshots);
-  assert.ok(msg.includes("## Weekly Snapshots"));
-  assert.ok(msg.includes("Alice [s1]: severity low"));
+  assert.ok(msg.includes("## Students"));
+  assert.ok(!msg.includes("## Student Note Counts"), "should be merged into Students");
+  assert.ok(!msg.includes("## Weekly Snapshots"), "should be merged into Students");
+  // Alice: note counts + flags on one line
+  assert.ok(msg.includes("Alice [s1]: this week 2, last 42d 10, total 25 | severity low"));
   assert.ok(msg.includes("improved"));
   assert.ok(!msg.includes("Alice showed steady engagement."), "summary should not be in prompt");
-  assert.ok(msg.includes("Bob [s2]: severity high"));
+  // Bob: note counts + flags on one line
+  assert.ok(msg.includes("Bob [s2]: this week 0, last 42d 0, total 0 | severity high"));
   assert.ok(msg.includes("ESCALATED"));
   assert.ok(msg.includes("RED FLAG: high"));
   assert.ok(msg.includes("No activity in 42 days"));
   assert.ok(!msg.includes("Bob has zero notes."), "summary should not be in prompt");
-  assert.ok(!msg.includes("No weekly snapshots available"));
 });
 
 // ── Progressive Disclosure ──────────────────────────────────────────

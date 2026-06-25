@@ -180,23 +180,17 @@ export function buildFirstUserMessage(classroomDoc, statsCacheDoc, contextualNot
     ? ["## School Contextual Notes", contextualNotes, ""]
     : [];
 
-  const snapshotSection = ["## Weekly Snapshots"];
-  if (snapshotsMap && snapshotsMap.size > 0) {
-    for (const student of students) {
-      const snap = snapshotsMap.get(student.id);
-      if (snap) {
-        const severity = snap.severity || "none";
-        const escalated = snap.escalatedThisWeek ? " | ESCALATED" : "";
-        const improved = snap.improvedThisWeek ? " | improved" : "";
-        const redFlag = snap.redFlag ? ` | RED FLAG: ${snap.redFlag.severity} — ${snap.redFlag.reason}` : "";
-        const gaps = snap.coverageGaps?.length ? ` | gaps: ${snap.coverageGaps.join(", ")}` : "";
-        snapshotSection.push(`- ${student.name} [${student.id}]: severity ${severity}${escalated}${improved}${redFlag}${gaps}`);
-      }
-    }
-  } else {
-    snapshotSection.push("No weekly snapshots available for this classroom.");
-    snapshotSection.push("");
-  }
+  const studentLines = students.map((s) => {
+    const notePart = `this week ${s.thisWeekNotes}, last 42d ${s.last42DaysNotes}, total ${s.totalNotes}`;
+    const snap = snapshotsMap?.get(s.id);
+    if (!snap) return `- ${s.name} [${s.id}]: ${notePart} | no weekly snapshot yet`;
+    const severity = snap.severity || "none";
+    const escalated = snap.escalatedThisWeek ? " | ESCALATED" : "";
+    const improved = snap.improvedThisWeek ? " | improved" : "";
+    const redFlag = snap.redFlag ? ` | RED FLAG: ${snap.redFlag.severity} — ${snap.redFlag.reason}` : "";
+    const gaps = snap.coverageGaps?.length ? ` | gaps: ${snap.coverageGaps.join(", ")}` : "";
+    return `- ${s.name} [${s.id}]: ${notePart} | severity ${severity}${escalated}${improved}${redFlag}${gaps}`;
+  });
 
   return [
     `# Classroom: ${classroom.name}`,
@@ -211,13 +205,9 @@ export function buildFirstUserMessage(classroomDoc, statsCacheDoc, contextualNot
         `- ${t.name}: ${t.total7d} notes (${t.observations7d} obs, ${t.lessons7d} lessons) | all-time: ${t.observations + t.lessons}`
     ),
     "",
-    "## Student Note Counts",
-    ...students.map(
-      (s) =>
-        `- ${s.name} [${s.id}]: this week ${s.thisWeekNotes}, last 42d ${s.last42DaysNotes}, total ${s.totalNotes}`
-    ),
+    "## Students",
+    ...studentLines,
     "",
-    ...snapshotSection,
     "Generate a weekly digest email for this classroom.",
   ].join("\n");
 }
