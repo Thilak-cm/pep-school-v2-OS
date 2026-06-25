@@ -28,6 +28,7 @@ const LANGFUSE_PUBLIC_KEY = defineSecret("LANGFUSE_PUBLIC_KEY");
 import { runWithConcurrency } from "../shared/scheduling.js";
 import { runAgentLoop } from "../shared/agentLoop.js";
 import { DIGEST_TOOLS, ToolGatekeeper, createToolExecutor } from "./tools.js";
+import { parseAndRender, renderClassroomDigest, renderSuperadminDigest } from "./renderHtml.js";
 import { createLangfuse } from "../shared/langfuse.js";
 
 // ── Default system prompts ──────────────────────────────────────────
@@ -68,12 +69,24 @@ Only if there's something actionable. If all teachers are active, say nothing. N
 - **Quiet weeks should still offer value.** Suggest proactive focus areas: curriculum gaps to address, students who haven't been observed recently, opportunities to check in on improving students.
 - **Do not invent information.** Only reference data you received or fetched via tools.
 
-## Format
+## Output format
 
-- **Title:** "<full month name> Week <number> Digest — <Classroom Name>" (e.g., "June Week 2 Digest — Periwinkle").
-- **No greetings or sign-offs.** Get right into the content.
+Output a JSON object (no markdown fences, no explanation — just the JSON). The system will render it into a styled HTML email.
+
+\`\`\`
+{
+  "title": "<full month name> Week <number> Digest — <Classroom Name>",
+  "urgent": [{ "name": "Student Name", "content": "What is happening and why it matters.", "action": "Specific suggested action." }],
+  "watch": ["Student Name: one-line concern and suggested response."],
+  "curriculum": ["Area X is under-documented — suggested action."],
+  "bright": ["Student Name: what improved and how to build on it."],
+  "teachers": "Names of inactive teachers and a gentle nudge, or null if all active."
+}
+\`\`\`
+
+- Omit any key whose array would be empty or whose value is null.
 - **Tone:** Warm, practical, collegial — like a trusted co-teacher sharing notes over coffee.
-- **HTML:** Valid inner HTML only (no <html>/<head>/<body> tags). Inline styles, centre-aligned, max-width 600px, mobile-friendly. Use bold and color (#b22222) for urgent items.`;
+- **No greetings, sign-offs, or HTML.** Just the JSON object.`;
 
 const DEFAULT_SUPERADMIN_PROMPT = `You are an experienced Montessori school consultant preparing a weekly executive briefing for school leadership.
 
@@ -107,13 +120,24 @@ Improvements, strong documentation, positive developmental milestones. Brief but
 - **Omit sections with nothing to report.**
 - **Do not invent information.** Only reference data from classroom digests or fetched via tools.
 
-## Format
+## Output format
 
-- **Title:** "Executive Digest — <full month name> Week <number>" (e.g., "Executive Digest — June Week 2").
-- **No greetings or sign-offs.**
+Output a JSON object (no markdown fences, no explanation — just the JSON). The system will render it into a styled HTML email.
+
+\`\`\`
+{
+  "title": "Executive Digest — <full month name> Week <number>",
+  "critical": [{ "name": "Student Name", "classroom": "Classroom Name", "content": "What is happening.", "action": "Recommended leadership action." }],
+  "patterns": ["Pattern description and suggested action."],
+  "classrooms": [{ "name": "Classroom Name", "content": "Why it needs attention and what to do." }],
+  "bright": ["Name — Classroom: what improved and how to reinforce."]
+}
+\`\`\`
+
+- Omit any key whose array would be empty.
 - **Tone:** Direct, concise, executive-friendly — a busy school head should get the picture in 2 minutes.
-- **HTML:** Valid inner HTML only (no <html>/<head>/<body> tags). Inline styles, centre-aligned, max-width 700px, mobile-friendly. Bold and color (#b22222) for critical items.
-- **Ruthlessly concise.** This covers ~20 classrooms — prioritize, don't enumerate.`;
+- **Ruthlessly concise.** This covers ~20 classrooms — prioritize, don't enumerate.
+- **No greetings, sign-offs, or HTML.** Just the JSON object.`;
 
 // ── Pure logic (exported for testing) ───────────────────────────────
 
@@ -395,6 +419,9 @@ export const weeklyDigestClassroomAdmin = functions
               trace: classroomSpan,
             });
 
+            // Render JSON → HTML
+            const htmlContent = parseAndRender(result.content, renderClassroomDigest);
+
             // Determine red flag status from preloaded snapshots + any tool call results
             const hasRedFlags =
               [...snapshotsMap.values()].some(
@@ -424,7 +451,7 @@ export const weeklyDigestClassroomAdmin = functions
             await archivePreviousDigest(digestRef, weekKey);
             await digestRef.set({
               weekKey,
-              htmlContent: result.content,
+              htmlContent,
               agentModel: config.model,
               generatedAt: Timestamp.now(),
               recipientEmails,
@@ -441,7 +468,7 @@ export const weeklyDigestClassroomAdmin = functions
             const emailResults = [];
             for (const email of recipientEmails) {
               try {
-                await sendEmail({ to: email, subject, html: result.content });
+                await sendEmail({ to: email, subject, html: htmlContent });
                 emailResults.push({ email, status: "sent" });
               } catch (emailErr) {
                 emailResults.push({ email, status: "failed", error: emailErr.message });
@@ -449,7 +476,7 @@ export const weeklyDigestClassroomAdmin = functions
             }
 
             classroomSpan.end({
-              output: result.content,
+              output: htmlContent,
               metadata: {
                 hasRedFlags,
                 toolCalls: result.toolCallLog.length,
@@ -606,6 +633,9 @@ export const weeklyDigestSuperadmin = functions
         trace,
       });
 
+      // Render JSON → HTML
+      const htmlContent = parseAndRender(result.content, renderSuperadminDigest);
+
       // Store superadmin digest
       const digestRef = db.doc(
         "classrooms/_digest_all/digests/weekly_email"
@@ -623,7 +653,7 @@ export const weeklyDigestSuperadmin = functions
 
       await digestRef.set({
         weekKey,
-        htmlContent: result.content,
+        htmlContent,
         agentModel: config.model,
         generatedAt: Timestamp.now(),
         recipientEmails,
@@ -640,7 +670,7 @@ export const weeklyDigestSuperadmin = functions
       const emailResults = [];
       for (const email of recipientEmails) {
         try {
-          await sendEmail({ to: email, subject, html: result.content });
+          await sendEmail({ to: email, subject, html: htmlContent });
           emailResults.push({ email, status: "sent" });
         } catch (emailErr) {
           emailResults.push({ email, status: "failed", error: emailErr.message });
@@ -659,7 +689,7 @@ export const weeklyDigestSuperadmin = functions
         "[weeklyDigestSuperadmin] CF2 complete:",
         JSON.stringify(summary)
       );
-      trace.update({ output: result.content, metadata: summary });
+      trace.update({ output: htmlContent, metadata: summary });
       await langfuse.flushAsync();
       return summary;
     } catch (err) {
@@ -797,6 +827,8 @@ export const triggerDigestTest = functions
           trace: span,
         });
 
+        const htmlContent = parseAndRender(result.content, renderClassroomDigest);
+
         const hasRedFlags =
           [...snapshotsMap.values()].some(
             (s) => s.redFlag || s.escalatedThisWeek === true
@@ -815,7 +847,7 @@ export const triggerDigestTest = functions
         await archivePreviousDigest(digestRef, weekKey);
         await digestRef.set({
           weekKey,
-          htmlContent: result.content,
+          htmlContent,
           agentModel: config.model,
           generatedAt: Timestamp.now(),
           recipientEmails,
@@ -830,7 +862,7 @@ export const triggerDigestTest = functions
           : `${classroomName} — Weekly Digest`;
         for (const email of testOverrideEmails) {
           try {
-            await sendEmail({ to: email, subject, html: result.content });
+            await sendEmail({ to: email, subject, html: htmlContent });
           } catch (emailErr) {
             console.error(`[triggerDigestTest] CF1 email failed for ${email}:`, emailErr.message);
           }
@@ -893,6 +925,8 @@ export const triggerDigestTest = functions
         trace: cf2Trace,
       });
 
+      const htmlContent = parseAndRender(result.content, renderSuperadminDigest);
+
       const hasRedFlags = digests.some((d) => d.hasRedFlags);
       const usersSnap = await db.collection("users").get();
       const allUsers = usersSnap.docs.map((d) => ({ id: d.id, ...d.data() }));
@@ -903,7 +937,7 @@ export const triggerDigestTest = functions
       await archivePreviousDigest(digestRef, weekKey);
       await digestRef.set({
         weekKey,
-        htmlContent: result.content,
+        htmlContent,
         agentModel: config.model,
         generatedAt: Timestamp.now(),
         recipientEmails,
@@ -918,7 +952,7 @@ export const triggerDigestTest = functions
       const emailResults = [];
       for (const email of testOverrideEmails) {
         try {
-          await sendEmail({ to: email, subject, html: result.content });
+          await sendEmail({ to: email, subject, html: htmlContent });
           emailResults.push({ email, status: "sent" });
         } catch (emailErr) {
           emailResults.push({ email, status: "failed", error: emailErr.message });

@@ -64,10 +64,22 @@ Only if there's something actionable. If all teachers are active, say nothing. N
 
 ## Format
 
-- **Title:** "<full month name> Week <number> Digest — <Classroom Name>" (e.g., "June Week 2 Digest — Periwinkle").
-- **No greetings or sign-offs.** Get right into the content.
+Output a JSON object (no markdown fences, no explanation — just the JSON). The system will render it into a styled HTML email.
+
+\\\`\\\`\\\`
+{
+  "title": "<full month name> Week <number> Digest — <Classroom Name>",
+  "urgent": [{ "name": "Student Name", "content": "What is happening and why it matters.", "action": "Specific suggested action." }],
+  "watch": ["Student Name: one-line concern and suggested response."],
+  "curriculum": ["Area X is under-documented — suggested action."],
+  "bright": ["Student Name: what improved and how to build on it."],
+  "teachers": "Names of inactive teachers and a gentle nudge, or null if all active."
+}
+\\\`\\\`\\\`
+
+- Omit any key whose array would be empty or whose value is null.
 - **Tone:** Warm, practical, collegial — like a trusted co-teacher sharing notes over coffee.
-- **HTML:** Valid inner HTML only (no <html>/<head>/<body> tags). Inline styles, centre-aligned, max-width 600px, mobile-friendly. Use bold and color (#b22222) for urgent items.`,
+- **No greetings, sign-offs, or HTML.** Just the JSON object.`,
 
   superadminPrompt: `You are an experienced Montessori school consultant preparing a weekly executive briefing for school leadership.
 
@@ -103,11 +115,22 @@ Improvements, strong documentation, positive developmental milestones. Brief but
 
 ## Format
 
-- **Title:** "Executive Digest — <full month name> Week <number>" (e.g., "Executive Digest — June Week 2").
-- **No greetings or sign-offs.**
+Output a JSON object (no markdown fences, no explanation — just the JSON). The system will render it into a styled HTML email.
+
+\\\`\\\`\\\`
+{
+  "title": "Executive Digest — <full month name> Week <number>",
+  "critical": [{ "name": "Student Name", "classroom": "Classroom Name", "content": "What is happening.", "action": "Recommended leadership action." }],
+  "patterns": ["Pattern description and suggested action."],
+  "classrooms": [{ "name": "Classroom Name", "content": "Why it needs attention and what to do." }],
+  "bright": ["Name — Classroom: what improved and how to reinforce."]
+}
+\\\`\\\`\\\`
+
+- Omit any key whose array would be empty.
 - **Tone:** Direct, concise, executive-friendly — a busy school head should get the picture in 2 minutes.
-- **HTML:** Valid inner HTML only (no <html>/<head>/<body> tags). Inline styles, centre-aligned, max-width 700px, mobile-friendly. Bold and color (#b22222) for critical items.
-- **Ruthlessly concise.** This covers ~20 classrooms — prioritize, don't enumerate.`,
+- **Ruthlessly concise.** This covers ~20 classrooms — prioritize, don't enumerate.
+- **No greetings, sign-offs, or HTML.** Just the JSON object.`,
 
   // Contextual notes — school-specific context injected into every
   // agent's first user message. Editable by superadmins via settings page.
