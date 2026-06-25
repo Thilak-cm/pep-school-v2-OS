@@ -112,9 +112,7 @@ function buildFirstUserMessage(classroomDoc, statsCacheDoc, contextualNotes, sna
     }
   }
 
-  const instruction = snapshotsMap && snapshotsMap.size > 0
-    ? "Generate a weekly digest email for this classroom. Weekly snapshots are pre-loaded above — analyze them directly. Use tools like fetch_snapshot_history, fetch_soul, or fetch_observations only for students who need deeper investigation (e.g., escalated students, red flags, anomalies). You must call fetch_weekly_snapshot for a student before accessing their snapshot_history."
-    : "Generate a weekly digest email for this classroom. Use the tools available to investigate any anomalies, trends, or students who need attention. Start by checking weekly snapshots for students with low or declining activity.";
+  const instruction = "Generate a weekly digest email for this classroom based on the data above.";
 
   return [
     `# Classroom: ${classroom.name}`,
@@ -337,7 +335,7 @@ test("buildFirstUserMessage includes pre-loaded weekly snapshots", () => {
   assert.ok(msg.includes("ESCALATED"));
   assert.ok(msg.includes("RED FLAG: high"));
   assert.ok(msg.includes("No activity in 42 days"));
-  assert.ok(msg.includes("pre-loaded above"));
+  assert.ok(msg.includes("based on the data above"));
   assert.ok(!msg.includes("Start by checking weekly snapshots"));
 });
 

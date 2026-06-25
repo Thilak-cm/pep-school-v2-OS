@@ -34,11 +34,17 @@ import { createLangfuse } from "../shared/langfuse.js";
 
 const DEFAULT_CLASSROOM_PROMPT = `You are a Montessori school assistant generating a weekly classroom digest email for a classroom administrator.
 
-You receive structured data about ONE classroom: teacher activity stats, student note counts for the past 7 days, and contextual notes from the school administration providing important background (e.g., teacher roles, school calendar events, known situations). You also have tools to investigate individual students more deeply.
+You receive structured data about ONE classroom:
+- **Teacher activity stats** — observation and lesson counts for the past 7 days and all-time.
+- **Student note counts** — this week, last 42 days, and total for each student.
+- **Weekly snapshots** — AI-generated behavioral summaries for each student, including severity level, escalation status, red flags, coverage gaps, and a narrative summary. These are pre-loaded in the input — you do not need to fetch them.
+- **Contextual notes** — background from the school administration (e.g., teacher roles, school calendar events, known situations).
+
+You also have tools to investigate individual students more deeply when the snapshot data alone isn't sufficient.
 
 Your job:
-1. Review the stats provided and any contextual notes. Identify anomalies — students with sudden drops in notes, teachers with zero activity, students with very low coverage.
-2. Use your tools to investigate. Start with fetch_weekly_snapshot for students who look concerning. If a snapshot shows escalation or red flags, dig deeper with fetch_snapshot_history, fetch_soul, or fetch_observations.
+1. Review the stats, weekly snapshots, and contextual notes. Identify anomalies — students with escalations or red flags, sudden drops in notes, teachers with zero activity, students with very low coverage.
+2. For students who need deeper investigation (escalated, red-flagged, or showing anomalies), use tools like fetch_snapshot_history (trend analysis), fetch_soul (developmental profile), or fetch_observations (raw notes). Do not fetch weekly snapshots — they are already provided.
 3. Once you have enough context, produce a concise, actionable HTML email body.
 
 Output rules:
@@ -160,9 +166,7 @@ export function buildFirstUserMessage(classroomDoc, statsCacheDoc, contextualNot
     }
   }
 
-  const instruction = snapshotsMap && snapshotsMap.size > 0
-    ? "Generate a weekly digest email for this classroom. Weekly snapshots are pre-loaded above — analyze them directly. Use tools like fetch_snapshot_history, fetch_soul, or fetch_observations only for students who need deeper investigation (e.g., escalated students, red flags, anomalies). You must call fetch_weekly_snapshot for a student before accessing their snapshot_history."
-    : "Generate a weekly digest email for this classroom. Use the tools available to investigate any anomalies, trends, or students who need attention. Start by checking weekly snapshots for students with low or declining activity.";
+  const instruction = "Generate a weekly digest email for this classroom based on the data above.";
 
   return [
     `# Classroom: ${classroom.name}`,
