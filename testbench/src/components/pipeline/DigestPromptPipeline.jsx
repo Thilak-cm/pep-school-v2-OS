@@ -31,17 +31,17 @@ Students: 12
 - Richa Harsh: 0 notes (0 obs, 0 lessons) | all-time: 92
 - Diana D'Souza: 0 notes (0 obs, 0 lessons) | all-time: 5
 
-## Student Note Counts
-- Aarav Mehta [stu_001]: this week 3, last 42d 18, total 45
-- Diya Sharma [stu_002]: this week 0, last 42d 12, total 30
-- Eana Gabriela De Ata [stu_003]: this week 0, last 42d 21, total 67
-- Kalidas Sreehari [stu_004]: this week 0, last 42d 0, total 8
-- Reyansh Bansal [stu_005]: this week 0, last 42d 4, total 15
-- Ruhaan Shrivastava [stu_006]: this week 2, last 42d 9, total 22
-- Jia [stu_007]: this week 0, last 42d 6, total 19
-- Dhruv Adithya Reddy [stu_008]: this week 0, last 42d 2, total 11
+## Students
+- Aarav Mehta [stu_001]: this week 3, last 42d 18, total 45 | severity low | improved
+- Diya Sharma [stu_002]: this week 0, last 42d 12, total 30 | severity medium | gaps: Sensorial, Math
+- Eana Gabriela De Ata [stu_003]: this week 0, last 42d 21, total 67 | severity none
+- Kalidas Sreehari [stu_004]: this week 0, last 42d 0, total 8 | severity high | ESCALATED | RED FLAG: high — no observations in 42 days
+- Reyansh Bansal [stu_005]: this week 0, last 42d 4, total 15 | severity low
+- Ruhaan Shrivastava [stu_006]: this week 2, last 42d 9, total 22 | severity none | improved
+- Jia [stu_007]: this week 0, last 42d 6, total 19 | severity low | gaps: Language
+- Dhruv Adithya Reddy [stu_008]: this week 0, last 42d 2, total 11 | no weekly snapshot yet
 
-Generate a weekly digest email for this classroom. Use the tools available to investigate any anomalies, trends, or students who need attention. Start by checking weekly snapshots for students with low or declining activity.`
+Generate a weekly digest email for this classroom.`
     : `# All Classroom Digests
 Total classrooms: 18
 Classrooms with red flags: 3
@@ -104,14 +104,14 @@ Generate a consolidated executive summary email for superadmins. Highlight the m
           <ContextBlock
             number="2"
             label="Classroom Header + Stats"
-            sublabel="classroom name, program, teacher activity (7d), student note counts"
+            sublabel="classroom name, program, teacher activity (7d), student note counts + snapshot flags"
             content={userMessagePreview}
             charCount={null}
           />
           <RuntimePlaceholder
             icon={<DescriptionIcon />}
             title="Built from classrooms/{id} + statsCache/classroom_{id}"
-            description="Teacher 7-day and all-time note counts, student this-week / 42-day / total note counts. Contextual notes from config/weekly_digest injected if present."
+            description="Teacher 7-day and all-time note counts, student this-week / 42-day / total note counts with snapshot flags (severity, escalation, red flags, coverage gaps). Contextual notes from config/weekly_digest injected if present."
           />
         </>
       ) : (

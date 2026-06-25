@@ -66,14 +66,6 @@ export function getPageTitle(screen, state) {
         ? `${state.getStudentDisplayName?.() || "Student"}'s Dashboard`
         : `${state.getStudentDisplayName?.() || "Student"}'s Timeline`;
 
-    case "studentStats": {
-      const name = state.selectedStudent?.displayName ||
-        state.selectedStudent?.name ||
-        `${state.selectedStudent?.firstName || ""} ${state.selectedStudent?.lastName || ""}`.trim() ||
-        "Student";
-      return `${name}'s Stats`;
-    }
-
     case "studentReports":
       return `${state.getStudentDisplayName?.() || "Student"}'s Reports`;
 
@@ -116,7 +108,6 @@ export function getBackNavigation(screen, state, setters) {
       };
     case "studentDashboard":
       return () => setters.setScreen?.(state.studentDashboardReturnScreen || "classroomTimeline");
-    case "studentStats":
     case "timeline":
     case "childChat":
     case "studentReports":
@@ -169,7 +160,7 @@ export function getBackNavigation(screen, state, setters) {
 // ── FAB visibility ─────────────────────────────────────────────────────────
 
 export const FAB_HIDDEN_SCREENS = new Set([
-  "profile", "stats", "studentStats", "feedback", "feedbackTimeline",
+  "profile", "stats", "feedback", "feedbackTimeline",
   "accessDenied", "classroomNotesReview", "graduateStudents", "lessonNotes",
   "studentAliases", "settings", "addUser", "childChat", "config",
   "configLessonNotes", "configAiTools", "configDigest", "chatCommandCentre", "baseballCardConfig",

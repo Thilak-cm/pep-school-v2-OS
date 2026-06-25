@@ -27,55 +27,117 @@ const LANGFUSE_SECRET_KEY = defineSecret("LANGFUSE_SECRET_KEY");
 const LANGFUSE_PUBLIC_KEY = defineSecret("LANGFUSE_PUBLIC_KEY");
 import { runWithConcurrency } from "../shared/scheduling.js";
 import { runAgentLoop } from "../shared/agentLoop.js";
-import { DIGEST_TOOLS, ToolGatekeeper, createToolExecutor } from "./tools.js";
+import { DIGEST_TOOLS, createToolExecutor } from "./tools.js";
+import { parseAndRender, renderClassroomDigest, renderSuperadminDigest } from "./renderHtml.js";
 import { createLangfuse } from "../shared/langfuse.js";
 
 // ── Default system prompts ──────────────────────────────────────────
 
-const DEFAULT_CLASSROOM_PROMPT = `You are a Montessori school assistant generating a weekly classroom digest email for a classroom administrator.
+const DEFAULT_CLASSROOM_PROMPT = `You are an experienced Montessori consultant advising a classroom head on where to focus their attention this week.
 
-You receive structured data about ONE classroom: teacher activity stats, student note counts for the past 7 days, and contextual notes from the school administration providing important background (e.g., teacher roles, school calendar events, known situations). You also have tools to investigate individual students more deeply.
+You receive structured data about ONE classroom: teacher activity stats, student note counts, each student's weekly snapshot flags (severity, red flags, escalation status, coverage gaps), and contextual notes providing school-specific background. The snapshot flags tell you WHO needs attention — to understand WHY, call fetch_weekly_snapshot to get the full narrative summary for that student. You also have deeper tools for investigation.
 
 Your job:
-1. Review the stats provided and any contextual notes. Identify anomalies — students with sudden drops in notes, teachers with zero activity, students with very low coverage.
-2. Use your tools to investigate. Start with fetch_weekly_snapshot for students who look concerning. If a snapshot shows escalation or red flags, dig deeper with fetch_snapshot_history, fetch_soul, or fetch_observations.
-3. Once you have enough context, produce a concise, actionable HTML email body.
+1. Internalize the contextual notes silently — they are background knowledge, not content for the digest. People and situations described there (admin staff, school breaks, ramping classrooms) should be omitted entirely. Do not mention them, do not explain their exclusion, do not narrate adjustments you are making.
+2. Scan the snapshot flags to identify students who need attention (escalated, red-flagged, high/medium severity, coverage gaps). Call fetch_weekly_snapshot for those students to read their full narrative summary before writing about them.
+3. For students who need even deeper investigation, use fetch_snapshot_history, fetch_soul, or fetch_observations.
+4. Produce a concise, actionable HTML email digest.
 
-Output rules:
-- **Title:** Use the format "<full month name> Week <number> Digest — <Classroom Name>" as the email heading (e.g., "Month June Week 2 Digest — Periwinkle").
-- **No greetings or sign-offs.** Do not start with "Dear Team" or end with "Best regards." Get right into the content.
-- **Red-flagged students must be prominently called out.** Use bold text and warning colors. These are urgent.
-- **Escalated students** (medium/high severity) should be highlighted with context on why.
-- **Inactive teachers** (zero notes this week) must be named explicitly.
-- **Anomalies over time** — if a student went from lots of notes to none, say so. If a teacher's output dropped, flag it.
-- **Never say "and several others" or "among others."** Always list every student or teacher by name. Be exhaustive and specific.
-- **Tone:** Professional but warm. You are a co-pilot for the manager.
-- **Format:** Output valid HTML (no <html>/<head>/<body> tags — just inner content). Use inline styles. Centre-aligned, blog-post style layout with max-width 600px. Mobile-friendly.
+## Content structure (use this order)
+
+**1. Urgent — needs action this week**
+ONLY students with high severity or who escalated to red-flag status this week. This section should be short — typically 0–3 students. For each one: what is happening (in plain language, not severity labels), why it matters developmentally, and a specific suggested action (e.g., "schedule a parent conversation," "adjust the work plan to include more supervised practical life," "pair with a calmer peer during group work"). If no students meet this threshold, skip this section entirely.
+
+**2. Watch — trending concerns**
+Students with low or medium severity, those whose severity increased this week, or who show emerging patterns (declining notes, narrowing curriculum engagement). Brief — one line per student with what to watch for.
+
+**3. Curriculum blind spots**
+Aggregate coverage gaps across the classroom. Don't list per-student gaps — synthesize: "Sensorial is the least-documented area — 8 students have no Sensorial observations in 42 days. Consider scheduling group presentations this week." Make it a planning nudge, not a data dump.
+
+**4. Bright spots**
+Students who improved this week, strong documentation from specific teachers, or positive developmental milestones from the snapshots. Reinforcement matters — keep it brief but specific.
+
+**5. Teacher documentation**
+Only if there's something actionable. If all teachers are active, say nothing. Name inactive teachers with a gentle nudge. Do not create a leaderboard of note counts.
+
+## Writing rules
+
+- **Every item must answer "what should I do about this?"** If you can't suggest an action, the item probably doesn't belong in the digest.
+- **Do not restate raw numbers the reader can look up.** "Priya's documentation dropped sharply" is useful. "Priya had 2 notes this week vs 15 last week" is a stat restatement. You may cite numbers occasionally when the contrast is striking and supports your analysis, but never as the lead.
+- **Never say "and several others" or "among others."** List every relevant name.
+- **Omit sections that have nothing to report.** If there are no urgent items, skip that section entirely — do not write "No urgent items this week."
+- **Quiet weeks should still offer value.** Suggest proactive focus areas: curriculum gaps to address, students who haven't been observed recently, opportunities to check in on improving students.
 - **Do not invent information.** Only reference data you received or fetched via tools.
-- **Respect contextual notes.** If the notes say a teacher is administrative (not teaching), do not flag them for inactivity. If a school break is mentioned, adjust your analysis accordingly.
-- **Keep it brief.** Lead with what needs attention. A quiet week gets a short "all clear."`;
 
-const DEFAULT_SUPERADMIN_PROMPT = `You are a Montessori school assistant generating a consolidated weekly digest email for a superadmin who oversees ALL classrooms across the school.
+## Output format
 
-You receive the individual classroom digest summaries that were already generated for each classroom, plus contextual notes from the school administration providing important background. You also have tools to investigate specific students if needed.
+Output a JSON object (no markdown fences, no explanation — just the JSON). The system will render it into a styled HTML email.
+
+\`\`\`
+{
+  "title": "<full month name> Week <number> Digest — <Classroom Name>",
+  "urgent": [{ "name": "Student Name", "content": "What is happening and why it matters.", "action": "Specific suggested action." }],
+  "watch": ["Student Name: one-line concern and suggested response."],
+  "curriculum": ["Area X is under-documented — suggested action."],
+  "bright": ["Student Name: what improved and how to build on it."],
+  "teachers": "Names of inactive teachers and a gentle nudge, or null if all active."
+}
+\`\`\`
+
+- Omit any key whose array would be empty or whose value is null.
+- **Tone:** Warm, practical, collegial — like a trusted co-teacher sharing notes over coffee.
+- **No greetings, sign-offs, or HTML.** Just the JSON object.`;
+
+const DEFAULT_SUPERADMIN_PROMPT = `You are an experienced Montessori school consultant preparing a weekly executive briefing for school leadership.
+
+You receive the individual classroom digest emails that were already generated, plus contextual notes providing school-specific background. You also have tools to investigate specific students if needed.
 
 Your job:
-1. Synthesize the classroom digests into ONE consolidated email.
-2. Highlight the most critical items across all classrooms — red flags, escalations, inactive teachers.
-3. Identify cross-classroom patterns if any (e.g., multiple classrooms with inactive teachers, school-wide observation drop).
+1. Internalize the contextual notes silently — they are background knowledge. People and situations described there should be omitted entirely from your output.
+2. Synthesize the classroom digests into ONE consolidated briefing. Do not repeat or summarize each classroom — extract what leadership needs to know.
+3. Surface cross-classroom patterns — these are your unique value. No individual digest has this view.
 4. Use tools only if you need to verify something or dig deeper into a specific case.
 
-Output rules:
-- **Title:** Use the format "Executive Digest for <full month name> Week <number>" as the email heading (e.g., "Weekly Executive Digest — Month June Week 2").
-- **No greetings or sign-offs.** Do not start with "Dear Team" or end with "Best regards." Get right into the content.
-- **Lead with the most urgent items** — red flags first, then escalations, then general notes.
-- **Group by classroom** but don't just repeat each digest. Summarize and prioritize.
-- **Cross-classroom insights** are your unique value — no individual digest has this view.
-- **Never say "and several others" or "among others."** Always list every teacher and student by name. Be exhaustive and specific.
-- **Tone:** Executive summary for leadership. Concise, direct, actionable.
-- **Format:** Valid HTML, inline styles, centre-aligned blog-post style layout with max-width 700px. Mobile-friendly. No <html>/<head>/<body> tags.
-- **Respect contextual notes.** If the notes say a teacher is administrative, do not flag them for inactivity. If a school break is mentioned, adjust analysis accordingly.
-- **Keep it tight.** This covers ~20 classrooms — be ruthlessly concise.`;
+## Content structure (use this order)
+
+**1. Critical interventions needed**
+Students with red flags or escalations across any classroom. Name the student, the classroom, what's happening, and what action is recommended. These should jump off the page.
+
+**2. Cross-classroom patterns**
+Systemic observations that span multiple classrooms: documentation drops across several teachers, curriculum areas neglected school-wide, seasonal patterns. This is the insight only a school-wide view can provide.
+
+**3. Classrooms needing attention**
+Classrooms with notable issues — high concentration of concerns, documentation gaps, or unusual patterns. One brief paragraph per classroom, only for classrooms that need leadership awareness. Skip classrooms where things are running smoothly.
+
+**4. Bright spots**
+Improvements, strong documentation, positive developmental milestones. Brief but specific — reinforcement from leadership is powerful.
+
+## Writing rules
+
+- **Every item must be actionable.** If leadership can't do anything about it, omit it.
+- **Do not restate what the classroom digests already say.** Synthesize, don't summarize.
+- **Never say "and several others."** List every relevant name.
+- **Omit sections with nothing to report.**
+- **Do not invent information.** Only reference data from classroom digests or fetched via tools.
+
+## Output format
+
+Output a JSON object (no markdown fences, no explanation — just the JSON). The system will render it into a styled HTML email.
+
+\`\`\`
+{
+  "title": "Executive Digest — <full month name> Week <number>",
+  "critical": [{ "name": "Student Name", "classroom": "Classroom Name", "content": "What is happening.", "action": "Recommended leadership action." }],
+  "patterns": ["Pattern description and suggested action."],
+  "classrooms": [{ "name": "Classroom Name", "content": "Why it needs attention and what to do." }],
+  "bright": ["Name — Classroom: what improved and how to reinforce."]
+}
+\`\`\`
+
+- Omit any key whose array would be empty.
+- **Tone:** Direct, concise, executive-friendly — a busy school head should get the picture in 2 minutes.
+- **Ruthlessly concise.** This covers ~20 classrooms — prioritize, don't enumerate.
+- **No greetings, sign-offs, or HTML.** Just the JSON object.`;
 
 // ── Pure logic (exported for testing) ───────────────────────────────
 
@@ -113,11 +175,11 @@ export function resolveSuperAdminOverrides(config, superAdmins) {
   return result;
 }
 
-export function buildFirstUserMessage(classroomDoc, statsCacheDoc, contextualNotes) {
+export function buildFirstUserMessage(classroomDoc, statsCacheDoc, contextualNotes, snapshotsMap = null) {
   const classroom = {
     id: classroomDoc.id,
     name: classroomDoc.name || classroomDoc.id,
-    program: classroomDoc.program || "unknown",
+    program: classroomDoc.programId || "unknown",
     teacherIds: classroomDoc.teacherIds || [],
   };
 
@@ -142,6 +204,18 @@ export function buildFirstUserMessage(classroomDoc, statsCacheDoc, contextualNot
     ? ["## School Contextual Notes", contextualNotes, ""]
     : [];
 
+  const studentLines = students.map((s) => {
+    const notePart = `this week ${s.thisWeekNotes}, last 42d ${s.last42DaysNotes}, total ${s.totalNotes}`;
+    const snap = snapshotsMap?.get(s.id);
+    if (!snap) return `- ${s.name} [${s.id}]: ${notePart} | no weekly snapshot yet`;
+    const severity = snap.severity || "none";
+    const escalated = snap.escalatedThisWeek ? " | ESCALATED" : "";
+    const improved = snap.improvedThisWeek ? " | improved" : "";
+    const redFlag = snap.redFlag ? ` | RED FLAG: ${snap.redFlag.severity} — ${snap.redFlag.reason}` : "";
+    const gaps = snap.coverageGaps?.length ? ` | gaps: ${snap.coverageGaps.join(", ")}` : "";
+    return `- ${s.name} [${s.id}]: ${notePart} | severity ${severity}${escalated}${improved}${redFlag}${gaps}`;
+  });
+
   return [
     `# Classroom: ${classroom.name}`,
     `Program: ${classroom.program}`,
@@ -155,13 +229,10 @@ export function buildFirstUserMessage(classroomDoc, statsCacheDoc, contextualNot
         `- ${t.name}: ${t.total7d} notes (${t.observations7d} obs, ${t.lessons7d} lessons) | all-time: ${t.observations + t.lessons}`
     ),
     "",
-    "## Student Note Counts",
-    ...students.map(
-      (s) =>
-        `- ${s.name} [${s.id}]: this week ${s.thisWeekNotes}, last 42d ${s.last42DaysNotes}, total ${s.totalNotes}`
-    ),
+    "## Students",
+    ...studentLines,
     "",
-    "Generate a weekly digest email for this classroom. Use the tools available to investigate any anomalies, trends, or students who need attention. Start by checking weekly snapshots for students with low or declining activity.",
+    "Generate a weekly digest email for this classroom.",
   ].join("\n");
 }
 
@@ -179,9 +250,9 @@ async function fetchDigestConfig() {
   const snap = await db.collection("config").doc("weekly_digest").get();
   if (!snap.exists) {
     return {
-      model: "openai/gpt-4.1-mini",
+      model: "openai/gpt-5.5",
       temperature: 0.4,
-      maxTokens: 4000,
+      maxTokens: 8000,
       classroomPrompt: DEFAULT_CLASSROOM_PROMPT,
       superadminPrompt: DEFAULT_SUPERADMIN_PROMPT,
       superadminClassroomOverrides: {},
@@ -190,9 +261,9 @@ async function fetchDigestConfig() {
   }
   const d = snap.data();
   return {
-    model: d.model || "openai/gpt-4.1-mini",
+    model: d.model || "openai/gpt-5.5",
     temperature: d.temperature ?? 0.4,
-    maxTokens: d.max_tokens || 4000,
+    maxTokens: d.max_tokens || 8000,
     classroomPrompt: d.classroomPrompt || DEFAULT_CLASSROOM_PROMPT,
     superadminPrompt: d.superadminPrompt || DEFAULT_SUPERADMIN_PROMPT,
     superadminClassroomOverrides: d.superadminClassroomOverrides || {},
@@ -209,6 +280,28 @@ async function archivePreviousDigest(digestRef, weekKey) {
     .collection("history")
     .doc(prev.weekKey)
     .set({ ...prev, archivedAt: Timestamp.now() });
+}
+
+async function preloadSnapshots(statsDoc) {
+  const studentIds = (statsDoc?.students || []).map((s) => s.id);
+  const snapshotsMap = new Map();
+  if (studentIds.length > 0) {
+    const refs = studentIds.map((id) =>
+      db.doc(`students/${id}/ai_summaries/weekly_snapshot`)
+    );
+    const snapDocs = await db.getAll(...refs);
+    for (const snapDoc of snapDocs) {
+      if (snapDoc.exists) {
+        const studentId = snapDoc.ref.parent.parent.id;
+        snapshotsMap.set(studentId, snapDoc.data());
+      }
+    }
+  }
+  const preloadedPrereqs = new Map();
+  for (const sid of snapshotsMap.keys()) {
+    preloadedPrereqs.set(`fetch_weekly_snapshot:${sid}`, true);
+  }
+  return { snapshotsMap, preloadedPrereqs };
 }
 
 // ── CF 1: Per-Classroom Digest ──────────────────────────────────────
@@ -296,19 +389,21 @@ export const weeklyDigestClassroomAdmin = functions
             metadata: {
               classroomName,
               classroomId: classroom.id,
-              program: classroom.program,
+              program: classroom.programId,
               teacherCount: (classroom.teacherIds || []).length,
             },
           });
 
           try {
             const statsDoc = statsDocs.get(classroom.id) || null;
-            const userMessage = buildFirstUserMessage(classroom, statsDoc, config.contextualNotes);
+
+            const { snapshotsMap, preloadedPrereqs } = await preloadSnapshots(statsDoc);
+
+            const userMessage = buildFirstUserMessage(classroom, statsDoc, config.contextualNotes, snapshotsMap);
 
             classroomSpan.update({ input: userMessage });
 
-            const gatekeeper = new ToolGatekeeper();
-            const toolExecutor = createToolExecutor(gatekeeper);
+            const toolExecutor = createToolExecutor(null, { preloadedPrereqs });
 
             const result = await runAgentLoop({
               messages: [
@@ -325,11 +420,12 @@ export const weeklyDigestClassroomAdmin = functions
               trace: classroomSpan,
             });
 
-            // Determine red flag status from tool call results
-            const hasRedFlags = result.toolCallLog.some(
-              (tc) =>
-                tc.name === "fetch_weekly_snapshot" &&
-                (tc.result?.redFlag || tc.result?.escalatedThisWeek === true)
+            // Render JSON → HTML
+            const htmlContent = parseAndRender(result.content, renderClassroomDigest);
+
+            // Determine red flag status from preloaded snapshots
+            const hasRedFlags = [...snapshotsMap.values()].some(
+              (s) => s.redFlag || s.escalatedThisWeek === true
             );
 
             // Resolve recipients for this classroom (users pre-fetched above)
@@ -350,7 +446,7 @@ export const weeklyDigestClassroomAdmin = functions
             await archivePreviousDigest(digestRef, weekKey);
             await digestRef.set({
               weekKey,
-              htmlContent: result.content,
+              htmlContent,
               agentModel: config.model,
               generatedAt: Timestamp.now(),
               recipientEmails,
@@ -367,7 +463,7 @@ export const weeklyDigestClassroomAdmin = functions
             const emailResults = [];
             for (const email of recipientEmails) {
               try {
-                await sendEmail({ to: email, subject, html: result.content });
+                await sendEmail({ to: email, subject, html: htmlContent });
                 emailResults.push({ email, status: "sent" });
               } catch (emailErr) {
                 emailResults.push({ email, status: "failed", error: emailErr.message });
@@ -375,7 +471,7 @@ export const weeklyDigestClassroomAdmin = functions
             }
 
             classroomSpan.end({
-              output: result.content,
+              output: htmlContent,
               metadata: {
                 hasRedFlags,
                 toolCalls: result.toolCallLog.length,
@@ -441,14 +537,18 @@ export const weeklyDigestSuperadmin = functions
       const config = await fetchDigestConfig();
 
       // Read all classroom digests written by CF 1
-      const classroomsSnap = await db
-        .collection("classrooms")
-        .where("status", "==", "active")
-        .get();
+      const [classroomsSnap, usersSnap] = await Promise.all([
+        db.collection("classrooms").where("status", "==", "active").get(),
+        db.collection("users").get(),
+      ]);
       const classroomIds = classroomsSnap.docs.map((d) => d.id);
       const classroomNames = new Map(
         classroomsSnap.docs.map((d) => [d.id, d.data().name || d.id])
       );
+      const allUsers = usersSnap.docs.map((d) => ({
+        id: d.id,
+        ...d.data(),
+      }));
 
       const digests = [];
       for (const cid of classroomIds) {
@@ -514,8 +614,7 @@ export const weeklyDigestSuperadmin = functions
       // Agent loop for superadmin digest
       trace.update({ input: userMessage });
 
-      const gatekeeper = new ToolGatekeeper();
-      const toolExecutor = createToolExecutor(gatekeeper);
+      const toolExecutor = createToolExecutor(null);
 
       const result = await runAgentLoop({
         messages: [
@@ -532,6 +631,9 @@ export const weeklyDigestSuperadmin = functions
         trace,
       });
 
+      // Render JSON → HTML
+      const htmlContent = parseAndRender(result.content, renderSuperadminDigest);
+
       // Store superadmin digest
       const digestRef = db.doc(
         "classrooms/_digest_all/digests/weekly_email"
@@ -539,17 +641,12 @@ export const weeklyDigestSuperadmin = functions
       await archivePreviousDigest(digestRef, weekKey);
 
       const hasRedFlags = digests.some((d) => d.hasRedFlags);
-      const usersSnap = await db.collection("users").get();
-      const allUsers = usersSnap.docs.map((d) => ({
-        id: d.id,
-        ...d.data(),
-      }));
       const superAdmins = resolveSuperAdminRecipients(allUsers);
       const recipientEmails = superAdmins.map((sa) => sa.email);
 
       await digestRef.set({
         weekKey,
-        htmlContent: result.content,
+        htmlContent,
         agentModel: config.model,
         generatedAt: Timestamp.now(),
         recipientEmails,
@@ -566,7 +663,7 @@ export const weeklyDigestSuperadmin = functions
       const emailResults = [];
       for (const email of recipientEmails) {
         try {
-          await sendEmail({ to: email, subject, html: result.content });
+          await sendEmail({ to: email, subject, html: htmlContent });
           emailResults.push({ email, status: "sent" });
         } catch (emailErr) {
           emailResults.push({ email, status: "failed", error: emailErr.message });
@@ -585,7 +682,7 @@ export const weeklyDigestSuperadmin = functions
         "[weeklyDigestSuperadmin] CF2 complete:",
         JSON.stringify(summary)
       );
-      trace.update({ output: result.content, metadata: summary });
+      trace.update({ output: htmlContent, metadata: summary });
       await langfuse.flushAsync();
       return summary;
     } catch (err) {
@@ -684,9 +781,12 @@ export const triggerDigestTest = functions
       const span = cf1Trace.span({ name: `classroom-${classroom.id}` });
       try {
         const statsDoc = statsDocs.get(classroom.id) || null;
-        const userMessage = buildFirstUserMessage(classroom, statsDoc, config.contextualNotes);
-        const gatekeeper = new ToolGatekeeper();
-        const toolExecutor = createToolExecutor(gatekeeper);
+
+        const { snapshotsMap, preloadedPrereqs } = await preloadSnapshots(statsDoc);
+
+        const userMessage = buildFirstUserMessage(classroom, statsDoc, config.contextualNotes, snapshotsMap);
+
+        const toolExecutor = createToolExecutor(null, { preloadedPrereqs });
 
         const result = await runAgentLoop({
           messages: [
@@ -699,8 +799,10 @@ export const triggerDigestTest = functions
           trace: span,
         });
 
-        const hasRedFlags = result.toolCallLog.some(
-          (tc) => tc.name === "fetch_weekly_snapshot" && (tc.result?.redFlag || tc.result?.escalatedThisWeek === true)
+        const htmlContent = parseAndRender(result.content, renderClassroomDigest);
+
+        const hasRedFlags = [...snapshotsMap.values()].some(
+          (s) => s.redFlag || s.escalatedThisWeek === true
         );
 
         // Resolve recipients + override (users pre-fetched above)
@@ -713,7 +815,7 @@ export const triggerDigestTest = functions
         await archivePreviousDigest(digestRef, weekKey);
         await digestRef.set({
           weekKey,
-          htmlContent: result.content,
+          htmlContent,
           agentModel: config.model,
           generatedAt: Timestamp.now(),
           recipientEmails,
@@ -728,7 +830,7 @@ export const triggerDigestTest = functions
           : `${classroomName} — Weekly Digest`;
         for (const email of testOverrideEmails) {
           try {
-            await sendEmail({ to: email, subject, html: result.content });
+            await sendEmail({ to: email, subject, html: htmlContent });
           } catch (emailErr) {
             console.error(`[triggerDigestTest] CF1 email failed for ${email}:`, emailErr.message);
           }
@@ -777,8 +879,7 @@ export const triggerDigestTest = functions
         "Generate a consolidated executive summary email for superadmins. Highlight the most critical items across all classrooms. Identify cross-classroom patterns. Use tools to investigate specific cases if needed.",
       ].join("\n");
 
-      const gatekeeper = new ToolGatekeeper();
-      const toolExecutor = createToolExecutor(gatekeeper);
+      const toolExecutor = createToolExecutor(null);
 
       const result = await runAgentLoop({
         messages: [
@@ -791,17 +892,17 @@ export const triggerDigestTest = functions
         trace: cf2Trace,
       });
 
+      const htmlContent = parseAndRender(result.content, renderSuperadminDigest);
+
       const hasRedFlags = digests.some((d) => d.hasRedFlags);
-      const usersSnap = await db.collection("users").get();
-      const allUsers = usersSnap.docs.map((d) => ({ id: d.id, ...d.data() }));
-      const superAdmins = resolveSuperAdminRecipients(allUsers);
+      const superAdmins = resolveSuperAdminRecipients(testAllUsers);
       const recipientEmails = superAdmins.map((sa) => sa.email);
 
       const digestRef = db.doc("classrooms/_digest_all/digests/weekly_email");
       await archivePreviousDigest(digestRef, weekKey);
       await digestRef.set({
         weekKey,
-        htmlContent: result.content,
+        htmlContent,
         agentModel: config.model,
         generatedAt: Timestamp.now(),
         recipientEmails,
@@ -816,7 +917,7 @@ export const triggerDigestTest = functions
       const emailResults = [];
       for (const email of testOverrideEmails) {
         try {
-          await sendEmail({ to: email, subject, html: result.content });
+          await sendEmail({ to: email, subject, html: htmlContent });
           emailResults.push({ email, status: "sent" });
         } catch (emailErr) {
           emailResults.push({ email, status: "failed", error: emailErr.message });

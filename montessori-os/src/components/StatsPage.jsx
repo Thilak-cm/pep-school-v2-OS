@@ -195,9 +195,9 @@ const StatsPage = ({ user, role, manageableClassrooms = [], onBack, onNavigateTo
 
   // Pie chart data filtered by time period using per-type activity tiers
   const pieChartData = useMemo(() => {
-    const tierKey = (timePeriod === '1D' || timePeriod === '1W') ? 'daily'
+    const tierKey = timePeriod === '1W' ? 'daily'
       : (timePeriod === '1M') ? 'weekly' : 'monthly';
-    const sliceMap = { '1D': 1, '1W': 7, '1M': 4, '3M': 3, '6M': 6, '1Y': 12 };
+    const sliceMap = { '1W': 7, '1M': 4, '3M': 3, '6M': 6, '1Y': 12 };
     const sliceN = sliceMap[timePeriod] || 7;
 
     const sumTier = (type) => {
@@ -253,9 +253,9 @@ const StatsPage = ({ user, role, manageableClassrooms = [], onBack, onNavigateTo
 
   // Activity count from pre-computed tiers
   const activityCount = useMemo(() => {
-    const tierKey = (timePeriod === '1D' || timePeriod === '1W') ? 'daily'
+    const tierKey = timePeriod === '1W' ? 'daily'
       : (timePeriod === '1M') ? 'weekly' : 'monthly';
-    const sliceMap = { '1D': 1, '1W': 7, '1M': 4, '3M': 3, '6M': 6, '1Y': 12 };
+    const sliceMap = { '1W': 7, '1M': 4, '3M': 3, '6M': 6, '1Y': 12 };
     const sliceN = sliceMap[timePeriod] || 7;
     let total = 0;
     for (const doc of classroomDocs) {
@@ -320,7 +320,7 @@ const StatsPage = ({ user, role, manageableClassrooms = [], onBack, onNavigateTo
 
   // Generate activity data from pre-computed tiers
   const generateActivityData = (period) => {
-    const tierKey = (period === '1D' || period === '1W') ? 'daily'
+    const tierKey = period === '1W' ? 'daily'
       : (period === '1M') ? 'weekly' : 'monthly';
 
     // Merge tier maps across all classroom docs
@@ -337,8 +337,6 @@ const StatsPage = ({ user, role, manageableClassrooms = [], onBack, onNavigateTo
     const monthNames = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
 
     switch (period) {
-      case '1D':
-        return sortedEntries.slice(-1).map(([key, count]) => ({ period: key.slice(5), count }));
       case '1W':
         return sortedEntries.slice(-7).map(([key, count]) => {
           const d = new Date(key + 'T00:00:00');
@@ -856,7 +854,6 @@ const StatsPage = ({ user, role, manageableClassrooms = [], onBack, onNavigateTo
                     }
                   }}
                 >
-                  <ToggleButton value="1D">1D</ToggleButton>
                   <ToggleButton value="1W">1W</ToggleButton>
                   <ToggleButton value="1M">1M</ToggleButton>
                   <ToggleButton value="3M">3M</ToggleButton>
@@ -886,8 +883,7 @@ const StatsPage = ({ user, role, manageableClassrooms = [], onBack, onNavigateTo
                     </Typography>
                   </Box>
                   <Typography variant="body2" color="text.secondary">
-                    {timePeriod === '1D' ? 'Last 24 Hours' : 
-                     timePeriod === '1W' ? 'Last 7 Days' :
+                    {timePeriod === '1W' ? 'Last 7 Days' :
                      timePeriod === '1M' ? 'Last 4 Weeks' :
                      timePeriod === '3M' ? 'Last 3 Months' :
                      timePeriod === '6M' ? 'Last 6 Months' :
@@ -915,8 +911,7 @@ const StatsPage = ({ user, role, manageableClassrooms = [], onBack, onNavigateTo
                       Note Distribution
                     </Typography>
                     <Typography variant="body2" color="text.secondary">
-                      {timePeriod === '1D' ? 'Last 24 Hours' : 
-                       timePeriod === '1W' ? 'Last 7 Days' :
+                      {timePeriod === '1W' ? 'Last 7 Days' :
                        timePeriod === '1M' ? 'Last 4 Weeks' :
                        timePeriod === '3M' ? 'Last 3 Months' :
                        timePeriod === '6M' ? 'Last 6 Months' :
