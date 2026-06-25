@@ -1,5 +1,14 @@
 # Changelog
 
+# 11.0.1 — 2026-06-25
+
+### Fixed
+- Reports in classroom and student timelines now appear as individual items sorted chronologically alongside observations, instead of being grouped by date
+- Added "Reports" filter chip to FilterPanel for explicit report type filtering
+- Reports now participate in all filters (type, creator, date) consistently
+- Standardized report field usage (`observedAt`) across both timeline components
+- Removed orphaned `reportTimelineUtils` module
+
 # 11.0.0 — 2026-06-21
 
 ### Added
