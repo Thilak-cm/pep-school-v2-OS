@@ -331,6 +331,7 @@ function ClassroomTimeline({ classroom, currentUser, userRole, manageableClassro
                       studentId: s.id,
                       studentName: s.displayName || s.firstName || 'Unknown Student',
                       observedAt: data.generatedAt || null,
+                      createdBy: data.generatedBy || null,
                       generatedByName: data.generatedByName || null,
                       noteCount: data.noteCount || 0,
                       reportText: data.reportText || '',
@@ -721,7 +722,6 @@ function ClassroomTimeline({ classroom, currentUser, userRole, manageableClassro
 
   const activeTabHeight = activeTab === 0 ? tabHeights.notes : tabHeights.students;
 
-
   const lessonTitleById = useMemo(() => {
     const map = {};
     (classroomNotes || []).forEach((note) => {
@@ -941,7 +941,7 @@ function ClassroomTimeline({ classroom, currentUser, userRole, manageableClassro
           {/* Notes Count */}
           <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', mb: 2 }}>
             <Typography variant="subtitle2" sx={{ fontWeight: 600 }}>
-              {filteredObservations.length} observation{filteredObservations.length !== 1 ? 's' : ''} among {filteredStudents.length} students
+              {filteredObservations.length} item{filteredObservations.length !== 1 ? 's' : ''} among {filteredStudents.length} students
             </Typography>
           </Box>
 
