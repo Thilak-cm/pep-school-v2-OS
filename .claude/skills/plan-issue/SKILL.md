@@ -1,36 +1,41 @@
 ---
 name: plan-issue
-description: Plan implementation of a Linear issue — context loading, technical plan with tradeoff discussion, test discovery, and user approval. Read-only planning only; no code changes. Produces an approved plan in conversation context for /implement-issue to execute.
+description: Plan implementation of a Linear issue — context loading, technical plan with test discovery, and user approval. Read-only planning only; no code changes. Produces an approved plan in conversation context for /implement-issue to execute.
 ---
 
 # Plan Issue
 
-Bridge the gap between a Linear issue and a ready-to-execute plan. This skill automates selecting an issue, loading codebase context, generating a technical execution plan with test specifications, discussing tradeoffs between viable implementation paths, and iterating until the user approves one path. **Planning only — no file modifications.**
+Bridge the gap between a refined Linear issue and a ready-to-execute plan. This skill loads codebase context, generates a technical execution plan with test specifications, and gets user approval. **Planning only — no file modifications.**
+
+Well-refined issues (via `/refine-linear-issue`) should converge on a single implementation path. If the issue is well-refined, this skill produces one plan directly. If multiple paths emerge, that's a signal the issue may need further refinement — flag it but proceed by discussing the fork with the user.
 
 The approved plan stays in conversation context. Run `/implement-issue` in the **same session** to execute it.
 
 ## When to Use This Skill
 
 - You want to plan work on a Linear issue from the `pep-os` workspace
-- You need to compare multiple implementation paths with the user before coding
 - You want a structured execution plan with test specs before writing code
-- You want to discuss tradeoffs and get explicit user buy-in before any changes
+- You want explicit user approval before any code changes
 
 ## Workflow Overview
 
 5-phase, read-only workflow:
 
-1. **Issue Selection** — Interactively filter and select a Linear issue
+1. **Issue Selection** — Select a Linear issue (streamlined when coming from `/refine-linear-issue`)
 2. **Context Loading** — Auto-load codebase overview, staleness check, optional codebase-explorer
-3. **Plan Generation** — Technical execution plan with file paths, test specs, and implementation path options
+3. **Plan Generation** — Technical execution plan with file paths and test specs (single path expected)
 4. **Test Discovery & Baseline** — Auto-detect related tests, run baseline, identify coverage gaps
-5. **Plan Approval** — User reviews tradeoffs, iterates on plan, approves a final implementation path
+5. **Plan Approval** — User reviews plan, iterates, approves
 
 ## Phase 1: Issue Selection
 
-Start by selecting which Linear issue to work on. Use interactive filtering to narrow down options.
+Select which Linear issue to plan. This phase is streamlined when the issue was just refined in the same session.
 
-**Steps:**
+**If the issue is already in conversation context** (e.g., user just ran `/refine-linear-issue` or says "plan PEP-301"):
+- Skip filtering UI — use the issue already in context or fetch it directly by ID.
+- Call `get_issue` with `includeRelations=true` to get the latest description.
+
+**If no issue is specified:**
 1. Ask user for optional filters using AskUserQuestion:
    - Assignee (default: "me")
    - State (default: "Todo")
@@ -95,7 +100,7 @@ Auto-load high-level overview, check for staleness, and spawn Explore subagent w
 
 ## Phase 3: Plan Generation
 
-Create a technical execution plan with specific file paths, test specifications, and explicit tradeoff analysis across viable implementation paths.
+Create a technical execution plan with specific file paths and test specifications. Well-refined issues should converge on a single implementation path.
 
 **Steps:**
 1. Analyze requirements + context:
@@ -103,34 +108,23 @@ Create a technical execution plan with specific file paths, test specifications,
    - Identify files to modify (from overview and explore context)
    - Consider constraints (e.g., Firebase Storage rules, role-based access)
    - Review related/blocking issues for additional context
-   - Identify 2-3 viable implementation paths when reasonable (or explain why only one is viable)
-   - Compare tradeoffs for each path (delivery speed, regression risk, complexity, maintainability, test impact)
+   - Check the issue's "Decisions Made" section (added by `/refine-linear-issue`) — these are resolved constraints that eliminate alternative paths
 
-2. Generate execution plan with sections:
+2. **Path convergence check:**
+   - With the acceptance criteria, decisions, and constraints from the issue, determine the implementation approach.
+   - **Single path (expected for refined issues):** Generate the plan directly. No options section needed.
+   - **Multiple paths (refinement gap):** If you find yourself wanting to present "Option A vs Option B", the issue likely needs further refinement. Flag this: *"This issue has an unresolved decision that creates a fork: [describe the fork]. Consider running `/refine-linear-issue` to resolve this, or I can discuss the options here."* Then proceed with options if the user wants to resolve it inline.
+
+3. Generate execution plan:
 
 ```markdown
 ## Summary
 [1-2 sentence description of implementation approach]
 
-## Implementation Path Options
-
-### Option A (Recommended): [Approach name]
-- **What it changes:** [Short summary]
-- **Pros:** [Speed, reuse, lower risk, etc.]
-- **Cons:** [Complexity, technical debt, migration cost, etc.]
-- **Risk Profile:** Low | Medium | High
-- **Test Impact:** [Which tests are affected / need additions]
-
-### Option B: [Approach name]
-- **What it changes:** [Short summary]
-- **Pros:** [...]
-- **Cons:** [...]
-- **Risk Profile:** Low | Medium | High
-- **Test Impact:** [...]
-
-### Decision Notes (Working Draft)
-- Recommended option: [A/B]
-- Open questions for user: [Tradeoffs to confirm before approval]
+## Implementation Approach
+[Step-by-step technical approach — TDD style: write tests first, then implementation.
+ This is THE approach, not one of several options. If the issue was well-refined,
+ there should be no "alternatively" or "we could also" hedging here.]
 
 ## Files to Modify
 - `path/to/file1.js` - [What changes, which components affected]
@@ -153,12 +147,14 @@ Create a technical execution plan with specific file paths, test specifications,
 - **Test Description:** Should [expected behavior]
 - **Edge Cases:** [list edge cases to test]
 
-## Implementation Approach
-[Step-by-step technical approach - TDD style: write tests first, then implementation]
+## Risk Profile
+- **Risk:** Low | Medium | High
+- **Key risks:** [What could go wrong and how to mitigate]
 
 ## Related Context
 - [Reference overview sections or explore findings that informed this plan]
 - [Any architectural constraints or patterns to follow]
+- [Decisions from issue refinement that constrained this to one path]
 
 ## Verification Checklist
 - [ ] All acceptance criteria have test coverage
@@ -167,9 +163,31 @@ Create a technical execution plan with specific file paths, test specifications,
 - [ ] Manual testing completed (if UI changes)
 ```
 
+**Fallback — Multiple paths (unresolved fork):**
+
+If the issue has an unresolved decision creating multiple viable paths, add this section before "Implementation Approach":
+
+```markdown
+## Refinement Gap
+
+This issue has an unresolved decision:
+[Describe the specific ambiguity]
+
+### Option A: [Approach name]
+- **What it changes:** [Short summary]
+- **Pros/Cons:** [...]
+
+### Option B: [Approach name]
+- **What it changes:** [Short summary]
+- **Pros/Cons:** [...]
+
+**Recommendation:** [Which option and why]
+**To avoid this in future:** This decision should be resolved during `/refine-linear-issue`.
+```
+
 **CRITICAL REQUIREMENT:** Every acceptance criterion MUST map to at least one test.
 
-**Output:** Complete technical execution plan with test specifications and implementation path tradeoffs
+**Output:** Complete technical execution plan with test specifications (single path for refined issues, fallback options if refinement gap detected)
 
 ## Phase 4: Test Discovery & Baseline
 
@@ -206,16 +224,17 @@ Get explicit user approval before any code changes happen.
 **Steps:**
 1. Present complete execution plan (all sections above)
 2. Explain inferred area tags and loaded context
-3. Show implementation path options and discuss tradeoffs with user:
-   - Why the recommended option was chosen
-   - What is gained/lost vs alternatives
-   - Risks, rollout concerns, and testing implications
+3. Show risk profile and key risks
 4. Show test discovery results and baseline
-5. Ask user to confirm the implementation path (approve/edit/switch option)
-6. If "edit": Ask what needs changing, iterate on plan and tradeoff analysis
-7. If "switch option": Revise plan for selected path, then re-review
-8. If "no": Ask what needs revision, go back to Phase 3
-9. If "yes": Plan is finalized. Instruct user to run `/implement-issue` in this same session to execute it.
+5. Ask user to approve (approve/edit)
+6. If "edit": Ask what needs changing, iterate on plan
+7. If "no": Ask what needs revision, go back to Phase 3
+8. If "yes": Plan is finalized. Instruct user to run `/implement-issue` in this same session to execute it.
+
+**If a refinement gap was flagged (multiple paths):**
+- Discuss the fork with the user and resolve it before finalizing
+- Once resolved, collapse the plan back to a single path
+- Note: if this happens frequently, the `/refine-linear-issue` grilling process may need improvement
 
 **GUARDRAIL:** Do not modify any files during this entire skill. Planning is read-only.
 
@@ -229,10 +248,10 @@ Get explicit user approval before any code changes happen.
 - Suggest splitting into multiple issues
 - Ask user if they want to proceed with full scope or narrow focus
 
-**Edge Case: Multiple viable implementation paths**
-- Present at least 2 options with explicit tradeoffs
-- Recommend one option, but ask the user to confirm priorities (speed vs maintainability vs risk)
-- Iterate on the plan until a single path is selected
+**Edge Case: Multiple viable implementation paths (refinement gap)**
+- Flag that this issue may not have been fully refined
+- Suggest running `/refine-linear-issue` to resolve the fork, OR resolve it inline during planning
+- Present the options with tradeoffs, get user decision, then collapse to a single-path plan
 
 **Edge Case: Issue already "In Progress"**
 - Warn user, ask if they want to take ownership and proceed
@@ -241,10 +260,6 @@ Get explicit user approval before any code changes happen.
 - Do NOT create, edit, or write any project files during this skill
 - Do NOT create branches, make commits, or modify code
 - The ONLY output is the approved plan in conversation context
-
-**GUARDRAIL: No Unilateral Path Selection**
-- Do NOT silently choose among materially different implementation paths
-- Discuss tradeoffs with the user and finalize one path through planning iteration
 
 ## Tools Used
 
@@ -261,12 +276,12 @@ Get explicit user approval before any code changes happen.
 
 Planning is complete when:
 
-1. Issue selected interactively with filters
+1. Issue selected (streamlined if coming from `/refine-linear-issue`)
 2. Relevant codebase context auto-loaded (overview + explore context)
 3. Technical execution plan generated with specific file paths and test specs
-4. Existing related tests auto-detected with baseline results
-5. Tradeoffs across implementation paths discussed with the user
-6. User finalizes and approves one implementation path
+4. **Single implementation path** — no unresolved forks (refinement gaps flagged and resolved if found)
+5. Existing related tests auto-detected with baseline results
+6. User approves the plan
 7. User instructed to run `/implement-issue` in the same session to execute
 
 ## Next Step
