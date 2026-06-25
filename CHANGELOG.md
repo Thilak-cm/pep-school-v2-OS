@@ -1,5 +1,16 @@
 # Changelog
 
+# 11.0.2 — 2026-06-25
+
+### Fixed
+- Classroom timeline now uses a single classroomId query instead of per-student batched queries, fixing grouped lesson notes showing incorrect student counts (PEP-333)
+- Real-time listener moved from students collection to observations query, providing instant updates when notes are added
+- Notes from transferred students now display a "Transferred to {classroom}" chip in card and expanded views
+
+### Changed
+- Pagination simplified from multi-cursor batch tracking to a single startAfter cursor
+- Added composite Firestore indexes for observations and media collection groups on classroomId + observedAt
+
 # 11.0.1 — 2026-06-25
 
 ### Changed
@@ -14,6 +25,11 @@
 - Testbench rendering raw JSON instead of styled HTML after JSON output format change
 - Tool catalog and pipeline preview descriptions updated to match new `fetch_weekly_snapshot` return shape
 - `parseAndRender` now throws on invalid JSON instead of sending unformatted text as email
+- Reports in classroom and student timelines now appear as individual items sorted chronologically alongside observations, instead of being grouped by date
+- Added "Reports" filter chip to FilterPanel for explicit report type filtering
+- Reports now participate in all filters (type, creator, date) consistently
+- Standardized report field usage (`observedAt`) across both timeline components
+- Removed orphaned `reportTimelineUtils` module
 
 ### Removed
 - 1D time period from stats overview (StatsPage and StudentStatsPage)

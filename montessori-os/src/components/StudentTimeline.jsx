@@ -400,7 +400,7 @@ function StudentTimeline({ student, currentUser, userRole, noteTypeFilter = null
             id: d.id,
             type: 'report',
             observedAt: data.generatedAt || null,
-            generatedAt: data.generatedAt || null,
+            createdBy: data.generatedBy || null,
             generatedByName: data.generatedByName || null,
             noteCount: data.noteCount || 0,
             reportText: data.reportText || '',
@@ -965,7 +965,7 @@ function StudentTimeline({ student, currentUser, userRole, noteTypeFilter = null
                       },
                       transition: 'all 0.2s ease-in-out',
                     }}
-                    aria-label={`View report generated on ${formatTimestamp(obs.generatedAt)}`}
+                    aria-label={`View report generated on ${formatTimestamp(obs.observedAt)}`}
                   >
                     <CardContent sx={{ p: 1.5, '&:last-child': { pb: 1.5 } }}>
                       <Box sx={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
@@ -976,7 +976,7 @@ function StudentTimeline({ student, currentUser, userRole, noteTypeFilter = null
                           </Typography>
                         </Box>
                         <Typography variant="caption" color="text.secondary">
-                          {formatTimestamp(obs.generatedAt)}
+                          {formatTimestamp(obs.observedAt)}
                         </Typography>
                       </Box>
                       <Box sx={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', ml: 3.5 }}>
@@ -1483,7 +1483,7 @@ function StudentTimeline({ student, currentUser, userRole, noteTypeFilter = null
         reportText={reportPreviewData?.reportText || ''}
         reportType={reportPreviewData?.reportType || 'term'}
         missingInputFlags={reportPreviewData?.missingInputFlags || []}
-        generatedAt={reportPreviewData?.generatedAt || null}
+        generatedAt={reportPreviewData?.observedAt || null}
         studentLabel={student?.displayName || student?.name || 'Student'}
         noteCount={reportPreviewData?.noteCount || null}
         driveDocLink={reportPreviewData?.driveDocLink || null}

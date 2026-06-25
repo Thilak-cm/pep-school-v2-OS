@@ -131,6 +131,22 @@ describe('paginateTimelineItems', () => {
     assert.equal(result.today[0].id, 'old1');
   });
 
+  it('report items respect displayLimit alongside observations', () => {
+    // 8 observations + 7 reports = 15 total, limit to 10
+    const ungrouped = [
+      ...Array.from({ length: 8 }, (_, i) => ({
+        id: `note${i}`, type: 'text', observedAt: ts(`2026-06-${10 + i}T10:00:00Z`), studentId: `s${i}`,
+      })),
+      ...Array.from({ length: 7 }, (_, i) => ({
+        id: `report${i}`, type: 'report', observedAt: ts(`2026-06-${11 + i}T08:00:00Z`), studentId: `sr${i}`,
+      })),
+    ];
+
+    const result = paginateTimelineItems([], ungrouped, 10, NOW);
+    const totalRendered = result.today.length + result.last7Days.length + result.beyond.length;
+    assert.equal(totalRendered, 10, 'should respect limit of 10 across mixed types');
+  });
+
   it('handles all items in a single time bucket', () => {
     const ungrouped = Array.from({ length: 3 }, (_, i) => ({
       id: `t${i}`,
@@ -202,6 +218,37 @@ describe('groupByCalendarDay', () => {
     const result = groupByCalendarDay(items);
     assert.equal(result.length, 1, 'both items should land in same day');
     assert.equal(result[0].items.length, 2);
+  });
+
+  it('places report items chronologically alongside observations', () => {
+    const items = [
+      { id: 'note1', type: 'text', observedAt: ts('2026-06-10T10:00:00Z') },
+      { id: 'report1', type: 'report', observedAt: ts('2026-06-10T08:00:00Z'), studentId: 's1' },
+      { id: 'note2', type: 'voice', observedAt: ts('2026-03-07T10:00:00Z') },
+      { id: 'report2', type: 'report', observedAt: ts('2026-03-07T09:00:00Z'), studentId: 's2' },
+    ];
+    const result = groupByCalendarDay(items);
+
+    assert.equal(result.length, 2, 'should produce 2 day groups');
+    // June 10 group: note1 + report1
+    assert.equal(result[0].items.length, 2, 'June 10 should have note + report');
+    // March 7 group: note2 + report2
+    assert.equal(result[1].items.length, 2, 'March 7 should have note + report');
+  });
+
+  it('report items sort by observedAt just like observations', () => {
+    const items = [
+      { id: 'report-old', type: 'report', observedAt: ts('2026-03-01T10:00:00Z'), studentId: 's1' },
+      { id: 'note-new', type: 'text', observedAt: ts('2026-06-15T10:00:00Z') },
+      { id: 'report-mid', type: 'report', observedAt: ts('2026-05-01T10:00:00Z'), studentId: 's2' },
+    ];
+    const result = groupByCalendarDay(items);
+
+    assert.equal(result.length, 3, 'each item on different day');
+    // Newest first: June 15, May 1, March 1
+    assert.equal(result[0].items[0].id, 'note-new');
+    assert.equal(result[1].items[0].id, 'report-mid');
+    assert.equal(result[2].items[0].id, 'report-old');
   });
 });
 

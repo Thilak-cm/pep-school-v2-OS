@@ -1,7 +1,7 @@
 # Pep OS Overview
 
-Generated: 2026-06-25T22:35:52.065Z
-App version: 11.0.1
+Generated: 2026-06-25T22:38:31.080Z
+App version: 11.0.2
 
 ## App Snapshot
 
@@ -44,17 +44,17 @@ App version: 11.0.1
 - `montessori-os/src/components/LessonNotes.jsx`
 
 ### Timelines and Media (`timelines-and-media`)
-- Count: 11
-- Components: `ClassroomList`, `ClassroomTimeline`, `ClassroomTimeline.pagination.test`, `classroomTimelineUtils`, `classroomTimelineUtils.extraction.test`, `ExportWizard`, `FeedbackTimeline`, `FilterPanel`, `StudentDashboard`, `StudentDashboard.test`, `StudentTimeline`
+- Count: 12
+- Components: `ClassroomList`, `ClassroomTimeline`, `ClassroomTimeline.classroomIdQuery.test`, `ClassroomTimeline.pagination.test`, `classroomTimelineUtils`, `classroomTimelineUtils.extraction.test`, `ExportWizard`, `FeedbackTimeline`, `FilterPanel`, `StudentDashboard`, `StudentDashboard.test`, `StudentTimeline`
 - Representative paths:
 - `montessori-os/src/components/ClassroomList.jsx`
 - `montessori-os/src/components/ClassroomTimeline.jsx`
+- `montessori-os/src/components/ClassroomTimeline.classroomIdQuery.test.js`
 - `montessori-os/src/components/ClassroomTimeline.pagination.test.js`
 - `montessori-os/src/components/classroomTimelineUtils.js`
 - `montessori-os/src/components/classroomTimelineUtils.extraction.test.js`
 - `montessori-os/src/components/ExportWizard.jsx`
 - `montessori-os/src/components/FeedbackTimeline.jsx`
-- `montessori-os/src/components/FilterPanel.jsx`
 
 ### Analytics and Notifications (`analytics-and-notifications`)
 - Count: 7
@@ -149,6 +149,11 @@ App version: 11.0.1
 
 ## Recent Changes
 
+### 11.0.2 (2026-06-25)
+- Classroom timeline now uses a single classroomId query instead of per-student batched queries, fixing grouped lesson notes showing incorrect student counts (PEP-333)
+- Real-time listener moved from students collection to observations query, providing instant updates when notes are added
+- Notes from transferred students now display a "Transferred to {classroom}" chip in card and expanded views
+
 ### 11.0.1 (2026-06-25)
 - Digest agent prompt rewrite — consultant role with 5-section priority structure (Urgent/Watch/Curriculum/Bright/Teachers), action-oriented writing rules, silent contextual notes handling
 - Context distillation — snapshot flags (severity, escalation, red flags, coverage gaps) preloaded into prompt; full narrative summary behind selective tool call
@@ -163,9 +168,4 @@ App version: 11.0.1
 - Report Generation feature in prompt test bench — compare term and monthly baseline report prompts side-by-side with real student observations, markdown-rendered output, date range selection, and run history (PEP-328)
 - Config-not-found warning in test bench when Firestore prompt config doc is missing
 - Fetch warning chips in test bench output when observation queries fail partially
-
-### 10.38.0 (2026-06-19)
-- Monthly Baseline Report type — teachers can generate a 30-day baseline report alongside the existing term report via a Term/Monthly toggle in the generate dialog (PEP-325)
-- Monthly reports export to a "Monthly Reports" subfolder in Google Drive with separate summary and archive CSVs
-- Report type chip (Monthly/Term) on report cards in the reports list
 
