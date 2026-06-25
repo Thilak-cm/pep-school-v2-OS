@@ -157,6 +157,11 @@ export default function GroupedNoteCard({
     .map((sid) => classroomStudents.find((s) => s.id === sid) || transferredStudents.get(sid))
     .filter(Boolean);
   const hasTransferredStudents = groupedNote.studentIds.some((sid) => transferredStudents.has(sid));
+  const transferredClassroomNames = hasTransferredStudents
+    ? [...new Set(groupedNote.studentIds
+        .map((sid) => transferredStudents.get(sid)?.transferredToClassroomName)
+        .filter(Boolean))]
+    : [];
 
   return (
     <Card
@@ -198,7 +203,9 @@ export default function GroupedNoteCard({
               mb: 0.5,
             }}
           >
-            Includes transferred students
+            {transferredClassroomNames.length > 0
+              ? `Includes students transferred to ${transferredClassroomNames.join(', ')}`
+              : 'Includes transferred students'}
           </Typography>
         )}
 

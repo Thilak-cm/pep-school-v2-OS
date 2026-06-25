@@ -61,13 +61,15 @@ function ClassroomTimeline({ classroom, currentUser, userRole, manageableClassro
   const [notesReloadToken] = useState(0);
   const lastDocRef = useRef(null);
   const [transferredStudents, setTransferredStudents] = useState(new Map());
+  const fetchedTransferredIdsRef = useRef(new Set());
+  const isFirstSnapshotRef = useRef(true);
   const notesTabRef = useRef(null);
   const studentsTabRef = useRef(null);
   const [tabHeights, setTabHeights] = useState({ notes: 'auto', students: 'auto' });
 
   // showSearch/searchInputRef focus effect removed — HFSearchInput is always visible
 
-  const isClassroomAdmin = userRole === 'classroomadmin';
+  const isClassroomAdmin = userRole !== 'superadmin';
   const scopedClassrooms = isClassroomAdmin ? (Array.isArray(manageableClassrooms) ? manageableClassrooms : []) : [];
   const scopedClassroomsKey = scopedClassrooms.join('|');
   const hasClassroomAccess = classroom && (!isClassroomAdmin || scopedClassrooms.includes(classroom.id));
@@ -79,6 +81,8 @@ function ClassroomTimeline({ classroom, currentUser, userRole, manageableClassro
       setClassroomStudents([]);
       setClassroomTeachers([]);
       setClassroomMediaDocs([]);
+      setTransferredStudents(new Map());
+      fetchedTransferredIdsRef.current = new Set();
       setDisplayLimit(NOTES_PAGE_SIZE);
       setLoading(false);
       return;
@@ -153,40 +157,33 @@ function ClassroomTimeline({ classroom, currentUser, userRole, manageableClassro
         }
 
         lastDocRef.current = null;
+        isFirstSnapshotRef.current = true;
         setDisplayLimit(NOTES_PAGE_SIZE);
 
         const students = await fetchStudents();
         fetchTeachers(); // Teachers can load in parallel
 
-        // Fetch observations, media, and reports in parallel
-        await Promise.all([
-          // Observations — initial fetch + real-time listener
-          (async () => {
-            const snap = await getDocs(observationsQuery);
-            const notes = snap.docs.map(d => ({
+        // Set up real-time listener for observations (replaces separate getDocs)
+        const observationsReady = new Promise((resolveObs) => {
+          const unsub = onSnapshot(observationsQuery, (snapshot) => {
+            const freshNotes = snapshot.docs.map(d => ({
               id: d.id,
               parentStudentId: d.ref.parent?.parent?.id,
               docPath: d.ref.path,
               ...d.data(),
             }));
-            if (snap.docs.length > 0) {
-              lastDocRef.current = snap.docs[snap.docs.length - 1];
-            }
-            setHasMoreNotes(snap.docs.length >= NOTES_PAGE_SIZE);
-            setClassroomNotes(notes);
 
-            // Real-time listener on observations for this classroom (PEP-333)
-            const unsub = onSnapshot(observationsQuery, (snapshot) => {
-              const freshNotes = snapshot.docs.map(d => ({
-                id: d.id,
-                parentStudentId: d.ref.parent?.parent?.id,
-                docPath: d.ref.path,
-                ...d.data(),
-              }));
+            if (isFirstSnapshotRef.current) {
+              // First snapshot — initialize state (replaces getDocs)
               if (snapshot.docs.length > 0) {
                 lastDocRef.current = snapshot.docs[snapshot.docs.length - 1];
               }
-              // Merge fresh first-page notes with previously loaded older notes
+              setHasMoreNotes(snapshot.docs.length >= NOTES_PAGE_SIZE);
+              setClassroomNotes(freshNotes);
+              isFirstSnapshotRef.current = false;
+              resolveObs();
+            } else {
+              // Subsequent snapshots — merge fresh first-page notes with older paginated notes
               const freshIds = new Set(freshNotes.map(n => n.id));
               setClassroomNotes(prev => {
                 const olderNotes = prev.filter(n => !freshIds.has(n.id));
@@ -198,9 +195,23 @@ function ClassroomTimeline({ classroom, currentUser, userRole, manageableClassro
                 });
                 return merged;
               });
-            }, () => { /* listener error ignored */ });
-            unsubscribeRef.current = unsub;
-          })(),
+              if (snapshot.docs.length > 0) {
+                lastDocRef.current = snapshot.docs[snapshot.docs.length - 1];
+              }
+            }
+          }, (err) => {
+            reportCaughtError(err, 'ClassroomTimeline', 'onSnapshot');
+            notify.error('Timeline updates paused. Refresh to retry.');
+            isFirstSnapshotRef.current = false;
+            setHasMoreNotes(false);
+            resolveObs();
+          });
+          unsubscribeRef.current = unsub;
+        });
+
+        // Fetch observations (via listener), media, and reports in parallel
+        await Promise.all([
+          observationsReady,
           // Media — single classroomId query (PEP-333)
           (async () => {
             try {
@@ -301,7 +312,7 @@ function ClassroomTimeline({ classroom, currentUser, userRole, manageableClassro
       if (n.studentId && !currentStudentIds.has(n.studentId)) missingIds.add(n.studentId);
     });
     // Remove IDs we already fetched
-    transferredStudents.forEach((_, id) => missingIds.delete(id));
+    fetchedTransferredIdsRef.current.forEach(id => missingIds.delete(id));
     if (missingIds.size === 0) return;
     (async () => {
       const entries = (await Promise.all([...missingIds].map(async (sid) => {
@@ -312,9 +323,29 @@ function ClassroomTimeline({ classroom, currentUser, userRole, manageableClassro
         return null;
       }))).filter(Boolean);
       if (entries.length > 0) {
+        // Resolve classroom names for transferred students
+        const classroomIdsToResolve = new Set();
+        entries.forEach(([, data]) => {
+          if (data.classroomId && data.classroomId !== classroom?.id) {
+            classroomIdsToResolve.add(data.classroomId);
+          }
+        });
+        const classroomNameMap = {};
+        await Promise.all([...classroomIdsToResolve].map(async (cid) => {
+          try {
+            const cSnap = await getDoc(doc(db, 'classrooms', cid));
+            if (cSnap.exists()) classroomNameMap[cid] = cSnap.data().name || cid;
+          } catch { /* ignore */ }
+        }));
+        entries.forEach(([id]) => fetchedTransferredIdsRef.current.add(id));
         setTransferredStudents(prev => {
           const next = new Map(prev);
-          entries.forEach(([id, data]) => next.set(id, data));
+          entries.forEach(([id, data]) => {
+            const transferredToClassroomName = (data.classroomId && data.classroomId !== classroom?.id)
+              ? (classroomNameMap[data.classroomId] || data.classroomId)
+              : null;
+            next.set(id, { ...data, transferredToClassroomName });
+          });
           return next;
         });
       }
@@ -412,7 +443,8 @@ function ClassroomTimeline({ classroom, currentUser, userRole, manageableClassro
       }
 
       setDisplayLimit(prev => prev + NOTES_PAGE_SIZE);
-    } catch {
+    } catch (err) {
+      reportCaughtError(err, 'ClassroomTimeline', 'handleLoadMore');
       notify.error('Failed to load more notes. Please try again.', { duration: 3000 });
     } finally {
       setLoadingMore(false);
@@ -640,6 +672,8 @@ function ClassroomTimeline({ classroom, currentUser, userRole, manageableClassro
     if (student) return student.displayName || student.firstName || 'Unknown Student';
     const transferred = transferredStudents.get(note.studentId);
     if (transferred) return transferred.displayName || transferred.firstName || 'Unknown Student';
+    // Still loading transferred student data — show placeholder
+    if (!fetchedTransferredIdsRef.current.has(note.studentId)) return '···';
     return 'Unknown Student';
   };
 
@@ -694,7 +728,13 @@ function ClassroomTimeline({ classroom, currentUser, userRole, manageableClassro
           classroomTeachers={classroomTeachers}
           transferredStudents={transferredStudents}
           onNoteClick={() => setSelectedGroupNote(item)}
-          onNavigateToStudent={onNavigateToStudent}
+          onNavigateToStudent={(student) => {
+            if (student?.isTransferred && userRole !== 'superadmin') {
+              notify.info('This student has transferred to another classroom.');
+              return;
+            }
+            onNavigateToStudent(student);
+          }}
           lessonTitleById={lessonTitleById}
         />
       );
@@ -705,8 +745,13 @@ function ClassroomTimeline({ classroom, currentUser, userRole, manageableClassro
         note={item}
         studentName={getStudentName(item)}
         isTransferred={transferredStudents.has(item.studentId)}
+        transferredToClassroomName={transferredStudents.get(item.studentId)?.transferredToClassroomName}
         classroomTeachers={classroomTeachers}
         onStudentClick={() => {
+          if (transferredStudents.has(item.studentId) && userRole !== 'superadmin') {
+            notify.info('This student has transferred to another classroom.');
+            return;
+          }
           const student = classroomStudents.find(s => s.id === item.studentId) || transferredStudents.get(item.studentId);
           if (student) {
             trackEvent('student_card_click', { source: 'classroom_timeline' });
@@ -964,7 +1009,13 @@ function ClassroomTimeline({ classroom, currentUser, userRole, manageableClassro
         classroomTeachers={classroomTeachers}
         transferredStudents={transferredStudents}
         userRole={userRole}
-        onNavigateToStudent={onNavigateToStudent}
+        onNavigateToStudent={(student) => {
+          if (student?.isTransferred && userRole !== 'superadmin') {
+            notify.info('This student has transferred to another classroom.');
+            return;
+          }
+          onNavigateToStudent(student);
+        }}
       />
 
     </Box>

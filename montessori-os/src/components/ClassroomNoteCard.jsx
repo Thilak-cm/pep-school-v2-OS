@@ -62,6 +62,7 @@ export default function ClassroomNoteCard({
   note,
   studentName,
   isTransferred = false,
+  transferredToClassroomName,
   classroomTeachers = [],
   onStudentClick,
   onNoteClick,
@@ -139,7 +140,7 @@ export default function ClassroomNoteCard({
                     whiteSpace: 'nowrap',
                   }}
                 >
-                  Transferred
+                  {transferredToClassroomName ? `Transferred to ${transferredToClassroomName}` : 'Transferred'}
                 </Typography>
               )}
             </Box>
