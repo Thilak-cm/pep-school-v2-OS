@@ -1,7 +1,7 @@
 # Pep OS Overview
 
-Generated: 2026-06-25T22:38:31.080Z
-App version: 11.0.2
+Generated: 2026-06-25T23:56:23.917Z
+App version: 11.0.3
 
 ## App Snapshot
 
@@ -149,6 +149,11 @@ App version: 11.0.2
 
 ## Recent Changes
 
+### 11.0.3 (2026-06-25)
+- Monthly checklist export now uses a proper Google Docs table layout instead of fake right-margin columns, preventing content overflow to a second page (PEP-301)
+- Dynamic sizing ladder pre-calculates content height and adjusts column ratio, section spacing, and font size to guarantee single-page output
+- Table cell padding now included in height estimation for accurate overflow detection
+
 ### 11.0.2 (2026-06-25)
 - Classroom timeline now uses a single classroomId query instead of per-student batched queries, fixing grouped lesson notes showing incorrect student counts (PEP-333)
 - Real-time listener moved from students collection to observations query, providing instant updates when notes are added
@@ -163,9 +168,4 @@ App version: 11.0.2
 - **Weekly Digest Agent (PEP-297)** — two-stage agentic pipeline generating per-classroom and consolidated superadmin digest emails every Sunday 6 PM IST via tool-calling agent loops with Langfuse tracing
 - Production email delivery via Resend with verified sender (tech@pepschoolv2.com)
 - Digest history archival to Firestore subcollections
-
-### 10.39.0 (2026-06-20)
-- Report Generation feature in prompt test bench — compare term and monthly baseline report prompts side-by-side with real student observations, markdown-rendered output, date range selection, and run history (PEP-328)
-- Config-not-found warning in test bench when Firestore prompt config doc is missing
-- Fetch warning chips in test bench output when observation queries fail partially
 
