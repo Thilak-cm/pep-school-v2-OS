@@ -74,7 +74,6 @@ export const useObservationFilters = (observations = [], noteTypeFilter = null) 
     if (filters.creators && filters.creators.length > 0) {
       const selectedTeacherIds = new Set(filters.creators.map(teacher => teacher.id));
       filtered = filtered.filter(obs => {
-        if (obs.type === 'report') return true;
         const creatorId = obs.createdBy || obs.teacherId;
         return selectedTeacherIds.has(creatorId);
       });
@@ -93,7 +92,7 @@ export const useObservationFilters = (observations = [], noteTypeFilter = null) 
       if (overrideNoteTypeFilter === 'media') {
         selectedTypes.add('media');
       }
-      filtered = filtered.filter(obs => obs.type === 'report' || selectedTypes.has(obs.type));
+      filtered = filtered.filter(obs => selectedTypes.has(obs.type));
     }
 
     // Curriculum area filter (PEP-33)

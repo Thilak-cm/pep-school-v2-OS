@@ -1,5 +1,28 @@
 # Changelog
 
+# 11.0.1 — 2026-06-25
+
+### Fixed
+- Reports in classroom and student timelines now appear as individual items sorted chronologically alongside observations, instead of being grouped by date
+- Added "Reports" filter chip to FilterPanel for explicit report type filtering
+- Reports now participate in all filters (type, creator, date) consistently
+- Standardized report field usage (`observedAt`) across both timeline components
+- Removed orphaned `reportTimelineUtils` module
+
+# 11.0.0 — 2026-06-21
+
+### Added
+- **Weekly Digest Agent (PEP-297)** — two-stage agentic pipeline generating per-classroom and consolidated superadmin digest emails every Sunday 6 PM IST via tool-calling agent loops with Langfuse tracing
+- Production email delivery via Resend with verified sender (tech@pepschoolv2.com)
+- Digest history archival to Firestore subcollections
+- Editable contextual notes for digest config (PEP-324) — superadmin UI to manage school-specific context injected into digest prompts
+- Digest generation in prompt test bench (PEP-304) — full agent loop with tools, HTML preview, variant comparison
+- MCP tools for digest queries (get_digest, list_digest_history)
+
+### Fixed
+- Ghost teacher filter in recomputeStats — orphaned UIDs and stale pending teachers with zero activity excluded from statsCache to prevent "Unknown" noise in digest emails
+- Cleaned up 4 orphan teacherIds from classroom docs (parijat, periwinkle, allstars)
+
 # 10.39.0 — 2026-06-20
 
 ### Added

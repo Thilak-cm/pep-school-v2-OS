@@ -66,6 +66,7 @@ jspm_packages/
 .claude/agent-memory/
 .claude/workflow-diagram.html
 montessori-os/.claude/
+functions/.claude/
 
 # Python cache
 __pycache__/

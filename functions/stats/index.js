@@ -280,6 +280,12 @@ export const recomputeStats = functions
           otherNotes30d,
           otherCount30d: otherIds30d.size,
         };
+      }).filter((t) => {
+        // Exclude ghost teachers: orphaned UIDs or stale pending users with zero activity.
+        // These pollute downstream consumers (e.g., digest agent reports "Unknown" teachers).
+        const isGhost = !usersById.has(t.id) || t.id.startsWith("pending_");
+        const hasActivity = (t.observations + t.lessons) > 0;
+        return !isGhost || hasActivity;
       });
 
       // Student stats
