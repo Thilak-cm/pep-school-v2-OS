@@ -94,9 +94,8 @@ function buildFirstUserMessage(classroomDoc, statsCacheDoc, contextualNotes, sna
     ? ["## School Contextual Notes", contextualNotes, ""]
     : [];
 
-  const snapshotSection = [];
+  const snapshotSection = ["## Weekly Snapshots"];
   if (snapshotsMap && snapshotsMap.size > 0) {
-    snapshotSection.push("## Weekly Snapshots (pre-loaded)");
     for (const student of students) {
       const snap = snapshotsMap.get(student.id);
       if (snap) {
@@ -110,9 +109,10 @@ function buildFirstUserMessage(classroomDoc, statsCacheDoc, contextualNotes, sna
         snapshotSection.push("");
       }
     }
+  } else {
+    snapshotSection.push("No weekly snapshots available for this classroom.");
+    snapshotSection.push("");
   }
-
-  const instruction = "Generate a weekly digest email for this classroom based on the data above.";
 
   return [
     `# Classroom: ${classroom.name}`,
@@ -134,7 +134,7 @@ function buildFirstUserMessage(classroomDoc, statsCacheDoc, contextualNotes, sna
     ),
     "",
     ...snapshotSection,
-    instruction,
+    "Generate a weekly digest email for this classroom.",
   ].join("\n");
 }
 
@@ -310,6 +310,8 @@ test("buildFirstUserMessage handles missing statsCache and empty notes", () => {
   assert.ok(msg.includes("# Classroom: Test"));
   assert.ok(msg.includes("## Teacher Activity"));
   assert.ok(msg.includes("## Student Note Counts"));
+  assert.ok(msg.includes("## Weekly Snapshots"));
+  assert.ok(msg.includes("No weekly snapshots available"));
   assert.ok(!msg.includes("## School Contextual Notes"));
 });
 
@@ -327,7 +329,7 @@ test("buildFirstUserMessage includes pre-loaded weekly snapshots", () => {
     ["s2", { severity: "high", summary: "Bob has zero notes.", coverageGaps: [], redFlag: { severity: "high", reason: "No activity in 42 days" }, escalatedThisWeek: true, improvedThisWeek: false }],
   ]);
   const msg = buildFirstUserMessage(classroomDoc, statsDoc, "", snapshots);
-  assert.ok(msg.includes("## Weekly Snapshots (pre-loaded)"));
+  assert.ok(msg.includes("## Weekly Snapshots"));
   assert.ok(msg.includes("Alice [s1] — severity: low"));
   assert.ok(msg.includes("improved"));
   assert.ok(msg.includes("Alice showed steady engagement."));
@@ -335,8 +337,7 @@ test("buildFirstUserMessage includes pre-loaded weekly snapshots", () => {
   assert.ok(msg.includes("ESCALATED"));
   assert.ok(msg.includes("RED FLAG: high"));
   assert.ok(msg.includes("No activity in 42 days"));
-  assert.ok(msg.includes("based on the data above"));
-  assert.ok(!msg.includes("Start by checking weekly snapshots"));
+  assert.ok(!msg.includes("No weekly snapshots available"));
 });
 
 // ── Progressive Disclosure ──────────────────────────────────────────
