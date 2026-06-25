@@ -1,5 +1,12 @@
 # Changelog
 
+# 11.0.3 — 2026-06-25
+
+### Fixed
+- Monthly checklist export now uses a proper Google Docs table layout instead of fake right-margin columns, preventing content overflow to a second page (PEP-301)
+- Dynamic sizing ladder pre-calculates content height and adjusts column ratio, section spacing, and font size to guarantee single-page output
+- Table cell padding now included in height estimation for accurate overflow detection
+
 # 11.0.2 — 2026-06-25
 
 ### Fixed
