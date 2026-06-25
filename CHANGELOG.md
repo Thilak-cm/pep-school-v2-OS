@@ -1,5 +1,16 @@
 # Changelog
 
+# 11.0.2 — 2026-06-25
+
+### Fixed
+- Classroom timeline now uses a single classroomId query instead of per-student batched queries, fixing grouped lesson notes showing incorrect student counts (PEP-333)
+- Real-time listener moved from students collection to observations query, providing instant updates when notes are added
+- Notes from transferred students now display a "Transferred to {classroom}" chip in card and expanded views
+
+### Changed
+- Pagination simplified from multi-cursor batch tracking to a single startAfter cursor
+- Added composite Firestore indexes for observations and media collection groups on classroomId + observedAt
+
 # 11.0.1 — 2026-06-25
 
 ### Fixed
