@@ -104,9 +104,7 @@ function buildFirstUserMessage(classroomDoc, statsCacheDoc, contextualNotes, sna
         const improved = snap.improvedThisWeek ? " | improved" : "";
         const redFlag = snap.redFlag ? ` | RED FLAG: ${snap.redFlag.severity} — ${snap.redFlag.reason}` : "";
         const gaps = snap.coverageGaps?.length ? ` | gaps: ${snap.coverageGaps.join(", ")}` : "";
-        snapshotSection.push(`### ${student.name} [${student.id}] — severity: ${severity}${escalated}${improved}${redFlag}${gaps}`);
-        if (snap.summary) snapshotSection.push(snap.summary);
-        snapshotSection.push("");
+        snapshotSection.push(`- ${student.name} [${student.id}]: severity ${severity}${escalated}${improved}${redFlag}${gaps}`);
       }
     }
   } else {
@@ -330,13 +328,14 @@ test("buildFirstUserMessage includes pre-loaded weekly snapshots", () => {
   ]);
   const msg = buildFirstUserMessage(classroomDoc, statsDoc, "", snapshots);
   assert.ok(msg.includes("## Weekly Snapshots"));
-  assert.ok(msg.includes("Alice [s1] — severity: low"));
+  assert.ok(msg.includes("Alice [s1]: severity low"));
   assert.ok(msg.includes("improved"));
-  assert.ok(msg.includes("Alice showed steady engagement."));
-  assert.ok(msg.includes("Bob [s2] — severity: high"));
+  assert.ok(!msg.includes("Alice showed steady engagement."), "summary should not be in prompt");
+  assert.ok(msg.includes("Bob [s2]: severity high"));
   assert.ok(msg.includes("ESCALATED"));
   assert.ok(msg.includes("RED FLAG: high"));
   assert.ok(msg.includes("No activity in 42 days"));
+  assert.ok(!msg.includes("Bob has zero notes."), "summary should not be in prompt");
   assert.ok(!msg.includes("No weekly snapshots available"));
 });
 

@@ -28,12 +28,12 @@ const config = {
   // System prompts — editable via testbench for prompt iteration (PEP-304)
   classroomPrompt: `You are an experienced Montessori consultant advising a classroom head on where to focus their attention this week.
 
-You receive structured data about ONE classroom: teacher activity stats, student note counts, each student's weekly AI snapshot (behavioral summary, severity, red flags, escalation status, coverage gaps), and contextual notes providing school-specific background. You also have tools to investigate individual students more deeply.
+You receive structured data about ONE classroom: teacher activity stats, student note counts, each student's weekly snapshot flags (severity, red flags, escalation status, coverage gaps), and contextual notes providing school-specific background. The snapshot flags tell you WHO needs attention — to understand WHY, call fetch_weekly_snapshot to get the full narrative summary for that student. You also have deeper tools for investigation.
 
 Your job:
 1. Internalize the contextual notes silently — they are background knowledge, not content for the digest. People and situations described there (admin staff, school breaks, ramping classrooms) should be omitted entirely. Do not mention them, do not explain their exclusion, do not narrate adjustments you are making.
-2. Analyze the weekly snapshots, stats, and coverage gaps. Identify who needs attention, what curriculum areas are neglected, and what's changing week-over-week.
-3. For students who need deeper investigation (escalated, red-flagged, or showing anomalies), use tools like fetch_snapshot_history, fetch_soul, or fetch_observations. Do not call fetch_weekly_snapshot — that data is already in the input.
+2. Scan the snapshot flags to identify students who need attention (escalated, red-flagged, high/medium severity, coverage gaps). Call fetch_weekly_snapshot for those students to read their full narrative summary before writing about them.
+3. For students who need even deeper investigation, use fetch_snapshot_history, fetch_soul, or fetch_observations.
 4. Produce a concise, actionable HTML email digest.
 
 ## Content structure (use this order)
