@@ -12,6 +12,8 @@ import {
   buildPlanDocTitle,
   buildChecklistDocTitle,
   formatMonthLabel,
+  estimateChecklistHeight,
+  computeChecklistLayout,
 } from "./docBuilders.js";
 
 // ---------------------------------------------------------------------------
@@ -305,24 +307,141 @@ test("buildChecklistRequests includes all work titles as checklist items", () =>
   );
 });
 
-test("buildChecklistRequests sets wide right margin for teacher notes", () => {
+test("buildChecklistRequests creates a table with per-item rows and merged right column", () => {
+  const requests = buildChecklistRequests(SAMPLE_PLAN, STUDENT_META);
+  // Should contain an insertTable request
+  const tables = requests.filter((r) => r.insertTable);
+  assert.ok(tables.length === 1, "Should insert exactly one table");
+  const table = tables[0].insertTable;
+  // 1 header row + 5 section headers + 25 items = 31 rows
+  assert.equal(table.rows, 31, "Table should have 31 rows (1 header + 5 sections + 25 items)");
+  assert.equal(table.columns, 2, "Table should have 2 columns");
+  // Should merge right column content cells
+  const merges = requests.filter((r) => r.mergeTableCells);
+  assert.ok(merges.length >= 1, "Should merge right column cells");
+});
+
+test("buildChecklistRequests adjusts row count for variable item counts", () => {
+  const sparseplan = {
+    ...SAMPLE_PLAN,
+    sections: SAMPLE_PLAN.sections.map((s, i) =>
+      i === 0 ? { ...s, items: s.items.slice(0, 2) } : s,
+    ),
+  };
+  const requests = buildChecklistRequests(sparseplan, STUDENT_META);
+  const tables = requests.filter((r) => r.insertTable);
+  const table = tables[0].insertTable;
+  // 1 header + 5 section headers + 2 + 5 + 5 + 5 + 5 = 28 rows
+  assert.equal(table.rows, 28, "Table should have 28 rows when first section has only 2 items");
+});
+
+test("buildChecklistRequests styles header row with bold text and gray background", () => {
+  const requests = buildChecklistRequests(SAMPLE_PLAN, STUDENT_META);
+  const allText = requests
+    .filter((r) => r.insertText)
+    .map((r) => r.insertText.text)
+    .join("");
+  assert.ok(allText.includes("Checklist Items"), "Should include 'Checklist Items' column header");
+  assert.ok(allText.includes("Teacher Comments"), "Should include 'Teacher Comments' column header");
+  // Should have table cell style with background color on header row
+  const cellStyles = requests.filter((r) => r.updateTableCellStyle);
+  assert.ok(cellStyles.length >= 1, "Should style table cells (at least header row background)");
+});
+
+test("buildChecklistRequests sets minimal page margins", () => {
   const requests = buildChecklistRequests(SAMPLE_PLAN, STUDENT_META);
   const docStyles = requests.filter((r) => r.updateDocumentStyle);
   assert.ok(docStyles.length >= 1, "Should set document margins");
-  const rightMargin = docStyles[0].updateDocumentStyle.documentStyle.marginRight;
-  assert.ok(rightMargin.magnitude >= 180, "Right margin should be wide (>=180pt) for teacher notes");
+  const margins = docStyles[0].updateDocumentStyle.documentStyle;
+  assert.equal(margins.marginTop.magnitude, 18, "Top margin should be 18pt");
+  assert.equal(margins.marginBottom.magnitude, 18, "Bottom margin should be 18pt");
+  assert.equal(margins.marginLeft.magnitude, 18, "Left margin should be 18pt");
+  assert.equal(margins.marginRight.magnitude, 18, "Right margin should be 18pt");
 });
 
-test("buildChecklistRequests uses 8pt font size", () => {
+test("buildChecklistRequests applies left column grid borders and vertical divider", () => {
   const requests = buildChecklistRequests(SAMPLE_PLAN, STUDENT_META);
-  const textStyles = requests
-    .filter((r) => r.updateTextStyle)
-    .map((r) => r.updateTextStyle.textStyle);
-  const fontSizes = textStyles
-    .filter((s) => s.fontSize)
-    .map((s) => s.fontSize.magnitude);
-  // At least some text should be 8pt (checklist body text)
-  assert.ok(fontSizes.includes(8), "Should use 8pt font size for checklist body text");
+  // Should have updateTableCellStyle requests for borders
+  const cellStyles = requests.filter((r) => r.updateTableCellStyle);
+  // At minimum: header row bg + left column borders
+  assert.ok(cellStyles.length >= 2, "Should have multiple cell style updates for borders");
+});
+
+test("computeChecklistLayout widens checklist column for long item text", () => {
+  const longPlan = {
+    ...SAMPLE_PLAN,
+    sections: SAMPLE_PLAN.sections.map((s) => ({
+      ...s,
+      items: s.items.map((it) => ({
+        ...it,
+        work: "A".repeat(70), // 70-char text forces wider column
+      })),
+    })),
+  };
+  const layout = computeChecklistLayout(longPlan);
+  assert.ok(layout.checklistColumnRatio > 0.50, "Should widen beyond 50% for long text");
+  assert.ok(layout.checklistColumnRatio <= 0.75, "Should not exceed 75%");
+});
+
+test("computeChecklistLayout reduces spacing and font for extreme content", () => {
+  const extremePlan = {
+    ...SAMPLE_PLAN,
+    sections: SAMPLE_PLAN.sections.map((s) => ({
+      ...s,
+      items: s.items.map((it) => ({
+        ...it,
+        work: "B".repeat(120), // 120-char text — extreme
+      })),
+    })),
+  };
+  const layout = computeChecklistLayout(extremePlan);
+  const reduced = layout.sectionSpacingPt < 12 || layout.fontSizePt < 8;
+  assert.ok(reduced, "Should reduce spacing or font size for extreme content");
+  assert.ok(layout.fontSizePt >= 7, "Font size must never go below 7pt floor");
+});
+
+test("buildChecklistRequests preserves all item text without truncation", () => {
+  const longTextPlan = {
+    ...SAMPLE_PLAN,
+    sections: SAMPLE_PLAN.sections.map((s) => ({
+      ...s,
+      items: s.items.map((it, i) => ({
+        ...it,
+        work: `Long item text number ${i + 1} that should never be truncated ${"x".repeat(60)}`,
+      })),
+    })),
+  };
+  const requests = buildChecklistRequests(longTextPlan, STUDENT_META);
+  const allText = requests
+    .filter((r) => r.insertText)
+    .map((r) => r.insertText.text)
+    .join("");
+  for (const section of longTextPlan.sections) {
+    for (const item of section.items) {
+      assert.ok(
+        allText.includes(item.work),
+        `Should preserve full text: "${item.work.slice(0, 40)}..."`,
+      );
+    }
+  }
+});
+
+test("estimateChecklistHeight fits within page budget at minimum settings", () => {
+  // 5 sections × 5 items with 50-char text — realistic max for production plans
+  const maxPlan = {
+    ...SAMPLE_PLAN,
+    sections: SAMPLE_PLAN.sections.map((s) => ({
+      ...s,
+      items: s.items.map((it) => ({
+        ...it,
+        work: "C".repeat(50),
+      })),
+    })),
+  };
+  const pageContentWidth = (612 - 18 - 18) * 0.75; // 576 * 0.75 = 432pt
+  const height = estimateChecklistHeight(maxPlan, pageContentWidth, 7, 4);
+  const usableHeight = 792 - 18 - 18; // 756pt
+  assert.ok(height <= usableHeight, `Height ${height}pt should fit within ${usableHeight}pt usable page height`);
 });
 
 test("buildChecklistRequests has no footer text", () => {

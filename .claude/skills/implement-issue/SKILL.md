@@ -75,7 +75,13 @@ Execute the approved plan using Test-Driven Development.
    - Ensure consistent patterns with existing codebase
    - Update tests if refactoring changes interfaces
 
-6. Create commits:
+6. **Manual verification BEFORE committing:**
+   - Present a tailored verification checklist (see Phase 4 for checklist details)
+   - Wait for user to verify and confirm everything looks good
+   - If user wants changes: apply them, re-run tests, re-verify — all before any commits
+   - Only proceed to committing after explicit user approval
+
+7. Create commits (only after manual verification passes):
    - Commit tests separately: `test: add tests for [feature/fix] (PEP-123)`
    - Commit implementation: `feat/fix: [description] (PEP-123)`
    - Co-authored-by: Claude
@@ -86,12 +92,14 @@ For each acceptance criterion:
   1. RED: Write failing test (captures requirement)
   2. GREEN: Implement code to pass test (minimal implementation)
   3. REFACTOR: Clean up code while keeping tests green
+  4. VERIFY: Manual verification before committing
 ```
 
 **Verification Requirements:**
 - All acceptance criteria have test coverage
 - All tests passing (new + existing)
 - No test regressions
+- Manual verification passed by user
 - BLOCK if any criterion lacks tests
 
 ## Phase 2: Push & CI Check

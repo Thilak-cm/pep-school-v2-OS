@@ -29,7 +29,6 @@ import SnapshotBody from './SnapshotBody';
 import MonthlyPlanTab from './MonthlyPlanTab';
 import PlanFeedbackDialog from './PlanFeedbackDialog';
 import Coachmark from '../coachmark/Coachmark';
-import useCoachmark from '../coachmark/useCoachmark';
 import NotesOverTimeDrawer from './NotesOverTimeDrawer';
 import NoteBottomSheet from './noteBottomSheet/NoteBottomSheet';
 import { friendlyFunctionError } from '../utils/cloudFunctionErrors';
@@ -116,9 +115,7 @@ function StudentDashboard({ student, onOpenTimeline, onOpenFeedback, onOpenChat,
   const [programResolved, setProgramResolved] = useState(false);
   const hasPlanTab = PLAN_PROGRAMS.includes(studentProgramId);
   const snapshotTabs = hasPlanTab ? SNAPSHOT_TABS_WITH_PLAN : SNAPSHOT_TABS_NO_PLAN;
-  const planFeedbackCoachmark = useCoachmark(PLAN_FEEDBACK_COACHMARK_KEY);
   const handlePlanFeedbackChipClick = () => {
-    if (!planFeedbackCoachmark.isDismissed) planFeedbackCoachmark.dismiss();
     setPlanFeedbackOpen(true);
   };
 
