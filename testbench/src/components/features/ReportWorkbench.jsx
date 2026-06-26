@@ -31,7 +31,7 @@ import { saveToSession, loadFromSession, clearSession } from "../../hooks/useSes
 
 const FEATURE_ID = "report_generation";
 
-export default function ReportWorkbench() {
+export default function ReportWorkbench({ onBack, registerBackGuard }) {
   const [selectedStudent, setSelectedStudent] = useState(null);
   const [programId, setProgramId] = useState(null);
   const [reportType, setReportType] = useState("term");
@@ -58,6 +58,13 @@ export default function ReportWorkbench() {
     return () => window.removeEventListener("beforeunload", handleBeforeUnload);
   }, [variants]);
 
+  const handleBackRef = useRef(null);
+  handleBackRef.current = () => handleBack();
+  useEffect(() => {
+    registerBackGuard?.(() => handleBackRef.current());
+    return () => registerBackGuard?.(null);
+  }, [registerBackGuard]);
+
   const handleConfigLoaded = useCallback((config) => {
     liveConfigRef.current = config;
     setVariants((prev) => prev.map((v, i) =>
@@ -79,6 +86,8 @@ export default function ReportWorkbench() {
     const saved = loadFromSession(programId, reportType);
     if (saved) {
       setResumePrompt({ programId, reportType, data: saved });
+    } else {
+      setResumePrompt(null);
     }
   }, [programId, reportType]);
 
@@ -96,24 +105,33 @@ export default function ReportWorkbench() {
     setSelectedStudent(null);
     setVariants([createVariant(null, 0), createVariant(null, 1)]);
     setSessionName("");
+    setResumePrompt(null);
   }
 
-  function handleSaveBeforeLeavingAction(choice) {
+  function handleBack() {
+    if (hasUnsavedWork(variants)) {
+      setSaveBeforeLeaving({ action: "back" });
+      return;
+    }
+    onBack?.();
+  }
+
+  async function handleSaveBeforeLeavingAction(choice) {
     const pending = saveBeforeLeaving;
     if (choice === "session") {
       saveToSession(programId, reportType, variants, sessionName);
       setSnackbar({ open: true, message: "Session saved — you can resume later", severity: "info" });
     } else if (choice === "run") {
-      saveRun().then(() => {
-        // saveRun already shows snackbar
-      });
+      if (!await saveRun()) return;
+    } else if (choice === "discard") {
+      clearSession(programId, reportType);
     }
-    // "discard" — do nothing, just proceed
     setSaveBeforeLeaving(null);
     if (pending.action === "switch-program") {
       applyProgramSwitch(pending.nextProgram);
+    } else if (pending.action === "back") {
+      onBack?.();
     }
-    // "back" action would be handled by parent — not applicable here since we don't control back nav
   }
 
   function handleResumeSession() {
@@ -204,14 +222,15 @@ export default function ReportWorkbench() {
   }
 
   async function saveRun() {
-    if (!selectedStudent) return;
+    if (!selectedStudent) return false;
     setSaving(true);
     try {
       const payload = buildSavePayload({ featureId: FEATURE_ID, selectedStudent, programId, variants, conversations: {}, sessionName, kickoffMessage: "", user: auth.currentUser });
       await addDoc(collection(db, "testbench/settings/runs"), { ...payload, reportType, dateRange, timestamp: Timestamp.now() });
       setSnackbar({ open: true, message: "Run saved to Firestore", severity: "success" });
-    } catch (err) { setSnackbar({ open: true, message: `Save failed: ${err.message}`, severity: "error" }); }
+    } catch (err) { setSnackbar({ open: true, message: `Save failed: ${err.message}`, severity: "error" }); return false; }
     finally { setSaving(false); }
+    return true;
   }
 
   function loadRun(run) {
@@ -220,7 +239,8 @@ export default function ReportWorkbench() {
   }
 
   function applyLoadRun(run) {
-    if (run.programId) setProgramId(run.programId);
+    const runProgram = run.programId || programId;
+    if (runProgram) setProgramId(runProgram);
     setSelectedStudent({ id: run.studentId, displayName: run.studentName });
     setSessionName(run.sessionName || "");
     if (run.reportType) setReportType(run.reportType);
@@ -312,12 +332,12 @@ export default function ReportWorkbench() {
           <Button onClick={() => setSaveBeforeLeaving(null)}>Cancel</Button>
           <Button onClick={() => handleSaveBeforeLeavingAction("discard")} color="error">Leave without saving</Button>
           <Button onClick={() => handleSaveBeforeLeavingAction("session")} variant="outlined">Save to session</Button>
-          <Button onClick={() => handleSaveBeforeLeavingAction("run")} variant="contained" disabled={!selectedStudent}>Save run</Button>
+          <Button onClick={() => handleSaveBeforeLeavingAction("run")} variant="contained" disabled={!selectedStudent || !variants.some((v) => v.output)}>Save run</Button>
         </DialogActions>
       </Dialog>
 
       {/* Resume Session Prompt */}
-      <Dialog open={resumePrompt !== null} onClose={() => setResumePrompt(null)}>
+      <Dialog open={resumePrompt !== null} onClose={handleStartFresh}>
         <DialogTitle>Resume previous session?</DialogTitle>
         <DialogContent>
           <DialogContentText>

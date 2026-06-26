@@ -83,7 +83,7 @@ export default function ReportConfig({ programId, reportType, onProgramChange, o
         });
       }
     } catch (err) {
-      console.error("[ReportConfig] loadConfig failed:", err);
+      setConfigNotFound(`${prefix}_${programId} (load error: ${err.message})`);
     } finally {
       setLoading(false);
     }

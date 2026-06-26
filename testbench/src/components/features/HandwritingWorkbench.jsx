@@ -31,6 +31,7 @@ import HandwritingPromptPipeline from "../pipeline/HandwritingPromptPipeline.jsx
 import HandwritingGallery from "../HandwritingGallery.jsx";
 import { createVariant, updateVariant as updateVariantHelper, hasUnsavedWork, SCROLL_AFTER } from "../../utils/variantHelpers.js";
 import { buildSavePayload, restoreVariantsFromRun } from "../../hooks/useRunPersistence.js";
+import useBackGuard from "../../hooks/useBackGuard.js";
 import { useAuth } from "../../contexts/AuthContext.js";
 import usePromoteToLive from "../../hooks/usePromoteToLive.js";
 import PromoteConfirmDialog from "../PromoteConfirmDialog.jsx";
@@ -43,7 +44,7 @@ const HANDWRITING_DEFAULTS = [
   { id: "2025-GUL-021", displayName: "Nuha Rao", classroomId: "power", classroomName: "Power" },
 ];
 
-export default function HandwritingWorkbench() {
+export default function HandwritingWorkbench({ onBack, registerBackGuard }) {
   const { role } = useAuth();
   const [selectedStudent, setSelectedStudent] = useState(null);
   const [handwrittenCount, setHandwrittenCount] = useState(null);
@@ -73,6 +74,8 @@ export default function HandwritingWorkbench() {
     window.addEventListener("beforeunload", handleBeforeUnload);
     return () => window.removeEventListener("beforeunload", handleBeforeUnload);
   }, [variants]);
+
+  const { blocked: backBlocked, confirmLeave, cancelLeave } = useBackGuard(registerBackGuard, onBack, hasUnsavedWork(variants));
 
   // HandwritingConfig always passes an object, never a function updater
   const handleConfigLoaded = useCallback((config) => {
@@ -233,6 +236,12 @@ export default function HandwritingWorkbench() {
         <DialogTitle>Load saved run?</DialogTitle>
         <DialogContent><DialogContentText>You have unsaved work. Loading will discard current variants.</DialogContentText></DialogContent>
         <DialogActions><Button onClick={() => setPendingLoadRun(null)}>Cancel</Button><Button onClick={() => { applyLoadRun(pendingLoadRun); setPendingLoadRun(null); }} color="error">Discard & Load</Button></DialogActions>
+      </Dialog>
+
+      <Dialog open={backBlocked} onClose={cancelLeave}>
+        <DialogTitle>Leave with unsaved changes?</DialogTitle>
+        <DialogContent><DialogContentText>You have unsaved work. Leaving will discard your current variants and outputs.</DialogContentText></DialogContent>
+        <DialogActions><Button onClick={cancelLeave}>Cancel</Button><Button onClick={confirmLeave} color="error">Leave without saving</Button></DialogActions>
       </Dialog>
 
       <PromoteConfirmDialog

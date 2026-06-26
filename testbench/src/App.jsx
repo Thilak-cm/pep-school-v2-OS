@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useState, useRef, useCallback } from "react";
 import Box from "@mui/material/Box";
 import AppBar from "@mui/material/AppBar";
 import Toolbar from "@mui/material/Toolbar";
@@ -16,6 +16,19 @@ import FeatureWorkbench from "./components/FeatureWorkbench.jsx";
 
 export default function App() {
   const [selectedFeature, setSelectedFeature] = useState(null);
+  const backGuardRef = useRef(null);
+
+  const navigateBack = useCallback(() => setSelectedFeature(null), []);
+
+  function handleBack() {
+    if (backGuardRef.current) {
+      backGuardRef.current();
+    } else {
+      navigateBack();
+    }
+  }
+
+  const registerBackGuard = useCallback((guard) => { backGuardRef.current = guard; }, []);
 
   return (
     <AuthGate>
@@ -23,7 +36,7 @@ export default function App() {
         <AppBar position="static" color="transparent" elevation={0} sx={{ borderBottom: 1, borderColor: "divider" }}>
           <Toolbar>
             {selectedFeature && (
-              <IconButton edge="start" sx={{ mr: 1 }} onClick={() => setSelectedFeature(null)}>
+              <IconButton edge="start" sx={{ mr: 1 }} onClick={handleBack}>
                 <ArrowBackIcon />
               </IconButton>
             )}
@@ -38,7 +51,7 @@ export default function App() {
         {!selectedFeature ? (
           <FeaturePicker onSelect={setSelectedFeature} />
         ) : (
-          <FeatureWorkbench featureId={selectedFeature} onBack={() => setSelectedFeature(null)} />
+          <FeatureWorkbench featureId={selectedFeature} onBack={navigateBack} registerBackGuard={registerBackGuard} />
         )}
       </Box>
     </AuthGate>
