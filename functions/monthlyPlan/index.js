@@ -585,14 +585,9 @@ export const exportMonthlyPlanToDrive = functions
 // ---------------------------------------------------------------------------
 
 /**
- * Scheduled CF: runs on the 24th–27th of each month at midnight IST.
- * A runtime guard ensures it only executes on the correct day: last day
- * of the current month minus 4. This gives teachers exactly 4 days of
- * lead time regardless of month length:
- *   - Feb 28 → fires on 24th
- *   - Feb 29 (leap) → fires on 25th
- *   - 30-day months → fires on 26th
- *   - 31-day months → fires on 27th
+ * Scheduled CF: runs on the 28th–31st of each month at midnight IST.
+ * A runtime guard ensures it only executes on the last day of the month
+ * (e.g. Feb 28, Apr 30, Jul 31).
  *
  * Generates + exports monthly plans for all active toddler/primary students.
  */
@@ -603,19 +598,18 @@ export const batchGenerateMonthlyPlans = functions
     memory: "1GB",
     secrets: [OPENROUTER_API_KEY],
   })
-  .pubsub.schedule("0 0 24-27 * *")
+  .pubsub.schedule("0 0 28-31 * *")
   .timeZone("Asia/Kolkata")
   .onRun(async () => {
-    // Runtime guard: only execute on last-day-of-month minus 4.
+    // Runtime guard: only execute on the last day of the month.
     // Cloud Functions clock is UTC; cron fires at midnight IST (UTC+5:30),
     // so we must convert to IST before checking the date.
     const now = new Date();
     const IST_OFFSET_MS = 5.5 * 60 * 60 * 1000;
     const istNow = new Date(now.getTime() + IST_OFFSET_MS);
     const lastDay = new Date(istNow.getFullYear(), istNow.getMonth() + 1, 0).getDate();
-    const targetDay = lastDay - 4;
-    if (istNow.getDate() !== targetDay) {
-      console.log(`[batchGenerateMonthlyPlans] skipping — IST day is ${istNow.getDate()}, target is ${targetDay}`);
+    if (istNow.getDate() !== lastDay) {
+      console.log(`[batchGenerateMonthlyPlans] skipping — IST day is ${istNow.getDate()}, last day is ${lastDay}`);
       return null;
     }
 
