@@ -1,11 +1,11 @@
 ---
 name: implement-issue
-description: Execute an approved plan from /plan-issue. Creates feature branch, implements via TDD, pushes to remote with CI check, syncs Linear, and walks user through manual e2e verification. Must run in the same session as /plan-issue (plan is in context).
+description: Execute an approved plan from /plan-issue. Creates feature branch, implements via TDD, pushes to remote with CI check, syncs GitHub Issue, and walks user through manual e2e verification. Must run in the same session as /plan-issue (plan is in context).
 ---
 
 # Implement Issue
 
-Execute a user-approved plan that was produced by `/plan-issue` in this same session. This skill reads the finalized plan from conversation context and proceeds directly to branch creation, TDD implementation, pushing to remote with CI verification, Linear sync, and manual e2e verification.
+Execute a user-approved plan that was produced by `/plan-issue` in this same session. This skill reads the finalized plan from conversation context and proceeds directly to branch creation, TDD implementation, pushing to remote with CI verification, GitHub Issue sync, and manual e2e verification.
 
 **Precondition:** An approved plan from `/plan-issue` must be in this conversation's context. If no plan is found, instruct the user to run `/plan-issue` first.
 
@@ -13,7 +13,7 @@ Execute a user-approved plan that was produced by `/plan-issue` in this same ses
 
 - You just finished `/plan-issue` and the user approved a plan in Phase 5
 - The approved plan (with implementation path, file list, test specs) is in this conversation's context
-- You're ready to write code, push, verify CI, and sync Linear
+- You're ready to write code, push, verify CI, and sync the GitHub Issue
 
 ## Workflow Overview
 
@@ -21,7 +21,7 @@ Execute a user-approved plan that was produced by `/plan-issue` in this same ses
 
 1. **Implementation (TDD)** — Create branch, write tests first, implement code, verify coverage
 2. **Push & CI Check** — Push feature branch to remote, verify CI passes
-3. **Linear Sync** — Update Linear issue with branch, commits, files, and test results
+3. **GitHub Issue Sync** — Update GitHub Issue with branch, commits, files, and test results
 4. **Manual Verification** — Walk user through e2e verification steps tailored to the change
 
 ## Precondition Check
@@ -38,7 +38,7 @@ Before starting Phase 1, verify:
    - Files to modify/create
    - Test specification (per acceptance criterion)
    - Implementation approach (step-by-step)
-   - Issue ID and metadata (PEP-XXX)
+   - Issue number and metadata (#123)
 
 ## Phase 1: Implementation (TDD Approach)
 
@@ -46,7 +46,7 @@ Execute the approved plan using Test-Driven Development.
 
 **Steps:**
 1. Create a new git feature branch (mandatory) before any file edits:
-   - Branch name: `{issue-id}-{slug}` (e.g., `PEP-123-fix-voice-upload`)
+   - Branch name: `{issue-id}-{slug}` (e.g., `gh-123-fix-voice-upload`)
    - Check current branch: `git branch --show-current`
    - Do NOT make any file edits on `dev`, `main`, or a reused branch from another task
    - Stash uncommitted changes if needed
@@ -82,8 +82,8 @@ Execute the approved plan using Test-Driven Development.
    - Only proceed to committing after explicit user approval
 
 7. Create commits (only after manual verification passes):
-   - Commit tests separately: `test: add tests for [feature/fix] (PEP-123)`
-   - Commit implementation: `feat/fix: [description] (PEP-123)`
+   - Commit tests separately: `test: add tests for [feature/fix] (#123)`
+   - Commit implementation: `feat/fix: [description] (#123)`
    - Co-authored-by: Claude
 
 **TDD Cycle Summary:**
@@ -133,7 +133,7 @@ Push the feature branch to remote and verify CI passes.
    - Diagnose the failure (lint error, test failure, build error, etc.)
    - Apply the fix locally
    - Run local tests to verify the fix: `cd montessori-os && npm run test`
-   - Commit the fix: `fix: CI failure — [description] (PEP-XXX)`
+   - Commit the fix: `fix: CI failure — [description] (#XXX)`
    - Push again: `git push origin {branch-name}`
    - Re-monitor the new CI run
    - **Max 3 CI fix iterations.** If still failing after 3 attempts, escalate to user with the failure logs and ask how to proceed.
@@ -147,9 +147,9 @@ Push the feature branch to remote and verify CI passes.
 
 **Output:** CI status (passed/fixed/no-CI-with-local-verification)
 
-## Phase 3: Linear Sync
+## Phase 3: GitHub Issue Sync
 
-Update Linear issue with implementation progress and test results.
+Update the GitHub Issue with implementation progress and test results.
 
 **Steps:**
 1. Gather implementation details:
@@ -159,7 +159,7 @@ Update Linear issue with implementation progress and test results.
    - Test results (pass/fail counts)
    - CI status
 
-2. Compose Linear comment:
+2. Compose GitHub Issue comment:
 
 ```markdown
 ## Implementation Completed
@@ -168,8 +168,8 @@ Update Linear issue with implementation progress and test results.
 **CI:** {Passed | Fixed after N attempts | Local verification passed}
 
 **Commits:**
-- {commit-hash}: test: add tests for [feature] (PEP-XXX)
-- {commit-hash}: feat/fix: [implementation] (PEP-XXX)
+- {commit-hash}: test: add tests for [feature] (#XXX)
+- {commit-hash}: feat/fix: [implementation] (#XXX)
 
 **Files Modified:**
 - {file1}
@@ -184,11 +184,14 @@ Update Linear issue with implementation progress and test results.
 **Ready for independent review**
 ```
 
-3. Call `create_comment` with composed comment
+3. Post the comment to the GitHub Issue:
+   ```bash
+   gh issue comment {issue-number} --body "..."
+   ```
 
-4. Do NOT change the issue state — `/review-issue` will move it to "In Review" after independent audit passes.
+4. Do NOT change the issue state — `/review-issue` will close the issue or move it to "In Review" after independent audit passes.
 
-**Output:** Linear issue updated with implementation progress. Issue stays in current state.
+**Output:** GitHub Issue updated with implementation progress. Issue stays in current state.
 
 ## Phase 4: Manual Verification Gate
 
@@ -265,8 +268,7 @@ Walk the user through end-to-end verification of the implementation.
 
 ## Tools Used
 
-- `mcp__linear-server__create_comment` - Add comment to issue
-- `Bash` - Git operations, run tests, push to remote, monitor CI
+- `Bash` - Git operations, run tests, push to remote, monitor CI, post GitHub Issue comments via `gh`
 - `Edit` - Modify existing files
 - `Write` - Create new files
 - `Read` - Load context files
@@ -301,6 +303,14 @@ gh run watch {run-id} --exit-status        # Watch CI run until complete
 gh run view {run-id} --log-failed          # Get failure logs
 ```
 
+### GitHub Issue Operations
+```bash
+gh issue view {number}                          # View issue details
+gh issue comment {number} --body "message"      # Add comment to issue
+gh issue edit {number} --add-label "label"      # Add label to issue
+gh issue close {number}                         # Close issue
+```
+
 ## Success Criteria
 
 Implementation is complete when:
@@ -313,7 +323,7 @@ Implementation is complete when:
 6. Implementation executed following approved plan
 7. Branch pushed to remote
 8. CI passes (or local verification passes if no CI)
-9. Linear issue updated with branch, commits, CI status, and test results
+9. GitHub Issue updated with branch, commits, CI status, and test results
 10. User has manually verified the e2e flow and confirmed it works
 
 ## Next Step

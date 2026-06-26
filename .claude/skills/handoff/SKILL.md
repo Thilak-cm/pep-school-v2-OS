@@ -31,7 +31,7 @@ Collect from the current conversation:
 
 Also capture Pep OS-specific state that a fresh agent needs:
 
-- **Linear issue ID** (e.g., PEP-297) and current status.
+- **GitHub issue** (e.g., #297) and current status.
 - **Which worktree** — `alt-pepos` (port 5174, PRs target `alt-dev`) or main `pep-school-project-work` (port 5173, PRs target `dev`). This matters for deploy and PR targets.
 - **Firebase deploy state** — were functions deployed? Any pending deploys?
 - **Firestore schema changes** — did `DATA_STRUCTURE.md` need updating? Was `/check-schema-sync` run?
@@ -50,7 +50,7 @@ Structure:
 **Date:** {date}
 **Branch:** {current branch}
 **Working directory:** {cwd}
-**Linear issue:** {PEP-XXX if applicable}
+**GitHub issue:** {#XXX if applicable}
 **PR target:** {alt-dev | dev}
 
 ## Context
@@ -72,7 +72,7 @@ Structure:
 {Links/paths to PRs, issues, branches, files, commits — anything the next session needs to reference}
 
 ## Suggested Skills
-{Skills the next agent should invoke to continue, e.g. `/implement-issue PEP-XXX`, `/review-issue`, `/merge-issue`, `/check-schema-sync`}
+{Skills the next agent should invoke to continue, e.g. `/implement-issue #XXX`, `/review-issue`, `/merge-issue`, `/check-schema-sync`}
 ```
 
 ### Step 4 — Report

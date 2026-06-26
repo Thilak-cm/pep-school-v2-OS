@@ -1,20 +1,20 @@
 ---
 name: refine-linear-issue
-description: Refine an existing Linear issue with full context, clarifying questions, and a polished description. Use when the user wants to flesh out, refine, or add detail to an existing issue, including requests like "refine PEP-42", "add detail to PEP-42", or "/refine-linear-issue PEP-42".
+description: Refine an existing GitHub issue with full context, clarifying questions, and a polished description. Use when the user wants to flesh out, refine, or add detail to an existing issue, including requests like "refine #42", "add detail to #42", or "/refine-linear-issue #42".
 user_invocable: true
 ---
 
-# Refine Linear Issue
+# Refine GitHub Issue
 
 ## Goal
 
-Take an existing Linear issue and grill it relentlessly until it converges on exactly one implementation path. Refinement is not done until a developer or agent could plan the implementation and arrive at a single approach — no forks, no "Option A vs Option B", no architectural judgment calls left to the implementer.
+Take an existing GitHub issue and grill it relentlessly until it converges on exactly one implementation path. Refinement is not done until a developer or agent could plan the implementation and arrive at a single approach — no forks, no "Option A vs Option B", no architectural judgment calls left to the implementer.
 
 Focus on what should happen and why it matters. Extract enough constraints and decisions that *how* becomes obvious.
 
 ## Argument
 
-Requires a Linear issue identifier as argument (e.g., `PEP-42`). If not provided, ask the user for one.
+Requires a GitHub issue number as argument (e.g., `#42` or `42`). If not provided, ask the user for one. The repo is `Thilak-cm/pep-school-v2-OS`.
 
 ## Principles
 
@@ -27,7 +27,7 @@ Requires a Linear issue identifier as argument (e.g., `PEP-42`). If not provided
 
 ## Context Loading (Required Before Grilling)
 
-1. Fetch the issue via `get_issue` using the provided identifier.
+1. Fetch the issue via `gh issue view <number> --repo Thilak-cm/pep-school-v2-OS` using the provided issue number.
 2. Load the high-level overview without asking for permission:
    - `.claude/skills/codebase-context-scan/references/pep-os-overview.md`
 3. Infer likely `area_tag` values from the issue using the overview `## Area Map`.
@@ -53,10 +53,10 @@ Requires a Linear issue identifier as argument (e.g., `PEP-42`). If not provided
    **Data to pass to each codebase-explorer agent:**
    - `overview_content`: The full text of `pep-os-overview.md` (already loaded in step 2)
    - `target_areas`: The area tag(s) this explorer is responsible for (1-2 per agent, not all areas dumped into one)
-   - `issue_context`: Issue title + current description + any labels
+   - `issue_context`: Issue title + current body + any labels
    - `exploration_focus`: `"refinement"`
    - `exploration_depth`: `"overview"` or `"deep"` per the matrix above
-   - `specific_files`: Any files explicitly mentioned in the issue description
+   - `specific_files`: Any files explicitly mentioned in the issue body
 
    **Parallel dispatch:** When spawning multiple explorers, launch them all in the same tool-call message so they run concurrently. Each explorer handles its own area(s) independently and returns a focused summary. The orchestrator merges their outputs for the grilling phase.
 
@@ -66,9 +66,9 @@ Requires a Linear issue identifier as argument (e.g., `PEP-42`). If not provided
 
 ### 1. Fetch & Understand
 
-- Fetch the issue from Linear using the provided identifier.
-- Read the current title, description, priority, labels, state, and assignee.
-- Check the description for a `Source: Meeting Notes —` marker (created by `/draft-linear-issues`).
+- Fetch the issue from GitHub using `gh issue view <number> --repo Thilak-cm/pep-school-v2-OS`.
+- Read the current title, body, labels, assignees, milestone, and project status.
+- Check the body for a `Source: Meeting Notes —` marker (created by `/draft-linear-issues`).
 - Summarize the current state of the issue to the user before starting the grill.
 
 ### 2. Grill — One Question at a Time
@@ -123,16 +123,18 @@ After gathering enough information, mentally run through implementation. This is
 
 ### 5. Review with the User
 
-- Present the full refined draft (title, description, priority, labels, state) before updating anything in Linear.
+- Present the full refined draft (title, body, priority label, labels, project status) before updating anything on GitHub.
 - Apply user edits until approved.
 
-### 6. Update in Linear
+### 6. Update on GitHub
 
 - Update the issue only after explicit user approval.
-- Update description, title, priority, labels, and assignee as confirmed.
-- Move state from **Backlog to Todo** (unless the user specifies otherwise).
-- If the issue was already in Todo or a later state, keep the current state.
-- Return the updated issue identifier and confirm the changes.
+- Update body and title via `gh issue edit <number> --repo Thilak-cm/pep-school-v2-OS --title "..." --body "..."`.
+- Update labels via `gh issue edit <number> --repo Thilak-cm/pep-school-v2-OS --add-label "label1,label2"` (remove stale labels with `--remove-label`).
+- Priority is tracked via labels: `P1-urgent`, `P2-high`, `P3-normal`, `P4-low`. Update by removing old priority label and adding new one.
+- Move project status from **Backlog to Todo** (unless the user specifies otherwise) using GitHub Projects.
+- If the issue was already in Todo or a later status, keep the current status.
+- Return the updated issue number (e.g., `#42`) and confirm the changes.
 
 ## Issue Template
 
@@ -171,21 +173,21 @@ After gathering enough information, mentally run through implementation. This is
 ## Defaults
 
 - Title: imperative and concise, ideally under 60 characters
-- State: promote Backlog → Todo after refinement; keep current state if already Todo or later
-- Assignee: keep existing assignee; set to `me` if currently unassigned
-- Labels: Bug, Feature, Improvement based on issue type
+- Project status: promote Backlog → Todo after refinement; keep current status if already Todo or later
+- Assignees: keep existing assignee; assign to self if currently unassigned
+- Labels: `bug`, `feature`, `improvement` based on issue type; priority via `P1-urgent`, `P2-high`, `P3-normal`, `P4-low`
 - Priority: always confirm before updating
 - Context source: always start from `pep-os-overview.md`, then codebase-explorer agent(s) at `overview` or `deep` depth based on complexity — parallel explorers for multi-area issues
 
 ## Guardrails
 
-- Do not update the Linear issue before showing a draft and receiving explicit approval.
-- Confirm state and label if the issue type is ambiguous.
-- If related issues exist, call them out and suggest linking.
+- Do not update the GitHub issue before showing a draft and receiving explicit approval.
+- Confirm project status and labels if the issue type is ambiguous.
+- If related issues exist, call them out and suggest linking (reference with `#number`).
 - Auto-read overview without asking; spawn codebase-explorer agent when deeper context is needed — don't ask the user for permission to explore, just do it.
-- Keep existing assignee unless the user explicitly requests a change; set to `me` if unassigned.
+- Keep existing assignee unless the user explicitly requests a change; assign to self if unassigned.
 - Never discard the original MoM context snippet from draft-sourced issues.
-- If the issue identifier is invalid or not found, inform the user and ask for a correct one.
+- If the issue number is invalid or not found, inform the user and ask for a correct one.
 - **Never ask multiple questions in one message.** One question, one recommended answer, wait for response.
 - **Never ask the user factual questions about the codebase.** Read the code yourself. Only ask for intent and decisions.
 - **Do not draft the description until the planning probe confirms single-path convergence.**

@@ -1,6 +1,6 @@
 ---
 name: review-issue
-description: "Independent code review in a fresh session: audit diff against Linear issue, fix-loop until clean, version bump, commit, push, open PR against dev, and move Linear to In Review. Use after /implement-issue completes, in a NEW Claude session."
+description: "Independent code review in a fresh session: audit diff against GitHub issue, fix-loop until clean, version bump, commit, push, open PR against dev, and update GitHub issue status. Use after /implement-issue completes, in a NEW Claude session."
 ---
 
 # Review Issue
@@ -22,7 +22,7 @@ The orchestrator itself stays thin. Heavy work (reading diffs, auditing code, ma
 
 - Implementation is done (code written, tests passing locally)
 - A feature branch exists with the changes (committed or uncommitted)
-- The Linear issue is identifiable (from branch name, session context, or user input)
+- The GitHub issue is identifiable (from branch name, session context, or user input)
 
 ## Architecture
 
@@ -62,10 +62,10 @@ The audit report contract at `references/audit-report-contract.md` defines the e
 
 Gather everything the audit agent will need. The orchestrator does this directly — it's lightweight.
 
-1. **Identify the Linear issue**
-   - Infer from branch name (e.g., `pep-60-report-generation-ui` → `PEP-60`)
+1. **Identify the GitHub issue**
+   - Infer from branch name (e.g., `60-report-generation-ui` → `#60`)
    - Or ask the user
-   - Call `get_issue` with `includeRelations=true`
+   - Run `gh issue view <number> --repo Thilak-cm/pep-school-v2-OS --json title,body,labels,assignees,state`
    - Extract: title, description, acceptance criteria, labels
 
 2. **Capture the diff**
@@ -113,7 +113,7 @@ The audit is split into two parallel agents with different scopes to enable over
 | Agent | Scope | Input | Why |
 |-------|-------|-------|-----|
 | **Quick auditor** (Sonnet) | `quick` | Diff only | Fast mechanical checks — dead code, debug artifacts, unused imports, obvious async errors |
-| **Deep auditor** (Sonnet) | `deep` | Diff + Linear issue + overview + explore summary | Reasoning-heavy checks — scope alignment, correctness, security, patterns, test coverage |
+| **Deep auditor** (Sonnet) | `deep` | Diff + GitHub issue + overview + explore summary | Reasoning-heavy checks — scope alignment, correctness, security, patterns, test coverage |
 
 Both agents output structured reports in the audit report contract format. The quick auditor omits the `Scope Alignment` section.
 
@@ -156,7 +156,7 @@ Concatenate both reports into a single merged report for the user. Use the deep 
 Spawn the **`impact-checker` agent** (`.claude/agents/impact-checker.md`) with:
 - **Diff:** The full diff from Phase 1 (`git diff dev...HEAD` + any uncommitted changes)
 - **Diff stat:** The file-level summary from Phase 1
-- **Linear issue context:** Title + acceptance criteria (so it can distinguish intended from unintended effects)
+- **GitHub issue context:** Title + acceptance criteria (so it can distinguish intended from unintended effects)
 - **Codebase overview:** The full text of `pep-os-overview.md` (already loaded in Phase 1)
 
 The impact checker runs 7 analysis phases internally:
@@ -243,7 +243,7 @@ After the audit loop passes, present the user with a manual smoke-check checklis
 
 Absorbed from the former `/version-update` skill. Runs inline before committing.
 
-1. **Decide bump type** from the commit prefix, Linear issue labels, and diff scope. **Always ask the user** which bump type to apply (patch, minor, or major). Present your recommendation with reasoning, but wait for explicit confirmation before proceeding. Use these rules to inform your recommendation:
+1. **Decide bump type** from the commit prefix, GitHub issue labels, and diff scope. **Always ask the user** which bump type to apply (patch, minor, or major). Present your recommendation with reasoning, but wait for explicit confirmation before proceeding. Use these rules to inform your recommendation:
 
    **patch** (default) — the vast majority of changes:
    - Bugfixes (`fix:` commits, labels like `Bug`, `Fix`)
@@ -267,7 +267,7 @@ Absorbed from the former `/version-update` skill. Runs inline before committing.
 
    The pattern: major = introduces a **new noun** to the system (baseball cards, chats, media, reports, telegram bot) with new Firestore collections/subcollections, new Cloud Functions, and a new UI surface. It is NOT about the amount of code changed — a large refactor is still patch.
 
-   **Deciding edge cases:** If the PR has both `fix:` and `feat:` commits, go by the primary intent of the Linear issue. A `feat:` that adds a small helper to support a bugfix is still patch. A `fix:` that addresses audit feedback on a new feature is still minor (the feature itself drives the bump).
+   **Deciding edge cases:** If the PR has both `fix:` and `feat:` commits, go by the primary intent of the GitHub issue. A `feat:` that adds a small helper to support a bugfix is still patch. A `fix:` that addresses audit feedback on a new feature is still minor (the feature itself drives the bump).
 
 2. **Apply the bump:**
    - Run `node scripts/version.mjs <type>` from repo root
@@ -318,7 +318,7 @@ Check whether the diff involves Firestore schema changes. Run this check automat
    - If version was bumped, include version files (`VERSION`, `montessori-os/package.json`, `montessori-os/src/components/VersionBadge.jsx`, `CHANGELOG.md`) in the same or separate commit
    - If `DATA_STRUCTURE.md` was updated in Phase 6b, include it in the implementation commit (not the version bump commit)
    - Write clear commit messages:
-     - Implementation: `feat: {description} (PEP-{id})` or `fix: {description} (PEP-{id})`
+     - Implementation: `feat: {description} (#<issue-number>)` or `fix: {description} (#<issue-number>)`
      - Version bump (if separate): `chore: bump version to v{X.Y.Z}`
    - Include `Co-Authored-By: Claude` signoff
    - Show commit hashes and subjects
@@ -329,9 +329,12 @@ Check whether the diff involves Firestore schema changes. Run this check automat
 
 3. **Open PR via `gh pr create`**
    - Target branch: `dev`
-   - PR title: concise, under 70 characters, references issue ID
+   - PR title: concise, under 70 characters, references issue number
+   - PR body must include `Closes #<issue-number>` so GitHub auto-links and closes the issue on merge
    - PR body (use HEREDOC):
      ```markdown
+     Closes #<issue-number>
+
      ## Summary
      {1-3 bullet points from the issue + what was implemented}
 
@@ -347,8 +350,8 @@ Check whether the diff involves Firestore schema changes. Run this check automat
      ## Version
      - {new version if bumped, or "no version bump"}
 
-     ## Linear
-     - Issue: PEP-{id}
+     ## Issue
+     - Issue: #<issue-number>
      - Branch: `{branch-name}`
 
      🤖 Generated with [Claude Code](https://claude.com/claude-code)
@@ -364,13 +367,13 @@ After the PR is opened, Devin (AI code reviewer) will automatically review it. T
 - Look for a review from Devin (author login contains `devin` or similar)
 - If no review yet, inform the user and ask whether to:
   - Wait and check again (re-poll)
-  - Skip Devin review and proceed to Phase 9 (Linear sync)
+  - Skip Devin review and proceed to Phase 9 (GitHub issue sync)
 - Do NOT auto-poll in a loop — always ask the user before re-checking
 
 **7b. Parse Devin's findings**
 - If Devin's review state is `APPROVED` → all green, proceed to Phase 9
 - If Devin's review state is `CHANGES_REQUESTED` or `COMMENTED`:
-  - Fetch review comments via `gh api repos/{owner}/{repo}/pulls/{pr_number}/comments --jq '.[] | select(.user.login | contains("devin"))'`
+  - Fetch review comments via `gh api repos/Thilak-cm/pep-school-v2-OS/pulls/{pr_number}/comments --jq '.[] | select(.user.login | contains("devin"))'`
   - Also fetch general review body from the review itself
   - Display Devin's findings to the user in a clear summary
 
@@ -378,10 +381,10 @@ After the PR is opened, Devin (AI code reviewer) will automatically review it. T
 - Ask user for confirmation before fixing (Human Approval Gate)
 - Spawn the **`code-fixer` agent** (`.claude/agents/code-fixer.md`) with:
   - Devin's review comments (formatted as findings)
-  - Linear issue context
+  - GitHub issue context
 - After fixes are applied, commit and push to the same branch:
   - `git add` changed files
-  - `git commit -m "fix: address Devin review feedback (PEP-{id})"`
+  - `git commit -m "fix: address Devin review feedback (#<issue-number>)"`
   - `git push origin {branch}`
 - The new push will trigger Devin to re-review the PR
 
@@ -402,31 +405,30 @@ After the PR is opened, Devin (AI code reviewer) will automatically review it. T
           fix findings → push → continue loop
   ```
 
-### Phase 9: Linear Sync (Orchestrator)
+### Phase 9: GitHub Issue Sync (Orchestrator)
 
-1. **Create comment on Linear issue:**
-   ```markdown
-   ## Review & Ship Complete
-
-   **Branch:** `{branch-name}`
+1. **Add a comment on the GitHub issue:**
+   ```bash
+   gh issue comment <issue-number> --repo Thilak-cm/pep-school-v2-OS --body "## Review & Ship Complete
+   
+   **Branch:** \`{branch-name}\`
    **PR:** {pr_url}
-   **Version:** {version or "no bump"}
-
+   **Version:** {version or \"no bump\"}
+   
    **Audit Summary:**
    - {N} findings found, {N} fixed across {N} iterations
    - Impact check: {verdict} — {N} downstream effects traced, {N} findings fixed
    - Final verdict: CLEAN
    - {any user decisions made}
-
+   
    **Test Results:**
    - {pass/fail counts}
    - {lint results}
-
-   **Ready for CI → merge**
+   
+   **Ready for CI → merge**"
    ```
 
-2. **Move issue to `In Review`**
-   - Call `save_issue` with `state: "In Review"`
+2. **The issue will be closed automatically** when the PR merges (via the `Closes #<issue-number>` link in the PR body). No manual state change needed.
 
 ## Human Approval Gates (Do Not Skip)
 
@@ -446,11 +448,11 @@ After the PR is opened, Devin (AI code reviewer) will automatically review it. T
 - **Do not merge:** This skill opens a PR. It does NOT merge into `dev`. That's `/merge-issue`'s job.
 - **Do not invent test results:** Report actual test output. If tests weren't run, say so.
 - **Do not push if tests fail:** Unless user explicitly accepts the risk.
-- **Do not update the wrong Linear issue:** Confirm issue ID before updating.
+- **Do not update the wrong GitHub issue:** Confirm issue number before updating.
 
 ## Success Criteria
 
-1. Linear issue fetched and used as source of truth for the audit
+1. GitHub issue fetched and used as source of truth for the audit
 2. Audit subagent produced a structured report following the contract format
 3. Impact check traced all downstream effects (transitive consumers, cross-boundary contracts, rule cascades)
 4. All blockers and warnings were fixed (or user accepted remaining items)
@@ -458,9 +460,9 @@ After the PR is opened, Devin (AI code reviewer) will automatically review it. T
 6. Version bumped (or user chose skip) with changelog updated
 7. Clean commit(s) created with issue references
 8. Feature branch pushed to origin
-9. PR opened against `dev` with audit + integration summary in body
+9. PR opened against `dev` with audit + integration summary in body, and `Closes #<issue-number>` for auto-linking
 10. Devin review is APPROVED (or user chose to skip/proceed)
-11. Linear issue commented and moved to `In Review`
+11. GitHub issue commented with review summary (auto-closed on PR merge)
 
 ## Next Step
 

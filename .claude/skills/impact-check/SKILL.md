@@ -30,8 +30,8 @@ Also capture:
 
 ### Step 2: Load Context
 
-1. **Infer the Linear issue** from the branch name (e.g., `pep-296-alert-bus` → `PEP-296`)
-   - If found, call `get_issue` with `includeRelations=true`
+1. **Infer the GitHub issue** from the branch name (e.g., `thilak/gh-296-alert-bus` → `#296`)
+   - If found, run `gh issue view 296 --repo Thilak-cm/pep-school-v2-OS --json title,body,labels,assignees,milestone`
    - If not found, proceed without it (impact analysis doesn't strictly require issue context, but it helps distinguish intended from unintended effects)
 2. **Read the codebase overview** at `.claude/skills/codebase-context-scan/references/pep-os-overview.md`
 
@@ -41,7 +41,7 @@ Spawn the **`impact-checker` agent** (`.claude/agents/impact-checker.md`) with:
 
 - **Diff:** The full diff content from Step 1
 - **Diff stat:** The file-level summary
-- **Linear issue context:** Title + acceptance criteria (or "no issue context" if not found)
+- **GitHub issue context:** Title + acceptance criteria (or "no issue context" if not found)
 - **Codebase overview:** The full overview text
 
 ### Step 4: Display Results

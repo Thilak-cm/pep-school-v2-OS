@@ -1,31 +1,29 @@
 ---
 name: project-pulse
-description: Get a quick overview of a Linear project — stats, state breakdown, recent activity, and suggested next issues. Use when the user wants to catch up on a project, check project status, or says "/project-pulse".
+description: Get a quick overview of a GitHub Project — stats, state breakdown, recent activity, and suggested next issues. Use when the user wants to catch up on a project, check project status, or says "/project-pulse".
 user_invocable: true
 ---
 
-# Project Pulse — Linear Project Overview
+# Project Pulse — GitHub Project Overview
 
 ## Goal
 
-Give the user a fast, opinionated catch-up on a Linear project: what's the current state, what happened recently, and what should they pick up next.
+Give the user a fast, opinionated catch-up on a GitHub Project: what's the current state, what happened recently, and what should they pick up next.
 
 ## Argument
 
-Requires a Linear project name or identifier as argument (e.g., `AI Interview System` or a project slug). If not provided, list recent projects via `list_projects(team: "Pep school v2 os", limit: 10)` and ask the user to pick one.
+Requires a GitHub Project name or identifier as argument (e.g., `AI Interview System` or a project slug). If not provided, list recent projects via ``gh project list --owner Thilak-cm`` and ask the user to pick one.
 
 ## Workflow
 
 ### Phase 1 — Load Project & Issues
 
-1. **Find the project.** Call `get_project(query: "<argument>", includeMilestones: true, includeMembers: true)`.
-   - If no match, try `list_projects(team: "Pep school v2 os", query: "<argument>")` for fuzzy match.
-   - If still no match, show available projects and ask the user to pick.
+1. **Find the project.** Run `gh project list --owner Thilak-cm --format json` and match by name.
+   - If no match, show available projects and ask the user to pick.
 
-2. **Fetch all issues in the project.** Call `list_issues(project: "<project name>", limit: 250, includeArchived: false)`.
-   - If there's a cursor (>250 issues), fetch the next page too.
+2. **Fetch all issues in the project.** Run `gh project item-list <number> --owner Thilak-cm --limit 500 --format json`.
 
-3. **Fetch issue statuses.** Call `list_issue_statuses(team: "Pep school v2 os")` to map state IDs to names and categories.
+3. **Fetch issue details.** For each item, run `gh issue view <number> --repo Thilak-cm/pep-school-v2-OS --json state,labels,assignees,updatedAt,createdAt,title,number,milestone` as needed.
 
 ### Phase 2 — Analyse & Compute Stats
 
@@ -62,7 +60,7 @@ List issues updated in the last 14 days, grouped by what happened:
 - **In flight:** issues currently In Progress or In Review
 - **Newly created:** issues created in the last 14 days
 
-Show each as a compact line: `PEP-42  Title here  (Priority, Assignee)`
+Show each as a compact line: `#42  Title here  (Priority, Assignee)`
 
 #### Stale Work
 Flag any issues that are In Progress or In Review but haven't been updated in >7 days. These are potential blockers or abandoned work.
@@ -78,8 +76,8 @@ Recommend 3-5 issues the user should tackle next, using this priority logic:
 
 For each suggestion, show:
 ```
-  1. PEP-42  Title here
-     Why: High priority, in Todo, blocks PEP-45
+  1. #42  Title here
+     Why: High priority, in Todo, blocks #45
 ```
 
 ### Phase 4 — Present the Report
@@ -112,4 +110,4 @@ Output everything in a single, scannable report:
 - Keep the output concise and scannable. No walls of text.
 - If a project has 0 issues, say so and suggest the user may want `/draft-linear-issues` to populate it.
 - If a project is 100% done, congratulate and note it. No suggestions needed.
-- Don't speculate about issue content — only report what's in Linear.
+- Don't speculate about issue content — only report what's in GitHub.

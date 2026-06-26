@@ -1,33 +1,33 @@
 ---
 name: merge-issue
-description: "Merge a reviewed PR into dev via gh pr merge, clean up local and remote branches, move Linear issue to Done, and prompt for codebase overview refresh. Use after CI passes on a PR opened by /review-issue."
+description: "Merge a reviewed PR into dev via gh pr merge, clean up local and remote branches, move GitHub issue to Done, and prompt for codebase overview refresh. Use after CI passes on a PR opened by /review-issue."
 ---
 
 # Merge Issue
 
 ## Goal
 
-Land a reviewed PR into `dev`, clean up branches, close out the Linear issue, and keep the codebase overview fresh. This is the final step after `/review-issue` opens a PR and CI passes.
+Land a reviewed PR into `dev`, clean up branches, close out the GitHub issue, and keep the codebase overview fresh. This is the final step after `/review-issue` opens a PR and CI passes.
 
 This skill covers:
 
 1. Pre-merge checks (CI status, unresolved comments)
 2. Merge the PR via `gh pr merge`
 3. Local branch cleanup (checkout dev, pull, delete feature branch)
-4. Update the Linear issue and move it to `Done`
+4. Update the GitHub issue and move it to `Done`
 5. Prompt to refresh the codebase overview
 
 ## When to Use
 
 - A PR opened by `/review-issue` has passed CI
 - You want to land the change into `dev` with proper cleanup
-- You want Linear to reflect the completed state
+- You want GitHub to reflect the completed state
 
 ## Prerequisites
 
 - An open PR exists for the current feature branch targeting `dev`
 - CI checks have passed (this skill enforces this)
-- You know which Linear issue this work belongs to (from session context, branch name, or PR description)
+- You know which GitHub issue this work belongs to (from session context, branch name, or PR description)
 
 ## Workflow
 
@@ -47,7 +47,7 @@ This skill covers:
 
 4. Report full status to user before proceeding:
    ```
-   PR #42: feat: add report generation (PEP-60)
+   PR #42: feat: add report generation (#60)
    CI: ✅ all checks passing
    Comments: ✅ none unresolved
    Target: dev
@@ -86,14 +86,14 @@ This skill covers:
 - `git branch` should not show the feature branch
 - `git branch -r` should not show the remote feature branch
 
-### Phase 4: Linear Sync + Move to `Done` (Required)
+### Phase 4: GitHub Sync + Move to `Done` (Required)
 
-1. Resolve the Linear issue
+1. Resolve the GitHub issue
 - Prefer the issue from session context or branch name
 - If unclear, check the PR description for issue references
 - Ask before updating if still ambiguous
 
-2. Comment on Linear
+2. Comment on GitHub
 - Include:
   - merge confirmation
   - final commit range on `dev`
@@ -126,7 +126,7 @@ Ask for explicit approval at these points:
 - **Do not merge if CI checks are failing or pending** — this is the primary safety gate
 - Do not merge if PR has unresolved review comments
 - Do not delete branches (local or remote) until merge + pull are confirmed successful
-- Do not update the wrong Linear issue
+- Do not update the wrong GitHub issue
 - Do not move to `Done` if merge actually failed
 - Do not force-delete branches (`-D`) — use safe delete (`-d`) only
 
@@ -136,6 +136,6 @@ Ask for explicit approval at these points:
 2. PR was merged into `dev` via `gh pr merge`
 3. Local dev branch is up to date with the merged changes
 4. Feature branch was deleted (local + remote)
-5. Linear issue was commented and moved to `Done`
+5. GitHub issue was commented and moved to `Done`
 6. `.playwright-mcp/` cleaned up if present
 7. Codebase overview refreshed automatically

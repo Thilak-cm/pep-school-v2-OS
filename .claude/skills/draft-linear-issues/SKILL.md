@@ -1,14 +1,14 @@
 ---
-name: draft-linear-issues
-description: Parse meeting notes and batch-create lightweight Linear Backlog issues. Use when the user pastes meeting notes, action items, or says "/draft-linear-issues".
+name: draft-github-issues
+description: Parse meeting notes and batch-create lightweight GitHub Issues in Backlog status. Use when the user pastes meeting notes, action items, or says "/draft-linear-issues".
 user_invocable: true
 ---
 
-# Draft Linear Issues from Meeting Transcripts
+# Draft GitHub Issues from Meeting Transcripts
 
 ## Goal
 
-Batch-triage meeting transcripts into lightweight Backlog issues **grouped under Linear Projects**. The input is a **full meeting transcript** (copy-pasted from Granola or similar tools) — not a summarized MOM. This means you have access to the complete conversation: every point discussed, nuance, context, reasoning, and back-and-forth. Extract action items, decisions, bugs, and follow-ups with **rich context** from the full conversation, group them into projects, then walk through each one for quick Create/Skip/Edit before writing to Linear. Any issue can later be refined via `/refine-linear-issue`.
+Batch-triage meeting transcripts into lightweight Backlog issues, optionally grouped under GitHub Projects. The input is a **full meeting transcript** (copy-pasted from Granola or similar tools) — not a summarized MOM. This means you have access to the complete conversation: every point discussed, nuance, context, reasoning, and back-and-forth. Extract action items, decisions, bugs, and follow-ups with **rich context** from the full conversation, then walk through each one for quick Create/Skip/Edit before writing to GitHub. Any issue can later be refined via `/refine-linear-issue`.
 
 ## Principles
 
@@ -16,8 +16,9 @@ Batch-triage meeting transcripts into lightweight Backlog issues **grouped under
 - **Mine the transcript deeply** — the full transcript contains far more context than a summary. Pull in reasoning, constraints, edge cases, and decisions discussed. Issue descriptions should reflect this richness.
 - Never create without showing the item first
 - Always one-at-a-time (no batch-create)
-- Always Backlog state (not Todo — these are unrefined)
+- Always Backlog status in the project board (not Todo — these are unrefined)
 - Max 30 items per session
+- **Be deliberate and selective with projects** — do NOT eagerly create new projects for every cluster of issues. Only suggest a new project if there is genuine future scope for more issues in that space. Most issues should go into the existing "Pep OS" project (project #3) without sub-grouping. Projects are for major multi-issue initiatives, not for categorizing a handful of related items.
 
 ## Context Loading
 
@@ -53,29 +54,31 @@ Parse for actionable items using these signal patterns:
 
 For each item, infer:
 - **title**: imperative voice, under 60 characters
-- **type**: `Feature` / `Bug` / `Improvement` / `Task` (maps to Linear labels)
-- **priority**: default Normal (3) unless language suggests urgency
-- **label**: matching Linear label name
+- **type**: `Feature` / `Bug` / `Improvement` / `Task` (maps to GitHub issue labels)
+- **priority**: default Normal (P3) unless language suggests urgency
+- **label**: matching GitHub label name (e.g., `Feature`, `Bug`, `Improvement`, `Task`, `P1-urgent`, `P2-high`, `P3-normal`, `P4-low`)
 - **area_tag(s)**: inferred from the overview Area Map
 - **context_snippet**: **3-5 sentences** of context pulled from the transcript — include the reasoning, constraints, and decisions discussed around this item. This is the key advantage of having the full transcript: capture the *why* and *how*, not just the *what*.
 
 Deduplicate similar items. Mark ambiguous items with `[?]`.
 
-### Phase 4 — Group into Projects
+### Phase 4 — Assign to Projects (Selective)
 
-Analyze the extracted items and group them into **projects** — coherent themes or initiatives that emerged from the meeting. A project groups related issues that belong to the same body of work.
+**Default: all issues go into the "Pep OS" project (project #3).** Do NOT create new projects unless there is clear, sustained future scope.
 
-**How to identify projects:**
-- Major topics or themes discussed at length in the transcript
-- Initiatives or feature areas that have multiple related action items
-- Standalone items that don't fit a group get placed under a catch-all project named after the meeting (e.g., `"{meeting_title} — Follow-ups"`)
+Only suggest a NEW project if ALL of these are true:
+- The initiative has **5+ issues** from this meeting alone
+- There is **clear future scope** — more issues will be added to this project in coming weeks/months
+- It represents a **distinct body of work** with its own lifecycle (not just a cluster of related fixes)
 
-For each project, infer:
-- **project_name**: concise, descriptive name (e.g., "AI Interview System", "Student Profile Overhaul")
-- **project_description**: 2-3 sentences summarizing the initiative based on transcript context
+**Check for existing projects first:** Run `gh project list --owner Thilak-cm --format json`. Reuse existing projects when they match.
+
+For the rare case a new project is warranted, infer:
+- **project_name**: concise, descriptive name (e.g., "AI Interview System")
+- **project_description**: 2-3 sentences summarizing the initiative
 - **items**: list of extracted items that belong to this project
 
-**Check for existing projects:** Call `list_projects(team: "Pep school v2 os", query: "<project name keywords>")` for each proposed project. If a matching project already exists, reuse it instead of creating a new one.
+Most meetings will result in 0 new projects — all items go into the main "Pep OS" project. This is expected and correct.
 
 ### Phase 5 — Summary Preview
 
@@ -86,22 +89,22 @@ Found {N} items across {P} projects from "{meeting_title}" ({meeting_date}):
 
 Project: AI Interview System (NEW)
  #  Title                                    Type         Priority
- 1  Build interview inbox for teachers       Feature      Normal
- 2  Add AI question generation from model    Feature      High
+ 1  Build interview inbox for teachers       Feature      P3-normal
+ 2  Add AI question generation from model    Feature      P2-high
 
-Project: Observation Capture (EXISTING — PEP-PRJ-12)
- 3  Fix broken voice recording on Android    Bug          High
- 4  Revisit coach prompt wording             Improvement  Normal
+Project: Observation Capture (EXISTING — Project #3)
+ 3  Fix broken voice recording on Android    Bug          P2-high
+ 4  Revisit coach prompt wording             Improvement  P3-normal
 
 Project: {meeting_title} — Follow-ups
- 5  Check with design team on mockups        Task         Normal
+ 5  Check with design team on mockups        Task         P3-normal
     ...
 ```
 
 Ask the user: "Remove any items by number, adjust project groupings, or proceed to walk-through?"
 
 Handle edge cases:
-- **No items found:** Offer to retry with different parsing, or suggest creating a single issue manually in Linear.
+- **No items found:** Offer to retry with different parsing, or suggest creating a single issue manually via `gh issue create`.
 - **15+ items:** Offer to show top 10 by priority or group by project first.
 - **Non-meeting text detected** (no actionable signals found): Flag it and suggest the user paste actual meeting notes.
 - **All items in one project:** That's fine — don't force artificial splits.
@@ -128,32 +131,25 @@ User picks one of:
 - **Skip** — move to the next item
 - **Edit** — adjust title, type, priority, area, project, or context (max 3 edit rounds per item, then force Create or Skip)
 
-### Phase 7 — Create Project (if needed) & Create Linear Issue
+### Phase 7 — Create Project (if needed) & Create GitHub Issue
 
 **7a — Ensure project exists.** Before creating the first issue in a NEW project group:
 
-1. Call `save_project` with:
-   - **name:** the confirmed project name
-   - **addTeams:** `["Pep school v2 os"]`
-   - **description:** project description inferred from transcript
-   - **lead:** `me`
-2. Store the returned project ID/name for use when creating issues in this group.
+1. Run `gh project create --owner Thilak-cm --title "{project_name}" --format json` to create the project.
+2. Store the returned project number for use when adding issues to this project.
 
-For EXISTING projects, just use the project name/ID found during Phase 4.
+For EXISTING projects, just use the project number found during Phase 4.
 
 **7b — Create issue.** For each approved item:
 
-1. **Duplicate check:** Call `list_issues(query: "<key terms from title>")` and scan recent results. If a likely duplicate exists, warn the user and let them decide to proceed or skip.
+1. **Duplicate check:** Run `gh issue list --repo Thilak-cm/pep-school-v2-OS --search "<key terms from title>" --json number,title` and scan recent results. If a likely duplicate exists, warn the user and let them decide to proceed or skip.
 
-2. **Create the issue** with:
-   - **Team:** Pep school v2 os
-   - **State:** Backlog
-   - **Assignee:** `me`
-   - **Project:** the project name/ID for this item's group
-   - **Priority:** as confirmed (1=Urgent, 2=High, 3=Normal, 4=Low)
-   - **Labels:** as confirmed (Feature, Bug, Improvement, or Task)
+2. **Create the issue** via `gh issue create` with:
+   - **Repo:** `Thilak-cm/pep-school-v2-OS`
+   - **Assignee:** `@me`
+   - **Labels:** type label + priority label (e.g., `Feature,P3-normal`)
    - **Title:** as confirmed
-   - **Description:**
+   - **Body:**
      ```markdown
      ## Summary
      {2-3 sentences expanding the title with meeting context, including the reasoning and constraints discussed}
@@ -165,7 +161,30 @@ For EXISTING projects, just use the project name/ID found during Phase 4.
      Source: Meeting Transcript — {meeting_title} ({meeting_date})
      ```
 
-3. Confirm creation and show the issue identifier.
+   Command pattern:
+   ```bash
+   gh issue create --repo Thilak-cm/pep-school-v2-OS \
+     --title "{title}" \
+     --body "$(cat <<'EOF'
+   {body content}
+   EOF
+   )" \
+     --label "{type},{priority}" \
+     --assignee "@me"
+   ```
+
+3. After creation, add the issue to the GitHub Project:
+   ```bash
+   gh project item-add {project_number} --owner Thilak-cm --url {issue_url}
+   ```
+
+4. Set the status field to "Backlog" on the project board:
+   ```bash
+   # Get the item ID and status field ID, then set status to Backlog
+   gh project item-edit --project-id {project_id} --id {item_id} --field-id {status_field_id} --single-select-option-id {backlog_option_id}
+   ```
+
+5. Confirm creation and show the issue number (e.g., `#42`).
 
 ### Phase 8 — Final Summary
 
@@ -177,10 +196,10 @@ Projects:
   Observation Capture (EXISTING) — 2 issues added
 
 Created Issues:
-  ID       Title                                    Priority   Label        Project
-  PEP-42   Build interview inbox for teachers       Normal     Feature      AI Interview System
-  PEP-43   Add AI question generation from model    High       Feature      AI Interview System
-  PEP-44   Fix broken voice recording on Android    High       Bug          Observation Capture
+  #       Title                                    Priority     Label        Project
+  #42     Build interview inbox for teachers       P3-normal    Feature      AI Interview System
+  #43     Add AI question generation from model    P2-high      Feature      AI Interview System
+  #44     Fix broken voice recording on Android    P2-high      Bug          Observation Capture
 
 Skipped:
   - Revisit coach prompt wording
@@ -193,7 +212,7 @@ Tip: Run /refine-linear-issue on any of these to add full detail.
 
 - Never create an issue without showing the item to the user first.
 - Always walk through items one-at-a-time — no batch-create.
-- Always use Backlog state — never Todo (these are unrefined).
+- Always use Backlog status on the project board — never Todo (these are unrefined).
 - Max 30 items per session. If more are extracted, warn and truncate.
 - Preserve the `Source: Meeting Transcript — ...` marker in every description for downstream detection by `/refine-linear-issue`.
 - When refining an existing draft-sourced issue, direct the user to `/refine-linear-issue` instead.
