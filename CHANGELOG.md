@@ -1,5 +1,16 @@
 # Changelog
 
+# 11.0.4 — 2026-06-26
+
+### Added
+- Program selector (toddler/primary/elementary/adolescent) in Report Generation workbench — program-first flow loads config without selecting a student (#136)
+- Session persistence via sessionStorage — saves variant state across in-app navigation, with resume prompt on return
+- Back-navigation guard for all 6 test bench workbenches — confirms before discarding unsaved work when clicking the back arrow
+
+### Fixed
+- Save-before-leaving dialog now awaits Firestore write before navigating — prevents silent data loss on save failure
+- Loading pre-existing runs without programId now falls back to current program context instead of half-initializing the workbench
+
 # 11.0.3 — 2026-06-25
 
 ### Fixed
