@@ -18,9 +18,10 @@ export function getRunLabel(run) {
   return run.sessionName?.trim() || run.studentName || run.classroomName || "";
 }
 
-export function buildSavePayload({ featureId, selectedStudent, selectedClassroom, promptType, variants, conversations, sessionName, kickoffMessage, interviewMode, selectedAreas, user }) {
+export function buildSavePayload({ featureId, selectedStudent, selectedClassroom, promptType, programId, variants, conversations, sessionName, kickoffMessage, interviewMode, selectedAreas, user }) {
   const isInterview = featureId === "interview_question_gen";
   const isDigest = featureId === "digest_generation";
+  const isReport = featureId === "report_generation";
   const trimmedName = buildSessionNameField(sessionName);
 
   return {
@@ -28,6 +29,7 @@ export function buildSavePayload({ featureId, selectedStudent, selectedClassroom
     ...(isDigest
       ? { classroomId: selectedClassroom?.id, classroomName: selectedClassroom?.name, promptType }
       : { studentId: selectedStudent.id, studentName: selectedStudent.displayName }),
+    ...(isReport && programId ? { programId } : {}),
     ...(trimmedName ? { sessionName: trimmedName } : {}),
     variants: variants.map((v, idx) => ({
       name: v.name,

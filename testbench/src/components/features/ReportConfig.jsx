@@ -34,18 +34,20 @@ function toIso(d) {
   return d.toISOString().split("T")[0];
 }
 
-export default function ReportConfig({ selectedStudent, reportType, onReportTypeChange, onConfigLoaded, onDateRangeChange }) {
+const PROGRAMS = ["toddler", "primary", "elementary", "adolescent"];
+
+export default function ReportConfig({ programId, reportType, onProgramChange, onReportTypeChange, onConfigLoaded, onDateRangeChange }) {
   const [loading, setLoading] = useState(false);
   const [configNotFound, setConfigNotFound] = useState(null);
   const [dateRange, setDateRange] = useState(() =>
     reportType === "monthly" ? getDefaultMonthlyRange() : getDefaultTermRange()
   );
 
-  // Resolve config doc ID from student's program + report type
+  // Load config when program or report type changes
   useEffect(() => {
-    if (!selectedStudent) return;
-    loadConfig(selectedStudent.programId || selectedStudent.program, reportType);
-  }, [selectedStudent?.id, selectedStudent?.programId, selectedStudent?.program, reportType]);
+    if (!programId) return;
+    loadConfig(programId, reportType);
+  }, [programId, reportType]);
 
   // Reset date range defaults when report type changes
   useEffect(() => {
@@ -98,19 +100,28 @@ export default function ReportConfig({ selectedStudent, reportType, onReportType
     onDateRangeChange?.(updated);
   }
 
+  function handleProgramChange(_, newProgram) {
+    if (!newProgram) return;
+    onProgramChange?.(newProgram);
+  }
+
   return (
     <Box sx={{ display: "flex", flexDirection: "column", gap: 1.5 }}>
+      <Box>
+        <Typography variant="caption" color="text.secondary" sx={{ mb: 0.5, display: "block" }}>Program</Typography>
+        <ToggleButtonGroup value={programId || ""} exclusive onChange={handleProgramChange} size="small">
+          {PROGRAMS.map((p) => (
+            <ToggleButton key={p} value={p}>{p}</ToggleButton>
+          ))}
+        </ToggleButtonGroup>
+      </Box>
+
       <Box>
         <Typography variant="caption" color="text.secondary" sx={{ mb: 0.5, display: "block" }}>Report Type</Typography>
         <ToggleButtonGroup value={reportType} exclusive onChange={handleTypeChange} size="small">
           <ToggleButton value="term">Term</ToggleButton>
           <ToggleButton value="monthly">Monthly Baseline</ToggleButton>
         </ToggleButtonGroup>
-        {selectedStudent?.programId && (
-          <Typography variant="caption" color="text.secondary" sx={{ ml: 1.5 }}>
-            Program: <strong>{selectedStudent.programId}</strong>
-          </Typography>
-        )}
       </Box>
 
       <Stack direction="row" spacing={1} alignItems="center">

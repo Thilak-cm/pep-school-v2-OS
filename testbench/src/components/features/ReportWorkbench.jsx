@@ -27,11 +27,13 @@ import RunHistory from "../RunHistory.jsx";
 import ReportConfig from "./ReportConfig.jsx";
 import { createVariant, updateVariant as updateVariantHelper, hasUnsavedWork, SCROLL_AFTER } from "../../utils/variantHelpers.js";
 import { buildSavePayload, restoreVariantsFromRun } from "../../hooks/useRunPersistence.js";
+import { saveToSession, loadFromSession, clearSession } from "../../hooks/useSessionPersistence.js";
 
 const FEATURE_ID = "report_generation";
 
 export default function ReportWorkbench() {
   const [selectedStudent, setSelectedStudent] = useState(null);
+  const [programId, setProgramId] = useState(null);
   const [reportType, setReportType] = useState("term");
   const [dateRange, setDateRange] = useState(null);
   const [variants, setVariants] = useState([createVariant(null, 0), createVariant(null, 1)]);
@@ -42,6 +44,8 @@ export default function ReportWorkbench() {
   const [historyOpen, setHistoryOpen] = useState(false);
   const [sessionName, setSessionName] = useState("");
   const [promoteIdx, setPromoteIdx] = useState(null);
+  const [saveBeforeLeaving, setSaveBeforeLeaving] = useState(null); // { action: "switch-program", nextProgram } | { action: "back" }
+  const [resumePrompt, setResumePrompt] = useState(null); // { programId, reportType, data }
   const liveConfigRef = useRef(null);
   const { role } = useAuth();
   const { promote, promoting } = usePromoteToLive();
@@ -69,7 +73,64 @@ export default function ReportWorkbench() {
     return { systemPrompt: v.systemPrompt, model: v.model, temperature: v.temperature, max_tokens: v.max_tokens };
   }, [promoteIdx, variants]);
 
-  const programId = selectedStudent?.programId || selectedStudent?.program || null;
+  // Check for saved session when program + reportType are both set
+  useEffect(() => {
+    if (!programId) return;
+    const saved = loadFromSession(programId, reportType);
+    if (saved) {
+      setResumePrompt({ programId, reportType, data: saved });
+    }
+  }, [programId, reportType]);
+
+  function handleProgramChange(newProgram) {
+    if (newProgram === programId) return;
+    if (hasUnsavedWork(variants)) {
+      setSaveBeforeLeaving({ action: "switch-program", nextProgram: newProgram });
+      return;
+    }
+    applyProgramSwitch(newProgram);
+  }
+
+  function applyProgramSwitch(newProgram) {
+    setProgramId(newProgram);
+    setSelectedStudent(null);
+    setVariants([createVariant(null, 0), createVariant(null, 1)]);
+    setSessionName("");
+  }
+
+  function handleSaveBeforeLeavingAction(choice) {
+    const pending = saveBeforeLeaving;
+    if (choice === "session") {
+      saveToSession(programId, reportType, variants, sessionName);
+      setSnackbar({ open: true, message: "Session saved — you can resume later", severity: "info" });
+    } else if (choice === "run") {
+      saveRun().then(() => {
+        // saveRun already shows snackbar
+      });
+    }
+    // "discard" — do nothing, just proceed
+    setSaveBeforeLeaving(null);
+    if (pending.action === "switch-program") {
+      applyProgramSwitch(pending.nextProgram);
+    }
+    // "back" action would be handled by parent — not applicable here since we don't control back nav
+  }
+
+  function handleResumeSession() {
+    if (!resumePrompt) return;
+    const { data } = resumePrompt;
+    setVariants(data.variants.map((v, i) => ({ ...createVariant(null, i), ...v })));
+    setSessionName(data.sessionName || "");
+    setSnackbar({ open: true, message: "Session resumed", severity: "info" });
+    clearSession(resumePrompt.programId, resumePrompt.reportType);
+    setResumePrompt(null);
+  }
+
+  function handleStartFresh() {
+    if (!resumePrompt) return;
+    clearSession(resumePrompt.programId, resumePrompt.reportType);
+    setResumePrompt(null);
+  }
 
   async function handlePromoteConfirm({ fields }) {
     try {
@@ -146,7 +207,7 @@ export default function ReportWorkbench() {
     if (!selectedStudent) return;
     setSaving(true);
     try {
-      const payload = buildSavePayload({ featureId: FEATURE_ID, selectedStudent, variants, conversations: {}, sessionName, kickoffMessage: "", user: auth.currentUser });
+      const payload = buildSavePayload({ featureId: FEATURE_ID, selectedStudent, programId, variants, conversations: {}, sessionName, kickoffMessage: "", user: auth.currentUser });
       await addDoc(collection(db, "testbench/settings/runs"), { ...payload, reportType, dateRange, timestamp: Timestamp.now() });
       setSnackbar({ open: true, message: "Run saved to Firestore", severity: "success" });
     } catch (err) { setSnackbar({ open: true, message: `Save failed: ${err.message}`, severity: "error" }); }
@@ -159,6 +220,7 @@ export default function ReportWorkbench() {
   }
 
   function applyLoadRun(run) {
+    if (run.programId) setProgramId(run.programId);
     setSelectedStudent({ id: run.studentId, displayName: run.studentName });
     setSessionName(run.sessionName || "");
     if (run.reportType) setReportType(run.reportType);
@@ -170,17 +232,21 @@ export default function ReportWorkbench() {
   return (
     <Box sx={{ p: 3 }}>
       <Box sx={{ display: "flex", alignItems: "flex-start", gap: 3, mb: 3, flexWrap: "wrap" }}>
-        <StudentPicker
-          scope="school-wide"
-          onSelect={setSelectedStudent}
-        />
         <ReportConfig
-          selectedStudent={selectedStudent}
+          programId={programId}
           reportType={reportType}
+          onProgramChange={handleProgramChange}
           onReportTypeChange={handleReportTypeChange}
           onConfigLoaded={handleConfigLoaded}
           onDateRangeChange={setDateRange}
         />
+        {programId && (
+          <StudentPicker
+            scope="program"
+            programFilter={programId}
+            onSelect={setSelectedStudent}
+          />
+        )}
         <Box sx={{ ml: "auto", display: "flex", gap: 1 }}>
           <Button variant="contained" startIcon={<PlayArrowIcon />} onClick={runAll} disabled={!selectedStudent || !variants[0]?.systemPrompt || variants.some((v) => v.loading)}>Run All</Button>
           <TextField label="Session Name" value={sessionName} onChange={(e) => setSessionName(e.target.value)} size="small" placeholder="Optional" sx={{ minWidth: 200 }} />
@@ -227,6 +293,43 @@ export default function ReportWorkbench() {
         promptType={reportType === "monthly" ? "monthly" : "term"}
         promoting={promoting}
       />
+
+      {/* Save Before Leaving Dialog */}
+      <Dialog open={saveBeforeLeaving !== null} onClose={() => setSaveBeforeLeaving(null)}>
+        <DialogTitle>You have unsaved changes</DialogTitle>
+        <DialogContent>
+          <DialogContentText sx={{ mb: 2 }}>
+            How would you like to handle your current work?
+          </DialogContentText>
+          <DialogContentText variant="body2" color="text.secondary">
+            <strong>Save to session</strong> — pause and come back in this tab. Your work is kept until you close the browser tab.
+          </DialogContentText>
+          <DialogContentText variant="body2" color="text.secondary" sx={{ mt: 1 }}>
+            <strong>Save run</strong> — save permanently. You can pick this up later on any device via History.
+          </DialogContentText>
+        </DialogContent>
+        <DialogActions sx={{ flexWrap: "wrap", gap: 0.5, px: 2, pb: 2 }}>
+          <Button onClick={() => setSaveBeforeLeaving(null)}>Cancel</Button>
+          <Button onClick={() => handleSaveBeforeLeavingAction("discard")} color="error">Leave without saving</Button>
+          <Button onClick={() => handleSaveBeforeLeavingAction("session")} variant="outlined">Save to session</Button>
+          <Button onClick={() => handleSaveBeforeLeavingAction("run")} variant="contained" disabled={!selectedStudent}>Save run</Button>
+        </DialogActions>
+      </Dialog>
+
+      {/* Resume Session Prompt */}
+      <Dialog open={resumePrompt !== null} onClose={() => setResumePrompt(null)}>
+        <DialogTitle>Resume previous session?</DialogTitle>
+        <DialogContent>
+          <DialogContentText>
+            You have a saved session for <strong>{resumePrompt?.programId}</strong> / <strong>{resumePrompt?.reportType}</strong>.
+            {resumePrompt?.data?.sessionName ? ` Session: "${resumePrompt.data.sessionName}"` : ""}
+          </DialogContentText>
+        </DialogContent>
+        <DialogActions>
+          <Button onClick={handleStartFresh}>Start fresh</Button>
+          <Button onClick={handleResumeSession} variant="contained">Resume</Button>
+        </DialogActions>
+      </Dialog>
 
       <RunHistory open={historyOpen} onClose={() => setHistoryOpen(false)} featureId={FEATURE_ID} onLoad={loadRun} />
       <Snackbar open={snackbar.open} autoHideDuration={3000} onClose={() => setSnackbar((s) => ({ ...s, open: false }))} anchorOrigin={{ vertical: "bottom", horizontal: "center" }}>
