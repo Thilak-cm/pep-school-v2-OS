@@ -141,6 +141,18 @@ describe("buildSavePayload", () => {
     assert.equal(payload.interviewMode, undefined);
     assert.equal(payload.selectedAreas, undefined);
   });
+
+  it("includes programId for report_generation feature", () => {
+    const args = { ...baseArgs, featureId: "report_generation", programId: "elementary" };
+    const payload = buildSavePayload(args);
+    assert.equal(payload.programId, "elementary");
+  });
+
+  it("omits programId for non-report features", () => {
+    const args = { ...baseArgs, featureId: "handwriting_analysis", programId: "primary" };
+    const payload = buildSavePayload(args);
+    assert.equal(payload.programId, undefined);
+  });
 });
 
 // --- restoreVariantsFromRun ---
