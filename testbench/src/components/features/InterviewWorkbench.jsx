@@ -37,10 +37,11 @@ import { isMissingSoulData } from "../../utils/soulCheckHelpers.js";
 import { pickRandomAreas, pickRandomQuestion, buildSyntheticTurn } from "../../../../functions/testbench/interviewColdStart.js";
 import { createVariant, updateVariant as updateVariantHelper, hasUnsavedWork, SCROLL_AFTER } from "../../utils/variantHelpers.js";
 import { buildSavePayload, restoreVariantsFromRun, restoreConversationsFromRun } from "../../hooks/useRunPersistence.js";
+import useBackGuard from "../../hooks/useBackGuard.js";
 import { buildMessageHistory, getQuestionCount, serializeConversations, getElapsedMinutes as calcElapsedMinutes } from "../../hooks/useInterviewSession.js";
 const FEATURE_ID = "interview_question_gen";
 
-export default function InterviewWorkbench() {
+export default function InterviewWorkbench({ onBack, registerBackGuard }) {
   const [selectedStudent, setSelectedStudent] = useState(null);
   const [variants, setVariants] = useState([createVariant(null, 0), createVariant(null, 1)]);
   const [saving, setSaving] = useState(false);
@@ -85,6 +86,8 @@ export default function InterviewWorkbench() {
     window.addEventListener("beforeunload", handleBeforeUnload);
     return () => window.removeEventListener("beforeunload", handleBeforeUnload);
   }, [variants]);
+
+  const { blocked: backBlocked, confirmLeave, cancelLeave } = useBackGuard(registerBackGuard, onBack, hasUnsavedWork(variants));
 
   const handleConfigLoaded = useCallback((config) => {
     setVariants((prev) => prev.map((v, i) =>
@@ -341,6 +344,12 @@ export default function InterviewWorkbench() {
         <DialogTitle>Load saved run?</DialogTitle>
         <DialogContent><DialogContentText>You have unsaved work. Loading will discard current variants.</DialogContentText></DialogContent>
         <DialogActions><Button onClick={() => setPendingLoadRun(null)}>Cancel</Button><Button onClick={() => { applyLoadRun(pendingLoadRun); setPendingLoadRun(null); }} color="error">Discard & Load</Button></DialogActions>
+      </Dialog>
+
+      <Dialog open={backBlocked} onClose={cancelLeave}>
+        <DialogTitle>Leave with unsaved changes?</DialogTitle>
+        <DialogContent><DialogContentText>You have unsaved work. Leaving will discard your current variants and outputs.</DialogContentText></DialogContent>
+        <DialogActions><Button onClick={cancelLeave}>Cancel</Button><Button onClick={confirmLeave} color="error">Leave without saving</Button></DialogActions>
       </Dialog>
 
       <SoulGenerationDialog

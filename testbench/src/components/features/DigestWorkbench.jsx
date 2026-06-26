@@ -32,6 +32,7 @@ import DigestPromptPipeline from "../pipeline/DigestPromptPipeline.jsx";
 import { useAuth } from "../../contexts/AuthContext.js";
 import { createVariant, updateVariant as updateVariantHelper, hasUnsavedWork, SCROLL_AFTER } from "../../utils/variantHelpers.js";
 import { buildSavePayload, restoreVariantsFromRun } from "../../hooks/useRunPersistence.js";
+import useBackGuard from "../../hooks/useBackGuard.js";
 import { TOOL_CATALOG_META } from "../../../../functions/config/toolCatalog.js";
 import usePromoteToLive from "../../hooks/usePromoteToLive.js";
 import PromoteConfirmDialog from "../PromoteConfirmDialog.jsx";
@@ -39,7 +40,7 @@ import PromoteConfirmDialog from "../PromoteConfirmDialog.jsx";
 const FEATURE_ID = "digest_generation";
 const ALL_DEFAULT_TOOLS = TOOL_CATALOG_META.map((t) => t.id);
 
-export default function DigestWorkbench() {
+export default function DigestWorkbench({ onBack, registerBackGuard }) {
   const { role } = useAuth();
   const [selectedClassroom, setSelectedClassroom] = useState(null);
   const [promptType, setPromptType] = useState("classroom");
@@ -70,6 +71,8 @@ export default function DigestWorkbench() {
     window.addEventListener("beforeunload", handleBeforeUnload);
     return () => window.removeEventListener("beforeunload", handleBeforeUnload);
   }, [variants]);
+
+  const { blocked: backBlocked, confirmLeave, cancelLeave } = useBackGuard(registerBackGuard, onBack, hasUnsavedWork(variants));
 
   const handleConfigLoaded = useCallback((config) => {
     configRef.current = {
@@ -311,6 +314,12 @@ export default function DigestWorkbench() {
         <DialogTitle>Load saved run?</DialogTitle>
         <DialogContent><DialogContentText>You have unsaved work. Loading will discard current variants.</DialogContentText></DialogContent>
         <DialogActions><Button onClick={() => setPendingLoadRun(null)}>Cancel</Button><Button onClick={() => { applyLoadRun(pendingLoadRun); setPendingLoadRun(null); }} color="error">Discard & Load</Button></DialogActions>
+      </Dialog>
+
+      <Dialog open={backBlocked} onClose={cancelLeave}>
+        <DialogTitle>Leave with unsaved changes?</DialogTitle>
+        <DialogContent><DialogContentText>You have unsaved work. Leaving will discard your current variants and outputs.</DialogContentText></DialogContent>
+        <DialogActions><Button onClick={cancelLeave}>Cancel</Button><Button onClick={confirmLeave} color="error">Leave without saving</Button></DialogActions>
       </Dialog>
 
       <PromoteConfirmDialog

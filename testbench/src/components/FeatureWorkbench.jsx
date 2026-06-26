@@ -14,7 +14,7 @@ import ReportWorkbench from "./features/ReportWorkbench.jsx";
  * Feature router — delegates to per-feature workbench based on featureId.
  * Guards access: if the user doesn't have permission for this feature, shows denial.
  */
-export default function FeatureWorkbench({ featureId, onBack }) {
+export default function FeatureWorkbench({ featureId, onBack, registerBackGuard }) {
   const { role, allowedFeatures } = useAuth();
 
   if (!hasFeatureAccess(featureId, role, allowedFeatures)) {
@@ -31,17 +31,17 @@ export default function FeatureWorkbench({ featureId, onBack }) {
 
   switch (featureId) {
     case "handwriting_analysis":
-      return <HandwritingWorkbench />;
+      return <HandwritingWorkbench onBack={onBack} registerBackGuard={registerBackGuard} />;
     case "soul_generation":
-      return <SoulWorkbench />;
+      return <SoulWorkbench onBack={onBack} registerBackGuard={registerBackGuard} />;
     case "interview_question_gen":
-      return <InterviewWorkbench />;
+      return <InterviewWorkbench onBack={onBack} registerBackGuard={registerBackGuard} />;
     case "monthly_plan":
-      return <MonthlyPlanWorkbench />;
+      return <MonthlyPlanWorkbench onBack={onBack} registerBackGuard={registerBackGuard} />;
     case "digest_generation":
-      return <DigestWorkbench />;
+      return <DigestWorkbench onBack={onBack} registerBackGuard={registerBackGuard} />;
     case "report_generation":
-      return <ReportWorkbench />;
+      return <ReportWorkbench onBack={onBack} registerBackGuard={registerBackGuard} />;
     default:
       return <div>Unknown feature: {featureId}</div>;
   }
