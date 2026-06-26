@@ -9,7 +9,7 @@ Redesigning the post-implementation pipeline. The old flow (`/implement-issue` �
 
 ### New Pipeline
 ```
-/draft-linear-issues → /refine-linear-issue → /plan-issue → /implement-issue
+/draft-linear-issues → /spec-issue → /plan-issue → /implement-issue
                                                     ↓
                                                /clear
                                                     ↓
@@ -94,7 +94,7 @@ The Explore subagent replaces static deep-dives. Changes needed:
    - Update edge case "No deep-dives exist" → remove it
    - Update success criteria line about "overview + deep-dives" → "overview + explore context"
 
-3. **Update `/refine-linear-issue`** — Context Loading section:
+3. **Update `/spec-issue`** — Context Loading section:
    - Remove steps 4-5 (loading deep-dives, generating deep-dives)
    - Replace with: "If context is insufficient from overview alone, spawn an Explore subagent to understand the relevant codebase area"
    - Update guardrails to remove deep-dive permission references
@@ -108,7 +108,7 @@ The Explore subagent replaces static deep-dives. Changes needed:
      - Remove the "Deep Dive Pointers" table from the output (lines ~447-454)
    - Remove the deep-dive reference from the overview output contract in SKILL.md
 
-5. **Update `/draft-linear-issues`** — remove the line "Do not load deep-dives — that is /refine-linear-issue's job during refinement" (since deep-dives no longer exist)
+5. **Update `/draft-linear-issues`** — remove the line "Do not load deep-dives — that is /spec-issue's job during refinement" (since deep-dives no longer exist)
 
 6. **Stale `.codex/` directory** — optionally delete `.codex/skills/` entirely (old copies of skills from a previous tool, not used by Claude Code)
 

@@ -8,7 +8,7 @@ user_invocable: true
 
 ## Goal
 
-Batch-triage meeting transcripts into lightweight Backlog issues, optionally grouped under GitHub Projects. The input is a **full meeting transcript** (copy-pasted from Granola or similar tools) — not a summarized MOM. This means you have access to the complete conversation: every point discussed, nuance, context, reasoning, and back-and-forth. Extract action items, decisions, bugs, and follow-ups with **rich context** from the full conversation, then walk through each one for quick Create/Skip/Edit before writing to GitHub. Any issue can later be refined via `/refine-linear-issue`.
+Batch-triage meeting transcripts into lightweight Backlog issues, optionally grouped under GitHub Projects. The input is a **full meeting transcript** (copy-pasted from Granola or similar tools) — not a summarized MOM. This means you have access to the complete conversation: every point discussed, nuance, context, reasoning, and back-and-forth. Extract action items, decisions, bugs, and follow-ups with **rich context** from the full conversation, then walk through each one for quick Create/Skip/Edit before writing to GitHub. Any issue can later be refined via `/spec-issue`.
 
 ## Principles
 
@@ -205,7 +205,7 @@ Skipped:
   - Revisit coach prompt wording
   - ...
 
-Tip: Run /refine-linear-issue on any of these to add full detail.
+Tip: Run /spec-issue on any of these to add full detail.
 ```
 
 ## Guardrails
@@ -214,5 +214,5 @@ Tip: Run /refine-linear-issue on any of these to add full detail.
 - Always walk through items one-at-a-time — no batch-create.
 - Always use Backlog status on the project board — never Todo (these are unrefined).
 - Max 30 items per session. If more are extracted, warn and truncate.
-- Preserve the `Source: Meeting Transcript — ...` marker in every description for downstream detection by `/refine-linear-issue`.
-- When refining an existing draft-sourced issue, direct the user to `/refine-linear-issue` instead.
+- Preserve the `Source: Meeting Transcript — ...` marker in every description for downstream detection by `/spec-issue`.
+- When refining an existing draft-sourced issue, direct the user to `/spec-issue` instead.

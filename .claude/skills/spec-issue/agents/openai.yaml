@@ -1,0 +1,4 @@
+interface:
+  display_name: "Spec Issue"
+  short_description: "Spec existing issues with full context"
+  default_prompt: "Spec a GitHub issue for Pep school v2 os: fetch the issue, load overview context, then clarify until implementation-ready."

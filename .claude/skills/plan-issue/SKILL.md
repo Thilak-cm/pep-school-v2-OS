@@ -7,7 +7,7 @@ description: Plan implementation of a GitHub issue — context loading, technica
 
 Bridge the gap between a refined GitHub issue and a ready-to-execute plan. This skill loads codebase context, generates a technical execution plan with test specifications, and gets user approval. **Planning only — no file modifications.**
 
-Well-refined issues (via `/refine-github-issue`) should converge on a single implementation path. If the issue is well-refined, this skill produces one plan directly. If multiple paths emerge, that's a signal the issue may need further refinement — flag it but proceed by discussing the fork with the user.
+Well-refined issues (via `/spec-issue`) should converge on a single implementation path. If the issue is well-refined, this skill produces one plan directly. If multiple paths emerge, that's a signal the issue may need further refinement — flag it but proceed by discussing the fork with the user.
 
 The approved plan stays in conversation context. Run `/implement-issue` in the **same session** to execute it.
 
@@ -21,7 +21,7 @@ The approved plan stays in conversation context. Run `/implement-issue` in the *
 
 5-phase, read-only workflow:
 
-1. **Issue Selection** — Select a GitHub issue (streamlined when coming from `/refine-github-issue`)
+1. **Issue Selection** — Select a GitHub issue (streamlined when coming from `/spec-issue`)
 2. **Context Loading** — Auto-load codebase overview, staleness check, optional codebase-explorer
 3. **Plan Generation** — Technical execution plan with file paths and test specs (single path expected)
 4. **Test Discovery & Baseline** — Auto-detect related tests, run baseline, identify coverage gaps
@@ -31,7 +31,7 @@ The approved plan stays in conversation context. Run `/implement-issue` in the *
 
 Select which GitHub issue to plan. This phase is streamlined when the issue was just refined in the same session.
 
-**If the issue is already in conversation context** (e.g., user just ran `/refine-github-issue` or says "plan #301"):
+**If the issue is already in conversation context** (e.g., user just ran `/spec-issue` or says "plan #301"):
 - Skip filtering UI — use the issue already in context or fetch it directly by ID.
 - Call `get_issue` with `includeRelations=true` to get the latest description.
 
@@ -108,12 +108,12 @@ Create a technical execution plan with specific file paths and test specificatio
    - Identify files to modify (from overview and explore context)
    - Consider constraints (e.g., Firebase Storage rules, role-based access)
    - Review related/blocking issues for additional context
-   - Check the issue's "Decisions Made" section (added by `/refine-github-issue`) — these are resolved constraints that eliminate alternative paths
+   - Check the issue's "Decisions Made" section (added by `/spec-issue`) — these are resolved constraints that eliminate alternative paths
 
 2. **Path convergence check:**
    - With the acceptance criteria, decisions, and constraints from the issue, determine the implementation approach.
    - **Single path (expected for refined issues):** Generate the plan directly. No options section needed.
-   - **Multiple paths (refinement gap):** If you find yourself wanting to present "Option A vs Option B", the issue likely needs further refinement. Flag this: *"This issue has an unresolved decision that creates a fork: [describe the fork]. Consider running `/refine-github-issue` to resolve this, or I can discuss the options here."* Then proceed with options if the user wants to resolve it inline.
+   - **Multiple paths (refinement gap):** If you find yourself wanting to present "Option A vs Option B", the issue likely needs further refinement. Flag this: *"This issue has an unresolved decision that creates a fork: [describe the fork]. Consider running `/spec-issue` to resolve this, or I can discuss the options here."* Then proceed with options if the user wants to resolve it inline.
 
 3. Generate execution plan:
 
@@ -182,7 +182,7 @@ This issue has an unresolved decision:
 - **Pros/Cons:** [...]
 
 **Recommendation:** [Which option and why]
-**To avoid this in future:** This decision should be resolved during `/refine-github-issue`.
+**To avoid this in future:** This decision should be resolved during `/spec-issue`.
 ```
 
 **CRITICAL REQUIREMENT:** Every acceptance criterion MUST map to at least one test.
@@ -234,7 +234,7 @@ Get explicit user approval before any code changes happen.
 **If a refinement gap was flagged (multiple paths):**
 - Discuss the fork with the user and resolve it before finalizing
 - Once resolved, collapse the plan back to a single path
-- Note: if this happens frequently, the `/refine-github-issue` grilling process may need improvement
+- Note: if this happens frequently, the `/spec-issue` grilling process may need improvement
 
 **GUARDRAIL:** Do not modify any files during this entire skill. Planning is read-only.
 
@@ -250,7 +250,7 @@ Get explicit user approval before any code changes happen.
 
 **Edge Case: Multiple viable implementation paths (refinement gap)**
 - Flag that this issue may not have been fully refined
-- Suggest running `/refine-github-issue` to resolve the fork, OR resolve it inline during planning
+- Suggest running `/spec-issue` to resolve the fork, OR resolve it inline during planning
 - Present the options with tradeoffs, get user decision, then collapse to a single-path plan
 
 **Edge Case: Issue already "In Progress"**
@@ -275,7 +275,7 @@ Get explicit user approval before any code changes happen.
 
 Planning is complete when:
 
-1. Issue selected (streamlined if coming from `/refine-github-issue`)
+1. Issue selected (streamlined if coming from `/spec-issue`)
 2. Relevant codebase context auto-loaded (overview + explore context)
 3. Technical execution plan generated with specific file paths and test specs
 4. **Single implementation path** — no unresolved forks (refinement gaps flagged and resolved if found)
