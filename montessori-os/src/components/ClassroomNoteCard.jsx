@@ -3,7 +3,7 @@ import { Box, Card, CardContent, Typography, Skeleton } from '@mui/material';
 import { Clock as AccessTime, User as Person } from '../icons';
 import { formatTimestamp } from '../utils/observationUtils.jsx';
 import { getTypeChipConfig, getTeacherForNote } from './classroomTimelineUtils.js';
-import { TypeIcon } from './ui';
+import { TypeIcon, TransferredChip } from './ui';
 import {
   getLessonDimensions,
   LESSON_RATING_LABELS,
@@ -98,7 +98,7 @@ export default function ClassroomNoteCard({
         {/* Row 1: Name + TypeIcon */}
         <Box sx={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', mb: isStudentVariant ? 1 : 0.75 }}>
           {isStudentVariant ? (
-            <Box sx={{ display: 'flex', alignItems: 'center', gap: 0.75 }}>
+            <Box sx={{ display: 'flex', alignItems: 'center', gap: 0.75, flexWrap: 'wrap' }}>
               <Person size={18} style={{ color: 'var(--color-text-soft)' }} />
               <Typography
                 variant="subtitle2"
@@ -106,6 +106,9 @@ export default function ClassroomNoteCard({
               >
                 {teacher.displayName}{teacher.status === 'inactive' ? ' (removed)' : ''}
               </Typography>
+              {isTransferred && (
+                <TransferredChip toClassroomName={transferredToClassroomName} />
+              )}
             </Box>
           ) : (
             <Box sx={{ display: 'flex', alignItems: 'center', gap: 0.75 }}>
@@ -126,22 +129,7 @@ export default function ClassroomNoteCard({
                 {studentName}
               </Typography>
               {isTransferred && (
-                <Typography
-                  component="span"
-                  sx={{
-                    fontSize: '0.65rem',
-                    fontWeight: 600,
-                    color: '#b45309',
-                    backgroundColor: '#fef3c7',
-                    px: 0.75,
-                    py: 0.15,
-                    borderRadius: 'var(--radius-pill)',
-                    border: '1px solid #fde68a',
-                    whiteSpace: 'nowrap',
-                  }}
-                >
-                  {transferredToClassroomName ? `Transferred to ${transferredToClassroomName}` : 'Transferred'}
-                </Typography>
+                <TransferredChip toClassroomName={transferredToClassroomName} />
               )}
             </Box>
           )}

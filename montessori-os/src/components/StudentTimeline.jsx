@@ -95,6 +95,30 @@ function StudentTimeline({ student, currentUser, userRole, noteTypeFilter = null
 
   // observations is provided by useTimelineData hook (merged, deduped, sorted)
 
+  // Resolve classroom names for transferred notes (notes from a different classroom than student's current)
+  const [classroomNameCache, setClassroomNameCache] = useState({});
+  useEffect(() => {
+    if (!student?.classroomId || !observations.length) return;
+    const foreignIds = new Set();
+    observations.forEach(n => {
+      if (n.classroomId && n.classroomId !== student.classroomId) foreignIds.add(n.classroomId);
+    });
+    // Remove already-cached IDs
+    const toFetch = [...foreignIds].filter(id => !(id in classroomNameCache));
+    if (!toFetch.length) return;
+    (async () => {
+      const entries = {};
+      await Promise.all(toFetch.map(async (cid) => {
+        try {
+          const snap = await getDoc(doc(db, 'classrooms', cid));
+          entries[cid] = snap.exists() ? (snap.data().name || cid) : cid;
+        } catch { entries[cid] = cid; }
+      }));
+      setClassroomNameCache(prev => ({ ...prev, ...entries }));
+    })();
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [observations, student?.classroomId]);
+
   // Derive unique curriculum areas from notes for FilterPanel
   const availableCurriculumAreas = useMemo(() => {
     const areas = new Set();
@@ -816,6 +840,8 @@ function StudentTimeline({ student, currentUser, userRole, noteTypeFilter = null
                     key={obs.id}
                     note={obs}
                     variant="student"
+                    isTransferred={!!(obs.classroomId && student?.classroomId && obs.classroomId !== student.classroomId)}
+                    transferredToClassroomName={obs.classroomId !== student?.classroomId ? classroomNameCache[obs.classroomId] : undefined}
                     classroomTeachers={classroomTeachers}
                     onNoteClick={() => {
                       if (mediaItems.length > 0) {
@@ -846,6 +872,8 @@ function StudentTimeline({ student, currentUser, userRole, noteTypeFilter = null
                   key={obs.id}
                   note={obs}
                   variant="student"
+                  isTransferred={!!(obs.classroomId && student?.classroomId && obs.classroomId !== student.classroomId)}
+                  transferredToClassroomName={obs.classroomId !== student?.classroomId ? classroomNameCache[obs.classroomId] : undefined}
                   classroomTeachers={classroomTeachers}
                   onNoteClick={() => handleObservationClick(obs)}
                   mediaUrls={mediaUrls}

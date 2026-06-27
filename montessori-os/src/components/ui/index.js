@@ -12,6 +12,7 @@ export { default as KidAvatar } from './KidAvatar';
 export { default as MiniTangram } from './MiniTangram';
 export { default as Chip } from './Chip';
 export { default as TypeIcon } from './TypeIcon';
+export { default as TransferredChip } from './TransferredChip';
 
 // Actions
 export { default as QuickJumpButton } from './QuickJumpButton';
