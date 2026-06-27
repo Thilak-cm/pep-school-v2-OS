@@ -508,7 +508,8 @@ service cloud.firestore {
 
     // Collection group rule for ai_summaries (needed for collectionGroup queries)
     match /{path=**}/ai_summaries/{summaryId} {
-      allow read: if isPrivilegedAdmin() ||
+      allow read: if isSuperAdmin() ||
+        (isClassroomAdmin() && ('classroomId' in resource.data) && managesClassroom(resource.data.classroomId)) ||
         (isTeacher() && ('classroomId' in resource.data) && isTeacherInClassroom(resource.data.classroomId));
     }
 

@@ -90,6 +90,7 @@ for (const studentDoc of studentsSnap.docs) {
 
   if (!currentClassroomId) {
     console.log(`  ${studentId}: no classroomId on student doc, skipping`);
+    totalSkipped++;
     continue;
   }
 
@@ -166,7 +167,7 @@ if (batchCount > 0 && !dryRun) {
 }
 
 console.log(`\n=== Summary ===`);
-console.log(`Updated:      ${totalUpdated}`);
+console.log(dryRun ? `Would update: ${totalUpdated}` : `Updated:      ${totalUpdated}`);
 console.log(`Already set:  ${totalAlreadySet}`);
 console.log(`No timestamp: ${totalNoTimestamp} (used current classroomId as fallback)`);
 console.log(`Skipped:      ${totalSkipped}`);

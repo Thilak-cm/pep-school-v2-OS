@@ -222,7 +222,7 @@ function StudentTimeline({ student, currentUser, userRole, noteTypeFilter = null
     applyFilters
   } = useObservationFilters(observations, null);
 
-  const visibleObservations = useMemo(() => filteredObservations || [], [filteredObservations]);
+  const visibleObservations = useMemo(() => (filteredObservations || []).slice(0, displayLimit), [filteredObservations, displayLimit]);
 
   const combinedFiltersActive = hasActiveFilters;
 
@@ -451,8 +451,8 @@ function StudentTimeline({ student, currentUser, userRole, noteTypeFilter = null
                 return next;
               });
             },
-            onError: ({ path, error }) => {
-              console.warn('StudentTimeline: failed to load media URL', { path, error });
+            onError: () => {
+              // Media URL failure handled gracefully — image simply won't render
             },
           },
         );
@@ -893,7 +893,7 @@ function StudentTimeline({ student, currentUser, userRole, noteTypeFilter = null
             ) : null;
           })()}
           {/* Show More Button — UI-only, no Firestore calls (#128) */}
-          {displayLimit < (visibleObservations?.length || 0) && (
+          {displayLimit < (filteredObservations?.length || 0) && (
             <Box sx={{ textAlign: 'center', pt: 2 }}>
               <Button
                 variant="outlined"

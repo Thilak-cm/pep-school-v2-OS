@@ -72,15 +72,17 @@ function ClassroomTimeline({ classroom, currentUser, userRole, manageableClassro
   }, [hookTeachers]);
 
   // Supplement teacher list with user docs for observation authors not in teacherIds (e.g. former teachers)
+  const fetchedTeacherIdsRef = useRef(new Set());
   useEffect(() => {
     if (!classroomNotes.length) return;
     const knownIds = new Set(classroomTeachers.map(t => t.id));
     const missingIds = new Set();
     classroomNotes.forEach(n => {
       const tid = n.createdBy || n.teacherId;
-      if (tid && !knownIds.has(tid)) missingIds.add(tid);
+      if (tid && !knownIds.has(tid) && !fetchedTeacherIdsRef.current.has(tid)) missingIds.add(tid);
     });
     if (missingIds.size === 0) return;
+    missingIds.forEach(id => fetchedTeacherIdsRef.current.add(id));
     (async () => {
       const extras = (await Promise.all([...missingIds].map(async (tid) => {
         try {
@@ -91,8 +93,7 @@ function ClassroomTimeline({ classroom, currentUser, userRole, manageableClassro
       }))).filter(Boolean);
       if (extras.length > 0) setClassroomTeachers(prev => [...prev, ...extras]);
     })();
-  // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [classroomNotes]);
+  }, [classroomNotes, classroomTeachers]);
 
   // Detect transferred students — observations from students no longer in this classroom (PEP-333)
   useEffect(() => {

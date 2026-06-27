@@ -1,5 +1,21 @@
 # Changelog
 
+# 11.0.5 — 2026-06-27
+
+### Fixed
+- Rebuilt classroom & student timeline data fetching with shared `useTimelineData` hook — fixes teacher role permission errors, cursor corruption, and pagination gaps (#128)
+- Teacher collectionGroup security rules optimized to 1 `get()` call instead of 2, using `resource.data.classroomId` directly
+- Scoped classroomadmin ai_summaries collectionGroup rule to only allow access to managed classrooms
+- Student timeline "Show More" now correctly slices rendered notes via `displayLimit`
+- Header and per-student note counts derived from in-memory array instead of separate server queries
+
+### Added
+- Shared `useTimelineData` hook for both classroom and student timelines — `getDocs` one-shot fetch, in-memory pagination, `injectNote` mechanism for #129
+- `TransferredChip` component for transferred student indicators in note cards and expanded views
+- Placement-aware `classroomId` backfill script for existing ai_summaries docs
+- Composite collectionGroup indexes for observations, media, and ai_summaries by classroomId
+- Report-generating Cloud Functions now write `classroomId` on all ai_summaries docs
+
 # 11.0.4 — 2026-06-26
 
 ### Added

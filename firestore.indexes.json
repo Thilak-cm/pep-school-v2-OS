@@ -167,6 +167,7 @@
       "queryScope": "COLLECTION_GROUP",
       "fields": [
         { "fieldPath": "classroomId", "order": "ASCENDING" },
+        { "fieldPath": "kind", "order": "ASCENDING" },
         { "fieldPath": "generatedAt", "order": "DESCENDING" }
       ]
     }

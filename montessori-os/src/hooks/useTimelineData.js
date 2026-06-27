@@ -9,7 +9,7 @@
  *   - student:   3 direct subcollection queries under students/{studentId}
  */
 
-import { useState, useEffect, useMemo, useCallback, useRef } from 'react';
+import { useState, useEffect, useMemo, useCallback } from 'react';
 import {
   collection, collectionGroup, query, where, orderBy,
   getDocs, getDoc, doc,
@@ -155,17 +155,10 @@ export default function useTimelineData({ scope, id, classroom, userRole, manage
   const [teachers, setTeachers] = useState([]);
   const [loading, setLoading] = useState(true);
   const [displayLimit, setDisplayLimit] = useState(PAGE_SIZE);
-  const mountedRef = useRef(true);
-
   // Access check (classroom scope only)
   const hasAccess = scope === 'student' || !id
     ? true
     : checkClassroomAccess(userRole, manageableClassrooms, id);
-
-  useEffect(() => {
-    mountedRef.current = true;
-    return () => { mountedRef.current = false; };
-  }, []);
 
   useEffect(() => {
     if (!id || !hasAccess) {
