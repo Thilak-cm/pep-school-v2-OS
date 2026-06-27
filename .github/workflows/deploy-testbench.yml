@@ -4,9 +4,15 @@ on:
     branches:
       - master
     paths:
-      - 'testbench/**'
+      - 'testbench/src/**'
+      - 'testbench/public/**'
+      - 'testbench/index.html'
+      - 'testbench/vite.config.js'
       - 'firebase.json'
       - '.firebaserc'
+
+concurrency:
+  group: deploy-testbench-${{ github.sha }}
 jobs:
   build_and_deploy:
     runs-on: ubuntu-latest

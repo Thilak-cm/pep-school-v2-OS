@@ -5,6 +5,9 @@ on:
     branches:
       - master
 
+concurrency:
+  group: deploy-firebase-${{ github.sha }}
+
 jobs:
   # Detect which resources changed
   changes:
@@ -21,7 +24,10 @@ jobs:
         with:
           filters: |
             hosting:
-              - 'montessori-os/**'
+              - 'montessori-os/src/**'
+              - 'montessori-os/public/**'
+              - 'montessori-os/index.html'
+              - 'montessori-os/vite.config.js'
               - 'functions/config/**'
               - 'scripts/config/**'
               - 'firebase.json'
