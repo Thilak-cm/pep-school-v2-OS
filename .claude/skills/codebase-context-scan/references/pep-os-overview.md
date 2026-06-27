@@ -1,7 +1,7 @@
 # Pep OS Overview
 
-Generated: 2026-06-26T07:29:27.193Z
-App version: 11.0.3
+Generated: 2026-06-27T09:43:14.321Z
+App version: 11.0.5
 
 ## App Snapshot
 
@@ -44,17 +44,17 @@ App version: 11.0.3
 - `montessori-os/src/components/LessonNotes.jsx`
 
 ### Timelines and Media (`timelines-and-media`)
-- Count: 12
-- Components: `ClassroomList`, `ClassroomTimeline`, `ClassroomTimeline.classroomIdQuery.test`, `ClassroomTimeline.pagination.test`, `classroomTimelineUtils`, `classroomTimelineUtils.extraction.test`, `ExportWizard`, `FeedbackTimeline`, `FilterPanel`, `StudentDashboard`, `StudentDashboard.test`, `StudentTimeline`
+- Count: 10
+- Components: `ClassroomList`, `ClassroomTimeline`, `classroomTimelineUtils`, `classroomTimelineUtils.extraction.test`, `ExportWizard`, `FeedbackTimeline`, `FilterPanel`, `StudentDashboard`, `StudentDashboard.test`, `StudentTimeline`
 - Representative paths:
 - `montessori-os/src/components/ClassroomList.jsx`
 - `montessori-os/src/components/ClassroomTimeline.jsx`
-- `montessori-os/src/components/ClassroomTimeline.classroomIdQuery.test.js`
-- `montessori-os/src/components/ClassroomTimeline.pagination.test.js`
 - `montessori-os/src/components/classroomTimelineUtils.js`
 - `montessori-os/src/components/classroomTimelineUtils.extraction.test.js`
 - `montessori-os/src/components/ExportWizard.jsx`
 - `montessori-os/src/components/FeedbackTimeline.jsx`
+- `montessori-os/src/components/FilterPanel.jsx`
+- `montessori-os/src/components/StudentDashboard.jsx`
 
 ### Analytics and Notifications (`analytics-and-notifications`)
 - Count: 7
@@ -149,6 +149,16 @@ App version: 11.0.3
 
 ## Recent Changes
 
+### 11.0.5 (2026-06-27)
+- Rebuilt classroom & student timeline data fetching with shared `useTimelineData` hook — fixes teacher role permission errors, cursor corruption, and pagination gaps (#128)
+- Teacher collectionGroup security rules optimized to 1 `get()` call instead of 2, using `resource.data.classroomId` directly
+- Scoped classroomadmin ai_summaries collectionGroup rule to only allow access to managed classrooms
+
+### 11.0.4 (2026-06-26)
+- Program selector (toddler/primary/elementary/adolescent) in Report Generation workbench — program-first flow loads config without selecting a student (#136)
+- Session persistence via sessionStorage — saves variant state across in-app navigation, with resume prompt on return
+- Back-navigation guard for all 6 test bench workbenches — confirms before discarding unsaved work when clicking the back arrow
+
 ### 11.0.3 (2026-06-25)
 - Monthly checklist export now uses a proper Google Docs table layout instead of fake right-margin columns, preventing content overflow to a second page (PEP-301)
 - Dynamic sizing ladder pre-calculates content height and adjusts column ratio, section spacing, and font size to guarantee single-page output
@@ -158,14 +168,4 @@ App version: 11.0.3
 - Classroom timeline now uses a single classroomId query instead of per-student batched queries, fixing grouped lesson notes showing incorrect student counts (PEP-333)
 - Real-time listener moved from students collection to observations query, providing instant updates when notes are added
 - Notes from transferred students now display a "Transferred to {classroom}" chip in card and expanded views
-
-### 11.0.1 (2026-06-25)
-- Digest agent prompt rewrite — consultant role with 5-section priority structure (Urgent/Watch/Curriculum/Bright/Teachers), action-oriented writing rules, silent contextual notes handling
-- Context distillation — snapshot flags (severity, escalation, red flags, coverage gaps) preloaded into prompt; full narrative summary behind selective tool call
-- LLM outputs structured JSON, code renders into fixed HTML template for consistent email styling across runs
-
-### 11.0.0 (2026-06-21)
-- **Weekly Digest Agent (PEP-297)** — two-stage agentic pipeline generating per-classroom and consolidated superadmin digest emails every Sunday 6 PM IST via tool-calling agent loops with Langfuse tracing
-- Production email delivery via Resend with verified sender (tech@pepschoolv2.com)
-- Digest history archival to Firestore subcollections
 
