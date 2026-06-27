@@ -41,6 +41,7 @@ import { getTeacherForNote } from '../classroomTimelineUtils.js';
 import ClassroomStudentPicker from '../ClassroomStudentPicker';
 import LessonNoteTagDialog from '../LessonNoteTagDialog';
 import { reportCaughtError } from '../../utils/reportCaughtError.js';
+import { TransferredChip } from '../ui';
 
 import SharedHeader from './SharedHeader';
 import TextContent from './TextContent';
@@ -430,15 +431,12 @@ export default function NoteBottomSheet({
         <Box sx={{ flex: 1, overflowY: 'auto', overscrollBehavior: 'contain', px: 2.5, pb: 1 }}>
           {/* Previous classroom warning */}
           {previousClassroomName && (
-            <Box sx={{
-              display: 'flex', alignItems: 'center', gap: 1, p: 1.5, mb: 1.5,
-              backgroundColor: 'var(--color-amber-bg)', borderRadius: 1,
-              border: '1px solid var(--color-amber-yellow)',
-            }}>
-              <Typography variant="body2" sx={{ color: 'var(--color-amber-text)', fontStyle: 'italic', fontSize: '0.78rem' }}>
-                Note logged when {student?.name || student?.displayName || 'this student'} was in {previousClassroomName}{currentClassroomName ? `. Now transferred to ${currentClassroomName}` : ''}
-              </Typography>
-            </Box>
+            <TransferredChip
+              variant="banner"
+              fromClassroomName={previousClassroomName}
+              toClassroomName={currentClassroomName}
+              studentName={student?.name || student?.displayName}
+            />
           )}
 
           {/* Type-specific content */}

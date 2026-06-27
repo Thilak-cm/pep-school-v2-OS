@@ -315,6 +315,7 @@ async function runWritingAnalysisForStudent(studentId, { dryRun = false, program
     sourceMediaIds: mediaDocs.map((d) => d.id),
     model: config.model,
     programId: programId || null,
+    classroomId: studentData.classroomId || null,
     status: "completed",
   };
 

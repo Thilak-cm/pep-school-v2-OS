@@ -20,7 +20,7 @@ import {
   Skeleton
 } from '@mui/material';
 import { Trash2 as Delete, Filter as FilterList, Download, Image as PhotoLibrary, Video as Movie, File as InsertDriveFile, Upload as CloudUpload, CircleAlert as ErrorOutline, ChevronDown as ExpandMore, FileText as Description, ChevronLeft, ChevronRight, Sparkles as AutoAwesome, User, MessageCircle } from '../icons';
-import { collection, collectionGroup, query, where, orderBy, limit, onSnapshot, doc, getDoc, deleteDoc, startAfter, getDocs } from 'firebase/firestore';
+import { doc, getDoc, deleteDoc } from 'firebase/firestore';
 import { db, storage } from '../firebase';
 import useNotify from '../notifications/useNotify.js';
 
@@ -31,6 +31,7 @@ import ClassroomNoteCard from './ClassroomNoteCard';
 import { DayHeader } from './ui';
 import { groupByCalendarDay } from './classroomTimelineUtils.js';
 import useObservationFilters from '../hooks/useObservationFilters';
+import useTimelineData from '../hooks/useTimelineData';
 import { formatTimestamp } from '../utils/observationUtils.jsx';
 import {
   executeExportJob,
@@ -55,24 +56,24 @@ const MEDIA_URL_FETCH_CONCURRENCY = 6;
 function StudentTimeline({ student, currentUser, userRole, noteTypeFilter = null }) {
   const notify = useNotify();
   const isSuperAdminUser = isSuperAdmin(userRole);
-  const [recentObs, setRecentObs] = useState([]);
-  const [olderObs, setOlderObs] = useState([]);
-  const [mediaDocs, setMediaDocs] = useState([]);
-  const [reportDocs, setReportDocs] = useState([]);
   const [reportPreviewData, setReportPreviewData] = useState(null);
-  const [loading, setLoading] = useState(true);
-  const [loadingMore, setLoadingMore] = useState(false);
-  const [hasMoreObs, setHasMoreObs] = useState(false);
   const [selectedObservation, setSelectedObservation] = useState(null);
   const [detailDialogOpen, setDetailDialogOpen] = useState(false);
   const [deleteConfirmOpen, setDeleteConfirmOpen] = useState(false);
-  const snapshotLastDocRef = useRef(null);
-  const paginationCursorRef = useRef(null);
-  const prevRecentIdsRef = useRef(new Set());
-  // Note: All note expansion functionality is now handled by NoteBottomSheet
-  
+
   // Classroom teachers for creator filter
   const [classroomTeachers, setClassroomTeachers] = useState([]);
+
+  // Shared data hook — replaces onSnapshot + cursor pagination (#128)
+  const {
+    notes: observations,
+    loading,
+    displayLimit,
+    showMore,
+  } = useTimelineData({
+    scope: 'student',
+    id: student?.id,
+  });
   
   // Export states
   const [exporting, setExporting] = useState(false);
@@ -92,32 +93,40 @@ function StudentTimeline({ student, currentUser, userRole, noteTypeFilter = null
   const mediaUrlsRef = useRef({});
   const mediaUrlInFlightPathsRef = useRef(new Set());
 
-  // Derive observations by merging recentObs + olderObs + mediaDocs + reportDocs, deduping, sorting
-  const observations = useMemo(() => {
-    const merged = [...recentObs, ...olderObs, ...mediaDocs, ...reportDocs];
-    const seen = new Set();
-    const deduped = merged.filter(item => {
-      if (seen.has(item.id)) return false;
-      seen.add(item.id);
-      return true;
-    });
-    deduped.sort((a, b) => {
-      const da = a.observedAt?.toDate?.() ? a.observedAt.toDate() : (a.observedAt?.seconds ? new Date(a.observedAt.seconds * 1000) : new Date(0));
-      const db = b.observedAt?.toDate?.() ? b.observedAt.toDate() : (b.observedAt?.seconds ? new Date(b.observedAt.seconds * 1000) : new Date(0));
-      return db - da;
-    });
-    return deduped;
-  }, [recentObs, olderObs, mediaDocs, reportDocs]);
+  // observations is provided by useTimelineData hook (merged, deduped, sorted)
 
-  // Derive unique curriculum areas from media docs for FilterPanel (PEP-33)
+  // Resolve classroom names for transferred notes (notes from a different classroom than student's current)
+  const [classroomNameCache, setClassroomNameCache] = useState({});
+  useEffect(() => {
+    if (!student?.classroomId || !observations.length) return;
+    const foreignIds = new Set();
+    observations.forEach(n => {
+      if (n.classroomId && n.classroomId !== student.classroomId) foreignIds.add(n.classroomId);
+    });
+    // Remove already-cached IDs
+    const toFetch = [...foreignIds].filter(id => !(id in classroomNameCache));
+    if (!toFetch.length) return;
+    (async () => {
+      const entries = {};
+      await Promise.all(toFetch.map(async (cid) => {
+        try {
+          const snap = await getDoc(doc(db, 'classrooms', cid));
+          entries[cid] = snap.exists() ? (snap.data().name || cid) : cid;
+        } catch { entries[cid] = cid; }
+      }));
+      setClassroomNameCache(prev => ({ ...prev, ...entries }));
+    })();
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [observations, student?.classroomId]);
+
+  // Derive unique curriculum areas from notes for FilterPanel
   const availableCurriculumAreas = useMemo(() => {
     const areas = new Set();
-    mediaDocs.forEach(doc => {
-      const area = doc.curriculumArea;
-      if (area) areas.add(area);
+    observations.forEach(note => {
+      if (note.curriculumArea) areas.add(note.curriculumArea);
     });
     return [...areas].sort();
-  }, [mediaDocs]);
+  }, [observations]);
 
   const toJsDate = (ts) => {
     if (!ts) return null;
@@ -213,14 +222,13 @@ function StudentTimeline({ student, currentUser, userRole, noteTypeFilter = null
     applyFilters
   } = useObservationFilters(observations, null);
 
-  const visibleObservations = useMemo(() => filteredObservations || [], [filteredObservations]);
+  const visibleObservations = useMemo(() => (filteredObservations || []).slice(0, displayLimit), [filteredObservations, displayLimit]);
 
   const combinedFiltersActive = hasActiveFilters;
 
   const mediaObservations = useMemo(() => {
-    const filtered = applyFilters(mediaDocs, 'media') || [];
-    return filtered.filter((obs) => obs.type === 'media');
-  }, [mediaDocs, applyFilters]);
+    return (observations || []).filter((obs) => obs.type === 'media');
+  }, [observations]);
 
   const timelineItems = useMemo(() => {
     const items = [];
@@ -345,145 +353,7 @@ function StudentTimeline({ student, currentUser, userRole, noteTypeFilter = null
 
   // Media edit state reset moved to NoteBottomSheet useMediaPreview hook
 
-  const OBS_PAGE_SIZE = 20;
-
-  useEffect(() => {
-    if (!student) return;
-
-    setLoading(true);
-    setMediaUrls({});
-    setRecentObs([]);
-    setOlderObs([]);
-    setReportDocs([]);
-    paginationCursorRef.current = null;
-    snapshotLastDocRef.current = null;
-    prevRecentIdsRef.current = new Set();
-
-    // Add timeout to prevent infinite loading
-    const timeoutId = setTimeout(() => {
-      setLoading(false);
-    }, 10000); // 10 second timeout
-
-    const studentIdToQuery = student.id;
-
-    const obsQuery = query(
-      collectionGroup(db, 'observations'),
-      where('studentId', '==', studentIdToQuery),
-      orderBy('observedAt', 'desc'),
-      limit(OBS_PAGE_SIZE)
-    );
-
-    const mediaQuery = query(
-      collection(db, 'students', studentIdToQuery, 'media'),
-      orderBy('observedAt', 'desc'),
-      limit(200)
-    );
-
-    let obsReady = false;
-    let mediaReady = false;
-    let reportsReady = false;
-
-    const checkLoaded = () => {
-      if (obsReady && mediaReady && reportsReady) {
-        setLoading(false);
-        clearTimeout(timeoutId);
-      }
-    };
-
-    // Fetch reports from ai_summaries subcollection
-    getDocs(collection(db, 'students', studentIdToQuery, 'ai_summaries')).then((snap) => {
-      const reports = snap.docs
-        .filter((d) => /^report_\d/.test(d.id))
-        .map((d) => {
-          const data = d.data();
-          return {
-            id: d.id,
-            type: 'report',
-            observedAt: data.generatedAt || null,
-            createdBy: data.generatedBy || null,
-            generatedByName: data.generatedByName || null,
-            noteCount: data.noteCount || 0,
-            reportText: data.reportText || '',
-            missingInputFlags: data.missingInputFlags || [],
-            driveDocLink: data.driveDocLink || null,
-            status: data.status || 'ok',
-            dateRangeStart: data.dateRangeStart || null,
-            dateRangeEnd: data.dateRangeEnd || null,
-            reportType: data.reportType || 'term',
-          };
-        })
-        .filter((r) => r.status === 'ok');
-      setReportDocs(reports);
-      reportsReady = true;
-      checkLoaded();
-    }).catch(() => {
-      setReportDocs([]);
-      reportsReady = true;
-      checkLoaded();
-    });
-
-    const unsubObs = onSnapshot(obsQuery, (snap) => {
-      const list = snap.docs.map((d) => ({
-        id: d.id,
-        parentStudentId: d.ref.parent?.parent?.id,
-        docPath: d.ref.path,
-        ...d.data(),
-      }));
-
-      // Detect observations displaced from recentObs by the new snapshot
-      // (e.g., the observation at position 20 that falls off when a new one is added)
-      const newIds = new Set(list.map((o) => o.id));
-      const prevIds = prevRecentIdsRef.current;
-      if (prevIds.size > 0) {
-        setRecentObs((prevRecent) => {
-          const displaced = prevRecent.filter((o) => !newIds.has(o.id));
-          if (displaced.length > 0) {
-            setOlderObs((prevOlder) => {
-              const olderIds = new Set(prevOlder.map((o) => o.id));
-              const toAdd = displaced.filter((o) => !olderIds.has(o.id));
-              return toAdd.length > 0 ? [...toAdd, ...prevOlder] : prevOlder;
-            });
-          }
-          return list;
-        });
-      } else {
-        setRecentObs(list);
-      }
-      prevRecentIdsRef.current = newIds;
-
-      if (snap.docs.length > 0) {
-        snapshotLastDocRef.current = snap.docs[snap.docs.length - 1];
-      }
-      setHasMoreObs(snap.docs.length >= OBS_PAGE_SIZE);
-      obsReady = true;
-      checkLoaded();
-    }, () => {
-      obsReady = true;
-      checkLoaded();
-    });
-
-    const unsubMedia = onSnapshot(mediaQuery, (snap) => {
-      const list = snap.docs.map((d) => ({
-        id: d.id,
-        parentStudentId: d.ref.parent?.parent?.id,
-        docPath: d.ref.path,
-        ...d.data(),
-      }));
-      setMediaDocs(list);
-      mediaReady = true;
-      checkLoaded();
-    }, () => {
-      setMediaDocs([]);
-      mediaReady = true;
-      checkLoaded();
-    });
-
-    return () => {
-      clearTimeout(timeoutId);
-      unsubObs();
-      unsubMedia();
-    };
-  }, [student]);
+  // Data fetching handled by useTimelineData hook (#128)
 
   // Extract classroom teachers from observations data, fetching user docs for status
   useEffect(() => {
@@ -581,8 +451,8 @@ function StudentTimeline({ student, currentUser, userRole, noteTypeFilter = null
                 return next;
               });
             },
-            onError: ({ path, error }) => {
-              console.warn('StudentTimeline: failed to load media URL', { path, error });
+            onError: () => {
+              // Media URL failure handled gracefully — image simply won't render
             },
           },
         );
@@ -778,40 +648,7 @@ function StudentTimeline({ student, currentUser, userRole, noteTypeFilter = null
     setExportWizardOpen(true);
   };
 
-  const handleLoadMore = async () => {
-    if (!student) return;
-    const cursor = paginationCursorRef.current || snapshotLastDocRef.current;
-    if (!cursor) return;
-
-    setLoadingMore(true);
-    try {
-      const moreQuery = query(
-        collectionGroup(db, 'observations'),
-        where('studentId', '==', student.id),
-        orderBy('observedAt', 'desc'),
-        startAfter(cursor),
-        limit(OBS_PAGE_SIZE)
-      );
-      const snap = await getDocs(moreQuery);
-      const newObs = snap.docs.map((d) => ({
-        id: d.id,
-        parentStudentId: d.ref.parent?.parent?.id,
-        docPath: d.ref.path,
-        ...d.data(),
-      }));
-      if (snap.docs.length > 0) {
-        paginationCursorRef.current = snap.docs[snap.docs.length - 1];
-      }
-      setHasMoreObs(snap.docs.length >= OBS_PAGE_SIZE);
-      if (newObs.length > 0) {
-        setOlderObs(prev => [...prev, ...newObs]);
-      }
-    } catch {
-      notify.error('Failed to load more notes. Please try again.', { duration: 3000 });
-    } finally {
-      setLoadingMore(false);
-    }
-  };
+  // handleLoadMore replaced by showMore from useTimelineData hook (#128)
 
   const handleRunExport = async ({ noteKinds, format, dateRange }) => {
     try {
@@ -1003,6 +840,8 @@ function StudentTimeline({ student, currentUser, userRole, noteTypeFilter = null
                     key={obs.id}
                     note={obs}
                     variant="student"
+                    isTransferred={!!(obs.classroomId && student?.classroomId && obs.classroomId !== student.classroomId)}
+                    transferredToClassroomName={obs.classroomId !== student?.classroomId ? classroomNameCache[obs.classroomId] : undefined}
                     classroomTeachers={classroomTeachers}
                     onNoteClick={() => {
                       if (mediaItems.length > 0) {
@@ -1033,6 +872,8 @@ function StudentTimeline({ student, currentUser, userRole, noteTypeFilter = null
                   key={obs.id}
                   note={obs}
                   variant="student"
+                  isTransferred={!!(obs.classroomId && student?.classroomId && obs.classroomId !== student.classroomId)}
+                  transferredToClassroomName={obs.classroomId !== student?.classroomId ? classroomNameCache[obs.classroomId] : undefined}
                   classroomTeachers={classroomTeachers}
                   onNoteClick={() => handleObservationClick(obs)}
                   mediaUrls={mediaUrls}
@@ -1051,28 +892,16 @@ function StudentTimeline({ student, currentUser, userRole, noteTypeFilter = null
               </Box>
             ) : null;
           })()}
-          {/* Show More Button */}
-          {hasMoreObs && !loadingMore && (
+          {/* Show More Button — UI-only, no Firestore calls (#128) */}
+          {displayLimit < (filteredObservations?.length || 0) && (
             <Box sx={{ textAlign: 'center', pt: 2 }}>
               <Button
                 variant="outlined"
-                onClick={handleLoadMore}
+                onClick={showMore}
                 startIcon={<ExpandMore />}
                 sx={{ textTransform: 'none' }}
               >
-                Show 20 More
-              </Button>
-            </Box>
-          )}
-          {loadingMore && (
-            <Box sx={{ textAlign: 'center', pt: 2 }}>
-              <Button
-                variant="outlined"
-                disabled
-                startIcon={<CircularProgress size={16} />}
-                sx={{ textTransform: 'none' }}
-              >
-                Loading...
+                Show More
               </Button>
             </Box>
           )}

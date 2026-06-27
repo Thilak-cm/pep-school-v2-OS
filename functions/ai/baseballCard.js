@@ -145,7 +145,7 @@ async function callBaseballCard(notes, config, prompt, windowDays, studentContex
  * @param {Object|null} requesterInfo - { uid, displayName, role } for manual regens, null for batch
  * @param {Object|null} existingSnapshot - Pre-fetched existing doc data (from buildSignalsPayload) to avoid double-read
  */
-async function writeWeeklySnapshot(studentId, cardPayload, signalsPayload, archiveHistory = false, requesterInfo = null, existingSnapshot = null) {
+async function writeWeeklySnapshot(studentId, cardPayload, signalsPayload, archiveHistory = false, requesterInfo = null, existingSnapshot = null, classroomId = null) {
   const snapshotRef = db.collection("students").doc(studentId)
     .collection("ai_summaries").doc("weekly_snapshot");
 
@@ -164,6 +164,7 @@ async function writeWeeklySnapshot(studentId, cardPayload, signalsPayload, archi
     noteCount: cardPayload.noteCount ?? 0,
     // Signals fields
     ...signalsPayload,
+    classroomId,
   };
 
   if (archiveHistory) {
@@ -302,6 +303,8 @@ async function runBaseballCards({
     try {
       const notes = await fetchStudentNotesForWindow(studentId, effectiveWindowDays);
       const studentContext = await getStudentContext(studentId);
+      const studentSnap = await db.collection("students").doc(studentId).get();
+      const classroomId = studentSnap.exists ? (studentSnap.data().classroomId || null) : null;
 
       if (!notes.length) {
         const payload = {
@@ -331,7 +334,7 @@ async function runBaseballCards({
             status: payload.status,
             evidenceCount: payload.noteCount,
           });
-          await writeWeeklySnapshot(studentId, payload, signals, archiveHistory, requesterInfo, existingSnapshot);
+          await writeWeeklySnapshot(studentId, payload, signals, archiveHistory, requesterInfo, existingSnapshot, classroomId);
         }
         return;
       }

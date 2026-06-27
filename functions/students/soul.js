@@ -138,7 +138,7 @@ async function callSoulGeneration(observations, interviews, guidelinesContent, s
   }
 }
 
-async function writeSoulAndGuidelines(studentId, soulContent, programId, templateConfig, observationCount, interviewCount, lastObsAt, lastInterviewAt) {
+async function writeSoulAndGuidelines(studentId, soulContent, programId, templateConfig, observationCount, interviewCount, lastObsAt, lastInterviewAt, classroomId = null) {
   const aiSummariesRef = db.collection("students").doc(studentId).collection("ai_summaries");
   const soulRef = aiSummariesRef.doc("soul");
   const guidelinesRef = aiSummariesRef.doc("guidelines");
@@ -173,11 +173,13 @@ async function writeSoulAndGuidelines(studentId, soulContent, programId, templat
   soulDoc.guidelinesSuggestions = guidelinesSuggestions;
   soulDoc.createdAt = existingSoul.exists ? (existingSoul.data().createdAt || now) : now;
   soulDoc.updatedAt = now;
+  soulDoc.classroomId = classroomId;
   batch.set(soulRef, soulDoc);
 
   // Write open_questions doc (full overwrite, no archiving)
   const oqDoc = buildOpenQuestionsDoc({ areas: openQuestionAreas, programId });
   oqDoc.updatedAt = now;
+  oqDoc.classroomId = classroomId;
   batch.set(openQuestionsRef, oqDoc);
   const areaCount = Object.keys(openQuestionAreas).length;
   if (areaCount) {
@@ -194,6 +196,7 @@ async function writeSoulAndGuidelines(studentId, soulContent, programId, templat
     });
     guidelinesDoc.createdAt = now;
     guidelinesDoc.updatedAt = now;
+    guidelinesDoc.classroomId = classroomId;
     batch.set(guidelinesRef, guidelinesDoc);
     console.log(`[soul] Seeded guidelines for ${studentId} from soul_guidelines_${programId}`);
   }
@@ -278,6 +281,7 @@ export const generateStudentProfile = functions
         studentInfo.programId,
         templateConfig,
         0, 0, null, null,
+        studentInfo.classroomId,
       );
       return {
         status: "no_notes",
@@ -306,6 +310,7 @@ export const generateStudentProfile = functions
     await writeSoulAndGuidelines(
       studentId, soulContent, studentInfo.programId, templateConfig,
       formatted.length, formattedInterviews.length, lastObsAt, lastInterviewAt,
+      studentInfo.classroomId,
     );
 
     // Extract narrative for boolean flags (strip both fenced blocks)
@@ -417,6 +422,7 @@ export const backfillStudentProfiles = functions
           await writeSoulAndGuidelines(
             student.id, "No observations or interviews available yet.",
             studentInfo.programId, templateConfig, 0, 0, null, null,
+            studentInfo.classroomId,
           );
           succeeded++;
           results.push({ studentId: student.id, status: "no_notes" });
@@ -441,6 +447,7 @@ export const backfillStudentProfiles = functions
         await writeSoulAndGuidelines(
           student.id, soulContent, studentInfo.programId, templateConfig,
           formatted.length, formattedInterviews.length, lastObsAt, lastInterviewAt,
+          studentInfo.classroomId,
         );
         succeeded++;
         results.push({ studentId: student.id, status: "ok", noteCount: formatted.length, interviewCount: formattedInterviews.length });
