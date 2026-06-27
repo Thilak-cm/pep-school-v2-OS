@@ -305,6 +305,7 @@ async function generatePlanInternal(studentId, targetMonth, generatedBy, generat
     generatedByName,
     model,
     totalTokens,
+    classroomId: studentData.classroomId || null,
     status: "generated",
   };
 

@@ -502,7 +502,7 @@ service cloud.firestore {
     // Collection group rule for media (needed for collectionGroup queries)
     match /{path=**}/media/{mediaId} {
       allow read: if isPrivilegedAdmin() ||
-        (isTeacher() && ('studentId' in resource.data) && isTeacherInClassroom(studentClassroomId(resource.data.studentId))) ||
+        (isTeacher() && ('classroomId' in resource.data) && isTeacherInClassroom(resource.data.classroomId)) ||
         (isSignedIn() && resource.data.createdBy == request.auth.uid);
     }
 
@@ -527,7 +527,7 @@ service cloud.firestore {
 
       allow read: if isSuperAdmin() ||
         adminCanQueryObservation() ||
-        (isTeacher() && ('studentId' in resource.data) && isTeacherInClassroom(studentClassroomId(resource.data.studentId))) ||
+        (isTeacher() && ('classroomId' in resource.data) && isTeacherInClassroom(resource.data.classroomId)) ||
         (isSignedIn() && resource.data.createdBy == request.auth.uid);
     }
 
