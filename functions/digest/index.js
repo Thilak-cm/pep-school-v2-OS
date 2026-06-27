@@ -29,6 +29,7 @@ import { runWithConcurrency } from "../shared/scheduling.js";
 import { runAgentLoop } from "../shared/agentLoop.js";
 import { DIGEST_TOOLS, createToolExecutor } from "./tools.js";
 import { parseAndRender, renderClassroomDigest, renderSuperadminDigest } from "./renderHtml.js";
+import { batchHtmlToPdf } from "./htmlToPdf.js";
 import { createLangfuse } from "../shared/langfuse.js";
 
 // ── Default system prompts ──────────────────────────────────────────
@@ -48,17 +49,23 @@ Your job:
 **1. Urgent — needs action this week**
 ONLY students with high severity or who escalated to red-flag status this week. This section should be short — typically 0–3 students. For each one: what is happening (in plain language, not severity labels), why it matters developmentally, and a specific suggested action (e.g., "schedule a parent conversation," "adjust the work plan to include more supervised practical life," "pair with a calmer peer during group work"). If no students meet this threshold, skip this section entirely.
 
-**2. Watch — trending concerns**
-Students with low or medium severity, those whose severity increased this week, or who show emerging patterns (declining notes, narrowing curriculum engagement). Brief — one line per student with what to watch for.
+**2. Student negligence — under-observed students**
+Students who appear under-observed based on the data you have — compare their note counts across time windows (this week, last 14 days, last 42 days, total) against their own baseline and the classroom's norms. There is no fixed threshold — use your judgment. A student with 0 notes in 14 days when they usually have 5+ is noteworthy; a student with 2 notes in a classroom where the average is 2 is fine. For each flagged student: why they appear under-observed and a suggested action. This matters because under-observed students produce unreliable monthly parent reports.
 
 **3. Curriculum blind spots**
 Aggregate coverage gaps across the classroom. Don't list per-student gaps — synthesize: "Sensorial is the least-documented area — 8 students have no Sensorial observations in 42 days. Consider scheduling group presentations this week." Make it a planning nudge, not a data dump.
 
-**4. Bright spots**
+**4. Handwriting highlights**
+Surface only notable writing development observations — students with declining dimension trends, notably low scores, or significant improvements. You have a writing analysis teaser for each student (narrative, dimension scores+trends, sample count). For students worth highlighting, call fetch_writing_analysis to get the full doc (concerns, recommendations, detailed analysis) before writing about them. Do NOT list every student — only the highlights.
+
+**5. Bright spots**
 Students who improved this week, strong documentation from specific teachers, or positive developmental milestones from the snapshots. Reinforcement matters — keep it brief but specific.
 
-**5. Teacher documentation**
+**6. Teacher documentation**
 Only if there's something actionable. If all teachers are active, say nothing. Name inactive teachers with a gentle nudge. Do not create a leaderboard of note counts.
+
+**7. Watch — trending concerns**
+Students with low or medium severity, those whose severity increased this week, or who show emerging patterns (declining notes, narrowing curriculum engagement). Brief — one line per student with what to watch for.
 
 ## Writing rules
 
@@ -77,10 +84,12 @@ Output a JSON object (no markdown fences, no explanation — just the JSON). The
 {
   "title": "<full month name> Week <number> Digest — <Classroom Name>",
   "urgent": [{ "name": "Student Name", "content": "What is happening and why it matters.", "action": "Specific suggested action." }],
-  "watch": ["Student Name: one-line concern and suggested response."],
+  "negligence": ["Student Name: why they appear under-observed and suggested action."],
   "curriculum": ["Area X is under-documented — suggested action."],
+  "handwriting": ["Student Name: notable writing development observation."],
   "bright": ["Student Name: what improved and how to build on it."],
-  "teachers": "Names of inactive teachers and a gentle nudge, or null if all active."
+  "teachers": "Names of inactive teachers and a gentle nudge, or null if all active.",
+  "watch": ["Student Name: one-line concern and suggested response."]
 }
 \`\`\`
 
@@ -90,53 +99,64 @@ Output a JSON object (no markdown fences, no explanation — just the JSON). The
 
 const DEFAULT_SUPERADMIN_PROMPT = `You are an experienced Montessori school consultant preparing a weekly executive briefing for school leadership.
 
-You receive the individual classroom digest emails that were already generated, plus contextual notes providing school-specific background. You also have tools to investigate specific students if needed.
+You receive the individual classroom digest emails grouped by program, plus contextual notes providing school-specific background. You also have tools to investigate specific students if needed.
 
 Your job:
 1. Internalize the contextual notes silently — they are background knowledge. People and situations described there should be omitted entirely from your output.
-2. Synthesize the classroom digests into ONE consolidated briefing. Do not repeat or summarize each classroom — extract what leadership needs to know.
-3. Surface cross-classroom patterns — these are your unique value. No individual digest has this view.
+2. Produce ONE card per program. Each card synthesizes the classroom digests within that program — extract what leadership needs to know. Do not repeat or summarize each classroom.
+3. Surface cross-classroom patterns within each program — these are your unique value. No individual digest has this view.
 4. Use tools only if you need to verify something or dig deeper into a specific case.
 
-## Content structure (use this order)
+## Content structure
+
+Output one card per program. Each program card has the same 4 sections (use this order within each card):
 
 **1. Critical interventions needed**
-Students with red flags or escalations across any classroom. Name the student, the classroom, what's happening, and what action is recommended. These should jump off the page.
+Students with red flags or escalations across any classroom in this program. Name the student, the classroom, what's happening, and what action is recommended.
 
 **2. Cross-classroom patterns**
-Systemic observations that span multiple classrooms: documentation drops across several teachers, curriculum areas neglected school-wide, seasonal patterns. This is the insight only a school-wide view can provide.
+Systemic observations that span multiple classrooms within this program: documentation drops across several teachers, curriculum areas neglected program-wide, seasonal patterns.
 
 **3. Classrooms needing attention**
-Classrooms with notable issues — high concentration of concerns, documentation gaps, or unusual patterns. One brief paragraph per classroom, only for classrooms that need leadership awareness. Skip classrooms where things are running smoothly.
+Classrooms with notable issues — high concentration of concerns, documentation gaps, or unusual patterns. One brief paragraph per classroom, only for classrooms that need leadership awareness. Skip smooth classrooms.
 
 **4. Bright spots**
 Improvements, strong documentation, positive developmental milestones. Brief but specific — reinforcement from leadership is powerful.
+
+**IMPORTANT:** Always include ALL programs, even if a program has nothing notable. For quiet programs, omit the section keys (critical, patterns, classrooms, bright) — the renderer will show "No concerns this week."
 
 ## Writing rules
 
 - **Every item must be actionable.** If leadership can't do anything about it, omit it.
 - **Do not restate what the classroom digests already say.** Synthesize, don't summarize.
 - **Never say "and several others."** List every relevant name.
-- **Omit sections with nothing to report.**
+- **Omit section keys with nothing to report within each program card.**
 - **Do not invent information.** Only reference data from classroom digests or fetched via tools.
 
 ## Output format
 
-Output a JSON object (no markdown fences, no explanation — just the JSON). The system will render it into a styled HTML email.
+Output a JSON object (no markdown fences, no explanation — just the JSON). The system will render it into a styled HTML email with one card per program.
 
 \`\`\`
 {
   "title": "Executive Digest — <full month name> Week <number>",
-  "critical": [{ "name": "Student Name", "classroom": "Classroom Name", "content": "What is happening.", "action": "Recommended leadership action." }],
-  "patterns": ["Pattern description and suggested action."],
-  "classrooms": [{ "name": "Classroom Name", "content": "Why it needs attention and what to do." }],
-  "bright": ["Name — Classroom: what improved and how to reinforce."]
+  "programs": [
+    {
+      "programId": "toddler",
+      "programName": "Toddler",
+      "critical": [{ "name": "Student Name", "classroom": "Classroom Name", "content": "What is happening.", "action": "Recommended leadership action." }],
+      "patterns": ["Pattern description and suggested action."],
+      "classrooms": [{ "name": "Classroom Name", "content": "Why it needs attention and what to do." }],
+      "bright": ["Name — Classroom: what improved and how to reinforce."]
+    }
+  ]
 }
 \`\`\`
 
-- Omit any key whose array would be empty.
+- Omit any key whose array would be empty within each program card.
+- Always include every program in the programs array, even if all its section keys are omitted.
 - **Tone:** Direct, concise, executive-friendly — a busy school head should get the picture in 2 minutes.
-- **Ruthlessly concise.** This covers ~20 classrooms — prioritize, don't enumerate.
+- **Ruthlessly concise.** Prioritize, don't enumerate.
 - **No greetings, sign-offs, or HTML.** Just the JSON object.`;
 
 // ── Pure logic (exported for testing) ───────────────────────────────
@@ -175,7 +195,7 @@ export function resolveSuperAdminOverrides(config, superAdmins) {
   return result;
 }
 
-export function buildFirstUserMessage(classroomDoc, statsCacheDoc, contextualNotes, snapshotsMap = null) {
+export function buildFirstUserMessage(classroomDoc, statsCacheDoc, contextualNotes, snapshotsMap = null, writingMap = null) {
   const classroom = {
     id: classroomDoc.id,
     name: classroomDoc.name || classroomDoc.id,
@@ -196,6 +216,7 @@ export function buildFirstUserMessage(classroomDoc, statsCacheDoc, contextualNot
     id: s.id,
     name: s.name,
     thisWeekNotes: s.thisWeekNotes || 0,
+    last14DaysNotes: s.last14DaysNotes || 0,
     last42DaysNotes: s.last42DaysNotes || 0,
     totalNotes: s.totalNotes || 0,
   }));
@@ -204,16 +225,36 @@ export function buildFirstUserMessage(classroomDoc, statsCacheDoc, contextualNot
     ? ["## School Contextual Notes", contextualNotes, ""]
     : [];
 
-  const studentLines = students.map((s) => {
-    const notePart = `this week ${s.thisWeekNotes}, last 42d ${s.last42DaysNotes}, total ${s.totalNotes}`;
+  const studentLines = students.flatMap((s) => {
+    const notePart = `this week ${s.thisWeekNotes}, last 14d ${s.last14DaysNotes}, last 42d ${s.last42DaysNotes}, total ${s.totalNotes}`;
     const snap = snapshotsMap?.get(s.id);
-    if (!snap) return `- ${s.name} [${s.id}]: ${notePart} | no weekly snapshot yet`;
-    const severity = snap.severity || "none";
-    const escalated = snap.escalatedThisWeek ? " | ESCALATED" : "";
-    const improved = snap.improvedThisWeek ? " | improved" : "";
-    const redFlag = snap.redFlag ? ` | RED FLAG: ${snap.redFlag.severity} — ${snap.redFlag.reason}` : "";
-    const gaps = snap.coverageGaps?.length ? ` | gaps: ${snap.coverageGaps.join(", ")}` : "";
-    return `- ${s.name} [${s.id}]: ${notePart} | severity ${severity}${escalated}${improved}${redFlag}${gaps}`;
+    let mainLine;
+    if (!snap) {
+      mainLine = `- ${s.name}: ${notePart} | no weekly snapshot yet`;
+    } else {
+      const severity = snap.severity || "none";
+      const escalated = snap.escalatedThisWeek ? " | ESCALATED" : "";
+      const improved = snap.improvedThisWeek ? " | improved" : "";
+      const redFlag = snap.redFlag ? ` | RED FLAG: ${snap.redFlag.severity} — ${snap.redFlag.reason}` : "";
+      const gaps = snap.coverageGaps?.length ? ` | gaps: ${snap.coverageGaps.join(", ")}` : "";
+      mainLine = `- ${s.name}: ${notePart} | severity ${severity}${escalated}${improved}${redFlag}${gaps}`;
+    }
+
+    // Writing analysis teaser (indented second bullet)
+    const writing = writingMap?.get(s.id);
+    let writingLine;
+    if (!writing) {
+      writingLine = "  - Writing: no writing analysis yet";
+    } else {
+      const dims = writing.dimensionRatings || {};
+      const dimParts = Object.entries(dims)
+        .map(([name, r]) => `${name}: ${r.score}/5 ${r.trend}`)
+        .join(", ");
+      const narrative = writing.narrative || "No narrative";
+      writingLine = `  - Writing: ${writing.sampleCount || 0} samples | "${narrative}" | ${dimParts}`;
+    }
+
+    return [mainLine, writingLine];
   });
 
   return [
@@ -302,6 +343,24 @@ async function preloadSnapshots(statsDoc) {
     preloadedPrereqs.set(`fetch_weekly_snapshot:${sid}`, true);
   }
   return { snapshotsMap, preloadedPrereqs };
+}
+
+async function preloadWritingAnalysis(statsDoc) {
+  const studentIds = (statsDoc?.students || []).map((s) => s.id);
+  const writingMap = new Map();
+  if (studentIds.length > 0) {
+    const refs = studentIds.map((id) =>
+      db.doc(`students/${id}/ai_summaries/writing_analysis`)
+    );
+    const snapDocs = await db.getAll(...refs);
+    for (const snapDoc of snapDocs) {
+      if (snapDoc.exists) {
+        const studentId = snapDoc.ref.parent.parent.id;
+        writingMap.set(studentId, snapDoc.data());
+      }
+    }
+  }
+  return writingMap;
 }
 
 // ── CF 1: Per-Classroom Digest ──────────────────────────────────────
@@ -397,9 +456,12 @@ export const weeklyDigestClassroomAdmin = functions
           try {
             const statsDoc = statsDocs.get(classroom.id) || null;
 
-            const { snapshotsMap, preloadedPrereqs } = await preloadSnapshots(statsDoc);
+            const [{ snapshotsMap, preloadedPrereqs }, writingMap] = await Promise.all([
+              preloadSnapshots(statsDoc),
+              preloadWritingAnalysis(statsDoc),
+            ]);
 
-            const userMessage = buildFirstUserMessage(classroom, statsDoc, config.contextualNotes, snapshotsMap);
+            const userMessage = buildFirstUserMessage(classroom, statsDoc, config.contextualNotes, snapshotsMap, writingMap);
 
             classroomSpan.update({ input: userMessage });
 
@@ -513,7 +575,7 @@ export const weeklyDigestSuperadmin = functions
   .region("asia-south1")
   .runWith({
     timeoutSeconds: 540,
-    memory: "1GB",
+    memory: "2GB",
     secrets: [OPENROUTER_API_KEY, SENDGRID_API_KEY, LANGFUSE_SECRET_KEY, LANGFUSE_PUBLIC_KEY],
   })
   // Offset from CF1 (18:00). Fixed gap — not guaranteed to run after CF1 finishes.
@@ -537,9 +599,10 @@ export const weeklyDigestSuperadmin = functions
       const config = await fetchDigestConfig();
 
       // Read all classroom digests written by CF 1
-      const [classroomsSnap, usersSnap] = await Promise.all([
+      const [classroomsSnap, usersSnap, programsSnap] = await Promise.all([
         db.collection("classrooms").where("status", "==", "active").get(),
         db.collection("users").get(),
+        db.collection("programs").get(),
       ]);
       const classroomIds = classroomsSnap.docs.map((d) => d.id);
       const classroomNames = new Map(
@@ -550,6 +613,20 @@ export const weeklyDigestSuperadmin = functions
         ...d.data(),
       }));
 
+      // Build program → classroom mapping
+      const programDocs = programsSnap.docs.map((d) => ({
+        id: d.id,
+        classrooms: (d.data().classrooms || []).map((ref) =>
+          typeof ref === "string" ? ref.replace("classrooms/", "") : ref
+        ),
+      }));
+      const classroomToProgram = new Map();
+      for (const prog of programDocs) {
+        for (const cid of prog.classrooms) {
+          classroomToProgram.set(cid, prog.id);
+        }
+      }
+
       const digests = [];
       for (const cid of classroomIds) {
         const snap = await db
@@ -559,6 +636,7 @@ export const weeklyDigestSuperadmin = functions
           digests.push({
             classroomId: cid,
             classroomName: classroomNames.get(cid) || cid,
+            programId: classroomToProgram.get(cid) || "unknown",
             ...snap.data(),
           });
         }
@@ -588,13 +666,26 @@ export const weeklyDigestSuperadmin = functions
         return null;
       }
 
-      // Build user message from all classroom digests
-      const digestSummaries = digests
-        .map(
-          (d) =>
-            `## ${d.classroomName}${d.hasRedFlags ? " ⚠️ RED FLAGS" : ""}\n\n${d.htmlContent}`
-        )
-        .join("\n\n---\n\n");
+      // Build user message grouped by program
+      const programOrder = programDocs.map((p) => p.id);
+      const digestsByProgram = new Map();
+      for (const prog of programDocs) {
+        digestsByProgram.set(prog.id, []);
+      }
+      for (const d of digests) {
+        const list = digestsByProgram.get(d.programId);
+        if (list) list.push(d);
+        else digestsByProgram.set(d.programId, [d]);
+      }
+
+      const programSections = programOrder.map((progId) => {
+        const progDigests = digestsByProgram.get(progId) || [];
+        const classroomSections = progDigests
+          .map((d) => `### ${d.classroomName}${d.hasRedFlags ? " ⚠️ RED FLAGS" : ""}\n\n${d.htmlContent}`)
+          .join("\n\n---\n\n");
+        const progName = progId.charAt(0).toUpperCase() + progId.slice(1);
+        return `## ${progName}\n\n${classroomSections || "No classroom digests for this program."}`;
+      }).join("\n\n===\n\n");
 
       const notesSection = config.contextualNotes
         ? ["## School Contextual Notes", config.contextualNotes, ""]
@@ -604,11 +695,12 @@ export const weeklyDigestSuperadmin = functions
         `# All Classroom Digests for ${weekKey}`,
         `Total classrooms: ${digests.length}`,
         `Classrooms with red flags: ${digests.filter((d) => d.hasRedFlags).length}`,
+        `Programs: ${programOrder.join(", ")}`,
         "",
         ...notesSection,
-        digestSummaries,
+        programSections,
         "",
-        "Generate a consolidated executive summary email for superadmins. Highlight the most critical items across all classrooms. Identify cross-classroom patterns. Use tools to investigate specific cases if needed.",
+        "Generate a consolidated executive summary email for superadmins. Produce one card per program. Highlight the most critical items within each program. Identify cross-classroom patterns per program. Use tools to investigate specific cases if needed.",
       ].join("\n");
 
       // Agent loop for superadmin digest
@@ -655,7 +747,19 @@ export const weeklyDigestSuperadmin = functions
         iterations: result.iterations,
       });
 
-      // Send emails
+      // Build PDF attachments — one per classroom digest
+      const weekNum = weekKey.split("-W")[1];
+      const attachments = await batchHtmlToPdf(
+        digests.map((d) => {
+          const progName = (d.programId || "unknown").charAt(0).toUpperCase() + (d.programId || "unknown").slice(1);
+          return {
+            html: d.htmlContent,
+            filename: `${progName} — ${d.classroomName} — Week ${weekNum}.html`,
+          };
+        })
+      );
+
+      // Send emails with attachments
       const subject = hasRedFlags
         ? "⚠️ Weekly School Digest — Action Required"
         : "Weekly School Digest";
@@ -663,7 +767,7 @@ export const weeklyDigestSuperadmin = functions
       const emailResults = [];
       for (const email of recipientEmails) {
         try {
-          await sendEmail({ to: email, subject, html: htmlContent });
+          await sendEmail({ to: email, subject, html: htmlContent, attachments });
           emailResults.push({ email, status: "sent" });
         } catch (emailErr) {
           emailResults.push({ email, status: "failed", error: emailErr.message });
@@ -699,7 +803,7 @@ export const triggerDigestTest = functions
   .region("asia-south1")
   .runWith({
     timeoutSeconds: 540,
-    memory: "1GB",
+    memory: "2GB",
     secrets: [OPENROUTER_API_KEY, SENDGRID_API_KEY, LANGFUSE_SECRET_KEY, LANGFUSE_PUBLIC_KEY],
   })
   .https.onCall(async (data, context) => {
@@ -782,9 +886,12 @@ export const triggerDigestTest = functions
       try {
         const statsDoc = statsDocs.get(classroom.id) || null;
 
-        const { snapshotsMap, preloadedPrereqs } = await preloadSnapshots(statsDoc);
+        const [{ snapshotsMap, preloadedPrereqs }, writingMap] = await Promise.all([
+          preloadSnapshots(statsDoc),
+          preloadWritingAnalysis(statsDoc),
+        ]);
 
-        const userMessage = buildFirstUserMessage(classroom, statsDoc, config.contextualNotes, snapshotsMap);
+        const userMessage = buildFirstUserMessage(classroom, statsDoc, config.contextualNotes, snapshotsMap, writingMap);
 
         const toolExecutor = createToolExecutor(null, { preloadedPrereqs });
 
@@ -856,27 +963,67 @@ export const triggerDigestTest = functions
       metadata: { triggeredBy: context.auth.uid, weekKey },
     });
 
+    // Build program → classroom mapping for test
+    const testProgramsSnap = await db.collection("programs").get();
+    const testProgramDocs = testProgramsSnap.docs.map((d) => ({
+      id: d.id,
+      classrooms: (d.data().classrooms || []).map((ref) =>
+        typeof ref === "string" ? ref.replace("classrooms/", "") : ref
+      ),
+    }));
+    const testClassroomToProgram = new Map();
+    for (const prog of testProgramDocs) {
+      for (const cid of prog.classrooms) {
+        testClassroomToProgram.set(cid, prog.id);
+      }
+    }
+
     const digests = [];
     const classroomNames = new Map(classrooms.map((c) => [c.id, c.name || c.id]));
     for (const cid of classroomIds) {
       const snap = await db.doc(`classrooms/${cid}/digests/weekly_email`).get();
       if (snap.exists && snap.data().weekKey === weekKey) {
-        digests.push({ classroomId: cid, classroomName: classroomNames.get(cid) || cid, ...snap.data() });
+        digests.push({
+          classroomId: cid,
+          classroomName: classroomNames.get(cid) || cid,
+          programId: testClassroomToProgram.get(cid) || "unknown",
+          ...snap.data(),
+        });
       }
     }
 
     let cf2Result = null;
     if (digests.length > 0) {
-      const digestSummaries = digests
-        .map((d) => `## ${d.classroomName}${d.hasRedFlags ? " ⚠️ RED FLAGS" : ""}\n\n${d.htmlContent}`)
-        .join("\n\n---\n\n");
+      // Group by program
+      const testProgramOrder = testProgramDocs.map((p) => p.id);
+      const testDigestsByProgram = new Map();
+      for (const prog of testProgramDocs) {
+        testDigestsByProgram.set(prog.id, []);
+      }
+      for (const d of digests) {
+        const list = testDigestsByProgram.get(d.programId);
+        if (list) list.push(d);
+        else testDigestsByProgram.set(d.programId, [d]);
+      }
+
+      const testProgramSections = testProgramOrder.map((progId) => {
+        const progDigests = testDigestsByProgram.get(progId) || [];
+        const classroomSections = progDigests
+          .map((d) => `### ${d.classroomName}${d.hasRedFlags ? " ⚠️ RED FLAGS" : ""}\n\n${d.htmlContent}`)
+          .join("\n\n---\n\n");
+        const progName = progId.charAt(0).toUpperCase() + progId.slice(1);
+        return `## ${progName}\n\n${classroomSections || "No classroom digests for this program."}`;
+      }).join("\n\n===\n\n");
 
       const userMessage = [
         `# All Classroom Digests for ${weekKey}`,
         `Total classrooms: ${digests.length}`,
         `Classrooms with red flags: ${digests.filter((d) => d.hasRedFlags).length}`,
-        "", digestSummaries, "",
-        "Generate a consolidated executive summary email for superadmins. Highlight the most critical items across all classrooms. Identify cross-classroom patterns. Use tools to investigate specific cases if needed.",
+        `Programs: ${testProgramOrder.join(", ")}`,
+        "",
+        testProgramSections,
+        "",
+        "Generate a consolidated executive summary email for superadmins. Produce one card per program. Highlight the most critical items within each program. Identify cross-classroom patterns per program. Use tools to investigate specific cases if needed.",
       ].join("\n");
 
       const toolExecutor = createToolExecutor(null);
@@ -911,13 +1058,25 @@ export const triggerDigestTest = functions
         iterations: result.iterations,
       });
 
+      // Build PDF attachments for test
+      const testWeekNum = weekKey.split("-W")[1];
+      const testAttachments = await batchHtmlToPdf(
+        digests.map((d) => {
+          const progName = (d.programId || "unknown").charAt(0).toUpperCase() + (d.programId || "unknown").slice(1);
+          return {
+            html: d.htmlContent,
+            filename: `${progName} — ${d.classroomName} — Week ${testWeekNum}.html`,
+          };
+        })
+      );
+
       const subject = hasRedFlags
         ? "⚠️ Weekly School Digest — Action Required"
         : "Weekly School Digest";
       const emailResults = [];
       for (const email of testOverrideEmails) {
         try {
-          await sendEmail({ to: email, subject, html: htmlContent });
+          await sendEmail({ to: email, subject, html: htmlContent, attachments: testAttachments });
           emailResults.push({ email, status: "sent" });
         } catch (emailErr) {
           emailResults.push({ email, status: "failed", error: emailErr.message });

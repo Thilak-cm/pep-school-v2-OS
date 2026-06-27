@@ -10,11 +10,13 @@
     "lint": "eslint ."
   },
   "dependencies": {
+    "@sparticuz/chromium": "^149.0.0",
     "firebase-admin": "^11.11.0",
     "firebase-functions": "^7.0.3",
     "googleapis": "^171.4.0",
     "langfuse": "^3.38.20",
     "nodemailer": "^6.9.9",
+    "puppeteer-core": "^25.2.1",
     "resend": "^6.12.4"
   },
   "devDependencies": {

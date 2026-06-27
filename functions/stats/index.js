@@ -170,6 +170,9 @@ export const recomputeStats = functions
     // ── Compute per-classroom stats ────────────────────────────────
     const now = new Date();
     const weekAgo = new Date(now.getTime() - 7 * 24 * 60 * 60 * 1000);
+    const fourteenDaysAgo = new Date(
+      now.getTime() - 14 * 24 * 60 * 60 * 1000,
+    );
     const thirtyDaysAgo = new Date(now.getTime() - 30 * 24 * 60 * 60 * 1000);
     const fortyTwoDaysAgo = new Date(
       now.getTime() - 42 * 24 * 60 * 60 * 1000,
@@ -292,6 +295,7 @@ export const recomputeStats = functions
       const students = classroomStudents.map((s) => {
         let totalNotes = 0;
         let thisWeekNotes = 0;
+        let last14DaysNotes = 0;
         let last42DaysNotes = 0;
 
         for (const obs of classroomObs) {
@@ -299,6 +303,7 @@ export const recomputeStats = functions
           totalNotes++;
           const d = getObservationDate(obs);
           if (d >= weekAgo) thisWeekNotes++;
+          if (d >= fourteenDaysAgo) last14DaysNotes++;
           if (d >= fortyTwoDaysAgo) last42DaysNotes++;
         }
 
@@ -308,6 +313,7 @@ export const recomputeStats = functions
           status: s.status || "active",
           totalNotes,
           thisWeekNotes,
+          last14DaysNotes,
           last42DaysNotes,
         };
       });
