@@ -272,19 +272,19 @@ export const ACCESS_CONTROL_SPEC = [
   // ============================================================================
 
   {
-    name: 'Collection group observations: teacher branch uses studentClassroomId',
-    description: 'Teacher read on collectionGroup observations checks studentClassroomId(resource.data.studentId), not resource.data.classroomId',
+    name: 'Collection group observations: teacher branch uses resource.data.classroomId',
+    description: 'Teacher read on collectionGroup observations checks resource.data.classroomId directly (1 get instead of 2)',
     file: 'firestore',
     criticality: 'critical',
-    pattern: /match\s+\/\{path=\*\*\}\/observations\/\{observationId\}[\s\S]*?isTeacher\s*\(\s*\)[\s\S]*?isTeacherInClassroom\s*\(\s*studentClassroomId\s*\(\s*resource\.data\.studentId\s*\)\s*\)/,
+    pattern: /match\s+\/\{path=\*\*\}\/observations\/\{observationId\}[\s\S]*?isTeacher\s*\(\s*\)[\s\S]*?\(\s*'classroomId'\s*in\s*resource\.data\s*\)[\s\S]*?isTeacherInClassroom\s*\(\s*resource\.data\.classroomId\s*\)/,
   },
 
   {
-    name: 'Collection group media: teacher branch uses studentClassroomId',
-    description: 'Teacher read on collectionGroup media checks studentClassroomId(resource.data.studentId), not resource.data.classroomId',
+    name: 'Collection group media: teacher branch uses resource.data.classroomId',
+    description: 'Teacher read on collectionGroup media checks resource.data.classroomId directly (1 get instead of 2)',
     file: 'firestore',
     criticality: 'critical',
-    pattern: /match\s+\/\{path=\*\*\}\/media\/\{mediaId\}[\s\S]*?isTeacher\s*\(\s*\)[\s\S]*?isTeacherInClassroom\s*\(\s*studentClassroomId\s*\(\s*resource\.data\.studentId\s*\)\s*\)/,
+    pattern: /match\s+\/\{path=\*\*\}\/media\/\{mediaId\}[\s\S]*?isTeacher\s*\(\s*\)[\s\S]*?\(\s*'classroomId'\s*in\s*resource\.data\s*\)[\s\S]*?isTeacherInClassroom\s*\(\s*resource\.data\.classroomId\s*\)/,
   },
 
   {
