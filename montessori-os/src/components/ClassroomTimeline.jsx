@@ -219,10 +219,15 @@ function ClassroomTimeline({ classroom, currentUser, userRole, manageableClassro
     return `translateX(${baseOffset + dxPercent}%)`;
   };
 
-  // Filter students based on search query
+  // Filter students based on search query (include transferred students so their notes are searchable)
+  const allSearchableStudents = useMemo(() => {
+    const transferred = [...transferredStudents.values()];
+    return [...classroomStudents, ...transferred];
+  }, [classroomStudents, transferredStudents]);
+
   const filteredStudents = useMemo(() => {
-    return fuzzySearchStudents(classroomStudents, searchQuery);
-  }, [classroomStudents, searchQuery]);
+    return fuzzySearchStudents(allSearchableStudents, searchQuery);
+  }, [allSearchableStudents, searchQuery]);
 
   // Alphabetically sort filtered students by display name for the Students tab
   const sortedFilteredStudents = useMemo(() => {
