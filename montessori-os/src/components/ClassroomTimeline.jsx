@@ -181,6 +181,17 @@ function ClassroomTimeline({ classroom, currentUser, userRole, manageableClassro
     );
   }, [classroomNotes]);
 
+  // Check if current user can navigate to a transferred student's timeline
+  const canNavigateToTransferred = (student) => {
+    if (userRole === 'superadmin') return true;
+    if (userRole === 'classroomadmin') {
+      const scoped = Array.isArray(manageableClassrooms) ? manageableClassrooms : [];
+      return scoped.includes(student?.classroomId);
+    }
+    // Teachers: allow navigation — Firestore rules enforce access at the data layer
+    return true;
+  };
+
   const handleStudentClick = (student) => {
     trackEvent('student_card_click', { source: 'classroom_students_tab' });
     onNavigateToStudent(student);
@@ -451,8 +462,8 @@ function ClassroomTimeline({ classroom, currentUser, userRole, manageableClassro
           transferredStudents={transferredStudents}
           onNoteClick={() => setSelectedGroupNote(item)}
           onNavigateToStudent={(student) => {
-            if (student?.isTransferred && userRole !== 'superadmin') {
-              notify.info('This student has transferred to another classroom.');
+            if (student?.isTransferred && !canNavigateToTransferred(student)) {
+              notify.info('This student transferred to a classroom outside your scope.');
               return;
             }
             onNavigateToStudent(student);
@@ -470,11 +481,11 @@ function ClassroomTimeline({ classroom, currentUser, userRole, manageableClassro
         transferredToClassroomName={transferredStudents.get(item.studentId)?.transferredToClassroomName}
         classroomTeachers={classroomTeachers}
         onStudentClick={() => {
-          if (transferredStudents.has(item.studentId) && userRole !== 'superadmin') {
-            notify.info('This student has transferred to another classroom.');
+          const student = classroomStudents.find(s => s.id === item.studentId) || transferredStudents.get(item.studentId);
+          if (transferredStudents.has(item.studentId) && !canNavigateToTransferred(student)) {
+            notify.info('This student transferred to a classroom outside your scope.');
             return;
           }
-          const student = classroomStudents.find(s => s.id === item.studentId) || transferredStudents.get(item.studentId);
           if (student) {
             trackEvent('student_card_click', { source: 'classroom_timeline' });
             onNavigateToStudent(student);
@@ -731,8 +742,8 @@ function ClassroomTimeline({ classroom, currentUser, userRole, manageableClassro
         transferredStudents={transferredStudents}
         userRole={userRole}
         onNavigateToStudent={(student) => {
-          if (student?.isTransferred && userRole !== 'superadmin') {
-            notify.info('This student has transferred to another classroom.');
+          if (student?.isTransferred && !canNavigateToTransferred(student)) {
+            notify.info('This student transferred to a classroom outside your scope.');
             return;
           }
           onNavigateToStudent(student);
