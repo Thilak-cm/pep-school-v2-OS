@@ -132,6 +132,9 @@ for (const studentDoc of studentsSnap.docs) {
         // No timestamp to match against — fall back to current
         resolvedClassroomId = currentClassroomId;
         totalNoTimestamp++;
+        console.log(
+          `  ⚠ ${studentId}/${summaryDoc.id}: no timestamp (generatedAt/updatedAt/createdAt), using current classroomId=${currentClassroomId}`
+        );
       } else {
         resolvedClassroomId =
           findClassroomAtDate(placements, docDate) || currentClassroomId;
@@ -139,7 +142,7 @@ for (const studentDoc of studentsSnap.docs) {
     }
 
     if (dryRun) {
-      const source = hasTransferHistory ? "placement-aware" : "current";
+      const source = hasTransferHistory ? "placement-present" : "current";
       console.log(
         `  ${studentId}/${summaryDoc.id}: would set classroomId=${resolvedClassroomId} (${source})`
       );
