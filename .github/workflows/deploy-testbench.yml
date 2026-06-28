@@ -8,11 +8,14 @@ on:
       - 'testbench/public/**'
       - 'testbench/index.html'
       - 'testbench/vite.config.js'
+      - 'testbench/package.json'
+      - 'testbench/package-lock.json'
       - 'firebase.json'
       - '.firebaserc'
 
 concurrency:
-  group: deploy-testbench-${{ github.sha }}
+  group: deploy-testbench-${{ github.ref }}
+  cancel-in-progress: true
 jobs:
   build_and_deploy:
     runs-on: ubuntu-latest

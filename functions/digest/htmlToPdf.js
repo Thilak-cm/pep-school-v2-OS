@@ -32,17 +32,22 @@ export async function batchHtmlToPdf(items) {
     const results = [];
     for (const item of items) {
       const page = await browser.newPage();
-      await page.setContent(item.html, { waitUntil: "networkidle0" });
-      const pdf = await page.pdf({
-        format: "A4",
-        margin: { top: "16px", right: "16px", bottom: "16px", left: "16px" },
-        printBackground: true,
-      });
-      await page.close();
-      results.push({
-        filename: item.filename.replace(/\.html$/, ".pdf"),
-        content: Buffer.from(pdf).toString("base64"),
-      });
+      try {
+        await page.setContent(item.html, { waitUntil: "networkidle0" });
+        const pdf = await page.pdf({
+          format: "A4",
+          margin: { top: "16px", right: "16px", bottom: "16px", left: "16px" },
+          printBackground: true,
+        });
+        results.push({
+          filename: item.filename.replace(/\.html$/, ".pdf"),
+          content: Buffer.from(pdf).toString("base64"),
+        });
+      } catch (pageErr) {
+        console.warn(`[batchHtmlToPdf] Failed to render "${item.filename}", skipping:`, pageErr.message);
+      } finally {
+        await page.close();
+      }
     }
     return results;
   } finally {

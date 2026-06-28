@@ -749,15 +749,20 @@ export const weeklyDigestSuperadmin = functions
 
       // Build PDF attachments — one per classroom digest
       const weekNum = weekKey.split("-W")[1];
-      const attachments = await batchHtmlToPdf(
-        digests.map((d) => {
-          const progName = (d.programId || "unknown").charAt(0).toUpperCase() + (d.programId || "unknown").slice(1);
-          return {
-            html: d.htmlContent,
-            filename: `${progName} — ${d.classroomName} — Week ${weekNum}.html`,
-          };
-        })
-      );
+      let attachments = [];
+      try {
+        attachments = await batchHtmlToPdf(
+          digests.map((d) => {
+            const progName = (d.programId || "unknown").charAt(0).toUpperCase() + (d.programId || "unknown").slice(1);
+            return {
+              html: d.htmlContent,
+              filename: `${progName} — ${d.classroomName} — Week ${weekNum}.html`,
+            };
+          })
+        );
+      } catch (pdfErr) {
+        console.warn("[weeklyDigestSuperadmin] PDF generation failed, sending without attachments:", pdfErr.message);
+      }
 
       // Send emails with attachments
       const subject = hasRedFlags
@@ -1060,15 +1065,20 @@ export const triggerDigestTest = functions
 
       // Build PDF attachments for test
       const testWeekNum = weekKey.split("-W")[1];
-      const testAttachments = await batchHtmlToPdf(
-        digests.map((d) => {
-          const progName = (d.programId || "unknown").charAt(0).toUpperCase() + (d.programId || "unknown").slice(1);
-          return {
-            html: d.htmlContent,
-            filename: `${progName} — ${d.classroomName} — Week ${testWeekNum}.html`,
-          };
-        })
-      );
+      let testAttachments = [];
+      try {
+        testAttachments = await batchHtmlToPdf(
+          digests.map((d) => {
+            const progName = (d.programId || "unknown").charAt(0).toUpperCase() + (d.programId || "unknown").slice(1);
+            return {
+              html: d.htmlContent,
+              filename: `${progName} — ${d.classroomName} — Week ${testWeekNum}.html`,
+            };
+          })
+        );
+      } catch (pdfErr) {
+        console.warn("[triggerDigestTest] PDF generation failed, sending without attachments:", pdfErr.message);
+      }
 
       const subject = hasRedFlags
         ? "⚠️ Weekly School Digest — Action Required"
