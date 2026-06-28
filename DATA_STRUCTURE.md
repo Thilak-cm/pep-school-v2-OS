@@ -1088,6 +1088,7 @@ interface StatsClassroomDoc {
     status: string;
     totalNotes: number;
     thisWeekNotes: number;
+    last14DaysNotes: number;  // trailing 2-week observation count — used by digest agent for student negligence detection
     last42DaysNotes: number;
   }>;
 }

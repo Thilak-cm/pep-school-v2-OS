@@ -1,5 +1,25 @@
 # Changelog
 
+# 11.1.0 — 2026-06-28
+
+### Added
+- Student negligence section in classroom digest — agent identifies under-observed students from trailing 14-day note window (#133)
+- Handwriting highlights section in classroom digest — surfaces notable writing analysis trends (declining scores, improvements) with full doc behind tool call (#133)
+- Program-based executive digest — CF2 output restructured to one card per program (Toddler, Primary, Elementary, Adolescent) with per-program critical/patterns/bright sections (#133)
+- PDF attachments on exec digest email — individual classroom digest HTML rendered to PDF via Puppeteer, filenames prefixed by program name (#133)
+- `last14DaysNotes` field in statsCache per-student computation for trailing two-week observation window (#133)
+
+### Changed
+- CF1 user message now includes writing analysis teaser per student and drops internal student IDs from prompt (#133)
+- CF2 input message groups classrooms under program headers using `programs` collection as source of truth (#133)
+- Cloud Function memory bumped to 2 GB for Puppeteer/Chromium PDF generation (#133)
+
+### Fixed
+- CI deploy path filters tightened to prevent no-op hosting deploys; added package.json to trigger list (#133)
+- CI concurrency groups fixed to use branch ref with cancel-in-progress instead of per-SHA no-op (#133)
+- PDF generation failures now degrade gracefully to sending email without attachments instead of blocking all delivery (#133)
+- Per-page error isolation in PDF batch — one failing classroom no longer silently drops all subsequent attachments (#133)
+
 # 11.0.4 — 2026-06-26
 
 ### Added
