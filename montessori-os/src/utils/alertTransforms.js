@@ -53,7 +53,7 @@ export function transformForDisplay(alert) {
         labelDetail: payload.senderName || null,
         title: payload.title || payload.message || '',
         subtitle: payload.subtitle || payload.audience || 'All staff',
-        ctaLabel: isPoll ? 'Respond' : (payload.ctaLabel || 'Mark as read'),
+        ctaLabel: isPoll ? 'Respond' : payload.ctaLabel,
         ctaIcon: 'ShieldCheck',
         colorKey: 'broadcast',
         color: ALERT_COLORS.broadcast,

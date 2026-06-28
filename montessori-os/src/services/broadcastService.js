@@ -28,7 +28,7 @@ export const BROADCAST_PRIORITIES = [
  * @param {string} fields.label          - DIP top line (e.g., "FROM OFFICE")
  * @param {string} fields.title          - DIP main line
  * @param {string} [fields.subtitle]     - DIP below line (auto-generated if omitted)
- * @param {string} [fields.ctaLabel]     - CTA button text (default "Mark as read")
+ * @param {string} [fields.ctaLabel]     - CTA button text (default "Read More")
  * @param {string} fields.message        - Full message body shown in ack modal
  * @param {string} fields.senderName     - Displayed as labelDetail in DIP
  * @param {string} [fields.audience]     - Audience summary for subtitle fallback
@@ -62,7 +62,7 @@ export async function createBroadcast(fields) {
       label: fields.label,
       title: fields.title,
       subtitle: fields.subtitle || fields.audience || 'All staff',
-      ctaLabel: fields.ctaLabel || 'Mark as read',
+      ctaLabel: fields.ctaLabel,
       message: fields.message,
       senderName: fields.senderName,
       audience: fields.audience || 'All staff',
@@ -130,7 +130,7 @@ export async function updateBroadcast(alertId, fields) {
       label: rest.label,
       title: rest.title,
       subtitle: rest.subtitle || rest.audience || 'All staff',
-      ctaLabel: rest.ctaLabel || 'Mark as read',
+      ctaLabel: rest.ctaLabel,
       message: rest.message,
       senderName: rest.senderName,
       audience: rest.audience || 'All staff',

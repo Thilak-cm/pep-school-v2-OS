@@ -15,7 +15,7 @@ export default function BroadcastPreviewPill({ form, senderName, audienceSummary
   const label = form.label || 'FROM OFFICE';
   const title = form.title || '';
   const subtitle = form.subtitle || `${senderName} · ${audienceSummary}`;
-  const ctaLabel = form.ctaLabel || 'Mark as read';
+  const ctaLabel = form.ctaLabel;
   const lColor = labelColor(label);
 
   // Focus CTA input when entering edit mode

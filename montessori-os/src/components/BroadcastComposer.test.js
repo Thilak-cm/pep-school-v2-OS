@@ -55,8 +55,8 @@ describe('BroadcastComposer — broadcast admin screen (PEP-307 redesign)', () =
     assert.ok(composeSource.includes('multiline'), 'Should have multiline message body');
   });
 
-  it('compose has CTA label with default "Mark as read"', () => {
-    assert.ok(composeSource.includes('Mark as read'), 'Should default CTA to "Mark as read"');
+  it('compose has CTA label with default "Read More"', () => {
+    assert.ok(composeSource.includes('Read More'), 'Should default CTA to "Read More"');
   });
 
   it('compose has audience picker', () => {
