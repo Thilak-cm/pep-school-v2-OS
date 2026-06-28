@@ -44,17 +44,17 @@ App version: 11.1.0
 - `montessori-os/src/components/LessonNotes.jsx`
 
 ### Timelines and Media (`timelines-and-media`)
-- Count: 12
-- Components: `ClassroomList`, `ClassroomTimeline`, `ClassroomTimeline.classroomIdQuery.test`, `ClassroomTimeline.pagination.test`, `classroomTimelineUtils`, `classroomTimelineUtils.extraction.test`, `ExportWizard`, `FeedbackTimeline`, `FilterPanel`, `StudentDashboard`, `StudentDashboard.test`, `StudentTimeline`
+- Count: 10
+- Components: `ClassroomList`, `ClassroomTimeline`, `classroomTimelineUtils`, `classroomTimelineUtils.extraction.test`, `ExportWizard`, `FeedbackTimeline`, `FilterPanel`, `StudentDashboard`, `StudentDashboard.test`, `StudentTimeline`
 - Representative paths:
 - `montessori-os/src/components/ClassroomList.jsx`
 - `montessori-os/src/components/ClassroomTimeline.jsx`
-- `montessori-os/src/components/ClassroomTimeline.classroomIdQuery.test.js`
-- `montessori-os/src/components/ClassroomTimeline.pagination.test.js`
 - `montessori-os/src/components/classroomTimelineUtils.js`
 - `montessori-os/src/components/classroomTimelineUtils.extraction.test.js`
 - `montessori-os/src/components/ExportWizard.jsx`
 - `montessori-os/src/components/FeedbackTimeline.jsx`
+- `montessori-os/src/components/FilterPanel.jsx`
+- `montessori-os/src/components/StudentDashboard.jsx`
 
 ### Analytics and Notifications (`analytics-and-notifications`)
 - Count: 7
