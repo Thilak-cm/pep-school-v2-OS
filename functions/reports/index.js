@@ -1,8 +1,8 @@
 import * as functions from "firebase-functions/v1";
 import { db } from "../shared/firebase.js";
 import { OPENAI_API_KEY, getOpenAiKey, buildChatBody, CHAT_ENDPOINT } from "../shared/openai.js";
-import { REPORT_DEFAULTS, READINESS_DEFAULTS, READINESS_DOC_ID, DRIVE_CONSTANTS, buildCsvFilename, buildArchiveCsvFilename, buildMonthlyBaselineCsvFilename, buildMonthlyBaselineArchiveCsvFilename } from "../config/reportConstants.js";
-import { getDefaultDateRange, parseReportResponse, parseReadinessResponse, getReportPromptDocId, getReadinessPromptDocId, mergeReportConfig, formatCsvRow, updateCsvContent, removeCsvRow, appendCsvContent, normalizeEndOfDay, assembleReportSystemContent, buildReadinessArchive } from "../utils/reportHelpers.js";
+import { REPORT_DEFAULTS, READINESS_DEFAULTS, JUDGE_DEFAULTS, READINESS_DOC_ID, DRIVE_CONSTANTS, buildCsvFilename, buildArchiveCsvFilename, buildMonthlyBaselineCsvFilename, buildMonthlyBaselineArchiveCsvFilename } from "../config/reportConstants.js";
+import { getDefaultDateRange, parseReportResponse, parseReadinessResponse, parseJudgeResponse, getReportPromptDocId, getJudgePromptDocId, getReadinessPromptDocId, mergeReportConfig, formatCsvRow, updateCsvContent, removeCsvRow, appendCsvContent, normalizeEndOfDay, assembleReportSystemContent, buildReadinessArchive } from "../utils/reportHelpers.js";
 import {
   getDriveClients,
   getOrCreateClassroomFolder,
@@ -207,6 +207,115 @@ async function callReportGeneration(notes, prompt, studentContext, dateRange, co
   return parseReportResponse(rawContent);
 }
 
+// ── Baseline report judge (#152) ──────────────────────────────────────────
+
+const JUDGE_JSON_WRAPPER = `
+
+IMPORTANT: You must output your response as a JSON object with exactly this structure:
+{
+  "sentimentScore": <number from 1 to 5>,
+  "sentimentLabel": "<label>",
+  "areaBalanceScore": <number from 1 to 5>,
+  "areaBalanceLabel": "<label>",
+  "missingInputFlags": [],
+  "scoreRationale": {
+    "sentiment": "<1-2 sentence rationale>",
+    "areaBalance": "<1-2 sentence rationale>"
+  }
+}
+
+Output ONLY the JSON object, nothing else.`;
+
+async function getJudgeConfig(programId) {
+  const docId = getJudgePromptDocId(programId);
+  if (!docId) return null;
+
+  const cached = reportConfigCache[docId];
+  if (cached && Date.now() - cached.fetchedAt < REPORT_PROMPT_CACHE_TTL_MS) {
+    return cached.data;
+  }
+
+  const snap = await db.collection("config").doc(docId).get();
+  if (!snap.exists) return null;
+
+  const data = snap.data();
+  reportConfigCache[docId] = { data, fetchedAt: Date.now() };
+  return data;
+}
+
+async function callReportJudge(reportText, notes, studentContext, programId) {
+  const judgeConfig = await getJudgeConfig(programId);
+  if (!judgeConfig || !judgeConfig.systemPrompt) {
+    console.warn("[report-judge] No judge config found for program:", programId);
+    return null;
+  }
+
+  const openAiKey = getOpenAiKey();
+  if (!openAiKey) return null;
+
+  const systemContent = judgeConfig.systemPrompt + JUDGE_JSON_WRAPPER;
+
+  const safeContext = {
+    studentName: studentContext?.studentName || "Unknown student",
+    dob: studentContext?.dob || "dob unavailable",
+    age: studentContext?.age || "age unavailable",
+  };
+
+  const userContent = [
+    "Review the following baseline report and score it independently.",
+    "",
+    `Student: ${JSON.stringify(safeContext)}`,
+    "",
+    `Generated Report:`,
+    reportText,
+    "",
+    `Original Observations (${notes.length} notes, JSON array):`,
+    JSON.stringify(notes),
+  ].join("\n");
+
+  const config = {
+    model: judgeConfig.model || JUDGE_DEFAULTS.model,
+    temperature: Number.isFinite(judgeConfig.temperature) ? judgeConfig.temperature : JUDGE_DEFAULTS.temperature,
+    max_tokens: Number.isFinite(judgeConfig.max_tokens) ? judgeConfig.max_tokens : JUDGE_DEFAULTS.max_tokens,
+  };
+
+  const body = buildChatBody({
+    model: config.model,
+    messages: [
+      { role: "system", content: systemContent },
+      { role: "user", content: userContent },
+    ],
+    temperature: config.temperature,
+    max_completion_tokens: config.max_tokens,
+    response_format: { type: "json_object" },
+  });
+
+  try {
+    const response = await fetch(CHAT_ENDPOINT, {
+      method: "POST",
+      headers: {
+        "Authorization": `Bearer ${openAiKey}`,
+        "Content-Type": "application/json",
+      },
+      body: JSON.stringify(body),
+    });
+
+    if (!response.ok) {
+      console.error("[report-judge] API error", response.status);
+      return null;
+    }
+
+    const json = await response.json();
+    const rawContent = json?.choices?.[0]?.message?.content?.trim();
+    if (!rawContent) return null;
+
+    return parseJudgeResponse(rawContent);
+  } catch (e) {
+    console.error("[report-judge] failed", e.message);
+    return null;
+  }
+}
+
 async function writeReportDoc(studentId, payload, docId) {
   const resolvedId = docId || `report_${Date.now()}`;
   const ref = db.collection("students").doc(studentId).collection("ai_summaries").doc(resolvedId);
@@ -272,6 +381,12 @@ async function runSingleReport({ studentId, dateRangeStart, dateRangeEnd, reques
   const aiResult = await callReportGeneration(formatted, prompt, studentInfo, { start: startDate, end: endDate }, config, reportType);
   const sourceNoteIds = notes.map((n) => n.id).filter(Boolean);
 
+  // For baseline reports, run independent judge for scoring (#152)
+  let internalReview = null;
+  if (reportType === "monthly") {
+    internalReview = await callReportJudge(aiResult.reportText, formatted, studentInfo, studentInfo.programId);
+  }
+
   const payload = {
     reportText: aiResult.reportText,
     noteCount: formatted.length,
@@ -286,6 +401,7 @@ async function runSingleReport({ studentId, dateRangeStart, dateRangeEnd, reques
     generatedByName: requesterName || null,
     status: "ok",
     sourceNoteIds,
+    ...(internalReview && { internalReview }),
   };
 
   if (!dryRun) {
@@ -644,9 +760,9 @@ export const exportReportToDrive = functions
         classroom: classroomName,
         generatedAt: generatedAtIso,
         author: report.generatedByName || "",
-        sentimentScore: isMonthly ? null : readinessScores.sentimentScore,
-        areaBalanceScore: isMonthly ? null : readinessScores.areaBalanceScore,
-        missingInputFlags: isMonthly ? [] : readinessScores.missingInputFlags,
+        sentimentScore: isMonthly ? (report.internalReview?.sentimentScore ?? null) : readinessScores.sentimentScore,
+        areaBalanceScore: isMonthly ? (report.internalReview?.areaBalanceScore ?? null) : readinessScores.areaBalanceScore,
+        missingInputFlags: isMonthly ? (report.internalReview?.missingInputFlags || []) : readinessScores.missingInputFlags,
         docLink,
       });
 

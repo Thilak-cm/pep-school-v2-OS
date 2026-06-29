@@ -1,4 +1,4 @@
-import { REPORT_PROMPT_DOCS, BASELINE_REPORT_PROMPT_DOCS, REPORT_DEFAULTS, READINESS_PROMPT_DOCS } from "../config/reportConstants.js";
+import { REPORT_PROMPT_DOCS, BASELINE_REPORT_PROMPT_DOCS, BASELINE_JUDGE_PROMPT_DOCS, REPORT_DEFAULTS, READINESS_PROMPT_DOCS } from "../config/reportConstants.js";
 
 /**
  * Returns the default date range for report generation.
@@ -77,6 +77,48 @@ export function getReportPromptDocId(programId, reportType) {
     return BASELINE_REPORT_PROMPT_DOCS[programId] || null;
   }
   return REPORT_PROMPT_DOCS[programId] || null;
+}
+
+/**
+ * Get the Firestore document ID for a program's baseline report judge prompt.
+ * Returns null if the program is not supported.
+ */
+export function getJudgePromptDocId(programId) {
+  if (!programId || typeof programId !== "string") return null;
+  return BASELINE_JUDGE_PROMPT_DOCS[programId] || null;
+}
+
+/**
+ * Parse the JSON response from the baseline report judge LLM call (#152).
+ * Expected shape: { sentimentScore, sentimentLabel, areaBalanceScore, areaBalanceLabel, missingInputFlags, scoreRationale }
+ */
+export function parseJudgeResponse(rawContent) {
+  let parsed;
+  try {
+    parsed = JSON.parse(rawContent);
+  } catch {
+    throw new Error("Failed to parse judge response as JSON");
+  }
+
+  const sentimentScore = clampScore(parsed.sentimentScore);
+  const areaBalanceScore = clampScore(parsed.areaBalanceScore);
+  const missingInputFlags = Array.isArray(parsed.missingInputFlags)
+    ? parsed.missingInputFlags.filter((f) => typeof f === "string")
+    : [];
+
+  return {
+    sentimentScore,
+    sentimentLabel: typeof parsed.sentimentLabel === "string" ? parsed.sentimentLabel : null,
+    areaBalanceScore,
+    areaBalanceLabel: typeof parsed.areaBalanceLabel === "string" ? parsed.areaBalanceLabel : null,
+    missingInputFlags,
+    scoreRationale: parsed.scoreRationale && typeof parsed.scoreRationale === "object"
+      ? {
+        sentiment: typeof parsed.scoreRationale.sentiment === "string" ? parsed.scoreRationale.sentiment : "",
+        areaBalance: typeof parsed.scoreRationale.areaBalance === "string" ? parsed.scoreRationale.areaBalance : "",
+      }
+      : { sentiment: "", areaBalance: "" },
+  };
 }
 
 /**

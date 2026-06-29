@@ -27,6 +27,20 @@ export const BASELINE_REPORT_PROMPT_DOCS = {
   toddler: "baseline_report_toddler",
 };
 
+// Baseline report judge prompt doc IDs (#152)
+export const BASELINE_JUDGE_PROMPT_DOCS = {
+  adolescent: "baseline_judge_adolescent",
+  elementary: "baseline_judge_elementary",
+  primary: "baseline_judge_primary",
+  toddler: "baseline_judge_toddler",
+};
+
+export const JUDGE_DEFAULTS = {
+  model: MINI_MODEL,
+  temperature: 0.3,
+  max_tokens: 1024,
+};
+
 // Report readiness checker (PEP-68)
 export const READINESS_DOC_ID = "report_readiness";
 
