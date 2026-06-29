@@ -11,6 +11,7 @@ import StudentTimeline from "./components/StudentTimeline";
 import StudentDashboard from "./components/StudentDashboard";
 import ChildChat from "./components/ChildChat";
 import ReportsPage from "./components/ReportsPage";
+import ReportTypeLandingPage from "./components/ReportTypeLandingPage";
 import LessonNotesPage from "./components/LessonNotesPage";
 import StudentAliasesPage from "./components/StudentAliasesPage";
 import ClassroomTimeline from "./components/ClassroomTimeline";
@@ -128,7 +129,7 @@ function renderScreen(screen, ctx) {
           }}
           onOpenFeedback={ctx.openFeedbackWithMessage}
           onOpenChat={() => ctx.setScreen("childChat")}
-          onOpenReports={() => ctx.setScreen("studentReports")}
+          onOpenReports={() => ctx.setScreen("studentReportTypes")}
           onNavigateToManageStudent={ctx.isTeacher ? undefined : (studentId) => {
             ctx.setInitialStudentId(studentId);
             ctx.setUsersAccessView("manage");
@@ -136,6 +137,17 @@ function renderScreen(screen, ctx) {
           }}
           initialFlagOpen={ctx.studentDashboardFlagOpen}
           onClearFlagOpen={() => ctx.setStudentDashboardFlagOpen(false)}
+        />
+      );
+
+    case "studentReportTypes":
+      return (
+        <ReportTypeLandingPage
+          onSelectType={(type) => {
+            ctx.setReportTypeFilter(type === 'baseline' ? 'monthly' : 'term');
+            ctx.setScreen("studentReports");
+          }}
+          studentLabel={ctx.getStudentDisplayName(ctx.selectedStudent)}
         />
       );
 
@@ -147,6 +159,7 @@ function renderScreen(screen, ctx) {
           userRole={ctx.role}
           pendingViewReportId={ctx.pendingViewReportId}
           onPendingViewHandled={() => ctx.setPendingViewReportId(null)}
+          reportTypeFilter={ctx.reportTypeFilter || 'term'}
         />
       );
 

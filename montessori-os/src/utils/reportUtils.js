@@ -13,12 +13,11 @@ export function getDefaultReportDateRange(now = new Date()) {
 }
 
 /**
- * Returns the default date range for monthly/baseline report generation.
- * Start = 30 days before now. End = now.
+ * Returns the default date range for baseline report generation.
+ * Start = June 1 of the current year. End = now.
  */
 export function getDefaultMonthlyDateRange(now = new Date()) {
-  const start = new Date(now);
-  start.setDate(start.getDate() - 30);
+  const start = new Date(now.getFullYear(), 5, 1); // June 1
   return { start, end: now };
 }
 

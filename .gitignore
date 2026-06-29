@@ -4,6 +4,9 @@ firebase-service-account.json
 # Local working principles (personal notes)
 principles.local.md
 
+# Raw prompt files from Rahul (seeded to Firestore, not tracked in git)
+report prompts/
+
 # Node modules
 node_modules/
 

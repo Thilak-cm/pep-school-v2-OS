@@ -295,3 +295,47 @@ test('ReportGenerateDialog does not contain readiness UI (moved to ReportsPage)'
     'Expected ReportGenerateDialog to not contain any readiness-related code',
   );
 });
+
+// --- #152: Baseline report dialog tests ---
+
+test('ReportGenerateDialog does not contain report type toggle (type is fixed by page)', async () => {
+  const dialogUrl = new URL('./ReportGenerateDialog.jsx', import.meta.url);
+  const source = await readFile(dialogUrl, 'utf8');
+  assert.ok(
+    !/ToggleButton/.test(source),
+    'Expected ReportGenerateDialog to NOT contain ToggleButton — type is fixed by the landing page',
+  );
+});
+
+test('ReportGenerateDialog title includes report type label', async () => {
+  const dialogUrl = new URL('./ReportGenerateDialog.jsx', import.meta.url);
+  const source = await readFile(dialogUrl, 'utf8');
+  assert.ok(
+    /baseline report/.test(source) && /term report/.test(source),
+    'Expected dialog to include "baseline report" and "term report" labels',
+  );
+});
+
+test('ReportGenerateDialog accepts initialReportType prop', async () => {
+  const dialogUrl = new URL('./ReportGenerateDialog.jsx', import.meta.url);
+  const source = await readFile(dialogUrl, 'utf8');
+  assert.ok(
+    /initialReportType/.test(source),
+    'Expected ReportGenerateDialog to accept initialReportType prop',
+  );
+});
+
+// --- #152: ScreenRenderer routes through ReportTypeLandingPage ---
+
+test('ScreenRenderer renders ReportTypeLandingPage for studentReportTypes screen', async () => {
+  const rendererUrl = new URL('../ScreenRenderer.jsx', import.meta.url);
+  const source = await readFile(rendererUrl, 'utf8');
+  assert.ok(
+    /ReportTypeLandingPage/.test(source),
+    'Expected ScreenRenderer to reference ReportTypeLandingPage',
+  );
+  assert.ok(
+    /studentReportTypes/.test(source),
+    'Expected ScreenRenderer to have a studentReportTypes case',
+  );
+});

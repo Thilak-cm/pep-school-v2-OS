@@ -64,21 +64,21 @@ describe('getDefaultReportDateRange', () => {
 });
 
 describe('getDefaultMonthlyDateRange', () => {
-  it('returns start as 30 days before now', () => {
+  it('returns start as June 1 of the current year', () => {
     const now = new Date(2026, 5, 19); // June 19, 2026
     const { start, end } = getDefaultMonthlyDateRange(now);
-    const expected = new Date(2026, 4, 20); // May 20, 2026
-    assert.equal(start.getFullYear(), expected.getFullYear());
-    assert.equal(start.getMonth(), expected.getMonth());
-    assert.equal(start.getDate(), expected.getDate());
+    assert.equal(start.getFullYear(), 2026);
+    assert.equal(start.getMonth(), 5); // June (0-indexed)
+    assert.equal(start.getDate(), 1);
     assert.equal(end, now);
   });
 
-  it('handles month boundary (start in previous month)', () => {
+  it('uses June 1 of the given year regardless of current month', () => {
     const now = new Date(2026, 0, 15); // Jan 15, 2026
     const { start, end } = getDefaultMonthlyDateRange(now);
-    assert.equal(start.getMonth(), 11); // December
-    assert.equal(start.getFullYear(), 2025);
+    assert.equal(start.getMonth(), 5); // June
+    assert.equal(start.getFullYear(), 2026);
+    assert.equal(start.getDate(), 1);
     assert.equal(end, now);
   });
 
@@ -86,9 +86,8 @@ describe('getDefaultMonthlyDateRange', () => {
     const before = new Date();
     const { start, end } = getDefaultMonthlyDateRange();
     const after = new Date();
-    const diffMs = end.getTime() - start.getTime();
-    const diffDays = diffMs / (1000 * 60 * 60 * 24);
-    assert.ok(diffDays >= 29 && diffDays <= 31, `Expected ~30 days diff, got ${diffDays}`);
+    assert.equal(start.getMonth(), 5); // June
+    assert.equal(start.getDate(), 1);
     assert.ok(end >= before && end <= after);
   });
 });
