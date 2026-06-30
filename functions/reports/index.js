@@ -1,6 +1,11 @@
 import * as functions from "firebase-functions/v1";
+import { defineSecret } from "firebase-functions/params";
 import { db } from "../shared/firebase.js";
 import { OPENAI_API_KEY, getOpenAiKey, buildChatBody, CHAT_ENDPOINT } from "../shared/openai.js";
+import { createLangfuse } from "../shared/langfuse.js";
+
+const LANGFUSE_SECRET_KEY = defineSecret("LANGFUSE_SECRET_KEY");
+const LANGFUSE_PUBLIC_KEY = defineSecret("LANGFUSE_PUBLIC_KEY");
 import { REPORT_DEFAULTS, READINESS_DEFAULTS, JUDGE_DEFAULTS, READINESS_DOC_ID, DRIVE_CONSTANTS, buildCsvFilename, buildArchiveCsvFilename, buildMonthlyBaselineCsvFilename, buildMonthlyBaselineArchiveCsvFilename } from "../config/reportConstants.js";
 import { getDefaultDateRange, parseReportResponse, parseReadinessResponse, parseJudgeResponse, getReportPromptDocId, getJudgePromptDocId, getReadinessPromptDocId, mergeReportConfig, formatCsvRow, updateCsvContent, removeCsvRow, appendCsvContent, normalizeEndOfDay, assembleReportSystemContent, buildReadinessArchive } from "../utils/reportHelpers.js";
 import {
@@ -324,7 +329,7 @@ async function writeReportDoc(studentId, payload, docId) {
   return resolvedId;
 }
 
-async function runSingleReport({ studentId, dateRangeStart, dateRangeEnd, requesterId, requesterName, configOverrides, promptOverride, dryRun = false, reportType = "term" }) {
+async function runSingleReport({ studentId, dateRangeStart, dateRangeEnd, requesterId, requesterName, configOverrides, promptOverride, dryRun = false, reportType = "term", trace = null }) {
   const studentInfo = await getStudentWithProgram(studentId);
   if (!studentInfo.programId) {
     throw new functions.https.HttpsError(
@@ -378,13 +383,27 @@ async function runSingleReport({ studentId, dateRangeStart, dateRangeEnd, reques
   }
 
   const formatted = notes.map(formatObservationForPrompt);
+
+  const genSpan = trace?.generation({
+    name: "report-generation",
+    model: config.model,
+    input: { noteCount: formatted.length, reportType, programId: studentInfo.programId },
+  });
   const aiResult = await callReportGeneration(formatted, prompt, studentInfo, { start: startDate, end: endDate }, config, reportType);
+  genSpan?.end({ output: { reportLength: aiResult.reportText?.length || 0 } });
+
   const sourceNoteIds = notes.map((n) => n.id).filter(Boolean);
 
   // For baseline reports, run independent judge for scoring (#152)
   let internalReview = null;
   if (reportType === "monthly") {
+    const judgeSpan = trace?.generation({
+      name: "report-judge",
+      model: JUDGE_DEFAULTS.model,
+      input: { reportLength: aiResult.reportText?.length || 0, noteCount: formatted.length },
+    });
     internalReview = await callReportJudge(aiResult.reportText, formatted, studentInfo, studentInfo.programId);
+    judgeSpan?.end({ output: internalReview || { error: "judge returned null" } });
   }
 
   const payload = {
@@ -450,7 +469,7 @@ async function checkReportPermission(uid, studentId) {
 
 export const generateStudentReport = functions
   .region("asia-south1")
-  .runWith({ timeoutSeconds: 300, memory: "1GB", secrets: [OPENAI_API_KEY] })
+  .runWith({ timeoutSeconds: 300, memory: "1GB", secrets: [OPENAI_API_KEY, LANGFUSE_SECRET_KEY, LANGFUSE_PUBLIC_KEY] })
   .https.onCall(async (data, context) => {
     if (!context.auth) {
       throw new functions.https.HttpsError("unauthenticated", "User must be authenticated");
@@ -464,6 +483,13 @@ export const generateStudentReport = functions
     const { displayName: requesterName } = await checkReportPermission(context.auth.uid, studentId);
     const reportType = data?.reportType === "monthly" ? "monthly" : "term";
 
+    const langfuse = createLangfuse();
+    const trace = langfuse.trace({
+      name: "generate-student-report",
+      userId: context.auth.uid,
+      metadata: { studentId, reportType },
+    });
+
     const result = await runSingleReport({
       studentId,
       dateRangeStart: data?.dateRangeStart || null,
@@ -472,7 +498,17 @@ export const generateStudentReport = functions
       requesterName,
       reportType,
       dryRun: true,
+      trace,
     });
+
+    trace.update({
+      output: {
+        status: result.status,
+        noteCount: result.payload.noteCount,
+        hasInternalReview: !!result.payload.internalReview,
+      },
+    });
+    await langfuse.flushAsync();
 
     return {
       status: result.status,
@@ -488,6 +524,7 @@ export const generateStudentReport = functions
       generatedAt: result.payload.generatedAt?.toISOString?.() || new Date().toISOString(),
       generatedBy: result.payload.generatedBy,
       generatedByName: result.payload.generatedByName,
+      ...(result.payload.internalReview && { internalReview: result.payload.internalReview }),
     };
   });
 
