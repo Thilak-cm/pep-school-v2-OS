@@ -64,22 +64,22 @@ describe('getDefaultReportDateRange', () => {
 });
 
 describe('getDefaultMonthlyDateRange', () => {
-  it('returns start as 45 days before now', () => {
+  it('returns start as 40 days before now', () => {
     const now = new Date(2026, 5, 19); // June 19, 2026
     const { start, end } = getDefaultMonthlyDateRange(now);
     const expected = new Date(2026, 5, 19);
-    expected.setDate(expected.getDate() - 45);
+    expected.setDate(expected.getDate() - 40);
     assert.equal(start.getFullYear(), expected.getFullYear());
     assert.equal(start.getMonth(), expected.getMonth());
     assert.equal(start.getDate(), expected.getDate());
     assert.equal(end, now);
   });
 
-  it('returns trailing 45 days when called in January', () => {
+  it('returns trailing 40 days when called in January', () => {
     const now = new Date(2026, 0, 15); // Jan 15, 2026
     const { start, end } = getDefaultMonthlyDateRange(now);
     const expected = new Date(2026, 0, 15);
-    expected.setDate(expected.getDate() - 45); // Dec 1, 2025
+    expected.setDate(expected.getDate() - 40); // Dec 1, 2025
     assert.equal(start.getFullYear(), expected.getFullYear());
     assert.equal(start.getMonth(), expected.getMonth());
     assert.equal(start.getDate(), expected.getDate());
@@ -91,7 +91,7 @@ describe('getDefaultMonthlyDateRange', () => {
     const { start, end } = getDefaultMonthlyDateRange();
     const after = new Date();
     const expectedStart = new Date(before);
-    expectedStart.setDate(expectedStart.getDate() - 45);
+    expectedStart.setDate(expectedStart.getDate() - 40);
     // Allow 1 day tolerance for test running near midnight
     assert.ok(Math.abs(start.getTime() - expectedStart.getTime()) < 86400000);
     assert.ok(end >= before && end <= after);
@@ -325,12 +325,23 @@ describe('buildReportList', () => {
     assert.equal(result[0].reportType, 'term');
   });
 
-  it('normalizes legacy "monthly" reportType to "baseline"', () => {
+  it('infers reportType "baseline" from baseline_report_ doc ID prefix', () => {
     const docs = [
-      { id: 'report_legacy', generatedAt: new Date('2026-06-01'), reportText: 'Old monthly', reportType: 'monthly' },
+      { id: 'baseline_report_june_2026_abc', generatedAt: new Date('2026-06-01'), reportText: 'Baseline report' },
     ];
     const result = buildReportList(docs);
     assert.equal(result[0].reportType, 'baseline');
+  });
+
+  it('excludes readiness docs from report list', () => {
+    const docs = [
+      { id: 'baseline_report_readiness', sentimentScore: 4 },
+      { id: 'term_report_readiness', sentimentScore: 3 },
+      { id: 'baseline_report_june_2026_abc', generatedAt: new Date('2026-06-01'), reportText: 'Real report' },
+    ];
+    const result = buildReportList(docs);
+    assert.equal(result.length, 1);
+    assert.equal(result[0].id, 'baseline_report_june_2026_abc');
   });
 
   it('preserves reportEval nested field from Firestore doc', () => {
