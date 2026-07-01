@@ -358,49 +358,49 @@ Check whether the diff involves Firestore schema changes. Run this check automat
      ```
    - Report PR URL to user
 
-### Phase 8: Devin Review Loop (Orchestrator)
+### Phase 8: GitHub Claude CI Review Loop (Orchestrator)
 
-After the PR is opened, Devin (AI code reviewer) will automatically review it. This phase waits for that review and fixes any findings before proceeding.
+After the PR is opened, the GitHub Claude CI reviewer (`claude-code-action` with `code-review` plugin) will automatically review it. This phase waits for that review and fixes any findings before proceeding.
 
-**7a. Wait for Devin's review**
-- Poll for Devin's review using `gh pr reviews <pr_number> --json author,state,body`
-- Look for a review from Devin (author login contains `devin` or similar)
+**7a. Wait for the CI review**
+- Poll for the review using `gh pr checks <pr_number>` — look for the `claude-review` check
+- Also check `gh pr reviews <pr_number> --json author,state,body` for review comments
 - If no review yet, inform the user and ask whether to:
   - Wait and check again (re-poll)
-  - Skip Devin review and proceed to Phase 9 (GitHub issue sync)
+  - Skip the CI review and proceed to Phase 9 (GitHub issue sync)
 - Do NOT auto-poll in a loop — always ask the user before re-checking
 
-**7b. Parse Devin's findings**
-- If Devin's review state is `APPROVED` → all green, proceed to Phase 9
-- If Devin's review state is `CHANGES_REQUESTED` or `COMMENTED`:
-  - Fetch review comments via `gh api repos/Thilak-cm/pep-school-v2-OS/pulls/{pr_number}/comments --jq '.[] | select(.user.login | contains("devin"))'`
+**7b. Parse the CI reviewer's findings**
+- If the review state is `APPROVED` → all green, proceed to Phase 9
+- If the review state is `CHANGES_REQUESTED` or `COMMENTED`:
+  - Fetch review comments via `gh api repos/Thilak-cm/pep-school-v2-OS/pulls/{pr_number}/comments`
   - Also fetch general review body from the review itself
-  - Display Devin's findings to the user in a clear summary
+  - Display the CI reviewer's findings to the user in a clear summary
 
-**7c. Fix Devin's findings**
+**7c. Fix the CI reviewer's findings**
 - Ask user for confirmation before fixing (Human Approval Gate)
 - Spawn the **`code-fixer` agent** (`.claude/agents/code-fixer.md`) with:
-  - Devin's review comments (formatted as findings)
+  - The CI reviewer's comments (formatted as findings)
   - GitHub issue context
 - After fixes are applied, commit and push to the same branch:
   - `git add` changed files
-  - `git commit -m "fix: address Devin review feedback (#<issue-number>)"`
+  - `git commit -m "fix: address CI review feedback (#<issue-number>)"`
   - `git push origin {branch}`
-- The new push will trigger Devin to re-review the PR
+- The new push will trigger the CI reviewer to re-review the PR
 
 **7d. Re-check loop**
-- After pushing fixes, return to step 7a (wait for new Devin review)
+- After pushing fixes, return to step 7a (wait for new CI review)
 - Loop control:
   ```
-  max_devin_iterations = 3
+  max_ci_review_iterations = 3
 
-  for i in 1..max_devin_iterations:
-      wait for Devin review
+  for i in 1..max_ci_review_iterations:
+      wait for CI review
       if APPROVED:
           break → proceed to Phase 9
-      if i == max_devin_iterations:
-          STOP — surface remaining Devin findings to user
-          ask: "3 rounds of Devin fixes haven't resolved all issues. Proceed anyway or review manually?"
+      if i == max_ci_review_iterations:
+          STOP — surface remaining CI review findings to user
+          ask: "3 rounds of CI review fixes haven't resolved all issues. Proceed anyway or review manually?"
       else:
           fix findings → push → continue loop
   ```
@@ -435,8 +435,8 @@ After the PR is opened, Devin (AI code reviewer) will automatically review it. T
 1. **Before fixing** — after showing the audit report, confirm user wants to proceed with fixes (or review manually)
 2. **After 3 failed fix loops** — surface remaining findings, ask user to intervene
 3. **All version bumps** — present recommendation with reasoning, wait for user to confirm bump type (patch/minor/major)
-4. **Before fixing Devin's findings** — show Devin's review summary, confirm user wants auto-fix (or handle manually)
-5. **After 3 failed Devin review loops** — surface remaining findings, ask user whether to proceed or review manually
+4. **Before fixing CI reviewer's findings** — show the CI review summary, confirm user wants auto-fix (or handle manually)
+5. **After 3 failed CI review loops** — surface remaining findings, ask user whether to proceed or review manually
 
 ## Guardrails
 
@@ -461,7 +461,7 @@ After the PR is opened, Devin (AI code reviewer) will automatically review it. T
 7. Clean commit(s) created with issue references
 8. Feature branch pushed to origin
 9. PR opened against `dev` with audit + integration summary in body, and `Closes #<issue-number>` for auto-linking
-10. Devin review is APPROVED (or user chose to skip/proceed)
+10. GitHub Claude CI review is APPROVED (or user chose to skip/proceed)
 11. GitHub issue commented with review summary (auto-closed on PR merge)
 
 ## Next Step
