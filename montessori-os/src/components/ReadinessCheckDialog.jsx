@@ -13,6 +13,11 @@ import {
 import { ListChecks as ReadinessIcon } from '../icons';
 import { getDefaultReportDateRange, toIsoDate } from '../utils/reportUtils';
 
+function getBaselineReadinessDateRange(now = new Date()) {
+  const start = new Date(now.getFullYear(), now.getMonth(), 1); // 1st of current month
+  return { start, end: now };
+}
+
 export default function ReadinessCheckDialog({
   open,
   onClose,
@@ -22,6 +27,7 @@ export default function ReadinessCheckDialog({
   newNotesSinceReport = null,
   initialStartDate = null,
   initialEndDate = null,
+  reportType = 'term',
 }) {
   const [startDate, setStartDate] = useState('');
   const [endDate, setEndDate] = useState('');
@@ -29,16 +35,15 @@ export default function ReadinessCheckDialog({
   // Reset dates each time the dialog opens — use cached dates if available, else defaults
   useEffect(() => {
     if (open) {
-      if (initialStartDate && initialEndDate) {
-        setStartDate(initialStartDate instanceof Date ? toIsoDate(initialStartDate) : initialStartDate);
-        setEndDate(initialEndDate instanceof Date ? toIsoDate(initialEndDate) : initialEndDate);
-      } else {
-        const { start, end } = getDefaultReportDateRange();
-        setStartDate(toIsoDate(start));
-        setEndDate(toIsoDate(end));
-      }
+      const { start, end } = reportType === 'baseline'
+        ? getBaselineReadinessDateRange()
+        : (initialStartDate && initialEndDate)
+          ? { start: initialStartDate instanceof Date ? initialStartDate : new Date(initialStartDate), end: initialEndDate instanceof Date ? initialEndDate : new Date(initialEndDate) }
+          : getDefaultReportDateRange();
+      setStartDate(toIsoDate(start));
+      setEndDate(toIsoDate(end));
     }
-  }, [open, initialStartDate, initialEndDate]);
+  }, [open, initialStartDate, initialEndDate, reportType]);
 
   const dateValid = Boolean(startDate && endDate);
   const rangeError = dateValid && endDate < startDate;

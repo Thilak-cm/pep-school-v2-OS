@@ -822,6 +822,7 @@ export default function ReportsPage({
         newNotesSinceReport={newNotesSinceReport}
         initialStartDate={readiness?.dateRangeStart}
         initialEndDate={readiness?.dateRangeEnd}
+        reportType={reportTypeFilter || 'term'}
       />
     </>
   );
