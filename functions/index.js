@@ -72,7 +72,7 @@ export {
 } from "./students/soul.js";
 
 // Monthly Plan (PEP-260, PEP-279)
-export { generateMonthlyPlan, exportMonthlyPlanToDrive, batchGenerateMonthlyPlans } from "./monthlyPlan/index.js";
+export { generateMonthlyPlan, exportMonthlyPlanToDrive, batchGenerateMonthlyPlans, monthlyPlanWorker } from "./monthlyPlan/index.js";
 
 // Stats (PEP-285)
 export { recomputeStats } from "./stats/index.js";

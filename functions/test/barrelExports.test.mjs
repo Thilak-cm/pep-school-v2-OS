@@ -49,6 +49,7 @@ const EXPECTED_EXPORTS = [
   "generateMonthlyPlan",
   "exportMonthlyPlanToDrive",
   "batchGenerateMonthlyPlans",
+  "monthlyPlanWorker",
   // Stats
   "recomputeStats",
   // Alerts

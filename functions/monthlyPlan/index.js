@@ -1,6 +1,7 @@
 /**
  * PEP-260: Monthly plan production Cloud Function.
  * PEP-279: Drive export + batch cron Cloud Functions.
+ * #167: Pub/Sub fan-out for batch generation.
  *
  * generateMonthlyPlan — callable CF that gathers student context,
  * calls LLM via OpenRouter, archives the previous plan (if any),
@@ -10,11 +11,13 @@
  * Firestore, creates two Google Docs (detailed plan + task checklist) in
  * the shared Drive, and creates shortcuts in the student folder.
  *
- * batchGenerateMonthlyPlans — scheduled CF (24th–27th of each month,
- * midnight IST) with a runtime guard that only executes on the correct
- * day: last day of the current month minus 4. This ensures teachers get
- * exactly 4 days of lead time regardless of month length (e.g. Feb 28 →
- * 24th, Apr 30 → 26th, Jul 31 → 27th).
+ * batchGenerateMonthlyPlans — scheduled dispatcher CF (28th–31st of each
+ * month, midnight IST). Publishes one Pub/Sub message per eligible student
+ * to the monthly-plan-workers topic.
+ *
+ * monthlyPlanWorker — Pub/Sub triggered CF that processes one student per
+ * invocation (generate plan + export to Drive). maxInstances: 5 controls
+ * concurrency.
  */
 import * as functions from "firebase-functions/v1";
 import { db } from "../shared/firebase.js";
@@ -37,7 +40,13 @@ import {
   buildChecklistDocTitle,
   formatMonthLabel,
 } from "./docBuilders.js";
-import { fetchActiveStudentIds, runWithConcurrency } from "../shared/scheduling.js";
+import { fetchActiveStudentIds } from "../shared/scheduling.js";
+import { PubSub } from "@google-cloud/pubsub";
+import { buildDispatchList, parseWorkerMessage } from "./pubsubFanout.js";
+
+const MONTHLY_PLAN_TOPIC = "monthly-plan-workers";
+const pubsub = new PubSub();
+const topic = pubsub.topic(MONTHLY_PLAN_TOPIC);
 
 // ---------------------------------------------------------------------------
 // Config cache (1-day TTL)
@@ -582,7 +591,7 @@ export const exportMonthlyPlanToDrive = functions
   });
 
 // ---------------------------------------------------------------------------
-// batchGenerateMonthlyPlans (PEP-279) — scheduled cron
+// batchGenerateMonthlyPlans (PEP-279, #167) — scheduled dispatcher
 // ---------------------------------------------------------------------------
 
 /**
@@ -590,14 +599,15 @@ export const exportMonthlyPlanToDrive = functions
  * A runtime guard ensures it only executes on the last day of the month
  * (e.g. Feb 28, Apr 30, Jul 31).
  *
- * Generates + exports monthly plans for all active toddler/primary students.
+ * Lightweight dispatcher: fetches eligible students, skips those already
+ * at the target month, and publishes one Pub/Sub message per remaining
+ * student. Actual generation + Drive export happens in monthlyPlanWorker.
  */
 export const batchGenerateMonthlyPlans = functions
   .region("asia-south1")
   .runWith({
-    timeoutSeconds: 540,
-    memory: "1GB",
-    secrets: [OPENROUTER_API_KEY],
+    timeoutSeconds: 120,
+    memory: "512MB",
   })
   .pubsub.schedule("0 0 28-31 * *")
   .timeZone("Asia/Kolkata")
@@ -615,7 +625,7 @@ export const batchGenerateMonthlyPlans = functions
     }
 
     const startTime = Date.now();
-    console.log("[batchGenerateMonthlyPlans] starting batch run");
+    console.log("[batchGenerateMonthlyPlans] starting dispatch run");
 
     // Resolve target month (next month from current IST date)
     const nextMonth = new Date(istNow.getFullYear(), istNow.getMonth() + 1, 1);
@@ -625,76 +635,145 @@ export const batchGenerateMonthlyPlans = functions
     const allStudentIds = await fetchActiveStudentIds();
     console.log(`[batchGenerateMonthlyPlans] ${allStudentIds.length} active students total`);
 
-    // Filter to toddler/primary only — parallel reads (W4)
+    // Parallel reads: student docs + classroom docs for program resolution
     const studentSnaps = await Promise.all(
       allStudentIds.map((id) => db.collection("students").doc(id).get()),
     );
 
-    // Collect students needing classroom lookup vs directly eligible
-    const needsClassroomLookup = [];
-    const directEligible = [];
+    // Build classroom program map for students without direct programId
+    const classroomIdsNeeded = new Set();
     for (const snap of studentSnaps) {
       if (!snap.exists) continue;
       const data = snap.data();
-      if (["toddler", "primary"].includes(data.programId)) {
-        directEligible.push(snap.id);
-      } else if (data.classroomId) {
-        needsClassroomLookup.push({ id: snap.id, classroomId: data.classroomId });
+      if (!data.programId && data.classroomId) {
+        classroomIdsNeeded.add(data.classroomId);
       }
     }
-
-    // Batch classroom lookups
-    const uniqueClassroomIds = [...new Set(needsClassroomLookup.map((s) => s.classroomId))];
     const classroomSnaps = await Promise.all(
-      uniqueClassroomIds.map((id) => db.collection("classrooms").doc(id).get()),
+      [...classroomIdsNeeded].map((id) => db.collection("classrooms").doc(id).get()),
     );
     const classroomProgramMap = {};
     for (const snap of classroomSnaps) {
       if (snap.exists) classroomProgramMap[snap.id] = snap.data().programId || null;
     }
 
-    const fromClassroom = needsClassroomLookup
-      .filter((s) => ["toddler", "primary"].includes(classroomProgramMap[s.classroomId]))
-      .map((s) => s.id);
-
-    const eligibleStudents = [...directEligible, ...fromClassroom];
-
-    console.log(`[batchGenerateMonthlyPlans] ${eligibleStudents.length} eligible (toddler/primary)`);
-
-    let generated = 0;
-    let exported = 0;
-    let failed = 0;
-
-    // Process with bounded concurrency — errors are swallowed per-student
-    await runWithConcurrency(eligibleStudents, async (studentId) => {
-      try {
-        // Step 1: Generate plan via shared internal helper
-        await generatePlanInternal(
-          studentId,
-          targetMonth,
-          "system:batchCron",
-          "Monthly Plan Cron",
-        );
-        generated++;
-
-        console.log(`[batchGenerateMonthlyPlans] generated plan for ${studentId} → ${targetMonth}`);
-
-        // Step 2: Export to Drive via shared internal helper
-        try {
-          await exportPlanToDriveInternal(studentId, "system:batchCron");
-          exported++;
-          console.log(`[batchGenerateMonthlyPlans] exported to Drive for ${studentId}`);
-        } catch (driveErr) {
-          console.error(`[batchGenerateMonthlyPlans] Drive export failed for ${studentId}:`, driveErr.message);
-          // Plan was generated but export failed — will be retried on next manual export
-        }
-      } catch (err) {
-        failed++;
-        console.error(`[batchGenerateMonthlyPlans] failed for ${studentId}:`, err.message);
+    // Fetch existing monthly_plan months for skip check (parallel reads)
+    const planSnaps = await Promise.all(
+      allStudentIds.map((id) =>
+        db.collection("students").doc(id)
+          .collection("ai_summaries").doc("monthly_plan").get(),
+      ),
+    );
+    const existingPlanMonths = {};
+    for (let i = 0; i < allStudentIds.length; i++) {
+      if (planSnaps[i].exists) {
+        existingPlanMonths[allStudentIds[i]] = planSnaps[i].data().month || null;
       }
-    }, 5); // concurrency limit: 5 (LLM calls are heavy)
+    }
+
+    // Build dispatch list
+    const { toPublish, skipped } = buildDispatchList(
+      studentSnaps, classroomProgramMap, existingPlanMonths, targetMonth,
+    );
+
+    console.log(`[batchGenerateMonthlyPlans] ${toPublish.length + skipped} eligible, ${skipped} skipped (already at ${targetMonth}), ${toPublish.length} to publish`);
+
+    // Publish to Pub/Sub topic
+    let published = 0;
+    let publishFailed = 0;
+
+    // Publish in parallel (fast — no LLM calls)
+    await Promise.all(
+      toPublish.map(async (studentId) => {
+        try {
+          const payload = JSON.stringify({ studentId, targetMonth });
+          await topic.publishMessage({ data: Buffer.from(payload) });
+          published++;
+        } catch (err) {
+          publishFailed++;
+          console.error(`[batchGenerateMonthlyPlans] publish failed for ${studentId}:`, err.message);
+        }
+      }),
+    );
 
     const duration = ((Date.now() - startTime) / 1000).toFixed(1);
-    console.log(`[batchGenerateMonthlyPlans] done in ${duration}s: ${generated} generated, ${exported} exported, ${failed} failed`);
+    console.log(`[batchGenerateMonthlyPlans] done in ${duration}s: ${published} published, ${skipped} skipped, ${publishFailed} failed to publish`);
+    return null;
+  });
+
+// ---------------------------------------------------------------------------
+// monthlyPlanWorker (#167) — Pub/Sub triggered worker
+// ---------------------------------------------------------------------------
+
+/**
+ * Pub/Sub worker: processes ONE student per invocation.
+ * Generates the monthly plan via LLM, then exports to Google Drive.
+ *
+ * Triggered by messages from batchGenerateMonthlyPlans dispatcher.
+ * maxInstances: 5 controls concurrency to avoid overwhelming OpenRouter.
+ * Pub/Sub retries on failure. Dead-letter policy (max 5 attempts) to be
+ * configured via #169.
+ */
+export const monthlyPlanWorker = functions
+  .region("asia-south1")
+  .runWith({
+    timeoutSeconds: 300,
+    memory: "1GB",
+    maxInstances: 5,
+    secrets: [OPENROUTER_API_KEY],
+  })
+  .pubsub.topic(MONTHLY_PLAN_TOPIC)
+  .onPublish(async (message) => {
+    // Parse message — validation errors are permanent, so ACK (return null)
+    // to prevent infinite Pub/Sub retries on malformed messages.
+    let studentId, targetMonth;
+    try {
+      ({ studentId, targetMonth } = parseWorkerMessage(message));
+    } catch (parseErr) {
+      console.error("[monthlyPlanWorker] bad message, ACKing to stop retries:", parseErr.message);
+      return null;
+    }
+
+    console.log(`[monthlyPlanWorker] processing ${studentId} → ${targetMonth}`);
+
+    // Idempotency guard: if the student already has a plan for targetMonth,
+    // skip to avoid redundant LLM calls on Pub/Sub at-least-once redelivery.
+    const existingPlan = await db.collection("students").doc(studentId)
+      .collection("ai_summaries").doc("monthly_plan").get();
+    if (existingPlan.exists && existingPlan.data().month === targetMonth) {
+      console.log(`[monthlyPlanWorker] ${studentId} already has plan for ${targetMonth}, skipping`);
+      return null;
+    }
+
+    // Step 1: Generate plan via shared internal helper
+    // Permanent errors (not-found, failed-precondition) are ACKed to avoid
+    // burning dead-letter retries. Transient errors propagate for retry.
+    try {
+      await generatePlanInternal(
+        studentId,
+        targetMonth,
+        "system:batchCron",
+        "Monthly Plan Cron",
+      );
+    } catch (genErr) {
+      const permanent = ["not-found", "failed-precondition"];
+      if (genErr.code && permanent.includes(genErr.code)) {
+        console.error(`[monthlyPlanWorker] permanent error for ${studentId}, ACKing:`, genErr.message);
+        return null;
+      }
+      throw genErr; // transient — let Pub/Sub retry
+    }
+    console.log(`[monthlyPlanWorker] generated plan for ${studentId}`);
+
+    // Step 2: Export to Drive via shared internal helper
+    try {
+      await exportPlanToDriveInternal(studentId, "system:batchCron");
+      console.log(`[monthlyPlanWorker] exported to Drive for ${studentId}`);
+    } catch (driveErr) {
+      // Plan was generated but Drive export failed — log but don't re-throw
+      // (plan is saved; Drive export can be retried manually)
+      console.error(`[monthlyPlanWorker] Drive export failed for ${studentId}:`, driveErr.message);
+    }
+
     return null;
   });

@@ -120,11 +120,11 @@ describe('WritingAnalysisTab component (PEP-137)', () => {
     );
   });
 
-  it('shows handwriting vs other breakdown when media exists but no analysis', async () => {
+  it('shows handwriting count in below-threshold empty state', async () => {
     const src = await readFile(componentPath, 'utf8');
     assert.ok(
-      /handwriting/i.test(src) && /other/i.test(src),
-      'Should show handwriting vs other breakdown',
+      /handwriting/i.test(src) && /of 3 needed/i.test(src),
+      'Should show handwriting count and threshold',
     );
   });
 

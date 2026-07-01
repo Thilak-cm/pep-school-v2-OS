@@ -55,7 +55,7 @@ function EmptyNoPhotos() {
 
 function EmptyBelowThreshold({ hwCount, totalMediaCount }) {
   const needed = MIN_SAMPLES - hwCount;
-  const otherCount = totalMediaCount - hwCount;
+
   const progress = (hwCount / MIN_SAMPLES) * 100;
   const hasAnyHw = hwCount > 0;
 
@@ -89,16 +89,12 @@ function EmptyBelowThreshold({ hwCount, totalMediaCount }) {
             '& .MuiLinearProgress-bar': { backgroundColor: 'var(--color-primary, #4f46e5)', borderRadius: 3 },
           }}
         />
-        <Box sx={{ display: 'flex', gap: 1.5, fontSize: '0.7rem', color: 'var(--color-text-soft)' }}>
-          <span>■ Handwriting ({hwCount})</span>
-          <span style={{ color: 'var(--grey-400, #9ca3af)' }}>■ Other ({otherCount})</span>
-        </Box>
       </Box>
 
       <Typography sx={{ fontSize: '0.8rem', color: 'var(--color-text-soft)', maxWidth: 280, lineHeight: 1.5 }}>
         {hasAnyHw
           ? `Log ${needed} more handwriting photo${needed === 1 ? '' : 's'} this week to see a writing snapshot next Monday`
-          : 'Log at least 3 handwriting photos (notebooks, worksheets, written work) this week to see a writing snapshot next Monday'}
+          : 'Log at least 3 handwriting photos this week to see a writing snapshot next Monday'}
       </Typography>
     </Box>
   );

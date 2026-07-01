@@ -33,9 +33,7 @@ export default function AppHeader({ screen, ctx, onTitleClick }) {
     ? calculateAgeFromDob(ctx.selectedStudent?.dateOfBirth || ctx.selectedStudent?.dob)
     : null;
   const classroomName = isStudentScreen
-    ? (ctx.selectedClassroom?.name
-      || ctx.classrooms?.find(c => c.id === ctx.selectedStudent?.classroomId)?.name
-      || null)
+    ? (ctx.classrooms?.find(c => c.id === ctx.selectedStudent?.classroomId)?.name || null)
     : null;
   const subtitle = [ageString, classroomName].filter(Boolean).join(' · ') || null;
 
