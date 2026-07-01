@@ -105,7 +105,6 @@ const getStudentName = (student) => (
 function ClassroomList({ onSelectClassroom, currentUser, userRole, manageableClassrooms = [], onNavigateToStudent, classrooms: classroomsProp }) {
   const [classrooms, setClassrooms] = useState(classroomsProp || []);
   const [loading, setLoading] = useState(!classroomsProp);
-  const [studentCounts, setStudentCounts] = useState({});
   const [searchQuery, setSearchQuery] = useState('');
   const [allStudents, setAllStudents] = useState([]);
   const [studentsLoading, setStudentsLoading] = useState(false);
@@ -129,7 +128,6 @@ function ClassroomList({ onSelectClassroom, currentUser, userRole, manageableCla
 
     if (cached) {
       setClassrooms(cached.classrooms || []);
-      setStudentCounts(cached.studentCounts || {});
       setLoading(false);
     } else {
       setLoading(true);
@@ -191,21 +189,8 @@ function ClassroomList({ onSelectClassroom, currentUser, userRole, manageableCla
 
         setClassrooms(classroomsToShow);
 
-        // Get student counts for each classroom
-        const counts = {};
-        for (const classroom of classroomsToShow) {
-          const studentsQuery = query(
-            collection(db, 'students'),
-            where('classroomId', '==', classroom.id),
-            where('status', '==', 'active')
-          );
-          const studentsSnap = await getDocs(studentsQuery);
-          counts[classroom.id] = studentsSnap.size;
-        }
-        setStudentCounts(counts);
         writeCachedClassrooms(cacheKey, {
           classrooms: classroomsToShow,
-          studentCounts: counts,
         });
       } catch {
         /* ignored */
@@ -498,7 +483,7 @@ const handleStudentClick = (student) => {
             return cid === normalizedId;
           });
     const isExpanded = expandedClassroomId === classroom.id;
-    const studentTotal = studentCounts[classroom.id] ?? classroomStudents.length ?? 0;
+    const studentTotal = classroom.studentCount ?? classroomStudents.length ?? 0;
     const studentListHeight = estimateStudentListHeight(classroomStudents.length);
 
     return (

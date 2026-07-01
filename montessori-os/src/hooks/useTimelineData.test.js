@@ -265,3 +265,45 @@ describe('Firestore collectionGroup rules for teacher access', () => {
     );
   });
 });
+
+// ──────────────────────────────────────────────
+// #151: Student count consistency — ClassroomTimeline
+// ──────────────────────────────────────────────
+
+const timelinePath = resolve(__dirname, '..', 'components', 'ClassroomTimeline.jsx');
+
+describe('ClassroomTimeline student count display (#151)', () => {
+  let timelineSource;
+
+  it('loads ClassroomTimeline source', async () => {
+    timelineSource = await readFile(timelinePath, 'utf8');
+    assert.ok(timelineSource.length > 0);
+  });
+
+  it('uses classroom.studentCount for count display, not computed length', async () => {
+    timelineSource = timelineSource || await readFile(timelinePath, 'utf8');
+    assert.ok(
+      timelineSource.includes('classroom.studentCount'),
+      'should use classroom.studentCount for the student count display'
+    );
+    // The old pattern — sortedFilteredStudents.length used as count label — should be gone
+    assert.ok(
+      !timelineSource.includes('sortedFilteredStudents.length} students'),
+      'should NOT use sortedFilteredStudents.length as the student count label'
+    );
+    // Notes tab search branch should use filteredStudents (includes transferred) not sortedFilteredStudents
+    assert.ok(
+      timelineSource.includes('filteredStudents.length'),
+      'Notes tab search branch should use filteredStudents.length (includes transferred students in count)'
+    );
+  });
+
+  it('filters transferred students out of the Students tab card list', async () => {
+    timelineSource = timelineSource || await readFile(timelinePath, 'utf8');
+    // sortedFilteredStudents should exclude transferred students
+    assert.ok(
+      timelineSource.includes('isTransferred'),
+      'should reference isTransferred to filter transferred students from the list'
+    );
+  });
+});
