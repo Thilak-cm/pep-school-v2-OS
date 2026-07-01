@@ -64,21 +64,25 @@ describe('getDefaultReportDateRange', () => {
 });
 
 describe('getDefaultMonthlyDateRange', () => {
-  it('returns start as June 1 of the current year', () => {
+  it('returns start as 45 days before now', () => {
     const now = new Date(2026, 5, 19); // June 19, 2026
     const { start, end } = getDefaultMonthlyDateRange(now);
-    assert.equal(start.getFullYear(), 2026);
-    assert.equal(start.getMonth(), 5); // June (0-indexed)
-    assert.equal(start.getDate(), 1);
+    const expected = new Date(2026, 5, 19);
+    expected.setDate(expected.getDate() - 45);
+    assert.equal(start.getFullYear(), expected.getFullYear());
+    assert.equal(start.getMonth(), expected.getMonth());
+    assert.equal(start.getDate(), expected.getDate());
     assert.equal(end, now);
   });
 
-  it('returns June 1 of previous year when called before June', () => {
+  it('returns trailing 45 days when called in January', () => {
     const now = new Date(2026, 0, 15); // Jan 15, 2026
     const { start, end } = getDefaultMonthlyDateRange(now);
-    assert.equal(start.getMonth(), 5); // June
-    assert.equal(start.getFullYear(), 2025); // Previous AY
-    assert.equal(start.getDate(), 1);
+    const expected = new Date(2026, 0, 15);
+    expected.setDate(expected.getDate() - 45); // Dec 1, 2025
+    assert.equal(start.getFullYear(), expected.getFullYear());
+    assert.equal(start.getMonth(), expected.getMonth());
+    assert.equal(start.getDate(), expected.getDate());
     assert.equal(end, now);
   });
 
@@ -86,11 +90,10 @@ describe('getDefaultMonthlyDateRange', () => {
     const before = new Date();
     const { start, end } = getDefaultMonthlyDateRange();
     const after = new Date();
-    assert.equal(start.getMonth(), 5); // June
-    assert.equal(start.getDate(), 1);
-    // AY-aware: June of current year if now >= June, else June of previous year
-    const expectedYear = before.getMonth() >= 5 ? before.getFullYear() : before.getFullYear() - 1;
-    assert.equal(start.getFullYear(), expectedYear);
+    const expectedStart = new Date(before);
+    expectedStart.setDate(expectedStart.getDate() - 45);
+    // Allow 1 day tolerance for test running near midnight
+    assert.ok(Math.abs(start.getTime() - expectedStart.getTime()) < 86400000);
     assert.ok(end >= before && end <= after);
   });
 });
