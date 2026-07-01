@@ -178,7 +178,7 @@ export const TOOL_DEFINITIONS = [
   {
     name: "get_ai_summary_history",
     description:
-      "Fetch history snapshots for a student's soul, guidelines, or weekly_snapshot document. Returns past versions ordered by most recent first.",
+      "Fetch history snapshots for a student's AI summary document. Returns past versions ordered by most recent first.",
     inputSchema: {
       type: "object",
       properties: {
@@ -188,8 +188,8 @@ export const TOOL_DEFINITIONS = [
         },
         docId: {
           type: "string",
-          description: "Parent doc ID — 'soul', 'guidelines', or 'weekly_snapshot'.",
-          enum: ["soul", "guidelines", "weekly_snapshot"],
+          description: "Parent doc ID — 'soul', 'guidelines', 'weekly_snapshot', or 'monthly_plan'.",
+          enum: ["soul", "guidelines", "weekly_snapshot", "monthly_plan"],
         },
         limit: {
           type: "number",
@@ -773,8 +773,8 @@ export async function handleListReports(db, params) {
 export async function handleGetAiSummaryHistory(db, params) {
   const { studentId, docId, limit: maxResults = 10 } = params;
 
-  // weekly_snapshot history uses archivedAt; soul/guidelines use updatedAt
-  const orderField = docId === "weekly_snapshot" ? "archivedAt" : "updatedAt";
+  // weekly_snapshot and monthly_plan history uses archivedAt; soul/guidelines use updatedAt
+  const orderField = (docId === "weekly_snapshot" || docId === "monthly_plan") ? "archivedAt" : "updatedAt";
   const snap = await db
     .collection("students")
     .doc(studentId)

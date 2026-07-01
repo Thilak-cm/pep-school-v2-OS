@@ -275,9 +275,9 @@ async function generatePlanInternal(studentId, targetMonth, generatedBy, generat
     throw new functions.https.HttpsError("internal", "LLM response is not valid JSON");
   }
 
-  // 7. Archive previous plan (if exists) before overwriting
+  // 7. Archive previous plan (if exists) before overwriting — skip if same month
   const planDocRef = studentRef.collection("ai_summaries").doc("monthly_plan");
-  if (precedingPlan && precedingPlan.month) {
+  if (precedingPlan && precedingPlan.month && precedingPlan.month !== targetMonth) {
     const historyKey = `${precedingPlan.month}_${now.toISOString().replace(/[:.]/g, "-")}`;
     await planDocRef.collection("history").doc(historyKey).set({
       ...precedingPlan,
