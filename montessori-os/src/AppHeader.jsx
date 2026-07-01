@@ -28,9 +28,12 @@ export default function AppHeader({ screen, ctx, onTitleClick }) {
   const onBack = ctx.showBackButton ? ctx.backNavigation : undefined;
   const actions = getHeaderActions(screen, ctx);
   const title = ctx.pageTitle;
-  const ageString = AGE_SCREENS.has(screen)
+  const isStudentScreen = AGE_SCREENS.has(screen);
+  const ageString = isStudentScreen
     ? calculateAgeFromDob(ctx.selectedStudent?.dateOfBirth || ctx.selectedStudent?.dob)
     : null;
+  const classroomName = isStudentScreen ? ctx.selectedClassroom?.name : null;
+  const subtitle = [ageString, classroomName].filter(Boolean).join(' · ') || null;
 
   return (
     <Box
@@ -80,40 +83,44 @@ export default function AppHeader({ screen, ctx, onTitleClick }) {
           </IconButton>
         )}
 
-        <Typography
-          variant="h6"
-          component="h1"
-          onClick={onTitleClick}
-          sx={{
-            color: 'var(--color-text)',
-            fontFamily: 'var(--font-display)',
-            fontWeight: 700,
-            fontSize: '1.05rem',
-            flex: 1,
-            whiteSpace: 'nowrap',
-            overflow: 'hidden',
-            textOverflow: 'ellipsis',
-            cursor: onTitleClick ? 'pointer' : 'default',
-            userSelect: 'none',
-          }}
-        >
-          {title}
-          {ageString && (
+        <Box sx={{ flex: 1, minWidth: 0 }}>
+          <Typography
+            variant="h6"
+            component="h1"
+            onClick={onTitleClick}
+            sx={{
+              color: 'var(--color-text)',
+              fontFamily: 'var(--font-display)',
+              fontWeight: 700,
+              fontSize: '1.05rem',
+              whiteSpace: 'nowrap',
+              overflow: 'hidden',
+              textOverflow: 'ellipsis',
+              cursor: onTitleClick ? 'pointer' : 'default',
+              userSelect: 'none',
+              lineHeight: subtitle ? 1.2 : undefined,
+            }}
+          >
+            {title}
+          </Typography>
+          {subtitle && (
             <Typography
-              component="span"
               sx={{
                 color: 'var(--color-text-faint)',
                 fontFamily: 'var(--font-body, inherit)',
                 fontWeight: 400,
-                fontSize: '0.82rem',
-                ml: 0.5,
+                fontSize: '0.75rem',
+                lineHeight: 1.2,
                 whiteSpace: 'nowrap',
+                overflow: 'hidden',
+                textOverflow: 'ellipsis',
+                userSelect: 'none',
               }}
             >
-              · {ageString}
+              {subtitle}
             </Typography>
           )}
-        </Typography>
+        </Box>
 
         {actions && (
           <Box sx={{ display: 'flex', alignItems: 'center', gap: 0.5 }}>
