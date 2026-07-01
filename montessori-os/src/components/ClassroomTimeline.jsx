@@ -428,7 +428,7 @@ function ClassroomTimeline({ classroom, currentUser, userRole, manageableClassro
             <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
               <Description size={18} style={{ color: 'var(--color-secondary)' }} />
               <Typography variant="body2" sx={{ fontWeight: 600 }}>
-                {item.reportType === 'monthly' ? 'Monthly Baseline' : 'Term Report'}
+                {item.reportType === 'baseline' ? 'Baseline Report' : 'Term Report'}
               </Typography>
             </Box>
             <Box sx={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', mt: 0.5, ml: 3.5 }}>

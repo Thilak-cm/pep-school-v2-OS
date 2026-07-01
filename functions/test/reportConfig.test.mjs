@@ -5,7 +5,8 @@ import {
   REPORT_DEFAULTS,
   REPORT_PROMPT_DOCS,
   BASELINE_REPORT_PROMPT_DOCS,
-  buildMonthlyBaselineCsvFilename,
+  buildBaselineCsvFilename,
+  getReadinessDocId,
 } from "../config/reportConstants.js";
 
 describe("mergeReportConfig", () => {
@@ -117,16 +118,16 @@ describe("BASELINE_REPORT_PROMPT_DOCS", () => {
   });
 });
 
-describe("buildMonthlyBaselineCsvFilename", () => {
+describe("buildBaselineCsvFilename", () => {
   it("produces correct filename with pinned date", () => {
-    const result = buildMonthlyBaselineCsvFilename("Periwinkle", new Date(2026, 5, 1));
-    assert.equal(result, "Periwinkle | June 2026 | Monthly Baseline Report Summary.csv");
+    const result = buildBaselineCsvFilename("Periwinkle", new Date(2026, 5, 1));
+    assert.equal(result, "Periwinkle | June 2026 | Baseline Report Summary.csv");
   });
 
   it("defaults to current date when now is omitted", () => {
-    const result = buildMonthlyBaselineCsvFilename("Allstars");
+    const result = buildBaselineCsvFilename("Allstars");
     assert.ok(result.includes("Allstars"), "should include classroom name");
-    assert.ok(result.includes("Monthly Baseline Report"), "should include report type label");
+    assert.ok(result.includes("Baseline Report"), "should include report type label");
     assert.ok(result.endsWith(".csv"), "should end with .csv");
     assert.ok(/[A-Z][a-z]+ \d{4}/.test(result), `Expected month-year in filename, got: ${result}`);
   });
@@ -141,25 +142,44 @@ describe("getReportPromptDocId with reportType", () => {
     assert.equal(getReportPromptDocId("primary", "term"), "term_report_primary");
   });
 
-  it("returns baseline doc ID when reportType is 'monthly'", () => {
-    assert.equal(getReportPromptDocId("primary", "monthly"), "baseline_report_primary");
+  it("returns baseline doc ID when reportType is 'baseline'", () => {
+    assert.equal(getReportPromptDocId("primary", "baseline"), "baseline_report_primary");
   });
 
   it("returns baseline doc ID for elementary", () => {
-    assert.equal(getReportPromptDocId("elementary", "monthly"), "baseline_report_elementary");
+    assert.equal(getReportPromptDocId("elementary", "baseline"), "baseline_report_elementary");
   });
 
   it("returns null for unsupported program regardless of reportType", () => {
-    assert.equal(getReportPromptDocId("unknown", "monthly"), null);
+    assert.equal(getReportPromptDocId("unknown", "baseline"), null);
     assert.equal(getReportPromptDocId("unknown", "term"), null);
   });
 
   it("returns null for null/undefined program", () => {
-    assert.equal(getReportPromptDocId(null, "monthly"), null);
-    assert.equal(getReportPromptDocId(undefined, "monthly"), null);
+    assert.equal(getReportPromptDocId(null, "baseline"), null);
+    assert.equal(getReportPromptDocId(undefined, "baseline"), null);
   });
 
   it("falls back to term for unknown reportType", () => {
     assert.equal(getReportPromptDocId("primary", "quarterly"), "term_report_primary");
+  });
+});
+
+describe("getReadinessDocId", () => {
+  it("returns term_report_readiness for term type", () => {
+    assert.equal(getReadinessDocId("term"), "term_report_readiness");
+  });
+
+  it("returns baseline_report_readiness for baseline type", () => {
+    assert.equal(getReadinessDocId("baseline"), "baseline_report_readiness");
+  });
+
+  it("defaults to term_report_readiness when no type provided", () => {
+    assert.equal(getReadinessDocId(), "term_report_readiness");
+    assert.equal(getReadinessDocId(undefined), "term_report_readiness");
+  });
+
+  it("defaults to term_report_readiness for unknown type", () => {
+    assert.equal(getReadinessDocId("quarterly"), "term_report_readiness");
   });
 });

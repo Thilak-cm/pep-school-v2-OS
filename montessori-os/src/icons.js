@@ -89,7 +89,9 @@ export {
   Type,
   Clock,
   Calendar,
+  CalendarDays,
   History,
+  Baby,
 
   // ── People ──
   User,

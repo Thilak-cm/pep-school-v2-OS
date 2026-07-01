@@ -424,7 +424,7 @@ const deriveMediaPayload = async (payload, item) => {
 };
 
 const deriveReportExportPayload = async (payload) => {
-  const call = httpsCallable(cloudFunctions, 'exportReportToDrive', { timeout: 120_000 });
+  const call = httpsCallable(cloudFunctions, 'exportReportToDrive', { timeout: 240_000 });
   const result = await call({
     studentId: payload.studentId,
     reportDocId: payload.reportDocId,

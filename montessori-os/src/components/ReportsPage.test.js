@@ -136,11 +136,11 @@ test('ReportsPage uses REPORT_EXPORT_MAX_ATTEMPTS for queue items', async () => 
 
 // --- PEP-101: Idempotent draft report export tests ---
 
-test('ReportsPage generates a stable reportDocId in the enqueue payload', async () => {
+test('ReportsPage generates unique reportDocId per draft in the enqueue payload', async () => {
   const source = await readFile(sourceUrl, 'utf8');
   assert.ok(
-    /report_sq_/.test(source),
-    'Expected ReportsPage to generate a reportDocId with report_sq_ prefix in the enqueue payload',
+    /baseline_report_/.test(source) && /report_\$\{Date\.now\(\)\}/.test(source),
+    'Expected ReportsPage to generate baseline_report_ or report_<timestamp> doc IDs',
   );
 });
 
@@ -155,11 +155,11 @@ test('ReportsPage includes reportDocId in the report_export payload', async () =
 
 // --- PEP-68: Report readiness checker tests ---
 
-test('ReportsPage fetches report_readiness doc from ai_summaries', async () => {
+test('ReportsPage fetches per-type readiness doc from ai_summaries', async () => {
   const source = await readFile(sourceUrl, 'utf8');
   assert.ok(
-    /report_readiness/.test(source),
-    'Expected ReportsPage to reference report_readiness doc ID',
+    /term_report_readiness/.test(source) && /baseline_report_readiness/.test(source),
+    'Expected ReportsPage to reference per-type readiness doc IDs',
   );
 });
 
@@ -293,5 +293,83 @@ test('ReportGenerateDialog does not contain readiness UI (moved to ReportsPage)'
   assert.ok(
     !/readiness/i.test(source),
     'Expected ReportGenerateDialog to not contain any readiness-related code',
+  );
+});
+
+// --- #152: Baseline report dialog tests ---
+
+test('ReportGenerateDialog does not contain report type toggle (type is fixed by page)', async () => {
+  const dialogUrl = new URL('./ReportGenerateDialog.jsx', import.meta.url);
+  const source = await readFile(dialogUrl, 'utf8');
+  assert.ok(
+    !/ToggleButton/.test(source),
+    'Expected ReportGenerateDialog to NOT contain ToggleButton — type is fixed by the landing page',
+  );
+});
+
+test('ReportGenerateDialog title includes report type label', async () => {
+  const dialogUrl = new URL('./ReportGenerateDialog.jsx', import.meta.url);
+  const source = await readFile(dialogUrl, 'utf8');
+  assert.ok(
+    /baseline report/.test(source) && /term report/.test(source),
+    'Expected dialog to include "baseline report" and "term report" labels',
+  );
+});
+
+test('ReportGenerateDialog accepts initialReportType prop', async () => {
+  const dialogUrl = new URL('./ReportGenerateDialog.jsx', import.meta.url);
+  const source = await readFile(dialogUrl, 'utf8');
+  assert.ok(
+    /initialReportType/.test(source),
+    'Expected ReportGenerateDialog to accept initialReportType prop',
+  );
+});
+
+// --- #152: ScreenRenderer routes through ReportTypeLandingPage ---
+
+test('ScreenRenderer renders ReportTypeLandingPage for studentReportTypes screen', async () => {
+  const rendererUrl = new URL('../ScreenRenderer.jsx', import.meta.url);
+  const source = await readFile(rendererUrl, 'utf8');
+  assert.ok(
+    /ReportTypeLandingPage/.test(source),
+    'Expected ScreenRenderer to reference ReportTypeLandingPage',
+  );
+  assert.ok(
+    /studentReportTypes/.test(source),
+    'Expected ScreenRenderer to have a studentReportTypes case',
+  );
+});
+
+// --- #152: Report eval scores + chip label tests ---
+
+test('ReportsPage has getEvalScores normalizer for term and baseline score access', async () => {
+  const source = await readFile(sourceUrl, 'utf8');
+  assert.ok(
+    /getEvalScores/.test(source),
+    'Expected ReportsPage to define getEvalScores normalizer helper',
+  );
+  assert.ok(
+    /reportEval/.test(source),
+    'Expected getEvalScores to check report.reportEval for baseline scores',
+  );
+});
+
+test('ReportsPage shows Baseline label for baseline reportType', async () => {
+  const source = await readFile(sourceUrl, 'utf8');
+  assert.ok(
+    /Baseline/.test(source),
+    'Expected ReportsPage to display "Baseline" label for monthly report type',
+  );
+  assert.ok(
+    !/label=.*'Monthly'/.test(source),
+    'Expected ReportsPage to NOT show "Monthly" as a chip label',
+  );
+});
+
+test('ReportsPage passes reportType to checkReportReadiness CF call', async () => {
+  const source = await readFile(sourceUrl, 'utf8');
+  assert.ok(
+    /reportType.*reportTypeFilter/.test(source) || /reportTypeFilter.*reportType/.test(source),
+    'Expected checkReportReadiness call to include reportType from reportTypeFilter',
   );
 });

@@ -22,7 +22,7 @@ function getHeaderActions(screen, ctx) {
   }
 }
 
-const AGE_SCREENS = new Set(['studentDashboard', 'timeline', 'studentReports', 'childChat']);
+const AGE_SCREENS = new Set(['studentDashboard', 'timeline', 'studentReportTypes', 'studentReports', 'childChat']);
 
 export default function AppHeader({ screen, ctx, onTitleClick }) {
   const onBack = ctx.showBackButton ? ctx.backNavigation : undefined;

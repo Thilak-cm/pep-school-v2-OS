@@ -66,6 +66,8 @@ export function getPageTitle(screen, state) {
         ? `${state.getStudentDisplayName?.() || "Student"}'s Dashboard`
         : `${state.getStudentDisplayName?.() || "Student"}'s Timeline`;
 
+    case "studentReportTypes":
+      return `${state.getStudentDisplayName?.() || "Student"}'s Reports`;
     case "studentReports":
       return `${state.getStudentDisplayName?.() || "Student"}'s Reports`;
 
@@ -110,8 +112,10 @@ export function getBackNavigation(screen, state, setters) {
       return () => setters.setScreen?.(state.studentDashboardReturnScreen || "classroomTimeline");
     case "timeline":
     case "childChat":
-    case "studentReports":
+    case "studentReportTypes":
       return () => setters.setScreen?.("studentDashboard");
+    case "studentReports":
+      return () => setters.setScreen?.("studentReportTypes");
     case "profile":
       return () => setters.setScreen?.("settings");
     case "feedback": {

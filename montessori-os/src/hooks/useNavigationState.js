@@ -20,6 +20,7 @@ export const useNavigationState = () => {
   const [lessonNoteEditObservation, setLessonNoteEditObservation] = useState(null);
   const [timelineTitleAsDashboard, setTimelineTitleAsDashboard] = useState(false);
   const [pendingViewReportId, setPendingViewReportId] = useState(null);
+  const [reportTypeFilter, setReportTypeFilter] = useState('term');
   const [initialStudentId, setInitialStudentId] = useState(null);
   const [feedbackReturnScreen, setFeedbackReturnScreen] = useState(null);
   const [studentDashboardFlagOpen, setStudentDashboardFlagOpen] = useState(false);
@@ -38,6 +39,7 @@ export const useNavigationState = () => {
     lessonNoteEditObservation, setLessonNoteEditObservation,
     timelineTitleAsDashboard, setTimelineTitleAsDashboard,
     pendingViewReportId, setPendingViewReportId,
+    reportTypeFilter, setReportTypeFilter,
     initialStudentId, setInitialStudentId,
     feedbackReturnScreen, setFeedbackReturnScreen,
     studentDashboardFlagOpen, setStudentDashboardFlagOpen,

@@ -1,15 +1,15 @@
-import { REPORT_PROMPT_DOCS, BASELINE_REPORT_PROMPT_DOCS, REPORT_DEFAULTS, READINESS_PROMPT_DOCS } from "../config/reportConstants.js";
+import { AY_START_MONTH, REPORT_PROMPT_DOCS, BASELINE_REPORT_PROMPT_DOCS, BASELINE_JUDGE_PROMPT_DOCS, REPORT_DEFAULTS, READINESS_PROMPT_DOCS } from "../config/reportConstants.js";
 
 /**
  * Returns the default date range for report generation.
- * Academic year starts Nov 1, so:
- * - If current month is Nov or later → start = Nov 1 of current year
- * - If current month is before Nov  → start = Nov 1 of previous year
+ * Academic year starts June 1, so:
+ * - If current month is June or later → start = June 1 of current year
+ * - If current month is before June  → start = June 1 of previous year
  * End is always "now".
  */
 export function getDefaultDateRange(now = new Date()) {
-  const year = now.getMonth() >= 10 ? now.getFullYear() : now.getFullYear() - 1;
-  const start = new Date(year, 10, 1); // Nov 1
+  const year = now.getMonth() >= AY_START_MONTH ? now.getFullYear() : now.getFullYear() - 1;
+  const start = new Date(year, AY_START_MONTH, 1);
   return { start, end: now };
 }
 
@@ -68,15 +68,57 @@ export function parseReadinessResponse(rawContent) {
 /**
  * Get the Firestore document ID for a program's report prompt.
  * @param {string} programId - Program identifier (e.g. "primary", "elementary")
- * @param {string} [reportType="term"] - "term" or "monthly"
+ * @param {string} [reportType="term"] - "term" or "baseline"
  * Returns null if the program is not supported.
  */
 export function getReportPromptDocId(programId, reportType) {
   if (!programId || typeof programId !== "string") return null;
-  if (reportType === "monthly") {
+  if (reportType === "baseline") {
     return BASELINE_REPORT_PROMPT_DOCS[programId] || null;
   }
   return REPORT_PROMPT_DOCS[programId] || null;
+}
+
+/**
+ * Get the Firestore document ID for a program's baseline report judge prompt.
+ * Returns null if the program is not supported.
+ */
+export function getJudgePromptDocId(programId) {
+  if (!programId || typeof programId !== "string") return null;
+  return BASELINE_JUDGE_PROMPT_DOCS[programId] || null;
+}
+
+/**
+ * Parse the JSON response from the baseline report judge LLM call (#152).
+ * Expected shape: { sentimentScore, sentimentLabel, areaBalanceScore, areaBalanceLabel, missingInputFlags, scoreRationale }
+ */
+export function parseJudgeResponse(rawContent) {
+  let parsed;
+  try {
+    parsed = JSON.parse(rawContent);
+  } catch {
+    throw new Error("Failed to parse judge response as JSON");
+  }
+
+  const sentimentScore = clampScore(parsed.sentimentScore);
+  const areaBalanceScore = clampScore(parsed.areaBalanceScore);
+  const missingInputFlags = Array.isArray(parsed.missingInputFlags)
+    ? parsed.missingInputFlags.filter((f) => typeof f === "string")
+    : [];
+
+  return {
+    sentimentScore,
+    sentimentLabel: typeof parsed.sentimentLabel === "string" ? parsed.sentimentLabel : null,
+    areaBalanceScore,
+    areaBalanceLabel: typeof parsed.areaBalanceLabel === "string" ? parsed.areaBalanceLabel : null,
+    missingInputFlags,
+    scoreRationale: parsed.scoreRationale && typeof parsed.scoreRationale === "object"
+      ? {
+        sentiment: typeof parsed.scoreRationale.sentiment === "string" ? parsed.scoreRationale.sentiment : "",
+        areaBalance: typeof parsed.scoreRationale.areaBalance === "string" ? parsed.scoreRationale.areaBalance : "",
+      }
+      : { sentiment: "", areaBalance: "" },
+  };
 }
 
 /**

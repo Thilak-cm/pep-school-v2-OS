@@ -9,12 +9,14 @@ import {
   Box,
   TextField,
   CircularProgress,
-  ToggleButton,
-  ToggleButtonGroup,
 } from '@mui/material';
 import { FileText as ReportIcon } from '../icons';
-import NewFeaturePill from './NewFeaturePill';
 import { getDefaultReportDateRange, getDefaultMonthlyDateRange, toIsoDate } from '../utils/reportUtils';
+
+const REPORT_TYPE_LABELS = {
+  term: 'term report',
+  baseline: 'baseline report',
+};
 
 export default function ReportGenerateDialog({
   open,
@@ -22,45 +24,31 @@ export default function ReportGenerateDialog({
   onGenerate,
   generating = false,
   studentLabel = 'this student',
+  initialReportType = 'term',
 }) {
-  const [reportType, setReportType] = useState('term');
+  const reportType = initialReportType;
 
-  const termDefaults = useMemo(() => {
-    const { start, end } = getDefaultReportDateRange();
+  const defaults = useMemo(() => {
+    const { start, end } = reportType === 'baseline' ? getDefaultMonthlyDateRange() : getDefaultReportDateRange();
     return { start: toIsoDate(start), end: toIsoDate(end) };
-  }, []);
-
-  const monthlyDefaults = useMemo(() => {
-    const { start, end } = getDefaultMonthlyDateRange();
-    return { start: toIsoDate(start), end: toIsoDate(end) };
-  }, []);
-
-  const defaults = reportType === 'monthly' ? monthlyDefaults : termDefaults;
+  }, [reportType]);
 
   const [startDate, setStartDate] = useState(defaults.start);
   const [endDate, setEndDate] = useState(defaults.end);
 
-  // Reset to term defaults each time the dialog opens
+  // Reset dates each time the dialog opens
   useEffect(() => {
     if (open) {
-      setReportType('term');
-      setStartDate(termDefaults.start);
-      setEndDate(termDefaults.end);
+      setStartDate(defaults.start);
+      setEndDate(defaults.end);
     }
-  }, [open, termDefaults.start, termDefaults.end]);
-
-  const handleTypeChange = (_, newType) => {
-    if (!newType) return; // MUI ToggleButtonGroup can fire null on re-click
-    setReportType(newType);
-    const newDefaults = newType === 'monthly' ? monthlyDefaults : termDefaults;
-    setStartDate(newDefaults.start);
-    setEndDate(newDefaults.end);
-  };
+  }, [open, defaults.start, defaults.end]);
 
   const dateValid = Boolean(startDate && endDate);
   const rangeError = dateValid && endDate < startDate;
 
-  const title = `Generate report for ${studentLabel}?`;
+  const typeLabel = REPORT_TYPE_LABELS[reportType] || 'report';
+  const title = `Generate ${typeLabel} for ${studentLabel}?`;
 
   const handleGenerate = () => {
     if (!dateValid || rangeError) return;
@@ -108,66 +96,36 @@ export default function ReportGenerateDialog({
             Coach Pepper will generate a parent report using observations within the date range below.
           </Typography>
 
-          <ToggleButtonGroup
-            value={reportType}
-            exclusive
-            onChange={handleTypeChange}
-            disabled={generating}
-            size="small"
-            fullWidth
-            sx={{
-              '& .MuiToggleButton-root': {
-                textTransform: 'none',
-                fontWeight: 700,
-                borderRadius: 2,
-                py: 0.75,
-              },
-              '& .Mui-selected': {
-                backgroundColor: 'var(--color-indigo-bg) !important',
-                color: 'var(--color-primary) !important',
-                borderColor: 'var(--color-primary) !important',
-              },
-            }}
-          >
-            <ToggleButton value="term">Term Report</ToggleButton>
-            <ToggleButton value="monthly" disabled>
-              Monthly Baseline
-            </ToggleButton>
-          </ToggleButtonGroup>
-          <NewFeaturePill label="Coming Soon" size="sm" sx={{ mt: 0.5, alignSelf: 'flex-end' }} />
-
-          {reportType !== 'monthly' && (
-            <Stack direction="row" spacing={2}>
-              <TextField
-                label="From"
-                type="date"
-                value={startDate}
-                onChange={(e) => setStartDate(e.target.value)}
-                size="small"
-                fullWidth
-                disabled={generating}
-                slotProps={{
-                  inputLabel: { shrink: true },
-                  htmlInput: { max: endDate || undefined },
-                }}
-              />
-              <TextField
-                label="To"
-                type="date"
-                value={endDate}
-                onChange={(e) => setEndDate(e.target.value)}
-                size="small"
-                fullWidth
-                disabled={generating}
-                error={rangeError}
-                helperText={rangeError ? "'To' must be after 'From'" : ''}
-                slotProps={{
-                  inputLabel: { shrink: true },
-                  htmlInput: { min: startDate || undefined },
-                }}
-              />
-            </Stack>
-          )}
+          <Stack direction="row" spacing={2}>
+            <TextField
+              label="From"
+              type="date"
+              value={startDate}
+              onChange={(e) => setStartDate(e.target.value)}
+              size="small"
+              fullWidth
+              disabled={generating}
+              slotProps={{
+                inputLabel: { shrink: true },
+                htmlInput: { max: endDate || undefined },
+              }}
+            />
+            <TextField
+              label="To"
+              type="date"
+              value={endDate}
+              onChange={(e) => setEndDate(e.target.value)}
+              size="small"
+              fullWidth
+              disabled={generating}
+              error={rangeError}
+              helperText={rangeError ? "'To' must be after 'From'" : ''}
+              slotProps={{
+                inputLabel: { shrink: true },
+                htmlInput: { min: startDate || undefined },
+              }}
+            />
+          </Stack>
 
           {generating && (
             <Stack direction="row" spacing={1.5} alignItems="center" sx={{ py: 0.5 }}>

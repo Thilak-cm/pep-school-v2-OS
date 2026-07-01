@@ -64,21 +64,21 @@ describe('getDefaultReportDateRange', () => {
 });
 
 describe('getDefaultMonthlyDateRange', () => {
-  it('returns start as 30 days before now', () => {
+  it('returns start as June 1 of the current year', () => {
     const now = new Date(2026, 5, 19); // June 19, 2026
     const { start, end } = getDefaultMonthlyDateRange(now);
-    const expected = new Date(2026, 4, 20); // May 20, 2026
-    assert.equal(start.getFullYear(), expected.getFullYear());
-    assert.equal(start.getMonth(), expected.getMonth());
-    assert.equal(start.getDate(), expected.getDate());
+    assert.equal(start.getFullYear(), 2026);
+    assert.equal(start.getMonth(), 5); // June (0-indexed)
+    assert.equal(start.getDate(), 1);
     assert.equal(end, now);
   });
 
-  it('handles month boundary (start in previous month)', () => {
+  it('returns June 1 of previous year when called before June', () => {
     const now = new Date(2026, 0, 15); // Jan 15, 2026
     const { start, end } = getDefaultMonthlyDateRange(now);
-    assert.equal(start.getMonth(), 11); // December
-    assert.equal(start.getFullYear(), 2025);
+    assert.equal(start.getMonth(), 5); // June
+    assert.equal(start.getFullYear(), 2025); // Previous AY
+    assert.equal(start.getDate(), 1);
     assert.equal(end, now);
   });
 
@@ -86,9 +86,11 @@ describe('getDefaultMonthlyDateRange', () => {
     const before = new Date();
     const { start, end } = getDefaultMonthlyDateRange();
     const after = new Date();
-    const diffMs = end.getTime() - start.getTime();
-    const diffDays = diffMs / (1000 * 60 * 60 * 24);
-    assert.ok(diffDays >= 29 && diffDays <= 31, `Expected ~30 days diff, got ${diffDays}`);
+    assert.equal(start.getMonth(), 5); // June
+    assert.equal(start.getDate(), 1);
+    // AY-aware: June of current year if now >= June, else June of previous year
+    const expectedYear = before.getMonth() >= 5 ? before.getFullYear() : before.getFullYear() - 1;
+    assert.equal(start.getFullYear(), expectedYear);
     assert.ok(end >= before && end <= after);
   });
 });
@@ -304,12 +306,12 @@ describe('buildReportList', () => {
 
   it('normalizes reportType field from doc', () => {
     const docs = [
-      { id: 'report_1', generatedAt: new Date('2026-06-01'), reportText: 'Monthly', reportType: 'monthly' },
+      { id: 'report_1', generatedAt: new Date('2026-06-01'), reportText: 'Baseline', reportType: 'baseline' },
       { id: 'report_2', generatedAt: new Date('2026-06-02'), reportText: 'Term', reportType: 'term' },
     ];
     const result = buildReportList(docs);
     assert.equal(result[0].reportType, 'term');
-    assert.equal(result[1].reportType, 'monthly');
+    assert.equal(result[1].reportType, 'baseline');
   });
 
   it('defaults reportType to "term" when missing', () => {
@@ -318,5 +320,30 @@ describe('buildReportList', () => {
     ];
     const result = buildReportList(docs);
     assert.equal(result[0].reportType, 'term');
+  });
+
+  it('normalizes legacy "monthly" reportType to "baseline"', () => {
+    const docs = [
+      { id: 'report_legacy', generatedAt: new Date('2026-06-01'), reportText: 'Old monthly', reportType: 'monthly' },
+    ];
+    const result = buildReportList(docs);
+    assert.equal(result[0].reportType, 'baseline');
+  });
+
+  it('preserves reportEval nested field from Firestore doc', () => {
+    const evalData = { sentimentScore: 4, areaBalanceScore: 3, missingInputFlags: ['Limited peer observations'] };
+    const docs = [
+      { id: 'report_baseline1', generatedAt: new Date('2026-06-15'), reportText: 'Baseline...', reportType: 'baseline', reportEval: evalData },
+    ];
+    const result = buildReportList(docs);
+    assert.deepEqual(result[0].reportEval, evalData);
+  });
+
+  it('sets reportEval to null when not present', () => {
+    const docs = [
+      { id: 'report_term1', generatedAt: new Date('2026-03-15'), reportText: 'Term...', reportType: 'term' },
+    ];
+    const result = buildReportList(docs);
+    assert.equal(result[0].reportEval, null);
   });
 });

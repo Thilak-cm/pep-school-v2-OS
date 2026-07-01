@@ -1,5 +1,5 @@
 import { google } from "googleapis";
-import { DRIVE_CONSTANTS, DOC_STYLE, LOGO_URL } from "../config/reportConstants.js";
+import { AY_START_MONTH, DRIVE_CONSTANTS, DOC_STYLE, LOGO_URL } from "../config/reportConstants.js";
 
 /**
  * Resolve a student document's display name.
@@ -29,7 +29,7 @@ export function buildReportDocTitle(studentName, generatedAt, reportType) {
   const name = (studentName || "").trim();
   const date = generatedAt ? new Date(generatedAt) : new Date();
   const monthYear = date.toLocaleDateString("en-US", { month: "long", year: "numeric", timeZone: "UTC" });
-  const label = reportType === "monthly" ? "Monthly Baseline Report" : "Educator Summary";
+  const label = reportType === "baseline" ? "Baseline Report" : "Educator Summary";
   return `${name} | ${label} | ${monthYear}`;
 }
 
@@ -48,16 +48,16 @@ export function formatDateForMeta(dateInput) {
 }
 
 /**
- * Derive the academic year string (e.g. "2025-26") from a date.
- * Academic year starts in November (month index 10).
- * Dates before November belong to the AY that started the previous November.
+ * Derive the academic year string (e.g. "2026-27") from a date.
+ * Academic year starts in June (month index 5).
+ * Dates before June belong to the AY that started the previous June.
  * Uses UTC to stay consistent with ISO date strings and Cloud Functions.
  */
 export function deriveAcademicYear(dateInput) {
   const d = dateInput ? new Date(dateInput) : new Date();
   const year = d.getUTCFullYear();
   const month = d.getUTCMonth(); // 0-indexed
-  const startYear = month >= 10 ? year : year - 1;
+  const startYear = month >= AY_START_MONTH ? year : year - 1;
   return `${startYear}-${String(startYear + 1).slice(-2)}`;
 }
 
@@ -154,8 +154,10 @@ export async function createReportDoc(
   const docOpts = formatOpts ? {
     studentName,
     programName: formatOpts.programName,
+    classroomName: formatOpts.classroomName,
     academicYear: formatOpts.academicYear,
     startDate: formatOpts.startDate,
+    endDate: formatOpts.endDate,
     reportType: formatOpts.reportType,
     logoUrl: LOGO_URL,
   } : undefined;
@@ -193,7 +195,7 @@ export async function createReportDoc(
  * Without `opts`, falls back to basic heading styles (backward compatible).
  *
  * @param {string} markdown - Report content in markdown
- * @param {object} [opts] - { studentName, programName, academicYear, startDate, logoUrl }
+ * @param {object} [opts] - { studentName, programName, classroomName, academicYear, startDate, endDate, logoUrl }
  */
 export function buildDocInsertRequests(markdown, opts) {
   if (!markdown || !markdown.trim()) return [];
@@ -260,11 +262,11 @@ export function buildDocInsertRequests(markdown, opts) {
     });
     idx += nameText.length;
 
-    // 3. Metadata line: "{Program} | {Report Label} | {DD/MM/YYYY} to date | AY {YYYY-YY}"
-    const reportLabel = opts.reportType === "monthly" ? "Monthly Baseline Report" : "Educator Summary";
+    // 3. Metadata line: "{Program} | {Classroom} | {startDate} to {endDate} | AY {YYYY-YY}"
     const startStr = formatDateForMeta(opts.startDate);
-    const datePipe = startStr ? ` | ${startStr} to date` : "";
-    const metaText = `${opts.programName || ""} | ${reportLabel}${datePipe} | AY ${opts.academicYear || ""}\n`;
+    const endStr = formatDateForMeta(opts.endDate);
+    const datePipe = startStr ? ` | ${startStr} to ${endStr || "date"}` : "";
+    const metaText = `${opts.programName || ""} | ${opts.classroomName || ""}${datePipe} | AY ${opts.academicYear || ""}\n`;
     requests.push({
       insertText: { location: { index: idx }, text: metaText },
     });

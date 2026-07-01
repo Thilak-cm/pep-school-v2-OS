@@ -1,8 +1,15 @@
 import * as functions from "firebase-functions/v1";
+import { defineSecret } from "firebase-functions/params";
 import { db } from "../shared/firebase.js";
-import { OPENAI_API_KEY, getOpenAiKey, buildChatBody, CHAT_ENDPOINT } from "../shared/openai.js";
-import { REPORT_DEFAULTS, READINESS_DEFAULTS, READINESS_DOC_ID, DRIVE_CONSTANTS, buildCsvFilename, buildArchiveCsvFilename, buildMonthlyBaselineCsvFilename, buildMonthlyBaselineArchiveCsvFilename } from "../config/reportConstants.js";
-import { getDefaultDateRange, parseReportResponse, parseReadinessResponse, getReportPromptDocId, getReadinessPromptDocId, mergeReportConfig, formatCsvRow, updateCsvContent, removeCsvRow, appendCsvContent, normalizeEndOfDay, assembleReportSystemContent, buildReadinessArchive } from "../utils/reportHelpers.js";
+import { buildChatBody } from "../shared/openai.js";
+import { OPENROUTER_API_KEY, getOpenRouterKey, OPENROUTER_ENDPOINT } from "../shared/openrouter.js";
+import { createLangfuse } from "../shared/langfuse.js";
+
+import { REPORT_DEFAULTS, READINESS_DEFAULTS, JUDGE_DEFAULTS, getReadinessDocId, DRIVE_CONSTANTS, buildCsvFilename, buildArchiveCsvFilename, buildBaselineCsvFilename, buildBaselineArchiveCsvFilename } from "../config/reportConstants.js";
+import { getDefaultDateRange, parseReportResponse, parseReadinessResponse, parseJudgeResponse, getReportPromptDocId, getJudgePromptDocId, getReadinessPromptDocId, mergeReportConfig, formatCsvRow, updateCsvContent, removeCsvRow, appendCsvContent, normalizeEndOfDay, assembleReportSystemContent, buildReadinessArchive } from "../utils/reportHelpers.js";
+
+const LANGFUSE_SECRET_KEY = defineSecret("LANGFUSE_SECRET_KEY");
+const LANGFUSE_PUBLIC_KEY = defineSecret("LANGFUSE_PUBLIC_KEY");
 import {
   getDriveClients,
   getOrCreateClassroomFolder,
@@ -133,9 +140,9 @@ The reportText should contain the complete parent-facing report following the pr
 Output ONLY the JSON object, nothing else.`;
 
 async function callReportGeneration(notes, prompt, studentContext, dateRange, config = REPORT_DEFAULTS, reportType = "term") {
-  const openAiKey = getOpenAiKey();
-  if (!openAiKey) {
-    throw new functions.https.HttpsError("failed-precondition", "OpenAI key not configured");
+  const apiKey = getOpenRouterKey();
+  if (!apiKey) {
+    throw new functions.https.HttpsError("failed-precondition", "OpenRouter API key not configured");
   }
 
   const safeContext = {
@@ -158,7 +165,7 @@ async function callReportGeneration(notes, prompt, studentContext, dateRange, co
     : String(dateRange.end);
 
   const userContent = [
-    `Generate the ${reportType === "monthly" ? "Monthly Baseline Report" : "Educator Summary"} for the period ${startStr} to ${endStr}.`,
+    `Generate the ${reportType === "baseline" ? "Baseline Report" : "Educator Summary"} for the period ${startStr} to ${endStr}.`,
     "",
     `Student: ${JSON.stringify(safeContext)}`,
     "",
@@ -179,10 +186,10 @@ async function callReportGeneration(notes, prompt, studentContext, dateRange, co
 
   let response;
   try {
-    response = await fetch(CHAT_ENDPOINT, {
+    response = await fetch(OPENROUTER_ENDPOINT, {
       method: "POST",
       headers: {
-        "Authorization": `Bearer ${openAiKey}`,
+        "Authorization": `Bearer ${apiKey}`,
         "Content-Type": "application/json",
       },
       body: JSON.stringify(body),
@@ -207,6 +214,115 @@ async function callReportGeneration(notes, prompt, studentContext, dateRange, co
   return parseReportResponse(rawContent);
 }
 
+// ── Baseline report judge (#152) ──────────────────────────────────────────
+
+const JUDGE_JSON_WRAPPER = `
+
+IMPORTANT: You must output your response as a JSON object with exactly this structure:
+{
+  "sentimentScore": <number from 1 to 5>,
+  "sentimentLabel": "<label>",
+  "areaBalanceScore": <number from 1 to 5>,
+  "areaBalanceLabel": "<label>",
+  "missingInputFlags": [],
+  "scoreRationale": {
+    "sentiment": "<1-2 sentence rationale>",
+    "areaBalance": "<1-2 sentence rationale>"
+  }
+}
+
+Output ONLY the JSON object, nothing else.`;
+
+async function getJudgeConfig(programId) {
+  const docId = getJudgePromptDocId(programId);
+  if (!docId) return null;
+
+  const cached = reportConfigCache[docId];
+  if (cached && Date.now() - cached.fetchedAt < REPORT_PROMPT_CACHE_TTL_MS) {
+    return cached.data;
+  }
+
+  const snap = await db.collection("config").doc(docId).get();
+  if (!snap.exists) return null;
+
+  const data = snap.data();
+  reportConfigCache[docId] = { data, fetchedAt: Date.now() };
+  return data;
+}
+
+async function callReportJudge(reportText, notes, studentContext, programId) {
+  const judgeConfig = await getJudgeConfig(programId);
+  if (!judgeConfig || !judgeConfig.systemPrompt) {
+    console.warn("[report-judge] No judge config found for program:", programId);
+    return null;
+  }
+
+  const apiKey = getOpenRouterKey();
+  if (!apiKey) return null;
+
+  const systemContent = judgeConfig.systemPrompt + JUDGE_JSON_WRAPPER;
+
+  const safeContext = {
+    studentName: studentContext?.studentName || "Unknown student",
+    dob: studentContext?.dob || "dob unavailable",
+    age: studentContext?.age || "age unavailable",
+  };
+
+  const userContent = [
+    "Review the following baseline report and score it independently.",
+    "",
+    `Student: ${JSON.stringify(safeContext)}`,
+    "",
+    `Generated Report:`,
+    reportText,
+    "",
+    `Original Observations (${notes.length} notes, JSON array):`,
+    JSON.stringify(notes),
+  ].join("\n");
+
+  const config = {
+    model: judgeConfig.model || JUDGE_DEFAULTS.model,
+    temperature: Number.isFinite(judgeConfig.temperature) ? judgeConfig.temperature : JUDGE_DEFAULTS.temperature,
+    max_tokens: Number.isFinite(judgeConfig.max_tokens) ? judgeConfig.max_tokens : JUDGE_DEFAULTS.max_tokens,
+  };
+
+  const body = buildChatBody({
+    model: config.model,
+    messages: [
+      { role: "system", content: systemContent },
+      { role: "user", content: userContent },
+    ],
+    temperature: config.temperature,
+    max_completion_tokens: config.max_tokens,
+    response_format: { type: "json_object" },
+  });
+
+  try {
+    const response = await fetch(OPENROUTER_ENDPOINT, {
+      method: "POST",
+      headers: {
+        "Authorization": `Bearer ${apiKey}`,
+        "Content-Type": "application/json",
+      },
+      body: JSON.stringify(body),
+    });
+
+    if (!response.ok) {
+      console.error("[report-judge] API error", response.status);
+      return null;
+    }
+
+    const json = await response.json();
+    const rawContent = json?.choices?.[0]?.message?.content?.trim();
+    if (!rawContent) return null;
+
+    return parseJudgeResponse(rawContent);
+  } catch (e) {
+    console.error("[report-judge] failed", e.message);
+    return null;
+  }
+}
+
 async function writeReportDoc(studentId, payload, docId) {
   const resolvedId = docId || `report_${Date.now()}`;
   const ref = db.collection("students").doc(studentId).collection("ai_summaries").doc(resolvedId);
@@ -215,7 +331,7 @@ async function writeReportDoc(studentId, payload, docId) {
   return resolvedId;
 }
 
-async function runSingleReport({ studentId, dateRangeStart, dateRangeEnd, requesterId, requesterName, configOverrides, promptOverride, dryRun = false, reportType = "term" }) {
+async function runSingleReport({ studentId, dateRangeStart, dateRangeEnd, requesterId, requesterName, configOverrides, promptOverride, dryRun = false, reportType = "term", trace = null }) {
   const studentInfo = await getStudentWithProgram(studentId);
   if (!studentInfo.programId) {
     throw new functions.https.HttpsError(
@@ -269,7 +385,15 @@ async function runSingleReport({ studentId, dateRangeStart, dateRangeEnd, reques
   }
 
   const formatted = notes.map(formatObservationForPrompt);
+
+  const genSpan = trace?.generation({
+    name: "report-generation",
+    model: config.model,
+    input: { noteCount: formatted.length, reportType, programId: studentInfo.programId },
+  });
   const aiResult = await callReportGeneration(formatted, prompt, studentInfo, { start: startDate, end: endDate }, config, reportType);
+  genSpan?.end({ output: { reportLength: aiResult.reportText?.length || 0 } });
+
   const sourceNoteIds = notes.map((n) => n.id).filter(Boolean);
 
   const payload = {
@@ -334,7 +458,7 @@ async function checkReportPermission(uid, studentId) {
 
 export const generateStudentReport = functions
   .region("asia-south1")
-  .runWith({ timeoutSeconds: 300, memory: "1GB", secrets: [OPENAI_API_KEY] })
+  .runWith({ timeoutSeconds: 300, memory: "1GB", secrets: [OPENROUTER_API_KEY, LANGFUSE_SECRET_KEY, LANGFUSE_PUBLIC_KEY] })
   .https.onCall(async (data, context) => {
     if (!context.auth) {
       throw new functions.https.HttpsError("unauthenticated", "User must be authenticated");
@@ -346,7 +470,14 @@ export const generateStudentReport = functions
     }
 
     const { displayName: requesterName } = await checkReportPermission(context.auth.uid, studentId);
-    const reportType = data?.reportType === "monthly" ? "monthly" : "term";
+    const reportType = data?.reportType === "baseline" ? "baseline" : "term";
+
+    const langfuse = createLangfuse();
+    const trace = langfuse.trace({
+      name: "generate-student-report",
+      userId: context.auth.uid,
+      metadata: { studentId, reportType },
+    });
 
     const result = await runSingleReport({
       studentId,
@@ -356,7 +487,16 @@ export const generateStudentReport = functions
       requesterName,
       reportType,
       dryRun: true,
+      trace,
     });
+
+    trace.update({
+      output: {
+        status: result.status,
+        noteCount: result.payload.noteCount,
+      },
+    });
+    await langfuse.flushAsync();
 
     return {
       status: result.status,
@@ -377,7 +517,7 @@ export const generateStudentReport = functions
 
 export const previewStudentReport = functions
   .region("asia-south1")
-  .runWith({ timeoutSeconds: 300, memory: "1GB", secrets: [OPENAI_API_KEY] })
+  .runWith({ timeoutSeconds: 300, memory: "1GB", secrets: [OPENROUTER_API_KEY] })
   .https.onCall(async (data, context) => {
     if (!context.auth) {
       throw new functions.https.HttpsError("unauthenticated", "User must be authenticated");
@@ -389,9 +529,9 @@ export const previewStudentReport = functions
       throw new functions.https.HttpsError("permission-denied", "Only super admins can preview reports");
     }
 
-    const openAiKey = getOpenAiKey();
-    if (!openAiKey) {
-      throw new functions.https.HttpsError("failed-precondition", "OpenAI key not configured");
+    const apiKey = getOpenRouterKey();
+    if (!apiKey) {
+      throw new functions.https.HttpsError("failed-precondition", "OpenRouter API key not configured");
     }
 
     const studentId = String(data?.studentId || "").trim();
@@ -429,11 +569,18 @@ export const previewStudentReport = functions
  */
 export const exportReportToDrive = functions
   .region("asia-south1")
-  .runWith({ timeoutSeconds: 120, memory: "512MB" })
+  .runWith({ timeoutSeconds: 240, memory: "1GB", secrets: [OPENROUTER_API_KEY, LANGFUSE_SECRET_KEY, LANGFUSE_PUBLIC_KEY] })
   .https.onCall(async (data, context) => {
     if (!context.auth) {
       throw new functions.https.HttpsError("unauthenticated", "User must be authenticated");
     }
+
+    const langfuse = createLangfuse();
+    const trace = langfuse.trace({
+      name: "export-report-to-drive",
+      userId: context.auth.uid,
+      metadata: { studentId: data?.studentId, reportType: data?.reportPayload?.reportType || "term" },
+    });
 
     const studentId = String(data?.studentId || "").trim();
     const reportDocId = String(data?.reportDocId || "").trim();
@@ -473,6 +620,7 @@ export const exportReportToDrive = functions
           // Previous attempt fully completed — return existing data (idempotent retry).
           // Read studentName from the stored doc to avoid an extra Firestore read.
           const earlyStudentName = existingReport.studentName || "Student";
+          await langfuse.flushAsync();
           return {
             status: "ok",
             docId: reportDocId,
@@ -588,10 +736,10 @@ export const exportReportToDrive = functions
       drive, classroomFolderId, studentName,
     );
 
-    // For monthly reports, create a "Monthly Reports" subfolder; term reports go directly in student folder (PEP-325)
-    const isMonthly = (report.reportType || "term") === "monthly";
-    const reportFolderId = isMonthly
-      ? await getOrCreateFolder(drive, studentFolderId, "Monthly Reports")
+    // For baseline reports, create a "Baseline Reports" subfolder; term reports go directly in student folder (PEP-325)
+    const isBaseline = (report.reportType || "term") === "baseline";
+    const reportFolderId = isBaseline
+      ? await getOrCreateFolder(drive, studentFolderId, "Baseline Reports")
       : studentFolderId;
 
     // Handle both Firestore Timestamp (.toDate()) and plain JS Date (.toISOString())
@@ -605,7 +753,7 @@ export const exportReportToDrive = functions
     const { docId: driveDocId, docLink } = await createReportDoc(
       drive, docs, reportFolderId, studentName, report.reportText,
       generatedAtIso,
-      { programName, academicYear, startDate: reportStartDate, reportType: report.reportType || "term" },
+      { programName, classroomName, academicYear, startDate: reportStartDate, endDate: report.dateRangeEnd ? (report.dateRangeEnd?.toDate?.() || report.dateRangeEnd) : new Date(), reportType: report.reportType || "term" },
     );
 
     // Persist driveDocId immediately so retries find it and skip Drive creation.
@@ -618,22 +766,64 @@ export const exportReportToDrive = functions
       await reportRef.update({ driveDocId, driveDocLink: docLink });
     }
 
-    // Update summary + archive CSVs in classroom folder (best-effort)
-    // Read scores from readiness cache (PEP-68)
-    let readinessScores = { sentimentScore: null, areaBalanceScore: null, missingInputFlags: [] };
-    try {
-      const readinessSnap = await db.collection("students").doc(studentId)
-        .collection("ai_summaries").doc(READINESS_DOC_ID).get();
-      if (readinessSnap.exists) {
-        const rd = readinessSnap.data();
-        readinessScores = {
-          sentimentScore: rd.sentimentScore ?? null,
-          areaBalanceScore: rd.areaBalanceScore ?? null,
-          missingInputFlags: rd.missingInputFlags || [],
-        };
+    // For baseline reports, run independent judge at export time (#152)
+    let reportEval = null;
+    if (isBaseline && report.reportText) {
+      try {
+        // Re-fetch observations for the judge (it needs both report + original notes)
+        const judgeStartDate = report.dateRangeStart
+          ? (report.dateRangeStart?.toDate?.() || new Date(report.dateRangeStart))
+          : null;
+        const judgeEndDate = report.dateRangeEnd
+          ? (report.dateRangeEnd?.toDate?.() || new Date(report.dateRangeEnd))
+          : new Date();
+        const judgeNotes = judgeStartDate
+          ? (await fetchStudentNotesForDateRange(studentId, judgeStartDate, judgeEndDate)).map(formatObservationForPrompt)
+          : [];
+
+        const judgeSpan = trace.generation({
+          name: "report-judge",
+          model: JUDGE_DEFAULTS.model,
+          input: { reportLength: report.reportText.length, noteCount: judgeNotes.length },
+        });
+        const judgeStudentInfo = { studentName, programId: report.programId || programId };
+        reportEval = await callReportJudge(report.reportText, judgeNotes, judgeStudentInfo, report.programId || programId);
+        judgeSpan.end({ output: reportEval || { error: "judge returned null" } });
+
+        if (reportEval) {
+          // Persist reportEval on the report doc
+          if (reportRef) {
+            await reportRef.update({ reportEval });
+          }
+          // Log scores to Langfuse (guard against null from malformed LLM output)
+          const traceId = trace.id;
+          if (reportEval.sentimentScore != null) langfuse.score({ traceId, name: "report_sentiment", value: reportEval.sentimentScore });
+          if (reportEval.areaBalanceScore != null) langfuse.score({ traceId, name: "report_area_balance", value: reportEval.areaBalanceScore });
+          langfuse.score({ traceId, name: "report_missing_flags_count", value: reportEval.missingInputFlags?.length || 0 });
+        }
+      } catch (judgeErr) {
+        console.warn("[drive-export] judge call failed (non-blocking):", judgeErr);
       }
-    } catch (readinessErr) {
-      console.warn("[drive-export] readiness doc read failed (non-blocking):", readinessErr);
+    }
+
+    // Update summary + archive CSVs in classroom folder (best-effort)
+    // Read scores from readiness cache (PEP-68) — term reports only
+    let readinessScores = { sentimentScore: null, areaBalanceScore: null, missingInputFlags: [] };
+    if (!isBaseline) {
+      try {
+        const readinessSnap = await db.collection("students").doc(studentId)
+          .collection("ai_summaries").doc(getReadinessDocId(report.reportType)).get();
+        if (readinessSnap.exists) {
+          const rd = readinessSnap.data();
+          readinessScores = {
+            sentimentScore: rd.sentimentScore ?? null,
+            areaBalanceScore: rd.areaBalanceScore ?? null,
+            missingInputFlags: rd.missingInputFlags || [],
+          };
+        }
+      } catch (readinessErr) {
+        console.warn("[drive-export] readiness doc read failed (non-blocking):", readinessErr);
+      }
     }
 
     try {
@@ -644,24 +834,24 @@ export const exportReportToDrive = functions
         classroom: classroomName,
         generatedAt: generatedAtIso,
         author: report.generatedByName || "",
-        sentimentScore: isMonthly ? null : readinessScores.sentimentScore,
-        areaBalanceScore: isMonthly ? null : readinessScores.areaBalanceScore,
-        missingInputFlags: isMonthly ? [] : readinessScores.missingInputFlags,
+        sentimentScore: isBaseline ? (reportEval?.sentimentScore ?? null) : readinessScores.sentimentScore,
+        areaBalanceScore: isBaseline ? (reportEval?.areaBalanceScore ?? null) : readinessScores.areaBalanceScore,
+        missingInputFlags: isBaseline ? (reportEval?.missingInputFlags || []) : readinessScores.missingInputFlags,
         docLink,
       });
 
-      const monthlyDateAnchor = report.dateRangeEnd
+      const baselineDateAnchor = report.dateRangeEnd
         ? (report.dateRangeEnd?.toDate?.() || report.dateRangeEnd)
         : new Date();
-      const summaryCsvName = isMonthly
-        ? buildMonthlyBaselineCsvFilename(classroomName, monthlyDateAnchor)
+      const summaryCsvName = isBaseline
+        ? buildBaselineCsvFilename(classroomName, baselineDateAnchor)
         : buildCsvFilename(classroomName);
-      const archiveCsvName = isMonthly
-        ? buildMonthlyBaselineArchiveCsvFilename(classroomName, monthlyDateAnchor)
+      const archiveCsvName = isBaseline
+        ? buildBaselineArchiveCsvFilename(classroomName, baselineDateAnchor)
         : buildArchiveCsvFilename(classroomName);
 
       // Migrate legacy CSV if it exists under the old name (term reports only)
-      if (!isMonthly) {
+      if (!isBaseline) {
         await migrateLegacyCsv(drive, classroomFolderId, summaryCsvName);
       }
 
@@ -705,12 +895,15 @@ export const exportReportToDrive = functions
       });
     }
 
+    await langfuse.flushAsync();
+
     return {
       status: "ok",
       docId,
       driveDocId,
       driveDocLink: docLink,
       studentName,
+      ...(reportEval && { reportEval }),
     };
   });
 
@@ -774,9 +967,9 @@ async function getReadinessPrompt(programId) {
   return prompt;
 }
 
-async function writeReadinessDoc(studentId, payload, displayName) {
+async function writeReadinessDoc(studentId, payload, displayName, reportType) {
   const ref = db.collection("students").doc(studentId)
-    .collection("ai_summaries").doc(READINESS_DOC_ID);
+    .collection("ai_summaries").doc(getReadinessDocId(reportType));
 
   const existingSnap = await ref.get();
   const archive = existingSnap.exists
@@ -794,7 +987,7 @@ async function writeReadinessDoc(studentId, payload, displayName) {
 
 export const checkReportReadiness = functions
   .region("asia-south1")
-  .runWith({ timeoutSeconds: 60, memory: "512MB", secrets: [OPENAI_API_KEY] })
+  .runWith({ timeoutSeconds: 60, memory: "512MB", secrets: [OPENROUTER_API_KEY] })
   .https.onCall(async (data, context) => {
     if (!context.auth) {
       throw new functions.https.HttpsError("unauthenticated", "User must be authenticated");
@@ -806,6 +999,7 @@ export const checkReportReadiness = functions
     }
 
     const { displayName } = await checkReportPermission(context.auth.uid, studentId);
+    const reportType = data?.reportType === "baseline" ? "baseline" : "term";
 
     const studentInfo = await getStudentWithProgram(studentId);
     const prompt = await getReadinessPrompt(studentInfo.programId);
@@ -832,7 +1026,7 @@ export const checkReportReadiness = functions
         generatedBy: context.auth.uid,
         generatedByName: displayName || null,
       };
-      await writeReadinessDoc(studentId, payload, displayName);
+      await writeReadinessDoc(studentId, payload, displayName, reportType);
       return {
         ...payload,
         checkedAt: payload.checkedAt.toISOString(),
@@ -842,9 +1036,9 @@ export const checkReportReadiness = functions
     }
 
     const formatted = notes.map(formatObservationForPrompt);
-    const openAiKey = getOpenAiKey();
-    if (!openAiKey) {
-      throw new functions.https.HttpsError("failed-precondition", "OpenAI key not configured");
+    const apiKey = getOpenRouterKey();
+    if (!apiKey) {
+      throw new functions.https.HttpsError("failed-precondition", "OpenRouter API key not configured");
     }
 
     const systemContent = prompt.systemPrompt + READINESS_JSON_WRAPPER;
@@ -870,10 +1064,10 @@ export const checkReportReadiness = functions
 
     let response;
     try {
-      response = await fetch(CHAT_ENDPOINT, {
+      response = await fetch(OPENROUTER_ENDPOINT, {
         method: "POST",
         headers: {
-          "Authorization": `Bearer ${openAiKey}`,
+          "Authorization": `Bearer ${apiKey}`,
           "Content-Type": "application/json",
         },
         body: JSON.stringify(body),
@@ -913,7 +1107,7 @@ export const checkReportReadiness = functions
       generatedByName: displayName || null,
     };
 
-    await writeReadinessDoc(studentId, payload, displayName);
+    await writeReadinessDoc(studentId, payload, displayName, reportType);
 
     return {
       ...payload,
@@ -993,7 +1187,10 @@ export const deleteStudentReport = functions
           if (driveFolderId) {
             const studentName = resolveStudentName(studentSnap.data());
             const clsName = classroomData2?.name || "Unknown Classroom";
-            const summaryCsvName = buildCsvFilename(clsName);
+            const isBaselineReport = reportData.reportType === "baseline";
+            const summaryCsvName = isBaselineReport
+              ? buildBaselineCsvFilename(clsName, reportData.dateRangeEnd?.toDate?.() || new Date())
+              : buildCsvFilename(clsName);
 
             const existingCsv = await downloadCsvContent(drive, driveFolderId, summaryCsvName);
             if (existingCsv) {

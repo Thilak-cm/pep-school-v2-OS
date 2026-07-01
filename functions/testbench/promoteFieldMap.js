@@ -100,7 +100,7 @@ const PROMOTE_MAP = {
     requiresPromptType: true,
     targets: (programId, promptType) => [
       {
-        docPath: `config/${promptType === "monthly" ? "baseline_report" : "term_report"}_${programId}`,
+        docPath: `config/${promptType === "baseline" ? "baseline_report" : "term_report"}_${programId}`,
         fields: {
           systemPrompt: "staticSystemPrompt",
           model: "model",
@@ -113,7 +113,7 @@ const PROMOTE_MAP = {
 };
 
 const VALID_FEATURE_IDS = Object.keys(PROMOTE_MAP);
-const VALID_PROMPT_TYPES = ["classroom", "superadmin", "term", "monthly"];
+const VALID_PROMPT_TYPES = ["classroom", "superadmin", "term", "baseline"];
 const MAX_HISTORY_ENTRIES = 10;
 
 export {

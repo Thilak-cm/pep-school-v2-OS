@@ -1,4 +1,4 @@
-import React, { useCallback, useEffect, useState } from 'react';
+import React, { useCallback, useEffect, useMemo, useState } from 'react';
 import useNotify from '../notifications/useNotify';
 import {
   Box,
@@ -53,12 +53,32 @@ function getScoreColor(score) {
   return 'error';
 }
 
+/**
+ * Normalize eval scores from either flat fields (term reports via readiness)
+ * or nested reportEval (baseline reports via judge). Returns a uniform shape.
+ */
+function getEvalScores(report) {
+  if (report?.reportEval) {
+    return {
+      sentimentScore: report.reportEval.sentimentScore ?? null,
+      areaBalanceScore: report.reportEval.areaBalanceScore ?? null,
+      missingInputFlags: report.reportEval.missingInputFlags || [],
+    };
+  }
+  return {
+    sentimentScore: report?.sentimentScore ?? null,
+    areaBalanceScore: report?.areaBalanceScore ?? null,
+    missingInputFlags: report?.missingInputFlags || [],
+  };
+}
+
 export default function ReportsPage({
   studentId,
   studentLabel = 'Student',
   userRole,
   pendingViewReportId = null,
   onPendingViewHandled,
+  reportTypeFilter = null,
 }) {
   const notify = useNotify();
   const [reports, setReports] = useState([]);
@@ -126,7 +146,8 @@ export default function ReportsPage({
     let active = true;
     (async () => {
       try {
-        const readinessRef = doc(db, 'students', studentId, 'ai_summaries', 'report_readiness');
+        const readinessDocId = reportTypeFilter === 'baseline' ? 'baseline_report_readiness' : 'term_report_readiness';
+        const readinessRef = doc(db, 'students', studentId, 'ai_summaries', readinessDocId);
         const snap = await getDoc(readinessRef);
         if (!active) return;
         if (snap.exists()) {
@@ -150,7 +171,7 @@ export default function ReportsPage({
       }
     })();
     return () => { active = false; };
-  }, [studentId]);
+  }, [studentId, reportTypeFilter]);
 
   // Subscribe to SaveQueue for in-progress report_export items
   useEffect(() => {
@@ -220,7 +241,7 @@ export default function ReportsPage({
     try {
       setReadinessLoading(true);
       const call = httpsCallable(cloudFunctions, 'checkReportReadiness', { timeout: 60_000 });
-      const result = await call({ studentId, dateRangeStart, dateRangeEnd });
+      const result = await call({ studentId, dateRangeStart, dateRangeEnd, reportType: reportTypeFilter || 'term' });
       setReadiness({
         sentimentScore: result.data.sentimentScore ?? null,
         areaBalanceScore: result.data.areaBalanceScore ?? null,
@@ -285,9 +306,12 @@ export default function ReportsPage({
     const isDraft = !selectedReport?.id;
 
     if (isDraft) {
-      // Generate a stable queue item ID so we can derive a deterministic reportDocId
+      // Generate a stable queue item ID
       const queueItemId = `sq_${Math.random().toString(36).slice(2, 10)}_${Date.now().toString(36)}`;
-      const reportDocId = `report_sq_${queueItemId}`;
+      // Unique doc ID per draft: baseline uses month+timestamp suffix, term uses timestamp
+      const reportDocId = selectedReport?.reportType === 'baseline'
+        ? `baseline_report_${new Date(selectedReport.dateRangeEnd || Date.now()).toLocaleDateString('en-US', { month: 'long', year: 'numeric' }).toLowerCase().replace(/\s+/g, '_')}_${Date.now().toString(36)}`
+        : `report_${Date.now()}`;
       // Queue the draft save + Drive export in the background
       enqueueSaveQueueItems([{
         id: queueItemId,
@@ -313,7 +337,7 @@ export default function ReportsPage({
     try {
       setExporting(true);
       trackEvent('report_export_start', { studentId, isDraft }).catch(() => {});
-      const call = httpsCallable(cloudFunctions, 'exportReportToDrive', { timeout: 120_000 });
+      const call = httpsCallable(cloudFunctions, 'exportReportToDrive', { timeout: 240_000 });
       const result = await call({ studentId, reportDocId: selectedReport.id });
       const link = result.data.driveDocLink;
       setSelectedReport((prev) => ({ ...prev, driveDocLink: link }));
@@ -370,6 +394,12 @@ export default function ReportsPage({
       });
     }
   };
+
+  // Filter reports by type when a filter is active
+  const filteredReports = useMemo(() => {
+    if (!reportTypeFilter) return reports;
+    return reports.filter((r) => (r.reportType || 'term') === reportTypeFilter);
+  }, [reports, reportTypeFilter]);
 
   return (
     <>
@@ -529,7 +559,7 @@ export default function ReportsPage({
         </Box>
       )}
 
-      {!loading && reports.length === 0 && exportingCount === 0 && (
+      {!loading && filteredReports.length === 0 && exportingCount === 0 && (
         <Box sx={{ textAlign: 'center', py: 6 }}>
           <ReportIcon size={48} style={{ color: 'var(--grey-300)', marginBottom: 8 }} />
           <Typography variant="body1" sx={{ color: 'var(--color-text-faint)' }}>
@@ -541,10 +571,11 @@ export default function ReportsPage({
         </Box>
       )}
 
-      {!loading && reports.length > 0 && (
+      {!loading && filteredReports.length > 0 && (
         <List disablePadding>
-          {reports.map((report) => {
-            const hasMissing = report.missingInputFlags?.length > 0;
+          {filteredReports.map((report) => {
+            const evalScores = getEvalScores(report);
+            const hasMissing = evalScores.missingInputFlags?.length > 0;
             const isExpanded = expandedMissing.has(report.id);
             return (
             <ListItem
@@ -577,15 +608,15 @@ export default function ReportsPage({
                 </Box>
                 <Stack direction="row" spacing={0.5} alignItems="center" sx={{ flexShrink: 0 }}>
                   <Chip
-                    label={report.reportType === 'monthly' ? 'Monthly' : 'Term'}
+                    label={report.reportType === 'baseline' ? 'Baseline' : 'Term'}
                     size="small"
                     variant="outlined"
                     sx={{
                       height: 22,
                       fontSize: '0.7rem',
                       fontWeight: 700,
-                      borderColor: report.reportType === 'monthly' ? 'var(--color-secondary)' : 'var(--color-primary)',
-                      color: report.reportType === 'monthly' ? 'var(--color-secondary)' : 'var(--color-primary)',
+                      borderColor: report.reportType === 'baseline' ? 'var(--color-secondary)' : 'var(--color-primary)',
+                      color: report.reportType === 'baseline' ? 'var(--color-secondary)' : 'var(--color-primary)',
                     }}
                   />
                   {report.noteCount != null && (
@@ -616,14 +647,14 @@ export default function ReportsPage({
                 </Stack>
               </Box>
 
-              {/* Quality flags row — only for reports that have score data (pre-PEP-68) */}
-              {report.status !== 'no_notes' && (report.sentimentScore != null || report.areaBalanceScore != null || report.missingInputFlags?.length > 0) && (
+              {/* Quality flags row — eval scores from readiness (term) or reportEval (baseline) */}
+              {report.status !== 'no_notes' && (evalScores.sentimentScore != null || evalScores.areaBalanceScore != null || evalScores.missingInputFlags?.length > 0) && (
                 <Stack direction="row" spacing={0.75} alignItems="center" sx={{ mt: 0.5, flexWrap: 'wrap', gap: 0.5 }}>
-                  {report.sentimentScore != null && (
-                    <Chip label={`Sentiment: ${report.sentimentScore}`} size="small" color={getScoreColor(report.sentimentScore)} variant="outlined" sx={{ height: 20, fontSize: '0.7rem' }} />
+                  {evalScores.sentimentScore != null && (
+                    <Chip label={`Sentiment: ${evalScores.sentimentScore}`} size="small" color={getScoreColor(evalScores.sentimentScore)} variant="outlined" sx={{ height: 20, fontSize: '0.7rem' }} />
                   )}
-                  {report.areaBalanceScore != null && (
-                    <Chip label={`Balance: ${report.areaBalanceScore}`} size="small" color={getScoreColor(report.areaBalanceScore)} variant="outlined" sx={{ height: 20, fontSize: '0.7rem' }} />
+                  {evalScores.areaBalanceScore != null && (
+                    <Chip label={`Balance: ${evalScores.areaBalanceScore}`} size="small" color={getScoreColor(evalScores.areaBalanceScore)} variant="outlined" sx={{ height: 20, fontSize: '0.7rem' }} />
                   )}
                   {hasMissing ? (
                     <Chip
@@ -653,7 +684,7 @@ export default function ReportsPage({
               {/* Expanded missing flags */}
               <Collapse in={isExpanded && hasMissing}>
                 <Box sx={{ mt: 0.75, pl: 0.5 }}>
-                  {report.missingInputFlags?.map((flag, i) => (
+                  {evalScores.missingInputFlags?.map((flag, i) => (
                     <Typography key={i} variant="caption" sx={{ display: 'block', color: 'var(--color-amber-dark)', lineHeight: 1.6 }}>
                       • {flag}
                     </Typography>
@@ -673,6 +704,7 @@ export default function ReportsPage({
         onGenerate={handleGenerate}
         generating={generating}
         studentLabel={studentLabel}
+        initialReportType={reportTypeFilter || 'term'}
       />
 
       <ReportPreviewDialog

@@ -53,6 +53,7 @@ function App() {
     lessonNoteEditObservation, setLessonNoteEditObservation,
     timelineTitleAsDashboard, setTimelineTitleAsDashboard,
     pendingViewReportId, setPendingViewReportId,
+    reportTypeFilter, setReportTypeFilter,
     initialStudentId, setInitialStudentId,
     feedbackReturnScreen, setFeedbackReturnScreen,
     studentDashboardFlagOpen, setStudentDashboardFlagOpen,
@@ -71,6 +72,7 @@ function App() {
       } catch { /* ignored */ }
     })();
     setPendingViewReportId(docId);
+    setReportTypeFilter(docId?.startsWith('baseline_report_') ? 'baseline' : 'term');
     setScreen('studentReports');
   }, []);
 
@@ -374,10 +376,10 @@ function App() {
     user, role, isTeacher, isSuperAdminUser, manageableClassrooms, classrooms, classroomsLoaded,
     selectedClassroom, selectedStudent,
     studentDashboardNoteType, timelineFilter, prefilledFeedback,
-    usersAccessView, pendingViewReportId, initialStudentId,
+    usersAccessView, pendingViewReportId, reportTypeFilter, initialStudentId,
     lessonNoteInitialSelection, lessonNoteEditObservation, lessonNotesReturnScreen,
     setScreen, setSelectedClassroom, setSelectedStudent, setClassroomTimelineReturnScreen, setStudentDashboardReturnScreen,
-    setStudentDashboardNoteType, setTimelineFilter, setUsersAccessView, setPendingViewReportId, setInitialStudentId,
+    setStudentDashboardNoteType, setTimelineFilter, setUsersAccessView, setPendingViewReportId, setReportTypeFilter, setInitialStudentId,
     setLessonNoteEditObservation, setFeedbackReturnScreen, studentDashboardFlagOpen, setStudentDashboardFlagOpen,
     openFeedbackWithMessage, handleLessonNotesSaved, handleNavigation, handleSignOut,
     getStudentDisplayName, broadcastDeepLink, setBroadcastDeepLink,
@@ -449,7 +451,7 @@ function App() {
                   open={addNoteOpen}
                   onClose={() => { setAddNoteOpen(false); setAddNoteInitialStep('record'); }}
                   initialStep={addNoteInitialStep}
-                  initialStudents={selectedStudent && (screen === 'timeline' || screen === 'studentDashboard' || screen === 'studentReports') ? [selectedStudent.id] : []}
+                  initialStudents={selectedStudent && (screen === 'timeline' || screen === 'studentDashboard' || screen === 'studentReportTypes' || screen === 'studentReports') ? [selectedStudent.id] : []}
                   currentUser={user}
                   userRole={role}
                 />
