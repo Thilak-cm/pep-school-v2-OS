@@ -27,6 +27,7 @@ import { trackEvent } from '../utils/analytics';
 import { BASEBALL_CARD_DEFAULTS } from '../../../scripts/config/baseballCardConstants';
 import SnapshotBody from './SnapshotBody';
 import MonthlyPlanTab from './MonthlyPlanTab';
+import WritingAnalysisTab from './WritingAnalysisTab';
 import PlanFeedbackDialog from './PlanFeedbackDialog';
 import Coachmark from '../coachmark/Coachmark';
 import NotesOverTimeDrawer from './NotesOverTimeDrawer';
@@ -79,6 +80,8 @@ function StudentDashboard({ student, onOpenTimeline, onOpenFeedback, onOpenChat,
   const [writingData, setWritingData] = useState(null);
   const [writingLoading, setWritingLoading] = useState(false);
   const [writingError, setWritingError] = useState('');
+  const [writingHwCount, setWritingHwCount] = useState(null);
+  const [writingTotalMediaCount, setWritingTotalMediaCount] = useState(null);
   const [planData, setPlanData] = useState(null);
   const [planLoading, setPlanLoading] = useState(false);
   const [planError, setPlanError] = useState('');
@@ -341,6 +344,28 @@ function StudentDashboard({ student, onOpenTimeline, onOpenFeedback, onOpenChat,
     fetchWriting();
     return () => { active = false; };
   }, [activeTab, studentId, reloadKey]);
+
+  // Fetch media counts for writing empty states (only when writing tab active and no data)
+  useEffect(() => {
+    if (activeTab !== 'writing' || !studentId || writingLoading) return;
+    if (writingData && writingData.status !== 'skipped') return; // have data, skip
+    let active = true;
+    const fetchMediaCounts = async () => {
+      try {
+        const mediaRef = collection(db, 'students', studentId, 'media');
+        const allSnap = await getDocs(query(mediaRef, where('status', '==', 'ready')));
+        if (!active) return;
+        const total = allSnap.size;
+        const hw = allSnap.docs.filter((d) => d.data().handwritten === true).length;
+        setWritingTotalMediaCount(total);
+        setWritingHwCount(hw);
+      } catch {
+        if (active) { setWritingTotalMediaCount(0); setWritingHwCount(0); }
+      }
+    };
+    fetchMediaCounts();
+    return () => { active = false; };
+  }, [activeTab, studentId, writingLoading, writingData]);
 
   // Fetch monthly plan when Plan tab is active
   useEffect(() => {
@@ -790,6 +815,15 @@ function StudentDashboard({ student, onOpenTimeline, onOpenFeedback, onOpenChat,
         <CardContent sx={{ p: 2, pt: 1.5, display: 'flex', flexDirection: 'column', gap: 0.5, flex: 1, overflow: 'hidden' }}>
           {/* ── Uniform toolbar chip row ── */}
           <Stack direction="row" spacing={0.75} alignItems="center" sx={{ flexShrink: 0 }}>
+            {/* Writing meta line — left-aligned, pushes chips right */}
+            {activeTab === 'writing' && writingData && writingData.status !== 'skipped' && (
+              <Typography sx={{ fontSize: '0.72rem', color: 'var(--color-text-soft)', flex: 1, whiteSpace: 'nowrap' }}>
+                <strong style={{ fontWeight: 700, color: 'var(--color-text)' }}>{writingData.sampleCount ?? '–'}</strong> samples
+                {' · '}{writingData.copiedCount ?? 0} copied
+                {writingData.generatedAt && <>{' · '}updated {(() => { const d = writingData.generatedAt?.toDate?.() ?? new Date(writingData.generatedAt); const ms = Date.now() - d.getTime(); const days = Math.floor(ms / 86400000); if (days < 1) return 'today'; if (days === 1) return '1d ago'; if (days < 7) return `${days}d ago`; return `${Math.floor(days / 7)}w ago`; })()}</>}
+              </Typography>
+            )}
+
             {/* DoB missing chip — age now shown in header (PEP-243) */}
             {!ageString && (
               <Box
@@ -1037,15 +1071,9 @@ function StudentDashboard({ student, onOpenTimeline, onOpenFeedback, onOpenChat,
             )}
           </Stack>
 
-          {/* ── Note count ── */}
-          {activeTab !== 'plan' && <Typography sx={{ fontSize: '0.78rem', color: 'var(--color-text-soft)', flexShrink: 0, py: 0.25 }}>
-            {activeTab === 'weekly' ? (
-              <><strong style={{ fontWeight: 700, color: 'var(--color-text)' }}>{Number.isFinite(cardNoteCount) ? cardNoteCount : '-'}</strong> notes over last <strong style={{ fontWeight: 700, color: 'var(--color-text)' }}>{cardWindowDays}</strong> days</>
-            ) : (
-              Number.isFinite(writingData?.sampleCount)
-                ? <><strong style={{ fontWeight: 700, color: 'var(--color-text)' }}>{writingData.sampleCount}</strong> writing samples analyzed</>
-                : <>Writing analysis</>
-            )}
+          {/* ── Note count (weekly tab only — writing tab has its own meta line inside WritingAnalysisTab) ── */}
+          {activeTab === 'weekly' && <Typography sx={{ fontSize: '0.78rem', color: 'var(--color-text-soft)', flexShrink: 0, py: 0.25 }}>
+            <><strong style={{ fontWeight: 700, color: 'var(--color-text)' }}>{Number.isFinite(cardNoteCount) ? cardNoteCount : '-'}</strong> notes over last <strong style={{ fontWeight: 700, color: 'var(--color-text)' }}>{cardWindowDays}</strong> days</>
           </Typography>}
 
           {/* ── Tab content — scrollable ── */}
@@ -1079,42 +1107,8 @@ function StudentDashboard({ student, onOpenTimeline, onOpenFeedback, onOpenChat,
                   <SnapshotBody cardLoading={true} />
                 ) : writingError ? (
                   <SnapshotBody cardError={writingError} onOpenFeedback={onOpenFeedback} feedbackMessage="Writing analysis failed to load" />
-                ) : (!writingData || writingData.status === 'skipped') ? (
-                  <Box sx={{
-                    display: 'flex',
-                    flexDirection: 'column',
-                    alignItems: 'center',
-                    justifyContent: 'center',
-                    gap: 1.5,
-                    minHeight: 'calc(100% - 48px)',
-                    textAlign: 'center',
-                  }}>
-                    <Box sx={{
-                      width: 56, height: 56,
-                      borderRadius: 4,
-                      background: 'linear-gradient(135deg, var(--color-violet-bg) 0%, rgba(79, 70, 229, 0.08) 100%)',
-                      border: '1px solid var(--color-violet-soft, rgba(124, 58, 237, 0.2))',
-                      display: 'flex', alignItems: 'center', justifyContent: 'center',
-                      color: 'var(--color-violet)',
-                    }}>
-                      <Pencil size={26} />
-                    </Box>
-                    <Typography sx={{ fontSize: '0.95rem', fontWeight: 700, color: 'var(--color-text)' }}>
-                      Writing Snapshot
-                    </Typography>
-                    <Typography sx={{ fontSize: '0.8rem', color: 'var(--color-text-soft)', maxWidth: 240, lineHeight: 1.5 }}>
-                      No writing analysis available
-                    </Typography>
-                  </Box>
                 ) : (
-                  <Box sx={{ display: 'flex', flexDirection: 'column', gap: 1.5, mt: 1 }}>
-                    <Typography
-                      variant="body2"
-                      sx={{ color: 'var(--grey-700)', whiteSpace: 'pre-line' }}
-                    >
-                      {writingData.narrative}
-                    </Typography>
-                  </Box>
+                  <WritingAnalysisTab writingData={writingData} hwCount={writingHwCount} totalMediaCount={writingTotalMediaCount} />
                 )
               )}
             </Box>
