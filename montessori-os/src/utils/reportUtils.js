@@ -14,11 +14,11 @@ export function getDefaultReportDateRange(now = new Date()) {
 
 /**
  * Returns the default date range for baseline report generation.
- * Trailing 45 days from today.
+ * Trailing 40 days from today.
  */
 export function getDefaultMonthlyDateRange(now = new Date()) {
   const start = new Date(now);
-  start.setDate(start.getDate() - 45); // trailing 45 days
+  start.setDate(start.getDate() - 40); // trailing 40 days
   return { start, end: now };
 }
 
@@ -52,7 +52,7 @@ function toDate(value) {
 export function buildReportList(docs) {
   if (!Array.isArray(docs)) return [];
   return docs
-    .filter((d) => d.id && (d.id.startsWith('report_') || d.id.startsWith('baseline_report_')))
+    .filter((d) => d.id && (d.id.startsWith('report_') || d.id.startsWith('baseline_report_')) && !d.id.endsWith('_readiness'))
     .map((d) => ({
       id: d.id,
       generatedAt: toDate(d.generatedAt),
@@ -60,7 +60,7 @@ export function buildReportList(docs) {
       dateRangeEnd: toDate(d.dateRangeEnd),
       noteCount: d.noteCount ?? null,
       reportText: d.reportText || '',
-      reportType: d.reportType === 'monthly' ? 'baseline' : (d.reportType || 'term'),
+      reportType: d.id.startsWith('baseline_report_') ? 'baseline' : (d.reportType || 'term'),
       status: d.status || null,
       missingInputFlags: d.missingInputFlags || [],
       sentimentScore: d.sentimentScore ?? null,

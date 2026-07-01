@@ -458,7 +458,7 @@ export default function ReportsPage({
             <ReadinessIcon size={16} style={{ color: 'var(--color-primary)' }} />
           </Box>
           <Typography variant="subtitle2" sx={{ fontWeight: 700, color: 'var(--color-indigo-deeper)', letterSpacing: '-0.01em' }}>
-            Report Readiness
+            {reportTypeFilter === 'baseline' ? 'Baseline Report Readiness' : reportTypeFilter === 'term' ? 'Term Report Readiness' : 'Report Readiness'}
           </Typography>
         </Stack>
 
