@@ -231,22 +231,25 @@ function ClassroomTimeline({ classroom, currentUser, userRole, manageableClassro
     return `translateX(${baseOffset + dxPercent}%)`;
   };
 
-  // Filter students based on search query (include transferred students so their notes are searchable)
+  // All students (active + transferred) for note-level search matching
   const allSearchableStudents = useMemo(() => {
     const transferred = [...transferredStudents.values()];
     return [...classroomStudents, ...transferred];
   }, [classroomStudents, transferredStudents]);
 
+  // Filtered students for search — includes transferred so their notes are discoverable
   const filteredStudents = useMemo(() => {
     return fuzzySearchStudents(allSearchableStudents, searchQuery);
   }, [allSearchableStudents, searchQuery]);
 
-  // Alphabetically sort filtered students by display name for the Students tab
+  // Students tab card list — exclude transferred students (#151)
   const sortedFilteredStudents = useMemo(() => {
     const getName = (s) => (
       s?.name || s?.displayName || [s?.firstName, s?.lastName].filter(Boolean).join(' ') || ''
     ).trim();
-    return [...filteredStudents].sort((a, b) => getName(a).localeCompare(getName(b), undefined, { sensitivity: 'base' }));
+    return [...filteredStudents]
+      .filter(s => !s.isTransferred)
+      .sort((a, b) => getName(a).localeCompare(getName(b), undefined, { sensitivity: 'base' }));
   }, [filteredStudents]);
 
   // Filter notes based on search query (only show notes from students whose names match)
@@ -627,7 +630,7 @@ function ClassroomTimeline({ classroom, currentUser, userRole, manageableClassro
           {/* Notes Count */}
           <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', mb: 2 }}>
             <Typography variant="subtitle2" sx={{ fontWeight: 600 }}>
-              {filteredObservations.length} item{filteredObservations.length !== 1 ? 's' : ''} among {filteredStudents.length} students
+              {filteredObservations.length} item{filteredObservations.length !== 1 ? 's' : ''} among {searchQuery ? sortedFilteredStudents.length : (classroom.studentCount || 0)} students
             </Typography>
           </Box>
 
@@ -677,7 +680,7 @@ function ClassroomTimeline({ classroom, currentUser, userRole, manageableClassro
           {/* Students Count */}
           <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', mb: 2 }}>
             <Typography variant="subtitle2" sx={{ fontWeight: 600 }}>
-              {sortedFilteredStudents.length} students in {classroom.name}
+              {classroom.studentCount || 0} students in {classroom.name}
             </Typography>
           </Box>
 
