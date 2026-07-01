@@ -1,7 +1,7 @@
 # Pep OS Overview
 
-Generated: 2026-06-28T23:07:13.496Z
-App version: 11.1.0
+Generated: 2026-07-01T01:40:27.391Z
+App version: 11.1.1
 
 ## App Snapshot
 
@@ -149,23 +149,23 @@ App version: 11.1.0
 
 ## Recent Changes
 
+### 11.1.1 (2026-06-30)
+- Student count on classroom timeline now uses authoritative `classroom.studentCount` instead of computing from loaded student list, which included transferred students (#151)
+- Transferred students excluded from Students tab card list in classroom timeline (#151)
+- Notes tab search count now correctly includes transferred students whose notes match the query (#151)
+
 ### 11.1.0 (2026-06-28)
 - Student negligence section in classroom digest — agent identifies under-observed students from trailing 14-day note window (#133)
 - Handwriting highlights section in classroom digest — surfaces notable writing analysis trends (declining scores, improvements) with full doc behind tool call (#133)
 - Program-based executive digest — CF2 output restructured to one card per program (Toddler, Primary, Elementary, Adolescent) with per-program critical/patterns/bright sections (#133)
 
+### 11.0.5 (2026-06-27)
+- Rebuilt classroom & student timeline data fetching with shared `useTimelineData` hook — fixes teacher role permission errors, cursor corruption, and pagination gaps (#128)
+- Teacher collectionGroup security rules optimized to 1 `get()` call instead of 2, using `resource.data.classroomId` directly
+- Scoped classroomadmin ai_summaries collectionGroup rule to only allow access to managed classrooms
+
 ### 11.0.4 (2026-06-26)
 - Program selector (toddler/primary/elementary/adolescent) in Report Generation workbench — program-first flow loads config without selecting a student (#136)
 - Session persistence via sessionStorage — saves variant state across in-app navigation, with resume prompt on return
 - Back-navigation guard for all 6 test bench workbenches — confirms before discarding unsaved work when clicking the back arrow
-
-### 11.0.3 (2026-06-25)
-- Monthly checklist export now uses a proper Google Docs table layout instead of fake right-margin columns, preventing content overflow to a second page (PEP-301)
-- Dynamic sizing ladder pre-calculates content height and adjusts column ratio, section spacing, and font size to guarantee single-page output
-- Table cell padding now included in height estimation for accurate overflow detection
-
-### 11.0.2 (2026-06-25)
-- Classroom timeline now uses a single classroomId query instead of per-student batched queries, fixing grouped lesson notes showing incorrect student counts (PEP-333)
-- Real-time listener moved from students collection to observations query, providing instant updates when notes are added
-- Notes from transferred students now display a "Transferred to {classroom}" chip in card and expanded views
 
