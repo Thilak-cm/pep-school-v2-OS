@@ -350,7 +350,7 @@ function StudentDashboard({ student, onOpenTimeline, onOpenFeedback, onOpenChat,
   // Fetch media counts for writing empty states (only when writing tab active and no data)
   useEffect(() => {
     if (activeTab !== 'writing' || !studentId || writingLoading) return;
-    if (writingData && writingData.status !== 'skipped') return; // have data, skip
+    if (writingData && writingData.status !== 'skipped') { setWritingMediaLoading(false); return; } // have data, skip
     let active = true;
     setWritingMediaLoading(true);
     const fetchMediaCounts = async () => {
