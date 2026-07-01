@@ -55,7 +55,7 @@ function EmptyNoPhotos() {
 
 function EmptyBelowThreshold({ hwCount, totalMediaCount }) {
   const needed = MIN_SAMPLES - hwCount;
-  const otherCount = totalMediaCount - hwCount;
+
   const progress = (hwCount / MIN_SAMPLES) * 100;
   const hasAnyHw = hwCount > 0;
 
