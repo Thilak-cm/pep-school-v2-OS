@@ -1,5 +1,13 @@
 # Changelog
 
+# 11.1.1 — 2026-06-30
+
+### Fixed
+- Student count on classroom timeline now uses authoritative `classroom.studentCount` instead of computing from loaded student list, which included transferred students (#151)
+- Transferred students excluded from Students tab card list in classroom timeline (#151)
+- Notes tab search count now correctly includes transferred students whose notes match the query (#151)
+- ClassroomList student count aligned to use `classroom.studentCount` for consistency with classroom timeline (#151)
+
 # 11.1.0 — 2026-06-28
 
 ### Added

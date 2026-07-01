@@ -630,7 +630,7 @@ function ClassroomTimeline({ classroom, currentUser, userRole, manageableClassro
           {/* Notes Count */}
           <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', mb: 2 }}>
             <Typography variant="subtitle2" sx={{ fontWeight: 600 }}>
-              {filteredObservations.length} item{filteredObservations.length !== 1 ? 's' : ''} among {searchQuery ? sortedFilteredStudents.length : (classroom.studentCount || 0)} students
+              {filteredObservations.length} item{filteredObservations.length !== 1 ? 's' : ''} among {searchQuery ? filteredStudents.length : (classroom.studentCount || 0)} students
             </Typography>
           </Box>
 

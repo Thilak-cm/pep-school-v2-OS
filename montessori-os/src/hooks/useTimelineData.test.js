@@ -291,10 +291,10 @@ describe('ClassroomTimeline student count display (#151)', () => {
       !timelineSource.includes('sortedFilteredStudents.length} students'),
       'should NOT use sortedFilteredStudents.length as the student count label'
     );
-    // Notes tab "among N students" should also not use filteredStudents.length directly
+    // Notes tab search branch should use filteredStudents (includes transferred) not sortedFilteredStudents
     assert.ok(
-      !timelineSource.includes('filteredStudents.length} students'),
-      'Notes tab should NOT use filteredStudents.length as student count (includes transferred)'
+      timelineSource.includes('filteredStudents.length'),
+      'Notes tab search branch should use filteredStudents.length (includes transferred students in count)'
     );
   });
 
