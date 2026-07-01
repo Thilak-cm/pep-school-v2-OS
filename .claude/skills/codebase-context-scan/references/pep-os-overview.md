@@ -1,7 +1,7 @@
 # Pep OS Overview
 
-Generated: 2026-07-01T03:10:00.283Z
-App version: 11.3.0
+Generated: 2026-07-01T07:49:14.782Z
+App version: 11.3.1
 
 ## App Snapshot
 
@@ -149,6 +149,11 @@ App version: 11.3.0
 
 ## Recent Changes
 
+### 11.3.1 (2026-07-01)
+- Monthly plan batch generation refactored from single-CF inline processing to Pub/Sub fan-out — dispatcher publishes one message per eligible student, worker processes one student per invocation with 5-instance concurrency cap (#167)
+- Dispatcher skips students whose plan already matches the target month, reducing redundant work (#167)
+- Worker includes idempotency guard and permanent-error handling to prevent infinite Pub/Sub retries (#167)
+
 ### 11.3.0 (2026-06-30)
 - Rich writing analysis tab on student dashboard — dimension ratings grid, sorted recommendations with expand/collapse, confidence chip with popover, and three context-aware empty states (#137)
 - Classroom name shown as subtitle in app header on student screens, with fallback resolution from classrooms list (#137)
@@ -163,9 +168,4 @@ App version: 11.3.0
 - Student count on classroom timeline now uses authoritative `classroom.studentCount` instead of computing from loaded student list, which included transferred students (#151)
 - Transferred students excluded from Students tab card list in classroom timeline (#151)
 - Notes tab search count now correctly includes transferred students whose notes match the query (#151)
-
-### 11.1.0 (2026-06-28)
-- Student negligence section in classroom digest — agent identifies under-observed students from trailing 14-day note window (#133)
-- Handwriting highlights section in classroom digest — surfaces notable writing analysis trends (declining scores, improvements) with full doc behind tool call (#133)
-- Program-based executive digest — CF2 output restructured to one card per program (Toddler, Primary, Elementary, Adolescent) with per-program critical/patterns/bright sections (#133)
 
