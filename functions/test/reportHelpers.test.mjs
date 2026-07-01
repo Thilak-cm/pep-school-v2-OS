@@ -17,30 +17,30 @@ import {
 } from "../config/reportConstants.js";
 
 describe("getDefaultDateRange", () => {
-  it("returns Nov 1 of previous year when current month is before Nov", () => {
+  it("returns June 1 of previous year when current month is before June", () => {
     // Simulate March 2026
     const now = new Date(2026, 2, 15); // March 15, 2026
     const { start, end } = getDefaultDateRange(now);
     assert.equal(start.getFullYear(), 2025);
-    assert.equal(start.getMonth(), 10); // November (0-indexed)
+    assert.equal(start.getMonth(), 5); // June (0-indexed)
     assert.equal(start.getDate(), 1);
     assert.equal(end.getTime(), now.getTime());
   });
 
-  it("returns Nov 1 of current year when current month is Nov or later", () => {
+  it("returns June 1 of current year when current month is June or later", () => {
     // Simulate December 2026
     const now = new Date(2026, 11, 10); // Dec 10, 2026
     const { start } = getDefaultDateRange(now);
     assert.equal(start.getFullYear(), 2026);
-    assert.equal(start.getMonth(), 10); // November
+    assert.equal(start.getMonth(), 5); // June
     assert.equal(start.getDate(), 1);
   });
 
-  it("returns Nov 1 of current year when current month is exactly Nov", () => {
-    const now = new Date(2026, 10, 20); // Nov 20, 2026
+  it("returns June 1 of current year when current month is exactly June", () => {
+    const now = new Date(2026, 5, 20); // June 20, 2026
     const { start } = getDefaultDateRange(now);
     assert.equal(start.getFullYear(), 2026);
-    assert.equal(start.getMonth(), 10);
+    assert.equal(start.getMonth(), 5);
   });
 
   it("end date equals the provided now date", () => {

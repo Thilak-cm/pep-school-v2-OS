@@ -144,7 +144,7 @@ function renderScreen(screen, ctx) {
       return (
         <ReportTypeLandingPage
           onSelectType={(type) => {
-            ctx.setReportTypeFilter(type === 'baseline' ? 'monthly' : 'term');
+            ctx.setReportTypeFilter(type);
             ctx.setScreen("studentReports");
           }}
           studentLabel={ctx.getStudentDisplayName(ctx.selectedStudent)}

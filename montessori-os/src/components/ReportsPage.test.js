@@ -155,11 +155,11 @@ test('ReportsPage includes reportDocId in the report_export payload', async () =
 
 // --- PEP-68: Report readiness checker tests ---
 
-test('ReportsPage fetches report_readiness doc from ai_summaries', async () => {
+test('ReportsPage fetches per-type readiness doc from ai_summaries', async () => {
   const source = await readFile(sourceUrl, 'utf8');
   assert.ok(
-    /report_readiness/.test(source),
-    'Expected ReportsPage to reference report_readiness doc ID',
+    /term_report_readiness/.test(source) && /baseline_report_readiness/.test(source),
+    'Expected ReportsPage to reference per-type readiness doc IDs',
   );
 });
 
@@ -337,5 +337,39 @@ test('ScreenRenderer renders ReportTypeLandingPage for studentReportTypes screen
   assert.ok(
     /studentReportTypes/.test(source),
     'Expected ScreenRenderer to have a studentReportTypes case',
+  );
+});
+
+// --- #152: Report eval scores + chip label tests ---
+
+test('ReportsPage has getEvalScores normalizer for term and baseline score access', async () => {
+  const source = await readFile(sourceUrl, 'utf8');
+  assert.ok(
+    /getEvalScores/.test(source),
+    'Expected ReportsPage to define getEvalScores normalizer helper',
+  );
+  assert.ok(
+    /reportEval/.test(source),
+    'Expected getEvalScores to check report.reportEval for baseline scores',
+  );
+});
+
+test('ReportsPage shows Baseline label for baseline reportType', async () => {
+  const source = await readFile(sourceUrl, 'utf8');
+  assert.ok(
+    /Baseline/.test(source),
+    'Expected ReportsPage to display "Baseline" label for monthly report type',
+  );
+  assert.ok(
+    !/label=.*'Monthly'/.test(source),
+    'Expected ReportsPage to NOT show "Monthly" as a chip label',
+  );
+});
+
+test('ReportsPage passes reportType to checkReportReadiness CF call', async () => {
+  const source = await readFile(sourceUrl, 'utf8');
+  assert.ok(
+    /reportType.*reportTypeFilter/.test(source) || /reportTypeFilter.*reportType/.test(source),
+    'Expected checkReportReadiness call to include reportType from reportTypeFilter',
   );
 });

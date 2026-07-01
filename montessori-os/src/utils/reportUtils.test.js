@@ -303,12 +303,12 @@ describe('buildReportList', () => {
 
   it('normalizes reportType field from doc', () => {
     const docs = [
-      { id: 'report_1', generatedAt: new Date('2026-06-01'), reportText: 'Monthly', reportType: 'monthly' },
+      { id: 'report_1', generatedAt: new Date('2026-06-01'), reportText: 'Baseline', reportType: 'baseline' },
       { id: 'report_2', generatedAt: new Date('2026-06-02'), reportText: 'Term', reportType: 'term' },
     ];
     const result = buildReportList(docs);
     assert.equal(result[0].reportType, 'term');
-    assert.equal(result[1].reportType, 'monthly');
+    assert.equal(result[1].reportType, 'baseline');
   });
 
   it('defaults reportType to "term" when missing', () => {
@@ -317,5 +317,22 @@ describe('buildReportList', () => {
     ];
     const result = buildReportList(docs);
     assert.equal(result[0].reportType, 'term');
+  });
+
+  it('preserves reportEval nested field from Firestore doc', () => {
+    const evalData = { sentimentScore: 4, areaBalanceScore: 3, missingInputFlags: ['Limited peer observations'] };
+    const docs = [
+      { id: 'report_baseline1', generatedAt: new Date('2026-06-15'), reportText: 'Baseline...', reportType: 'baseline', reportEval: evalData },
+    ];
+    const result = buildReportList(docs);
+    assert.deepEqual(result[0].reportEval, evalData);
+  });
+
+  it('sets reportEval to null when not present', () => {
+    const docs = [
+      { id: 'report_term1', generatedAt: new Date('2026-03-15'), reportText: 'Term...', reportType: 'term' },
+    ];
+    const result = buildReportList(docs);
+    assert.equal(result[0].reportEval, null);
   });
 });

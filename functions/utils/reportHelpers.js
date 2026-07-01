@@ -1,15 +1,15 @@
-import { REPORT_PROMPT_DOCS, BASELINE_REPORT_PROMPT_DOCS, BASELINE_JUDGE_PROMPT_DOCS, REPORT_DEFAULTS, READINESS_PROMPT_DOCS } from "../config/reportConstants.js";
+import { AY_START_MONTH, REPORT_PROMPT_DOCS, BASELINE_REPORT_PROMPT_DOCS, BASELINE_JUDGE_PROMPT_DOCS, REPORT_DEFAULTS, READINESS_PROMPT_DOCS } from "../config/reportConstants.js";
 
 /**
  * Returns the default date range for report generation.
- * Academic year starts Nov 1, so:
- * - If current month is Nov or later → start = Nov 1 of current year
- * - If current month is before Nov  → start = Nov 1 of previous year
+ * Academic year starts June 1, so:
+ * - If current month is June or later → start = June 1 of current year
+ * - If current month is before June  → start = June 1 of previous year
  * End is always "now".
  */
 export function getDefaultDateRange(now = new Date()) {
-  const year = now.getMonth() >= 10 ? now.getFullYear() : now.getFullYear() - 1;
-  const start = new Date(year, 10, 1); // Nov 1
+  const year = now.getMonth() >= AY_START_MONTH ? now.getFullYear() : now.getFullYear() - 1;
+  const start = new Date(year, AY_START_MONTH, 1);
   return { start, end: now };
 }
 
@@ -68,12 +68,12 @@ export function parseReadinessResponse(rawContent) {
 /**
  * Get the Firestore document ID for a program's report prompt.
  * @param {string} programId - Program identifier (e.g. "primary", "elementary")
- * @param {string} [reportType="term"] - "term" or "monthly"
+ * @param {string} [reportType="term"] - "term" or "baseline"
  * Returns null if the program is not supported.
  */
 export function getReportPromptDocId(programId, reportType) {
   if (!programId || typeof programId !== "string") return null;
-  if (reportType === "monthly") {
+  if (reportType === "baseline") {
     return BASELINE_REPORT_PROMPT_DOCS[programId] || null;
   }
   return REPORT_PROMPT_DOCS[programId] || null;

@@ -51,7 +51,7 @@ function toDate(value) {
 export function buildReportList(docs) {
   if (!Array.isArray(docs)) return [];
   return docs
-    .filter((d) => d.id && d.id.startsWith('report_'))
+    .filter((d) => d.id && (d.id.startsWith('report_') || d.id.startsWith('baseline_report_')))
     .map((d) => ({
       id: d.id,
       generatedAt: toDate(d.generatedAt),
@@ -64,6 +64,7 @@ export function buildReportList(docs) {
       missingInputFlags: d.missingInputFlags || [],
       sentimentScore: d.sentimentScore ?? null,
       areaBalanceScore: d.areaBalanceScore ?? null,
+      reportEval: d.reportEval || null,
       generatedBy: d.generatedBy || '',
       generatedByName: d.generatedByName || null,
       driveDocLink: d.driveDocLink || null,

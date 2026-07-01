@@ -1,14 +1,14 @@
 // Shared defaults for the parent report generation feature
 import { FRONTIER_MODEL, MINI_MODEL } from "./modelConstants.js";
 
+// Academic year starts on this month (0-indexed). Single source of truth.
+export const AY_START_MONTH = 5; // June
+
 export const REPORT_DEFAULTS = {
   model: FRONTIER_MODEL,
   temperature: 0.7,
   max_tokens: 4096,
   timezone: "Asia/Kolkata",
-  // Default date range: Nov 1 of previous academic year → today
-  defaultStartMonth: 10, // 0-indexed: November
-  defaultStartDay: 1,
 };
 
 // Supported programs and their Firestore prompt doc IDs
@@ -42,7 +42,19 @@ export const JUDGE_DEFAULTS = {
 };
 
 // Report readiness checker (PEP-68)
-export const READINESS_DOC_ID = "report_readiness";
+// Fan-out: each report type gets its own readiness doc (#152)
+const READINESS_DOC_IDS = {
+  term: "term_report_readiness",
+  baseline: "baseline_report_readiness",
+};
+
+/**
+ * Get the Firestore doc ID for a report type's readiness scores.
+ * @param {string} [reportType="term"] - "term" or "baseline"
+ */
+export function getReadinessDocId(reportType) {
+  return READINESS_DOC_IDS[reportType] || READINESS_DOC_IDS.term;
+}
 
 export const READINESS_PROMPT_DOCS = {
   adolescent: "readiness_adolescent",
@@ -78,21 +90,21 @@ export function buildArchiveCsvFilename(classroomName) {
 }
 
 /**
- * Build the classroom-specific monthly baseline report CSV filename.
- * Format: "{Classroom Name} | {Month Year} | Monthly Baseline Report Summary.csv"
+ * Build the classroom-specific baseline report CSV filename.
+ * Format: "{Classroom Name} | {Month Year} | Baseline Report Summary.csv"
  */
-export function buildMonthlyBaselineCsvFilename(classroomName, now = new Date()) {
+export function buildBaselineCsvFilename(classroomName, now = new Date()) {
   const monthYear = now.toLocaleDateString("en-US", { month: "long", year: "numeric" });
-  return `${classroomName} | ${monthYear} | Monthly Baseline Report Summary.csv`;
+  return `${classroomName} | ${monthYear} | Baseline Report Summary.csv`;
 }
 
 /**
- * Build the classroom-specific monthly baseline archive CSV filename.
- * Format: "{Classroom Name} | {Month Year} | Monthly Baseline Report Summary Archive.csv"
+ * Build the classroom-specific baseline archive CSV filename.
+ * Format: "{Classroom Name} | {Month Year} | Baseline Report Summary Archive.csv"
  */
-export function buildMonthlyBaselineArchiveCsvFilename(classroomName, now = new Date()) {
+export function buildBaselineArchiveCsvFilename(classroomName, now = new Date()) {
   const monthYear = now.toLocaleDateString("en-US", { month: "long", year: "numeric" });
-  return `${classroomName} | ${monthYear} | Monthly Baseline Report Summary Archive.csv`;
+  return `${classroomName} | ${monthYear} | Baseline Report Summary Archive.csv`;
 }
 
 // Google Drive export constants

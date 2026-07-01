@@ -15,7 +15,7 @@ import { getDefaultReportDateRange, getDefaultMonthlyDateRange, toIsoDate } from
 
 const REPORT_TYPE_LABELS = {
   term: 'term report',
-  monthly: 'baseline report',
+  baseline: 'baseline report',
 };
 
 export default function ReportGenerateDialog({
@@ -29,7 +29,7 @@ export default function ReportGenerateDialog({
   const reportType = initialReportType;
 
   const defaults = useMemo(() => {
-    const { start, end } = reportType === 'monthly' ? getDefaultMonthlyDateRange() : getDefaultReportDateRange();
+    const { start, end } = reportType === 'baseline' ? getDefaultMonthlyDateRange() : getDefaultReportDateRange();
     return { start: toIsoDate(start), end: toIsoDate(end) };
   }, [reportType]);
 

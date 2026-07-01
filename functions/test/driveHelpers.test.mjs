@@ -97,10 +97,10 @@ describe("buildReportDocTitle", () => {
     );
   });
 
-  it("uses Monthly Baseline Report label when reportType is monthly", () => {
+  it("uses Baseline Report label when reportType is baseline", () => {
     assert.equal(
-      buildReportDocTitle("Ava", "2026-06-01T10:00:00.000Z", "monthly"),
-      "Ava | Monthly Baseline Report | June 2026",
+      buildReportDocTitle("Ava", "2026-06-01T10:00:00.000Z", "baseline"),
+      "Ava | Baseline Report | June 2026",
     );
   });
 
@@ -122,23 +122,23 @@ describe("buildReportDocTitle", () => {
 // --- deriveAcademicYear ---
 
 describe("deriveAcademicYear", () => {
-  it("returns 2025-26 for a November 2025 start date", () => {
-    assert.equal(deriveAcademicYear(new Date("2025-11-01")), "2025-26");
+  it("returns 2026-27 for a June 2026 date (AY starts June)", () => {
+    assert.equal(deriveAcademicYear(new Date("2026-06-01")), "2026-27");
   });
 
-  it("returns 2025-26 for a March 2026 start date (before November)", () => {
+  it("returns 2025-26 for a March 2026 date (before June)", () => {
     assert.equal(deriveAcademicYear(new Date("2026-03-15")), "2025-26");
   });
 
-  it("returns 2025-26 for an October 2026 start date (still before November)", () => {
-    assert.equal(deriveAcademicYear(new Date("2026-10-31")), "2025-26");
+  it("returns 2025-26 for a May 2026 date (still before June)", () => {
+    assert.equal(deriveAcademicYear(new Date("2026-05-31")), "2025-26");
   });
 
-  it("returns 2026-27 for a November 2026 start date", () => {
+  it("returns 2026-27 for a November 2026 date (well into AY)", () => {
     assert.equal(deriveAcademicYear(new Date("2026-11-01")), "2026-27");
   });
 
-  it("returns 2025-26 for a December 2025 start date", () => {
+  it("returns 2025-26 for a December 2025 date", () => {
     assert.equal(deriveAcademicYear(new Date("2025-12-15")), "2025-26");
   });
 
@@ -150,7 +150,7 @@ describe("deriveAcademicYear", () => {
     const now = new Date();
     const month = now.getUTCMonth();
     const year = now.getUTCFullYear();
-    const expectedStart = month >= 10 ? year : year - 1;
+    const expectedStart = month >= 5 ? year : year - 1;
     assert.equal(
       deriveAcademicYear(null),
       `${expectedStart}-${String(expectedStart + 1).slice(-2)}`,
@@ -187,8 +187,10 @@ describe("buildDocInsertRequests formatting", () => {
   const baseOpts = {
     studentName: "Aakash Mehta",
     programName: "Adolescent",
+    classroomName: "Gulmohar",
     academicYear: "2025-26",
     startDate: new Date("2025-11-01T00:00:00.000Z"),
+    endDate: new Date("2026-03-31T00:00:00.000Z"),
     logoUrl: "https://example.com/logo.webp",
   };
 
@@ -256,10 +258,10 @@ describe("buildDocInsertRequests formatting", () => {
     assert.equal(style.fontSize.magnitude, DOC_STYLE.nameFontSize);
   });
 
-  // AC3: Metadata line — pink/magenta with date range and academic year
-  it("inserts metadata line with date range at pipe 3 and AY at pipe 4", () => {
+  // AC3: Metadata line — pink/magenta with program, classroom, date range, and AY
+  it("inserts metadata line with classroom, date range, and AY", () => {
     const requests = buildDocInsertRequests(sampleMarkdown, baseOpts);
-    const metaText = "Adolescent | Educator Summary | 01/11/2025 to date | AY 2025-26";
+    const metaText = "Adolescent | Gulmohar | 01/11/2025 to 31/03/2026 | AY 2025-26";
     const styleReq = findTextStyleForText(requests, metaText);
     assert.ok(styleReq, "should have a text style for metadata line");
     const style = styleReq.updateTextStyle.textStyle;
@@ -270,7 +272,7 @@ describe("buildDocInsertRequests formatting", () => {
   it("omits date range from metadata when startDate is not provided", () => {
     const opts = { ...baseOpts, startDate: undefined };
     const requests = buildDocInsertRequests(sampleMarkdown, opts);
-    const metaText = "Adolescent | Educator Summary | AY 2025-26";
+    const metaText = "Adolescent | Gulmohar | AY 2025-26";
     const styleReq = findTextStyleForText(requests, metaText);
     assert.ok(styleReq, "should fallback to metadata line without date range");
   });
