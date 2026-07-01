@@ -1,5 +1,30 @@
 # Changelog
 
+# 11.2.0 — 2026-06-30
+
+### Added
+- Baseline report generation pipeline — independent judge scores reports at export time, persists `reportEval` with sentiment, area balance, and missing input flags (#152)
+- Report type landing page — students now have a type selector (Term, Baseline, Monthly coming soon) before entering the report list (#152)
+- Langfuse tracing on report generation and export+judge flows with per-trace score logging (#152)
+- Readiness doc fan-out — each report type (`term`, `baseline`) gets its own readiness doc for independent scoring (#152)
+- Baseline report seed script for Firestore prompt configs (`scripts/admin/seed-baseline-prompts.js`) (#152)
+- Migration script for `report_readiness` → `term_report_readiness` (`scripts/admin/migrate-readiness-docs.mjs`) (#152)
+
+### Changed
+- LLM calls migrated from OpenAI to OpenRouter across all report Cloud Functions (#152)
+- Academic year boundary changed from November to June (`AY_START_MONTH = 5`) (#152)
+- Drive doc header now shows `{Program} | {Classroom} | {startDate} to {endDate} | AY {YYYY-YY}` — no report label, actual end date (#152)
+- Baseline reports gated behind superadmin for soft launch (#152)
+- `monthly` renamed to `baseline` across CFs, frontend, and testbench (#152)
+
+### Fixed
+- Report preview dialog and classroom timeline now show correct "Baseline Report" label instead of generic fallback (#152)
+- Sync export timeout raised to 240s to match CF server timeout with judge pipeline (#152)
+- Deep-link to baseline reports now sets correct report type filter (#152)
+- Delete report now removes baseline CSV row (not just term CSV) (#152)
+- Baseline date range defaults to June 1 of current academic year instead of future date (#152)
+- Legacy `reportType: "monthly"` Firestore docs normalized to `"baseline"` at read time (#152)
+
 # 11.1.0 — 2026-06-28
 
 ### Added
