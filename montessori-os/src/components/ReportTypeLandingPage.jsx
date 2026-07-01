@@ -48,7 +48,7 @@ const REPORT_TYPES = [
   },
 ];
 
-export default function ReportTypeLandingPage({ onSelectType, studentLabel = 'Student', isSuperAdmin = false }) {
+export default function ReportTypeLandingPage({ onSelectType, studentLabel = 'Student' }) {
   return (
     <Box sx={{ px: 2, py: 2, maxWidth: 480, mx: 'auto' }}>
       <Typography
@@ -67,7 +67,7 @@ export default function ReportTypeLandingPage({ onSelectType, studentLabel = 'St
       <Stack spacing={1.5}>
         {REPORT_TYPES.map((type) => {
           const Icon = type.icon;
-          const enabled = type.key === 'baseline' ? isSuperAdmin : type.enabled;
+          const enabled = type.enabled;
           return (
             <Card
               key={type.key}
