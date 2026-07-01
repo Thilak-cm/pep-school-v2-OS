@@ -1,4 +1,4 @@
-import { useCallback, useRef, useState } from 'react';
+import { useCallback, useEffect, useRef, useState } from 'react';
 import Box from '@mui/material/Box';
 import Typography from '@mui/material/Typography';
 import Chip from '@mui/material/Chip';
@@ -110,11 +110,18 @@ function PlanItem({ item, index, isExpanded, isLast, currentTint, sectionMeta, o
     }
   }, []);
 
-  // Re-measure when expanded changes (content might differ)
-  if (contentRef.current && isExpanded) {
-    const h = contentRef.current.scrollHeight;
-    if (h !== measuredHeight) setMeasuredHeight(h);
-  }
+  // Re-measure after expanding so late-rendered content is captured
+  useEffect(() => {
+    if (isExpanded && contentRef.current) {
+      // RAF lets the browser finish layout before we read scrollHeight
+      const id = requestAnimationFrame(() => {
+        if (contentRef.current) {
+          setMeasuredHeight(contentRef.current.scrollHeight);
+        }
+      });
+      return () => cancelAnimationFrame(id);
+    }
+  }, [isExpanded]);
 
   return (
     <Box
@@ -171,7 +178,7 @@ function PlanItem({ item, index, isExpanded, isLast, currentTint, sectionMeta, o
         overflow: 'hidden',
         transition: 'height 280ms ease, opacity 250ms ease 80ms',
       }}>
-        <Box ref={measureRef} sx={{ mt: 1 }}>
+        <Box ref={measureRef} sx={{ mt: 1, pb: 1.5 }}>
           <DetailBlock label="NEXT" value={item.next} />
           <DetailBlock label="WATCH FOR" value={item.watch} />
           {item.hook && (
