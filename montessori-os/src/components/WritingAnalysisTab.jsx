@@ -1,4 +1,4 @@
-import { useCallback, useRef, useState } from 'react';
+import { useCallback, useEffect, useRef, useState } from 'react';
 import Box from '@mui/material/Box';
 import Typography from '@mui/material/Typography';
 import Chip from '@mui/material/Chip';
@@ -140,10 +140,14 @@ function RecommendationRow({ rec, isExpanded, onToggle, isLast }) {
     if (node) setMeasuredHeight(node.scrollHeight);
   }, []);
 
-  if (contentRef.current && isExpanded) {
-    const h = contentRef.current.scrollHeight;
-    if (h !== measuredHeight) setMeasuredHeight(h);
-  }
+  // Re-measure when expanded (must be in useEffect, not render phase)
+  useEffect(() => {
+    if (isExpanded && contentRef.current) {
+      const h = contentRef.current.scrollHeight;
+      if (h !== measuredHeight) setMeasuredHeight(h);
+    }
+  // eslint-disable-next-line react-hooks/exhaustive-deps -- measuredHeight intentionally omitted to avoid re-measure loop
+  }, [isExpanded]);
 
   return (
     <Box

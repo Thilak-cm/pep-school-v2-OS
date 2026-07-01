@@ -82,6 +82,7 @@ function StudentDashboard({ student, onOpenTimeline, onOpenFeedback, onOpenChat,
   const [writingError, setWritingError] = useState('');
   const [writingHwCount, setWritingHwCount] = useState(null);
   const [writingTotalMediaCount, setWritingTotalMediaCount] = useState(null);
+  const [writingMediaLoading, setWritingMediaLoading] = useState(false);
   const [planData, setPlanData] = useState(null);
   const [planLoading, setPlanLoading] = useState(false);
   const [planError, setPlanError] = useState('');
@@ -351,6 +352,7 @@ function StudentDashboard({ student, onOpenTimeline, onOpenFeedback, onOpenChat,
     if (activeTab !== 'writing' || !studentId || writingLoading) return;
     if (writingData && writingData.status !== 'skipped') return; // have data, skip
     let active = true;
+    setWritingMediaLoading(true);
     const fetchMediaCounts = async () => {
       try {
         const mediaRef = collection(db, 'students', studentId, 'media');
@@ -362,6 +364,8 @@ function StudentDashboard({ student, onOpenTimeline, onOpenFeedback, onOpenChat,
         setWritingHwCount(hw);
       } catch {
         if (active) { setWritingTotalMediaCount(0); setWritingHwCount(0); }
+      } finally {
+        if (active) setWritingMediaLoading(false);
       }
     };
     fetchMediaCounts();
@@ -1049,28 +1053,34 @@ function StudentDashboard({ student, onOpenTimeline, onOpenFeedback, onOpenChat,
             )}
 
             {/* Confidence chip — writing tab only */}
-            {activeTab === 'writing' && writingData?.confidence && (
-              <Tooltip title={`Confidence: ${writingData.confidence.level}`} arrow>
-                <Box
-                  component="button"
-                  onClick={(e) => setConfidenceAnchorEl(e.currentTarget)}
-                  sx={{
-                    ...CHIP_BASE,
-                    width: 28,
-                    borderColor: writingData.confidence.level === 'high' ? 'rgba(22, 163, 74, 0.25)' : writingData.confidence.level === 'medium' ? 'rgba(217, 119, 6, 0.25)' : 'rgba(220, 38, 38, 0.25)',
-                    backgroundColor: writingData.confidence.level === 'high' ? 'rgba(22, 163, 74, 0.06)' : writingData.confidence.level === 'medium' ? 'rgba(217, 119, 6, 0.06)' : 'rgba(220, 38, 38, 0.06)',
-                    color: writingData.confidence.level === 'high' ? '#16a34a' : writingData.confidence.level === 'medium' ? '#d97706' : '#dc2626',
-                    p: 0,
-                    '&:hover': {
-                      backgroundColor: writingData.confidence.level === 'high' ? 'rgba(22, 163, 74, 0.13)' : writingData.confidence.level === 'medium' ? 'rgba(217, 119, 6, 0.13)' : 'rgba(220, 38, 38, 0.13)',
-                    },
-                  }}
-                  aria-label="View confidence details"
-                >
-                  <Gauge size={14} />
-                </Box>
-              </Tooltip>
-            )}
+            {activeTab === 'writing' && writingData?.confidence && (() => {
+              const CONFIDENCE_COLORS = {
+                high: { text: '#16a34a', border: 'rgba(22, 163, 74, 0.25)', bg: 'rgba(22, 163, 74, 0.06)', hover: 'rgba(22, 163, 74, 0.13)' },
+                medium: { text: '#d97706', border: 'rgba(217, 119, 6, 0.25)', bg: 'rgba(217, 119, 6, 0.06)', hover: 'rgba(217, 119, 6, 0.13)' },
+                low: { text: '#dc2626', border: 'rgba(220, 38, 38, 0.25)', bg: 'rgba(220, 38, 38, 0.06)', hover: 'rgba(220, 38, 38, 0.13)' },
+              };
+              const cc = CONFIDENCE_COLORS[writingData.confidence.level] || { text: '#9ca3af', border: 'rgba(156, 163, 175, 0.25)', bg: 'rgba(156, 163, 175, 0.06)', hover: 'rgba(156, 163, 175, 0.13)' };
+              return (
+                <Tooltip title={`Confidence: ${writingData.confidence.level}`} arrow>
+                  <Box
+                    component="button"
+                    onClick={(e) => setConfidenceAnchorEl(e.currentTarget)}
+                    sx={{
+                      ...CHIP_BASE,
+                      width: 28,
+                      borderColor: cc.border,
+                      backgroundColor: cc.bg,
+                      color: cc.text,
+                      p: 0,
+                      '&:hover': { backgroundColor: cc.hover },
+                    }}
+                    aria-label="View confidence details"
+                  >
+                    <Gauge size={14} />
+                  </Box>
+                </Tooltip>
+              );
+            })()}
 
             {/* Flag chip — weekly tab only */}
             {activeTab === 'weekly' && !signalsLoading && signalsStatus === 'ok' && (
@@ -1132,6 +1142,8 @@ function StudentDashboard({ student, onOpenTimeline, onOpenFeedback, onOpenChat,
                   <SnapshotBody cardLoading={true} />
                 ) : writingError ? (
                   <SnapshotBody cardError={writingError} onOpenFeedback={onOpenFeedback} feedbackMessage="Writing analysis failed to load" />
+                ) : writingMediaLoading ? (
+                  <SnapshotBody cardLoading={true} />
                 ) : (
                   <WritingAnalysisTab writingData={writingData} hwCount={writingHwCount} totalMediaCount={writingTotalMediaCount} />
                 )
@@ -1439,8 +1451,8 @@ function StudentDashboard({ student, onOpenTimeline, onOpenFeedback, onOpenChat,
         PaperProps={{ sx: { p: 2, maxWidth: 300 } }}
       >
         <Stack direction="row" spacing={1} alignItems="center" sx={{ mb: 0.5 }}>
-          <Gauge size={20} style={{ color: writingData?.confidence?.level === 'high' ? '#16a34a' : writingData?.confidence?.level === 'medium' ? '#d97706' : '#dc2626' }} />
-          <Typography variant="subtitle2" sx={{ fontWeight: 700, color: writingData?.confidence?.level === 'high' ? '#16a34a' : writingData?.confidence?.level === 'medium' ? '#d97706' : '#dc2626' }}>
+          <Gauge size={20} style={{ color: ({ high: '#16a34a', medium: '#d97706', low: '#dc2626' })[writingData?.confidence?.level] || '#9ca3af' }} />
+          <Typography variant="subtitle2" sx={{ fontWeight: 700, color: ({ high: '#16a34a', medium: '#d97706', low: '#dc2626' })[writingData?.confidence?.level] || '#9ca3af' }}>
             Confidence: {writingData?.confidence?.level ? writingData.confidence.level.charAt(0).toUpperCase() + writingData.confidence.level.slice(1) : 'Unknown'}
           </Typography>
         </Stack>
