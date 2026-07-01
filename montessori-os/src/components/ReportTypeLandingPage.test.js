@@ -64,9 +64,9 @@ test('ReportTypeLandingPage renders term and baseline as clickable via CardActio
     /key: 'term'[\s\S]*?enabled: true/.test(source),
     'Expected term report type to be enabled',
   );
-  // baseline is gated by isSuperAdmin prop
+  // baseline is enabled for all users
   assert.ok(
-    /isSuperAdmin/.test(source),
-    'Expected baseline report enabled state to depend on isSuperAdmin prop',
+    /key: 'baseline'[\s\S]*?enabled: true/.test(source),
+    'Expected baseline report type to be enabled',
   );
 });
