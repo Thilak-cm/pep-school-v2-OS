@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useCallback, useRef, useState } from 'react';
 import Box from '@mui/material/Box';
 import Typography from '@mui/material/Typography';
 import Chip from '@mui/material/Chip';
@@ -132,12 +132,26 @@ function DimensionCard({ dimKey, rating }) {
 // ── Recommendation row ──
 
 function RecommendationRow({ rec, isExpanded, onToggle, isLast }) {
+  const contentRef = useRef(null);
+  const [measuredHeight, setMeasuredHeight] = useState(0);
+
+  const measureRef = useCallback((node) => {
+    contentRef.current = node;
+    if (node) setMeasuredHeight(node.scrollHeight);
+  }, []);
+
+  if (contentRef.current && isExpanded) {
+    const h = contentRef.current.scrollHeight;
+    if (h !== measuredHeight) setMeasuredHeight(h);
+  }
+
   return (
     <Box
       onClick={onToggle}
       sx={{
         cursor: 'pointer', py: 1,
         borderBottom: isLast ? 'none' : '1px solid var(--color-border, #e5e7eb)',
+        WebkitTapHighlightColor: 'transparent',
       }}
     >
       <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
@@ -162,13 +176,22 @@ function RecommendationRow({ rec, isExpanded, onToggle, isLast }) {
             fontWeight: 600, border: 'none',
           }}
         />
-        {isExpanded ? <ExpandLess size={16} style={{ color: 'var(--grey-400)', flexShrink: 0 }} /> : <ExpandMore size={16} style={{ color: 'var(--grey-400)', flexShrink: 0 }} />}
+        <Box sx={{ pt: '2px', color: 'var(--grey-300)', flexShrink: 0 }}>
+          {isExpanded ? <ExpandLess size={16} /> : <ExpandMore size={16} />}
+        </Box>
       </Box>
-      {isExpanded && (
-        <Typography sx={{ fontSize: '0.78rem', color: 'var(--grey-600)', mt: 0.75, ml: 3.75, lineHeight: 1.5 }}>
-          {rec.action}
-        </Typography>
-      )}
+      <Box sx={{
+        height: isExpanded ? measuredHeight : 0,
+        opacity: isExpanded ? 1 : 0,
+        overflow: 'hidden',
+        transition: 'height 280ms ease, opacity 250ms ease 80ms',
+      }}>
+        <Box ref={measureRef}>
+          <Typography sx={{ fontSize: '0.78rem', color: 'var(--grey-600)', mt: 0.75, ml: 3.75, lineHeight: 1.5 }}>
+            {rec.action}
+          </Typography>
+        </Box>
+      </Box>
     </Box>
   );
 }
@@ -177,7 +200,6 @@ function RecommendationRow({ rec, isExpanded, onToggle, isLast }) {
 
 export default function WritingAnalysisTab({ writingData, hwCount, totalMediaCount }) {
   const [expandedRec, setExpandedRec] = useState(0);
-  const [confidenceExpanded, setConfidenceExpanded] = useState(false);
 
   // ── Empty states ──
   if (!writingData || writingData.status === 'skipped') {
@@ -190,7 +212,7 @@ export default function WritingAnalysisTab({ writingData, hwCount, totalMediaCou
   }
 
   // ── Data present — render full analysis ──
-  const { narrative, dimensionRatings, recommendations, confidence } = writingData;
+  const { narrative, dimensionRatings, recommendations } = writingData;
   const sortedRecs = Array.isArray(recommendations)
     ? [...recommendations].sort((a, b) => (a.priority || 0) - (b.priority || 0))
     : [];
@@ -242,25 +264,7 @@ export default function WritingAnalysisTab({ writingData, hwCount, totalMediaCou
         </Box>
       )}
 
-      {/* ── Confidence ── */}
-      {confidence && (
-        <Box
-          onClick={() => setConfidenceExpanded(!confidenceExpanded)}
-          sx={{ cursor: 'pointer', display: 'flex', flexDirection: 'column', gap: 0.25 }}
-        >
-          <Typography sx={{ fontSize: '0.75rem', color: 'var(--color-text-soft)' }}>
-            Confidence: <strong style={{ fontWeight: 600, color: 'var(--color-text)' }}>{confidence.level}</strong>
-            {!confidenceExpanded && confidence.reason && (
-              <ExpandMore size={12} style={{ verticalAlign: 'middle', marginLeft: 2, color: 'var(--grey-400)' }} />
-            )}
-          </Typography>
-          {confidenceExpanded && confidence.reason && (
-            <Typography sx={{ fontSize: '0.72rem', color: 'var(--grey-500)', lineHeight: 1.4 }}>
-              {confidence.reason}
-            </Typography>
-          )}
-        </Box>
-      )}
+      {/* Confidence moved to parent chip row (Gauge icon) */}
     </Box>
   );
 }

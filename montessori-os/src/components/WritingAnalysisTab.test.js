@@ -99,14 +99,8 @@ describe('WritingAnalysisTab component (PEP-137)', () => {
     );
   });
 
-  // ── Confidence ──
-
-  it('shows confidence level with expandable reason', async () => {
-    const src = await readFile(componentPath, 'utf8');
-    assert.ok(/confidence/.test(src), 'Should reference confidence');
-    assert.ok(/\.level/.test(src), 'Should show confidence level');
-    assert.ok(/\.reason/.test(src), 'Should have expandable reason');
-  });
+  // ── Confidence (rendered by parent StudentDashboard as Gauge chip + popover) ──
+  // Confidence UI moved to parent chip row — not in this component.
 
   // ── Empty states ──
 
