@@ -1,7 +1,7 @@
 # Pep OS Overview
 
-Generated: 2026-07-01T01:38:12.423Z
-App version: 11.2.0
+Generated: 2026-07-01T03:10:00.283Z
+App version: 11.3.0
 
 ## App Snapshot
 
@@ -93,8 +93,8 @@ App version: 11.2.0
 - `montessori-os/src/components/UsersAccessPage.jsx`
 
 ### Settings, Feedback, and App Shell (`settings-feedback-shell`)
-- Count: 43
-- Components: `App`, `AppFooter`, `AppHeader`, `BroadcastComposer`, `BroadcastComposer.test`, `BulkUploadPage`, `BulkUploadPage.helpers`, `BulkUploadPage.test`, `ClassroomNoteCard`, `ClassroomStudentCard`, `CopyToClipboardButton`, `DynamicIslandPill`, `DynamicIslandPill.test`, `FeedbackPage`, `GroupedNoteCard`, `GroupedNoteDialog`, `InlineVoiceOverlay`, `InterviewsPage`, `InterviewsPage.helpers`, `InterviewsPage.test`, `LandingPage`, `LandingPage.test`, `MonthlyPlanTab`, `MonthlyPlanTab.test`, `NoteBottomSheet.structure.test`, `NotesOverTimeDrawer`, `PlanFeedbackDialog`, `PlanFeedbackDialog.test`, `ProfilePage`, `ReadinessCheckDialog`, `ReportGenerateDialog`, `ReportPreviewDialog`, `ReportsCard`, `ReportsPage`, `ReportsPage.test`, `ReportTypeLandingPage`, `ReportTypeLandingPage.test`, `ReviewClassroomNotes`, `SettingsPage`, `SettingsPage.test`, `SnapshotBody`, `SnapshotCard`, `VersionBadge`
+- Count: 45
+- Components: `App`, `AppFooter`, `AppHeader`, `BroadcastComposer`, `BroadcastComposer.test`, `BulkUploadPage`, `BulkUploadPage.helpers`, `BulkUploadPage.test`, `ClassroomNoteCard`, `ClassroomStudentCard`, `CopyToClipboardButton`, `DynamicIslandPill`, `DynamicIslandPill.test`, `FeedbackPage`, `GroupedNoteCard`, `GroupedNoteDialog`, `InlineVoiceOverlay`, `InterviewsPage`, `InterviewsPage.helpers`, `InterviewsPage.test`, `LandingPage`, `LandingPage.test`, `MonthlyPlanTab`, `MonthlyPlanTab.test`, `NoteBottomSheet.structure.test`, `NotesOverTimeDrawer`, `PlanFeedbackDialog`, `PlanFeedbackDialog.test`, `ProfilePage`, `ReadinessCheckDialog`, `ReportGenerateDialog`, `ReportPreviewDialog`, `ReportsCard`, `ReportsPage`, `ReportsPage.test`, `ReportTypeLandingPage`, `ReportTypeLandingPage.test`, `ReviewClassroomNotes`, `SettingsPage`, `SettingsPage.test`, `SnapshotBody`, `SnapshotCard`, `VersionBadge`, `WritingAnalysisTab`, `WritingAnalysisTab.test`
 - Representative paths:
 - `montessori-os/src/App.jsx`
 - `montessori-os/src/AppFooter.jsx`
@@ -149,23 +149,23 @@ App version: 11.2.0
 
 ## Recent Changes
 
+### 11.3.0 (2026-06-30)
+- Rich writing analysis tab on student dashboard — dimension ratings grid, sorted recommendations with expand/collapse, confidence chip with popover, and three context-aware empty states (#137)
+- Classroom name shown as subtitle in app header on student screens, with fallback resolution from classrooms list (#137)
+- Empty-state flash prevented with loading guard while media counts are fetched (#137)
+
 ### 11.2.0 (2026-06-30)
 - Baseline report generation pipeline — independent judge scores reports at export time, persists `reportEval` with sentiment, area balance, and missing input flags (#152)
 - Report type landing page — students now have a type selector (Term, Baseline, Monthly coming soon) before entering the report list (#152)
 - Langfuse tracing on report generation and export+judge flows with per-trace score logging (#152)
 
+### 11.1.1 (2026-06-30)
+- Student count on classroom timeline now uses authoritative `classroom.studentCount` instead of computing from loaded student list, which included transferred students (#151)
+- Transferred students excluded from Students tab card list in classroom timeline (#151)
+- Notes tab search count now correctly includes transferred students whose notes match the query (#151)
+
 ### 11.1.0 (2026-06-28)
 - Student negligence section in classroom digest — agent identifies under-observed students from trailing 14-day note window (#133)
 - Handwriting highlights section in classroom digest — surfaces notable writing analysis trends (declining scores, improvements) with full doc behind tool call (#133)
 - Program-based executive digest — CF2 output restructured to one card per program (Toddler, Primary, Elementary, Adolescent) with per-program critical/patterns/bright sections (#133)
-
-### 11.0.5 (2026-06-27)
-- Rebuilt classroom & student timeline data fetching with shared `useTimelineData` hook — fixes teacher role permission errors, cursor corruption, and pagination gaps (#128)
-- Teacher collectionGroup security rules optimized to 1 `get()` call instead of 2, using `resource.data.classroomId` directly
-- Scoped classroomadmin ai_summaries collectionGroup rule to only allow access to managed classrooms
-
-### 11.0.4 (2026-06-26)
-- Program selector (toddler/primary/elementary/adolescent) in Report Generation workbench — program-first flow loads config without selecting a student (#136)
-- Session persistence via sessionStorage — saves variant state across in-app navigation, with resume prompt on return
-- Back-navigation guard for all 6 test bench workbenches — confirms before discarding unsaved work when clicking the back arrow
 
