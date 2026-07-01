@@ -38,7 +38,7 @@ describe("buildDispatchList", () => {
     assert.equal(result.skipped, 1);
   });
 
-  it("skips students with different-month plans (they need updating)", () => {
+  it("includes students with stale plans from a prior month", () => {
     const studentSnaps = [
       { id: "S1", exists: true, data: () => ({ programId: "primary", classroomId: "gulmohar" }) },
     ];

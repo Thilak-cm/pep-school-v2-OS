@@ -45,6 +45,8 @@ import { PubSub } from "@google-cloud/pubsub";
 import { buildDispatchList, parseWorkerMessage } from "./pubsubFanout.js";
 
 const MONTHLY_PLAN_TOPIC = "monthly-plan-workers";
+const pubsub = new PubSub();
+const topic = pubsub.topic(MONTHLY_PLAN_TOPIC);
 
 // ---------------------------------------------------------------------------
 // Config cache (1-day TTL)
@@ -677,8 +679,6 @@ export const batchGenerateMonthlyPlans = functions
     console.log(`[batchGenerateMonthlyPlans] ${toPublish.length + skipped} eligible, ${skipped} skipped (already at ${targetMonth}), ${toPublish.length} to publish`);
 
     // Publish to Pub/Sub topic
-    const pubsub = new PubSub();
-    const topic = pubsub.topic(MONTHLY_PLAN_TOPIC);
     let published = 0;
     let publishFailed = 0;
 
@@ -711,7 +711,8 @@ export const batchGenerateMonthlyPlans = functions
  *
  * Triggered by messages from batchGenerateMonthlyPlans dispatcher.
  * maxInstances: 5 controls concurrency to avoid overwhelming OpenRouter.
- * Pub/Sub retries on failure (max 5 attempts via dead-letter policy).
+ * Pub/Sub retries on failure. Dead-letter policy (max 5 attempts) to be
+ * configured via #169.
  */
 export const monthlyPlanWorker = functions
   .region("asia-south1")
@@ -723,17 +724,45 @@ export const monthlyPlanWorker = functions
   })
   .pubsub.topic(MONTHLY_PLAN_TOPIC)
   .onPublish(async (message) => {
-    const { studentId, targetMonth } = parseWorkerMessage(message);
+    // Parse message — validation errors are permanent, so ACK (return null)
+    // to prevent infinite Pub/Sub retries on malformed messages.
+    let studentId, targetMonth;
+    try {
+      ({ studentId, targetMonth } = parseWorkerMessage(message));
+    } catch (parseErr) {
+      console.error("[monthlyPlanWorker] bad message, ACKing to stop retries:", parseErr.message);
+      return null;
+    }
 
     console.log(`[monthlyPlanWorker] processing ${studentId} → ${targetMonth}`);
 
+    // Idempotency guard: if the student already has a plan for targetMonth,
+    // skip to avoid redundant LLM calls on Pub/Sub at-least-once redelivery.
+    const existingPlan = await db.collection("students").doc(studentId)
+      .collection("ai_summaries").doc("monthly_plan").get();
+    if (existingPlan.exists && existingPlan.data().month === targetMonth) {
+      console.log(`[monthlyPlanWorker] ${studentId} already has plan for ${targetMonth}, skipping`);
+      return null;
+    }
+
     // Step 1: Generate plan via shared internal helper
-    await generatePlanInternal(
-      studentId,
-      targetMonth,
-      "system:batchCron",
-      "Monthly Plan Cron",
-    );
+    // Permanent errors (not-found, failed-precondition) are ACKed to avoid
+    // burning dead-letter retries. Transient errors propagate for retry.
+    try {
+      await generatePlanInternal(
+        studentId,
+        targetMonth,
+        "system:batchCron",
+        "Monthly Plan Cron",
+      );
+    } catch (genErr) {
+      const permanent = ["not-found", "failed-precondition"];
+      if (genErr.code && permanent.includes(genErr.code)) {
+        console.error(`[monthlyPlanWorker] permanent error for ${studentId}, ACKing:`, genErr.message);
+        return null;
+      }
+      throw genErr; // transient — let Pub/Sub retry
+    }
     console.log(`[monthlyPlanWorker] generated plan for ${studentId}`);
 
     // Step 2: Export to Drive via shared internal helper
