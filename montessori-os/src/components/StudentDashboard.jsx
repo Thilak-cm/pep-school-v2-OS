@@ -15,7 +15,7 @@ import {
   Popover,
   Tooltip
 } from '@mui/material';
-import { StickyNote as NotesIcon, MessageCircle as ChatIcon, ThumbsUp as FeedbackIcon, Info as InfoOutlined, RefreshCw as Refresh, Flag as FlagRounded, CircleCheck as CheckCircle, ClipboardList as ReportsIcon, TriangleAlert as WarningIcon, Pencil, Image as ImageIcon, X as CloseIcon, Upload as UploadIcon } from '../icons';
+import { StickyNote as NotesIcon, MessageCircle as ChatIcon, ThumbsUp as FeedbackIcon, Info as InfoOutlined, RefreshCw as Refresh, Flag as FlagRounded, CircleCheck as CheckCircle, ClipboardList as ReportsIcon, TriangleAlert as WarningIcon, Pencil, Image as ImageIcon, X as CloseIcon, Upload as UploadIcon, Gauge } from '../icons';
 import { QuickJumpButton, HFTabs } from './ui';
 import useNotify from '../notifications/useNotify';
 import { collection, collectionGroup, query, getDocs, where, orderBy, doc, getDoc, Timestamp, limit } from 'firebase/firestore';
@@ -27,6 +27,7 @@ import { trackEvent } from '../utils/analytics';
 import { BASEBALL_CARD_DEFAULTS } from '../../../scripts/config/baseballCardConstants';
 import SnapshotBody from './SnapshotBody';
 import MonthlyPlanTab from './MonthlyPlanTab';
+import WritingAnalysisTab from './WritingAnalysisTab';
 import PlanFeedbackDialog from './PlanFeedbackDialog';
 import Coachmark from '../coachmark/Coachmark';
 import NotesOverTimeDrawer from './NotesOverTimeDrawer';
@@ -79,6 +80,9 @@ function StudentDashboard({ student, onOpenTimeline, onOpenFeedback, onOpenChat,
   const [writingData, setWritingData] = useState(null);
   const [writingLoading, setWritingLoading] = useState(false);
   const [writingError, setWritingError] = useState('');
+  const [writingHwCount, setWritingHwCount] = useState(null);
+  const [writingTotalMediaCount, setWritingTotalMediaCount] = useState(null);
+  const [writingMediaLoading, setWritingMediaLoading] = useState(false);
   const [planData, setPlanData] = useState(null);
   const [planLoading, setPlanLoading] = useState(false);
   const [planError, setPlanError] = useState('');
@@ -103,6 +107,7 @@ function StudentDashboard({ student, onOpenTimeline, onOpenFeedback, onOpenChat,
   const [notesSinceGeneratedLoading, setNotesSinceGeneratedLoading] = useState(false);
   const [writingRegenDialogOpen, setWritingRegenDialogOpen] = useState(false);
   const [writingRegenRunning, setWritingRegenRunning] = useState(false);
+  const [confidenceAnchorEl, setConfidenceAnchorEl] = useState(null);
   const [unprocessedHwCount, setUnprocessedHwCount] = useState(null);
   const [unprocessedHwLoading, setUnprocessedHwLoading] = useState(false);
   const [reloadKey, setReloadKey] = useState(0);
@@ -341,6 +346,31 @@ function StudentDashboard({ student, onOpenTimeline, onOpenFeedback, onOpenChat,
     fetchWriting();
     return () => { active = false; };
   }, [activeTab, studentId, reloadKey]);
+
+  // Fetch media counts for writing empty states (only when writing tab active and no data)
+  useEffect(() => {
+    if (activeTab !== 'writing' || !studentId || writingLoading) return;
+    if (writingData && writingData.status !== 'skipped') return; // have data, skip
+    let active = true;
+    setWritingMediaLoading(true);
+    const fetchMediaCounts = async () => {
+      try {
+        const mediaRef = collection(db, 'students', studentId, 'media');
+        const allSnap = await getDocs(query(mediaRef, where('status', '==', 'ready')));
+        if (!active) return;
+        const total = allSnap.size;
+        const hw = allSnap.docs.filter((d) => d.data().handwritten === true).length;
+        setWritingTotalMediaCount(total);
+        setWritingHwCount(hw);
+      } catch {
+        if (active) { setWritingTotalMediaCount(0); setWritingHwCount(0); }
+      } finally {
+        if (active) setWritingMediaLoading(false);
+      }
+    };
+    fetchMediaCounts();
+    return () => { active = false; };
+  }, [activeTab, studentId, writingLoading, writingData]);
 
   // Fetch monthly plan when Plan tab is active
   useEffect(() => {
@@ -790,6 +820,15 @@ function StudentDashboard({ student, onOpenTimeline, onOpenFeedback, onOpenChat,
         <CardContent sx={{ p: 2, pt: 1.5, display: 'flex', flexDirection: 'column', gap: 0.5, flex: 1, overflow: 'hidden' }}>
           {/* ── Uniform toolbar chip row ── */}
           <Stack direction="row" spacing={0.75} alignItems="center" sx={{ flexShrink: 0 }}>
+            {/* Writing meta line — left-aligned, pushes chips right */}
+            {activeTab === 'writing' && writingData && writingData.status !== 'skipped' && (
+              <Typography sx={{ fontSize: '0.72rem', color: 'var(--color-text-soft)', flex: 1, whiteSpace: 'nowrap' }}>
+                <strong style={{ fontWeight: 700, color: 'var(--color-text)' }}>{writingData.sampleCount ?? '–'}</strong> samples
+                {' · '}{writingData.copiedCount ?? 0} copied
+                {writingData.generatedAt && <>{' · '}updated {(() => { const d = writingData.generatedAt?.toDate?.() ?? new Date(writingData.generatedAt); const ms = Date.now() - d.getTime(); const days = Math.floor(ms / 86400000); if (days < 1) return 'today'; if (days === 1) return '1d ago'; if (days < 7) return `${days}d ago`; return `${Math.floor(days / 7)}w ago`; })()}</>}
+              </Typography>
+            )}
+
             {/* DoB missing chip — age now shown in header (PEP-243) */}
             {!ageString && (
               <Box
@@ -1013,6 +1052,36 @@ function StudentDashboard({ student, onOpenTimeline, onOpenFeedback, onOpenChat,
               </Tooltip>
             )}
 
+            {/* Confidence chip — writing tab only */}
+            {activeTab === 'writing' && writingData?.confidence && (() => {
+              const CONFIDENCE_COLORS = {
+                high: { text: '#16a34a', border: 'rgba(22, 163, 74, 0.25)', bg: 'rgba(22, 163, 74, 0.06)', hover: 'rgba(22, 163, 74, 0.13)' },
+                medium: { text: '#d97706', border: 'rgba(217, 119, 6, 0.25)', bg: 'rgba(217, 119, 6, 0.06)', hover: 'rgba(217, 119, 6, 0.13)' },
+                low: { text: '#dc2626', border: 'rgba(220, 38, 38, 0.25)', bg: 'rgba(220, 38, 38, 0.06)', hover: 'rgba(220, 38, 38, 0.13)' },
+              };
+              const cc = CONFIDENCE_COLORS[writingData.confidence.level] || { text: '#9ca3af', border: 'rgba(156, 163, 175, 0.25)', bg: 'rgba(156, 163, 175, 0.06)', hover: 'rgba(156, 163, 175, 0.13)' };
+              return (
+                <Tooltip title={`Confidence: ${writingData.confidence.level}`} arrow>
+                  <Box
+                    component="button"
+                    onClick={(e) => setConfidenceAnchorEl(e.currentTarget)}
+                    sx={{
+                      ...CHIP_BASE,
+                      width: 28,
+                      borderColor: cc.border,
+                      backgroundColor: cc.bg,
+                      color: cc.text,
+                      p: 0,
+                      '&:hover': { backgroundColor: cc.hover },
+                    }}
+                    aria-label="View confidence details"
+                  >
+                    <Gauge size={14} />
+                  </Box>
+                </Tooltip>
+              );
+            })()}
+
             {/* Flag chip — weekly tab only */}
             {activeTab === 'weekly' && !signalsLoading && signalsStatus === 'ok' && (
               <Tooltip title={severity ? (severity === 'med' ? 'Flag: Medium' : `Flag: ${severity.charAt(0).toUpperCase()}${severity.slice(1)}`) : 'No flag'} arrow>
@@ -1037,15 +1106,9 @@ function StudentDashboard({ student, onOpenTimeline, onOpenFeedback, onOpenChat,
             )}
           </Stack>
 
-          {/* ── Note count ── */}
-          {activeTab !== 'plan' && <Typography sx={{ fontSize: '0.78rem', color: 'var(--color-text-soft)', flexShrink: 0, py: 0.25 }}>
-            {activeTab === 'weekly' ? (
-              <><strong style={{ fontWeight: 700, color: 'var(--color-text)' }}>{Number.isFinite(cardNoteCount) ? cardNoteCount : '-'}</strong> notes over last <strong style={{ fontWeight: 700, color: 'var(--color-text)' }}>{cardWindowDays}</strong> days</>
-            ) : (
-              Number.isFinite(writingData?.sampleCount)
-                ? <><strong style={{ fontWeight: 700, color: 'var(--color-text)' }}>{writingData.sampleCount}</strong> writing samples analyzed</>
-                : <>Writing analysis</>
-            )}
+          {/* ── Note count (weekly tab only — writing tab has its own meta line inside WritingAnalysisTab) ── */}
+          {activeTab === 'weekly' && <Typography sx={{ fontSize: '0.78rem', color: 'var(--color-text-soft)', flexShrink: 0, py: 0.25 }}>
+            <><strong style={{ fontWeight: 700, color: 'var(--color-text)' }}>{Number.isFinite(cardNoteCount) ? cardNoteCount : '-'}</strong> notes over last <strong style={{ fontWeight: 700, color: 'var(--color-text)' }}>{cardWindowDays}</strong> days</>
           </Typography>}
 
           {/* ── Tab content — scrollable ── */}
@@ -1079,42 +1142,10 @@ function StudentDashboard({ student, onOpenTimeline, onOpenFeedback, onOpenChat,
                   <SnapshotBody cardLoading={true} />
                 ) : writingError ? (
                   <SnapshotBody cardError={writingError} onOpenFeedback={onOpenFeedback} feedbackMessage="Writing analysis failed to load" />
-                ) : (!writingData || writingData.status === 'skipped') ? (
-                  <Box sx={{
-                    display: 'flex',
-                    flexDirection: 'column',
-                    alignItems: 'center',
-                    justifyContent: 'center',
-                    gap: 1.5,
-                    minHeight: 'calc(100% - 48px)',
-                    textAlign: 'center',
-                  }}>
-                    <Box sx={{
-                      width: 56, height: 56,
-                      borderRadius: 4,
-                      background: 'linear-gradient(135deg, var(--color-violet-bg) 0%, rgba(79, 70, 229, 0.08) 100%)',
-                      border: '1px solid var(--color-violet-soft, rgba(124, 58, 237, 0.2))',
-                      display: 'flex', alignItems: 'center', justifyContent: 'center',
-                      color: 'var(--color-violet)',
-                    }}>
-                      <Pencil size={26} />
-                    </Box>
-                    <Typography sx={{ fontSize: '0.95rem', fontWeight: 700, color: 'var(--color-text)' }}>
-                      Writing Snapshot
-                    </Typography>
-                    <Typography sx={{ fontSize: '0.8rem', color: 'var(--color-text-soft)', maxWidth: 240, lineHeight: 1.5 }}>
-                      No writing analysis available
-                    </Typography>
-                  </Box>
+                ) : writingMediaLoading ? (
+                  <SnapshotBody cardLoading={true} />
                 ) : (
-                  <Box sx={{ display: 'flex', flexDirection: 'column', gap: 1.5, mt: 1 }}>
-                    <Typography
-                      variant="body2"
-                      sx={{ color: 'var(--grey-700)', whiteSpace: 'pre-line' }}
-                    >
-                      {writingData.narrative}
-                    </Typography>
-                  </Box>
+                  <WritingAnalysisTab writingData={writingData} hwCount={writingHwCount} totalMediaCount={writingTotalMediaCount} />
                 )
               )}
             </Box>
@@ -1407,6 +1438,26 @@ function StudentDashboard({ student, onOpenTimeline, onOpenFeedback, onOpenChat,
         </Stack>
         <Typography variant="body2" sx={{ color: 'var(--grey-700)' }}>
           {severityReason || (severity ? 'No reason provided.' : 'This student currently has no concerns flagged.')}
+        </Typography>
+      </Popover>
+
+      {/* ── Writing confidence popover ── */}
+      <Popover
+        open={Boolean(confidenceAnchorEl)}
+        anchorEl={confidenceAnchorEl}
+        onClose={() => setConfidenceAnchorEl(null)}
+        anchorOrigin={{ vertical: 'bottom', horizontal: 'right' }}
+        transformOrigin={{ vertical: 'top', horizontal: 'right' }}
+        PaperProps={{ sx: { p: 2, maxWidth: 300 } }}
+      >
+        <Stack direction="row" spacing={1} alignItems="center" sx={{ mb: 0.5 }}>
+          <Gauge size={20} style={{ color: ({ high: '#16a34a', medium: '#d97706', low: '#dc2626' })[writingData?.confidence?.level] || '#9ca3af' }} />
+          <Typography variant="subtitle2" sx={{ fontWeight: 700, color: ({ high: '#16a34a', medium: '#d97706', low: '#dc2626' })[writingData?.confidence?.level] || '#9ca3af' }}>
+            Confidence: {writingData?.confidence?.level ? writingData.confidence.level.charAt(0).toUpperCase() + writingData.confidence.level.slice(1) : 'Unknown'}
+          </Typography>
+        </Stack>
+        <Typography variant="body2" sx={{ color: 'var(--grey-700)' }}>
+          {writingData?.confidence?.reason || 'No details available.'}
         </Typography>
       </Popover>
 

@@ -138,7 +138,7 @@ export const TOOL_DEFINITIONS = [
   {
     name: "get_ai_summary",
     description:
-      "Fetch any AI-generated summary document from a student's ai_summaries subcollection. Known doc IDs: soul, guidelines, open_questions, report_readiness, writing_analysis, weekly_snapshot. Returns all fields.",
+      "Fetch any AI-generated summary document from a student's ai_summaries subcollection. Known doc IDs: soul, guidelines, open_questions, report_readiness, term_report_readiness, baseline_report_readiness, writing_analysis, weekly_snapshot. Also accepts report doc IDs (e.g., report_1773213527165, baseline_report_june_2026_mr1f7wp7). Use list_reports to discover report doc IDs.",
     inputSchema: {
       type: "object",
       properties: {
@@ -149,10 +149,30 @@ export const TOOL_DEFINITIONS = [
         docId: {
           type: "string",
           description:
-            "Document ID within ai_summaries (e.g., soul, guidelines, open_questions, report_readiness, writing_analysis, weekly_snapshot).",
+            "Document ID within ai_summaries. For reports, use list_reports to get the exact doc ID.",
         },
       },
       required: ["studentId", "docId"],
+    },
+  },
+  {
+    name: "list_reports",
+    description:
+      "List all generated reports (term and baseline) for a student. Returns report metadata: id, reportType, generatedAt, noteCount, status, reportText length, and whether reportEval exists. Use the returned id with get_ai_summary to fetch full report content.",
+    inputSchema: {
+      type: "object",
+      properties: {
+        studentId: {
+          type: "string",
+          description: "Student document ID.",
+        },
+        reportType: {
+          type: "string",
+          description: "Filter by report type: 'term', 'baseline', or omit for all.",
+          enum: ["term", "baseline"],
+        },
+      },
+      required: ["studentId"],
     },
   },
   {
@@ -706,6 +726,48 @@ export async function handleGetAiSummary(db, params) {
 
   if (!doc.exists) return null;
   return serializeTimestamps({ id: doc.id, ...doc.data() });
+}
+
+export async function handleListReports(db, params) {
+  const { studentId, reportType } = params;
+
+  const snap = await db
+    .collection("students")
+    .doc(studentId)
+    .collection("ai_summaries")
+    .get();
+
+  const reports = [];
+  snap.forEach((doc) => {
+    const id = doc.id;
+    if (!id.startsWith("report_") && !id.startsWith("baseline_report_")) return;
+    // Skip readiness docs
+    if (id.endsWith("_readiness")) return;
+    const data = doc.data();
+    const type = data.reportType === "monthly" ? "baseline" : (data.reportType || "term");
+    if (reportType && type !== reportType) return;
+    reports.push(serializeTimestamps({
+      id,
+      reportType: type,
+      generatedAt: data.generatedAt,
+      noteCount: data.noteCount ?? null,
+      status: data.status || null,
+      reportTextLength: (data.reportText || "").length,
+      hasReportEval: !!data.reportEval,
+      generatedByName: data.generatedByName || null,
+      dateRangeStart: data.dateRangeStart,
+      dateRangeEnd: data.dateRangeEnd,
+    }));
+  });
+
+  // Sort newest first
+  reports.sort((a, b) => {
+    const ta = a.generatedAt ? new Date(a.generatedAt).getTime() : 0;
+    const tb = b.generatedAt ? new Date(b.generatedAt).getTime() : 0;
+    return tb - ta;
+  });
+
+  return reports;
 }
 
 export async function handleGetAiSummaryHistory(db, params) {

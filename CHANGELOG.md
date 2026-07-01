@@ -1,5 +1,16 @@
 # Changelog
 
+# 11.3.0 — 2026-06-30
+
+### Added
+- Rich writing analysis tab on student dashboard — dimension ratings grid, sorted recommendations with expand/collapse, confidence chip with popover, and three context-aware empty states (#137)
+- Classroom name shown as subtitle in app header on student screens, with fallback resolution from classrooms list (#137)
+
+### Fixed
+- Empty-state flash prevented with loading guard while media counts are fetched (#137)
+- Render-phase side effect in recommendation row moved to useEffect (#137)
+- Test regex window expanded to accommodate new toolbar meta line (#137)
+
 # 11.2.0 — 2026-06-30
 
 ### Added

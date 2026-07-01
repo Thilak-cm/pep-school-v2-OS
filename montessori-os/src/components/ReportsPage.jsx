@@ -61,14 +61,20 @@ function getEvalScores(report) {
   if (report?.reportEval) {
     return {
       sentimentScore: report.reportEval.sentimentScore ?? null,
+      sentimentLabel: report.reportEval.sentimentLabel || null,
       areaBalanceScore: report.reportEval.areaBalanceScore ?? null,
+      areaBalanceLabel: report.reportEval.areaBalanceLabel || null,
       missingInputFlags: report.reportEval.missingInputFlags || [],
+      scoreRationale: report.reportEval.scoreRationale || null,
     };
   }
   return {
     sentimentScore: report?.sentimentScore ?? null,
+    sentimentLabel: null,
     areaBalanceScore: report?.areaBalanceScore ?? null,
+    areaBalanceLabel: null,
     missingInputFlags: report?.missingInputFlags || [],
+    scoreRationale: null,
   };
 }
 
@@ -108,6 +114,8 @@ export default function ReportsPage({
 
   // Expanded missing flags state (tracks which report IDs have expanded missing data)
   const [expandedMissing, setExpandedMissing] = useState(new Set());
+  // Expanded eval detail state (tracks which report IDs show score labels + rationale)
+  const [expandedEval, setExpandedEval] = useState(new Set());
 
   // Readiness state (PEP-68)
   const [readiness, setReadiness] = useState(null);
@@ -648,38 +656,94 @@ export default function ReportsPage({
               </Box>
 
               {/* Quality flags row — eval scores from readiness (term) or reportEval (baseline) */}
-              {report.status !== 'no_notes' && (evalScores.sentimentScore != null || evalScores.areaBalanceScore != null || evalScores.missingInputFlags?.length > 0) && (
-                <Stack direction="row" spacing={0.75} alignItems="center" sx={{ mt: 0.5, flexWrap: 'wrap', gap: 0.5 }}>
-                  {evalScores.sentimentScore != null && (
-                    <Chip label={`Sentiment: ${evalScores.sentimentScore}`} size="small" color={getScoreColor(evalScores.sentimentScore)} variant="outlined" sx={{ height: 20, fontSize: '0.7rem' }} />
-                  )}
-                  {evalScores.areaBalanceScore != null && (
-                    <Chip label={`Balance: ${evalScores.areaBalanceScore}`} size="small" color={getScoreColor(evalScores.areaBalanceScore)} variant="outlined" sx={{ height: 20, fontSize: '0.7rem' }} />
-                  )}
-                  {hasMissing ? (
-                    <Chip
-                      label="Missing data"
-                      size="small"
-                      color="warning"
-                      variant="outlined"
-                      deleteIcon={<ExpandMoreIcon size={14} style={{ transform: isExpanded ? 'rotate(180deg)' : 'none', transition: 'transform 0.2s' }} />}
-                      onDelete={() => setExpandedMissing((prev) => {
-                        const next = new Set(prev);
-                        next.has(report.id) ? next.delete(report.id) : next.add(report.id);
-                        return next;
-                      })}
-                      onClick={() => setExpandedMissing((prev) => {
-                        const next = new Set(prev);
-                        next.has(report.id) ? next.delete(report.id) : next.add(report.id);
-                        return next;
-                      })}
-                      sx={{ height: 20, fontSize: '0.7rem', cursor: 'pointer' }}
-                    />
-                  ) : (
-                    <Chip label="Complete" size="small" color="success" variant="outlined" sx={{ height: 20, fontSize: '0.7rem' }} />
-                  )}
-                </Stack>
-              )}
+              {report.status !== 'no_notes' && (evalScores.sentimentScore != null || evalScores.areaBalanceScore != null || evalScores.missingInputFlags?.length > 0) && (() => {
+                const hasRationale = evalScores.scoreRationale && (evalScores.scoreRationale.sentiment || evalScores.scoreRationale.areaBalance);
+                const hasLabels = evalScores.sentimentLabel || evalScores.areaBalanceLabel;
+                const hasDetail = hasRationale || hasLabels;
+                const isEvalExpanded = expandedEval.has(report.id);
+                const toggleEval = () => setExpandedEval((prev) => {
+                  const next = new Set(prev);
+                  next.has(report.id) ? next.delete(report.id) : next.add(report.id);
+                  return next;
+                });
+                return (
+                  <>
+                    <Stack direction="row" spacing={0.75} alignItems="center" sx={{ mt: 0.5, flexWrap: 'wrap', gap: 0.5 }}>
+                      {evalScores.sentimentScore != null && (
+                        <Chip
+                          label={`Sentiment: ${evalScores.sentimentScore}`}
+                          size="small"
+                          color={getScoreColor(evalScores.sentimentScore)}
+                          variant="outlined"
+                          onClick={hasDetail ? toggleEval : undefined}
+                          sx={{ height: 20, fontSize: '0.7rem', cursor: hasDetail ? 'pointer' : 'default' }}
+                        />
+                      )}
+                      {evalScores.areaBalanceScore != null && (
+                        <Chip
+                          label={`Balance: ${evalScores.areaBalanceScore}`}
+                          size="small"
+                          color={getScoreColor(evalScores.areaBalanceScore)}
+                          variant="outlined"
+                          onClick={hasDetail ? toggleEval : undefined}
+                          sx={{ height: 20, fontSize: '0.7rem', cursor: hasDetail ? 'pointer' : 'default' }}
+                        />
+                      )}
+                      {hasMissing ? (
+                        <Chip
+                          label="Missing data"
+                          size="small"
+                          color="warning"
+                          variant="outlined"
+                          deleteIcon={<ExpandMoreIcon size={14} style={{ transform: isExpanded ? 'rotate(180deg)' : 'none', transition: 'transform 0.2s' }} />}
+                          onDelete={() => setExpandedMissing((prev) => {
+                            const next = new Set(prev);
+                            next.has(report.id) ? next.delete(report.id) : next.add(report.id);
+                            return next;
+                          })}
+                          onClick={() => setExpandedMissing((prev) => {
+                            const next = new Set(prev);
+                            next.has(report.id) ? next.delete(report.id) : next.add(report.id);
+                            return next;
+                          })}
+                          sx={{ height: 20, fontSize: '0.7rem', cursor: 'pointer' }}
+                        />
+                      ) : (
+                        <Chip label="Complete" size="small" color="success" variant="outlined" sx={{ height: 20, fontSize: '0.7rem' }} />
+                      )}
+                      {hasDetail && (
+                        <Chip
+                          label={isEvalExpanded ? 'Less' : 'Details'}
+                          size="small"
+                          variant="outlined"
+                          deleteIcon={<ExpandMoreIcon size={14} style={{ transform: isEvalExpanded ? 'rotate(180deg)' : 'none', transition: 'transform 0.2s' }} />}
+                          onDelete={toggleEval}
+                          onClick={toggleEval}
+                          sx={{ height: 20, fontSize: '0.7rem', cursor: 'pointer', borderColor: 'var(--grey-300)', color: 'var(--grey-600)' }}
+                        />
+                      )}
+                    </Stack>
+
+                    {/* Expanded eval detail — labels + rationale */}
+                    <Collapse in={isEvalExpanded && hasDetail}>
+                      <Box sx={{ mt: 0.75, pl: 0.5, display: 'flex', flexDirection: 'column', gap: 0.5 }}>
+                        {evalScores.sentimentLabel && (
+                          <Typography variant="caption" sx={{ color: 'var(--grey-700)', lineHeight: 1.5 }}>
+                            <strong>Sentiment:</strong> {evalScores.sentimentLabel}
+                            {evalScores.scoreRationale?.sentiment ? ` — ${evalScores.scoreRationale.sentiment}` : ''}
+                          </Typography>
+                        )}
+                        {evalScores.areaBalanceLabel && (
+                          <Typography variant="caption" sx={{ color: 'var(--grey-700)', lineHeight: 1.5 }}>
+                            <strong>Balance:</strong> {evalScores.areaBalanceLabel}
+                            {evalScores.scoreRationale?.areaBalance ? ` — ${evalScores.scoreRationale.areaBalance}` : ''}
+                          </Typography>
+                        )}
+                      </Box>
+                    </Collapse>
+                  </>
+                );
+              })()}
 
               {/* Expanded missing flags */}
               <Collapse in={isExpanded && hasMissing}>

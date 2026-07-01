@@ -49,19 +49,15 @@ describe('StudentDashboard tab support', () => {
     );
   });
 
-  it('renders narrative from writing analysis data', async () => {
+  it('delegates writing rendering to WritingAnalysisTab component', async () => {
     const src = await readFile(dashboardPath, 'utf8');
     assert.ok(
-      /writingData\??\.(narrative|summary)/.test(src) || /\.narrative/.test(src),
-      'Should render the narrative field from writing analysis',
+      /import\s+WritingAnalysisTab/.test(src),
+      'Should import WritingAnalysisTab component',
     );
-  });
-
-  it('shows empty state when no writing analysis available', async () => {
-    const src = await readFile(dashboardPath, 'utf8');
     assert.ok(
-      /No writing analysis available/i.test(src),
-      'Should show "No writing analysis available" empty state',
+      /WritingAnalysisTab/.test(src) && /writingData/.test(src),
+      'Should render WritingAnalysisTab with writingData prop',
     );
   });
 

@@ -14,11 +14,11 @@ export function getDefaultReportDateRange(now = new Date()) {
 
 /**
  * Returns the default date range for baseline report generation.
- * Start = June 1 of the current academic year (AY starts in June). End = now.
+ * Trailing 45 days from today.
  */
 export function getDefaultMonthlyDateRange(now = new Date()) {
-  const year = now.getMonth() >= 5 ? now.getFullYear() : now.getFullYear() - 1;
-  const start = new Date(year, 5, 1); // June 1 of current AY
+  const start = new Date(now);
+  start.setDate(start.getDate() - 45); // trailing 45 days
   return { start, end: now };
 }
 

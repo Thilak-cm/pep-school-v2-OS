@@ -14,7 +14,8 @@ import { ListChecks as ReadinessIcon } from '../icons';
 import { getDefaultReportDateRange, toIsoDate } from '../utils/reportUtils';
 
 function getBaselineReadinessDateRange(now = new Date()) {
-  const start = new Date(now.getFullYear(), now.getMonth(), 1); // 1st of current month
+  const start = new Date(now);
+  start.setDate(start.getDate() - 45); // trailing 45 days
   return { start, end: now };
 }
 

@@ -104,7 +104,7 @@ describe('PEP-243: Photo note UX polish', () => {
 
     it('StudentDashboard does NOT render age chip in toolbar — only DoB-missing guard', () => {
       // The toolbar should use !ageString (show chip only when DoB is missing), not ageString (show age)
-      const toolbarSection = dashboardSource.match(/Uniform toolbar chip row[\s\S]{0,500}/);
+      const toolbarSection = dashboardSource.match(/Uniform toolbar chip row[\s\S]{0,1500}/);
       assert.ok(toolbarSection, 'Should have toolbar chip row section');
       assert.ok(
         toolbarSection[0].includes('!ageString'),
