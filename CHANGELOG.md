@@ -1,5 +1,12 @@
 # Changelog
 
+# 11.3.1 — 2026-07-01
+
+### Changed
+- Monthly plan batch generation refactored from single-CF inline processing to Pub/Sub fan-out — dispatcher publishes one message per eligible student, worker processes one student per invocation with 5-instance concurrency cap (#167)
+- Dispatcher skips students whose plan already matches the target month, reducing redundant work (#167)
+- Worker includes idempotency guard and permanent-error handling to prevent infinite Pub/Sub retries (#167)
+
 # 11.3.0 — 2026-06-30
 
 ### Added
