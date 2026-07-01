@@ -73,11 +73,11 @@ describe('getDefaultMonthlyDateRange', () => {
     assert.equal(end, now);
   });
 
-  it('uses June 1 of the given year regardless of current month', () => {
+  it('returns June 1 of previous year when called before June', () => {
     const now = new Date(2026, 0, 15); // Jan 15, 2026
     const { start, end } = getDefaultMonthlyDateRange(now);
     assert.equal(start.getMonth(), 5); // June
-    assert.equal(start.getFullYear(), 2026);
+    assert.equal(start.getFullYear(), 2025); // Previous AY
     assert.equal(start.getDate(), 1);
     assert.equal(end, now);
   });
@@ -88,6 +88,9 @@ describe('getDefaultMonthlyDateRange', () => {
     const after = new Date();
     assert.equal(start.getMonth(), 5); // June
     assert.equal(start.getDate(), 1);
+    // AY-aware: June of current year if now >= June, else June of previous year
+    const expectedYear = before.getMonth() >= 5 ? before.getFullYear() : before.getFullYear() - 1;
+    assert.equal(start.getFullYear(), expectedYear);
     assert.ok(end >= before && end <= after);
   });
 });
@@ -317,6 +320,14 @@ describe('buildReportList', () => {
     ];
     const result = buildReportList(docs);
     assert.equal(result[0].reportType, 'term');
+  });
+
+  it('normalizes legacy "monthly" reportType to "baseline"', () => {
+    const docs = [
+      { id: 'report_legacy', generatedAt: new Date('2026-06-01'), reportText: 'Old monthly', reportType: 'monthly' },
+    ];
+    const result = buildReportList(docs);
+    assert.equal(result[0].reportType, 'baseline');
   });
 
   it('preserves reportEval nested field from Firestore doc', () => {

@@ -148,6 +148,7 @@ function renderScreen(screen, ctx) {
             ctx.setScreen("studentReports");
           }}
           studentLabel={ctx.getStudentDisplayName(ctx.selectedStudent)}
+          isSuperAdmin={ctx.isSuperAdminUser}
         />
       );
 

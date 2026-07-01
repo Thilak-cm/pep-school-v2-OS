@@ -46,6 +46,8 @@ export const JUDGE_DEFAULTS = {
 const READINESS_DOC_IDS = {
   term: "term_report_readiness",
   baseline: "baseline_report_readiness",
+  // Placeholder for future monthly report type — prevents silent fallback to term (#152)
+  monthly: "monthly_report_readiness",
 };
 
 /**

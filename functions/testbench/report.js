@@ -35,7 +35,7 @@ export function buildReportUserMessage({ studentContext, notes, dateRange, repor
     age: studentContext?.age || "age unavailable",
   };
 
-  const label = reportType === "monthly" ? "Monthly Baseline Report" : "Educator Summary";
+  const label = reportType === "baseline" ? "Baseline Report" : "Educator Summary";
 
   return [
     `Generate the ${label} for the period ${dateRange.start} to ${dateRange.end}.`,
@@ -126,9 +126,9 @@ export async function testBenchReport({
 
   if (dateRangeStart) {
     startDate = new Date(dateRangeStart);
-  } else if (reportType === "monthly") {
-    startDate = new Date(now);
-    startDate.setDate(startDate.getDate() - 30);
+  } else if (reportType === "baseline") {
+    const year = now.getMonth() >= 5 ? now.getFullYear() : now.getFullYear() - 1;
+    startDate = new Date(year, 5, 1);
   } else {
     const year = now.getMonth() >= 10 ? now.getFullYear() : now.getFullYear() - 1;
     startDate = new Date(year, 10, 1);

@@ -308,9 +308,9 @@ export default function ReportsPage({
     if (isDraft) {
       // Generate a stable queue item ID
       const queueItemId = `sq_${Math.random().toString(36).slice(2, 10)}_${Date.now().toString(36)}`;
-      // Deterministic doc ID: baseline_report_june_2026 or report_<timestamp>
+      // Unique doc ID per draft: baseline uses month+timestamp suffix, term uses timestamp
       const reportDocId = selectedReport?.reportType === 'baseline'
-        ? `baseline_report_${new Date(selectedReport.dateRangeEnd || Date.now()).toLocaleDateString('en-US', { month: 'long', year: 'numeric' }).toLowerCase().replace(' ', '_')}`
+        ? `baseline_report_${new Date(selectedReport.dateRangeEnd || Date.now()).toLocaleDateString('en-US', { month: 'long', year: 'numeric' }).toLowerCase().replace(/\s+/g, '_')}_${Date.now().toString(36)}`
         : `report_${Date.now()}`;
       // Queue the draft save + Drive export in the background
       enqueueSaveQueueItems([{
@@ -337,7 +337,7 @@ export default function ReportsPage({
     try {
       setExporting(true);
       trackEvent('report_export_start', { studentId, isDraft }).catch(() => {});
-      const call = httpsCallable(cloudFunctions, 'exportReportToDrive', { timeout: 120_000 });
+      const call = httpsCallable(cloudFunctions, 'exportReportToDrive', { timeout: 240_000 });
       const result = await call({ studentId, reportDocId: selectedReport.id });
       const link = result.data.driveDocLink;
       setSelectedReport((prev) => ({ ...prev, driveDocLink: link }));

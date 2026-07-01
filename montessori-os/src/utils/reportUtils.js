@@ -14,10 +14,11 @@ export function getDefaultReportDateRange(now = new Date()) {
 
 /**
  * Returns the default date range for baseline report generation.
- * Start = June 1 of the current year. End = now.
+ * Start = June 1 of the current academic year (AY starts in June). End = now.
  */
 export function getDefaultMonthlyDateRange(now = new Date()) {
-  const start = new Date(now.getFullYear(), 5, 1); // June 1
+  const year = now.getMonth() >= 5 ? now.getFullYear() : now.getFullYear() - 1;
+  const start = new Date(year, 5, 1); // June 1 of current AY
   return { start, end: now };
 }
 
@@ -59,7 +60,7 @@ export function buildReportList(docs) {
       dateRangeEnd: toDate(d.dateRangeEnd),
       noteCount: d.noteCount ?? null,
       reportText: d.reportText || '',
-      reportType: d.reportType || 'term',
+      reportType: d.reportType === 'monthly' ? 'baseline' : (d.reportType || 'term'),
       status: d.status || null,
       missingInputFlags: d.missingInputFlags || [],
       sentimentScore: d.sentimentScore ?? null,

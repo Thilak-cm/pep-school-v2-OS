@@ -5,10 +5,11 @@ import { buildChatBody } from "../shared/openai.js";
 import { OPENROUTER_API_KEY, getOpenRouterKey, OPENROUTER_ENDPOINT } from "../shared/openrouter.js";
 import { createLangfuse } from "../shared/langfuse.js";
 
-const LANGFUSE_SECRET_KEY = defineSecret("LANGFUSE_SECRET_KEY");
-const LANGFUSE_PUBLIC_KEY = defineSecret("LANGFUSE_PUBLIC_KEY");
 import { REPORT_DEFAULTS, READINESS_DEFAULTS, JUDGE_DEFAULTS, getReadinessDocId, DRIVE_CONSTANTS, buildCsvFilename, buildArchiveCsvFilename, buildBaselineCsvFilename, buildBaselineArchiveCsvFilename } from "../config/reportConstants.js";
 import { getDefaultDateRange, parseReportResponse, parseReadinessResponse, parseJudgeResponse, getReportPromptDocId, getJudgePromptDocId, getReadinessPromptDocId, mergeReportConfig, formatCsvRow, updateCsvContent, removeCsvRow, appendCsvContent, normalizeEndOfDay, assembleReportSystemContent, buildReadinessArchive } from "../utils/reportHelpers.js";
+
+const LANGFUSE_SECRET_KEY = defineSecret("LANGFUSE_SECRET_KEY");
+const LANGFUSE_PUBLIC_KEY = defineSecret("LANGFUSE_PUBLIC_KEY");
 import {
   getDriveClients,
   getOrCreateClassroomFolder,
@@ -141,7 +142,7 @@ Output ONLY the JSON object, nothing else.`;
 async function callReportGeneration(notes, prompt, studentContext, dateRange, config = REPORT_DEFAULTS, reportType = "term") {
   const apiKey = getOpenRouterKey();
   if (!apiKey) {
-    throw new functions.https.HttpsError("failed-precondition", "OpenAI key not configured");
+    throw new functions.https.HttpsError("failed-precondition", "OpenRouter API key not configured");
   }
 
   const safeContext = {
@@ -530,7 +531,7 @@ export const previewStudentReport = functions
 
     const apiKey = getOpenRouterKey();
     if (!apiKey) {
-      throw new functions.https.HttpsError("failed-precondition", "OpenAI key not configured");
+      throw new functions.https.HttpsError("failed-precondition", "OpenRouter API key not configured");
     }
 
     const studentId = String(data?.studentId || "").trim();
@@ -619,6 +620,7 @@ export const exportReportToDrive = functions
           // Previous attempt fully completed — return existing data (idempotent retry).
           // Read studentName from the stored doc to avoid an extra Firestore read.
           const earlyStudentName = existingReport.studentName || "Student";
+          await langfuse.flushAsync();
           return {
             status: "ok",
             docId: reportDocId,
@@ -734,7 +736,7 @@ export const exportReportToDrive = functions
       drive, classroomFolderId, studentName,
     );
 
-    // For monthly reports, create a "Baseline Reports" subfolder; term reports go directly in student folder (PEP-325)
+    // For baseline reports, create a "Baseline Reports" subfolder; term reports go directly in student folder (PEP-325)
     const isBaseline = (report.reportType || "term") === "baseline";
     const reportFolderId = isBaseline
       ? await getOrCreateFolder(drive, studentFolderId, "Baseline Reports")
@@ -793,10 +795,10 @@ export const exportReportToDrive = functions
           if (reportRef) {
             await reportRef.update({ reportEval });
           }
-          // Log scores to Langfuse
+          // Log scores to Langfuse (guard against null from malformed LLM output)
           const traceId = trace.id;
-          langfuse.score({ traceId, name: "report_sentiment", value: reportEval.sentimentScore });
-          langfuse.score({ traceId, name: "report_area_balance", value: reportEval.areaBalanceScore });
+          if (reportEval.sentimentScore != null) langfuse.score({ traceId, name: "report_sentiment", value: reportEval.sentimentScore });
+          if (reportEval.areaBalanceScore != null) langfuse.score({ traceId, name: "report_area_balance", value: reportEval.areaBalanceScore });
           langfuse.score({ traceId, name: "report_missing_flags_count", value: reportEval.missingInputFlags?.length || 0 });
         }
       } catch (judgeErr) {
@@ -1036,7 +1038,7 @@ export const checkReportReadiness = functions
     const formatted = notes.map(formatObservationForPrompt);
     const apiKey = getOpenRouterKey();
     if (!apiKey) {
-      throw new functions.https.HttpsError("failed-precondition", "OpenAI key not configured");
+      throw new functions.https.HttpsError("failed-precondition", "OpenRouter API key not configured");
     }
 
     const systemContent = prompt.systemPrompt + READINESS_JSON_WRAPPER;
@@ -1185,7 +1187,10 @@ export const deleteStudentReport = functions
           if (driveFolderId) {
             const studentName = resolveStudentName(studentSnap.data());
             const clsName = classroomData2?.name || "Unknown Classroom";
-            const summaryCsvName = buildCsvFilename(clsName);
+            const isBaselineReport = reportData.reportType === "baseline";
+            const summaryCsvName = isBaselineReport
+              ? buildBaselineCsvFilename(clsName, reportData.dateRangeEnd?.toDate?.() || new Date())
+              : buildCsvFilename(clsName);
 
             const existingCsv = await downloadCsvContent(drive, driveFolderId, summaryCsvName);
             if (existingCsv) {

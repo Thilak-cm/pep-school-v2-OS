@@ -48,7 +48,7 @@ const REPORT_TYPES = [
   },
 ];
 
-export default function ReportTypeLandingPage({ onSelectType, studentLabel = 'Student' }) {
+export default function ReportTypeLandingPage({ onSelectType, studentLabel = 'Student', isSuperAdmin = false }) {
   return (
     <Box sx={{ px: 2, py: 2, maxWidth: 480, mx: 'auto' }}>
       <Typography
@@ -67,6 +67,7 @@ export default function ReportTypeLandingPage({ onSelectType, studentLabel = 'St
       <Stack spacing={1.5}>
         {REPORT_TYPES.map((type) => {
           const Icon = type.icon;
+          const enabled = type.key === 'baseline' ? isSuperAdmin : type.enabled;
           return (
             <Card
               key={type.key}
@@ -75,9 +76,9 @@ export default function ReportTypeLandingPage({ onSelectType, studentLabel = 'St
                 borderRadius: 3,
                 border: `1px solid ${type.borderColor}`,
                 background: type.bgGradient,
-                opacity: type.enabled ? 1 : 0.55,
+                opacity: enabled ? 1 : 0.55,
                 transition: 'box-shadow 0.2s, border-color 0.2s',
-                ...(type.enabled && {
+                ...(enabled && {
                   '&:hover': {
                     borderColor: type.iconColor,
                     boxShadow: `0 4px 16px ${type.borderColor}`,
@@ -85,7 +86,7 @@ export default function ReportTypeLandingPage({ onSelectType, studentLabel = 'St
                 }),
               }}
             >
-              {type.enabled ? (
+              {enabled ? (
                 <CardActionArea
                   onClick={() => onSelectType?.(type.key)}
                   sx={{ borderRadius: 3 }}

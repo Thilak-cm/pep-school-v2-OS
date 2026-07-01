@@ -59,13 +59,14 @@ test('ReportTypeLandingPage renders term and baseline as clickable via CardActio
     /onSelectType\?\.\(type\.key\)|onSelectType/.test(source),
     'Expected onClick to call onSelectType with the type key',
   );
-  // term and baseline are marked as enabled: true
+  // term is statically enabled: true
   assert.ok(
     /key: 'term'[\s\S]*?enabled: true/.test(source),
     'Expected term report type to be enabled',
   );
+  // baseline is gated by isSuperAdmin prop
   assert.ok(
-    /key: 'baseline'[\s\S]*?enabled: true/.test(source),
-    'Expected baseline report type to be enabled',
+    /isSuperAdmin/.test(source),
+    'Expected baseline report enabled state to depend on isSuperAdmin prop',
   );
 });

@@ -72,7 +72,7 @@ function App() {
       } catch { /* ignored */ }
     })();
     setPendingViewReportId(docId);
-    setReportTypeFilter('term');
+    setReportTypeFilter(docId?.startsWith('baseline_report_') ? 'baseline' : 'term');
     setScreen('studentReports');
   }, []);
 

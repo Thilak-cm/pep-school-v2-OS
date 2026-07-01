@@ -84,7 +84,7 @@ export default function ReportPreviewDialog({
           <ReportIcon size={24} style={{ color: 'var(--color-primary)' }} />
           <Box>
             <Typography variant="subtitle1" sx={{ fontWeight: 800, color: 'var(--grey-900)' }}>
-              {studentLabel}'s {reportType === 'monthly' ? 'Monthly Baseline Report' : 'Report'}
+              {studentLabel}'s {reportType === 'baseline' ? 'Baseline Report' : 'Report'}
             </Typography>
             {(generatedLabel || noteCount !== null) && (
               <Typography variant="caption" sx={{ color: 'var(--color-text-soft)' }}>

@@ -127,8 +127,8 @@ describe("resolveTargets", () => {
     assert.equal(targets[0].fields.systemPrompt, "staticSystemPrompt");
   });
 
-  it("report_generation monthly maps to baseline_report_{programId}", () => {
-    const targets = resolveTargets("report_generation", "elementary", "monthly");
+  it("report_generation baseline maps to baseline_report_{programId}", () => {
+    const targets = resolveTargets("report_generation", "elementary", "baseline");
     assert.equal(targets.length, 1);
     assert.equal(targets[0].docPath, "config/baseline_report_elementary");
     assert.equal(targets[0].fields.systemPrompt, "staticSystemPrompt");

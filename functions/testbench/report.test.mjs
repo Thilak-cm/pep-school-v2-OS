@@ -24,14 +24,14 @@ describe("buildReportUserMessage", () => {
     assert.ok(result.includes("Educator Summary"), "should include term report label");
   });
 
-  it("uses Monthly Baseline Report label for monthly type", () => {
+  it("uses Baseline Report label for baseline type", () => {
     const result = buildReportUserMessage({
       studentContext: { studentName: "Ava", dob: "2020-01-15", age: "6 years" },
       notes: [],
       dateRange: { start: "2026-06-01", end: "2026-06-30" },
-      reportType: "monthly",
+      reportType: "baseline",
     });
-    assert.ok(result.includes("Monthly Baseline Report"), "should include monthly report label");
+    assert.ok(result.includes("Baseline Report"), "should include baseline report label");
   });
 
   it("includes note count", () => {

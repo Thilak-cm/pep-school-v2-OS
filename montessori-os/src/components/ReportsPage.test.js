@@ -136,11 +136,11 @@ test('ReportsPage uses REPORT_EXPORT_MAX_ATTEMPTS for queue items', async () => 
 
 // --- PEP-101: Idempotent draft report export tests ---
 
-test('ReportsPage generates a stable reportDocId in the enqueue payload', async () => {
+test('ReportsPage generates unique reportDocId per draft in the enqueue payload', async () => {
   const source = await readFile(sourceUrl, 'utf8');
   assert.ok(
-    /report_sq_/.test(source),
-    'Expected ReportsPage to generate a reportDocId with report_sq_ prefix in the enqueue payload',
+    /baseline_report_/.test(source) && /report_\$\{Date\.now\(\)\}/.test(source),
+    'Expected ReportsPage to generate baseline_report_ or report_<timestamp> doc IDs',
   );
 });
 
