@@ -69,17 +69,17 @@ describe("capitalize", () => {
 });
 
 describe("buildReportDocTitle", () => {
-  it("formats as 'Name | Educator Summary | Month Year'", () => {
+  it("formats as 'Name | Term Report | Month Year'", () => {
     assert.equal(
       buildReportDocTitle("Aakash Mehta", "2026-02-28T10:00:00.000Z"),
-      "Aakash Mehta | Educator Summary | February 2026",
+      "Aakash Mehta | Term Report | February 2026",
     );
   });
 
   it("uses month-year from generatedAt", () => {
     assert.equal(
       buildReportDocTitle("Aakash Mehta", "2026-03-15T10:00:00.000Z"),
-      "Aakash Mehta | Educator Summary | March 2026",
+      "Aakash Mehta | Term Report | March 2026",
     );
   });
 
@@ -87,13 +87,13 @@ describe("buildReportDocTitle", () => {
     const title = buildReportDocTitle("Aakash Mehta", null);
     const now = new Date();
     const monthYear = now.toLocaleDateString("en-US", { month: "long", year: "numeric", timeZone: "UTC" });
-    assert.equal(title, `Aakash Mehta | Educator Summary | ${monthYear}`);
+    assert.equal(title, `Aakash Mehta | Term Report | ${monthYear}`);
   });
 
   it("trims student name", () => {
     assert.equal(
       buildReportDocTitle("  Aakash Mehta  ", "2026-02-28T10:00:00.000Z"),
-      "Aakash Mehta | Educator Summary | February 2026",
+      "Aakash Mehta | Term Report | February 2026",
     );
   });
 
@@ -104,17 +104,17 @@ describe("buildReportDocTitle", () => {
     );
   });
 
-  it("uses Educator Summary label when reportType is term", () => {
+  it("uses Term Report label when reportType is term", () => {
     assert.equal(
       buildReportDocTitle("Ava", "2026-06-01T10:00:00.000Z", "term"),
-      "Ava | Educator Summary | June 2026",
+      "Ava | Term Report | June 2026",
     );
   });
 
-  it("defaults to Educator Summary when reportType is undefined", () => {
+  it("defaults to Term Report when reportType is undefined", () => {
     assert.equal(
       buildReportDocTitle("Ava", "2026-06-01T10:00:00.000Z"),
-      "Ava | Educator Summary | June 2026",
+      "Ava | Term Report | June 2026",
     );
   });
 });

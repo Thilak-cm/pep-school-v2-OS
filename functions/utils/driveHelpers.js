@@ -29,7 +29,7 @@ export function buildReportDocTitle(studentName, generatedAt, reportType) {
   const name = (studentName || "").trim();
   const date = generatedAt ? new Date(generatedAt) : new Date();
   const monthYear = date.toLocaleDateString("en-US", { month: "long", year: "numeric", timeZone: "UTC" });
-  const label = reportType === "baseline" ? "Baseline Report" : "Educator Summary";
+  const label = reportType === "baseline" ? "Baseline Report" : "Term Report";
   return `${name} | ${label} | ${monthYear}`;
 }
 
