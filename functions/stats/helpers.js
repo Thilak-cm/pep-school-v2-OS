@@ -147,6 +147,27 @@ export function buildActivityTiers(observations, now = new Date()) {
   return {daily, weekly, monthly};
 }
 
+/**
+ * Deduplicate observations by groupId.
+ * Docs sharing a groupId (fan-out from a single group note) are collapsed
+ * to just the first occurrence. Docs without a groupId pass through as-is.
+ *
+ * @param {Object[]} observations - Array of observation/media docs
+ * @returns {Object[]} Deduplicated array
+ */
+export function deduplicateObservations(observations) {
+  const seen = new Set();
+  const result = [];
+  for (const obs of observations) {
+    if (obs.groupId) {
+      if (seen.has(obs.groupId)) continue;
+      seen.add(obs.groupId);
+    }
+    result.push(obs);
+  }
+  return result;
+}
+
 // ── Date formatting helpers ──────────────────────────────────────────
 
 /** "YYYY-MM-DD" */

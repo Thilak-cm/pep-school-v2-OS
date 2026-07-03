@@ -86,7 +86,7 @@ const StatsPage = ({ user, role, manageableClassrooms = [], onBack, onNavigateTo
     if (hookLoading && classroomDocs.length === 0) return { loading: true, allObservations: [], topStudents: [], teacherStats: [], classroomStats: [] };
     const topStudents = classroomDocs.flatMap(d => d.students || [])
       .filter(s => (s.status || 'active') === 'active')
-      .map(s => ({ id: s.id, name: s.name, thisWeekCount: s.thisWeekNotes || 0, count: s.totalNotes || 0 }))
+      .map(s => ({ id: s.id, name: s.name, thisWeekCount: s.thisWeekMentions || 0, count: s.totalMentions || 0 }))
       .sort((a, b) => b.thisWeekCount - a.thisWeekCount)
       .slice(0, 10);
     return { loading: false, allObservations: [], topStudents, teacherStats: [], classroomStats: [] };
@@ -154,7 +154,7 @@ const StatsPage = ({ user, role, manageableClassrooms = [], onBack, onNavigateTo
     const totals = { excellent: 0, sufficient: 0, needsSupport: 0, immediateAttention: 0, studentCount: unique.length, averageNotes: 0, totalNotes: 0 };
     if (unique.length === 0) return totals;
     for (const s of unique) {
-      const n = Number.isFinite(s.last42DaysNotes) ? s.last42DaysNotes : 0;
+      const n = Number.isFinite(s.last42DaysMentions) ? s.last42DaysMentions : 0;
       totals.totalNotes += n;
       if (n >= 12) totals.excellent++;
       else if (n >= 8) totals.sufficient++;
@@ -178,7 +178,7 @@ const StatsPage = ({ user, role, manageableClassrooms = [], onBack, onNavigateTo
       : { tier: 'daily', slice: 7 };
 
     const sumTypeTier = (doc, type) => {
-      const tierMap = doc.activityByType?.[type]?.[config.tier] || {};
+      const tierMap = doc.effortActivityByType?.[type]?.[config.tier] || {};
       const entries = Object.entries(tierMap).sort(([a], [b]) => a.localeCompare(b));
       return entries.slice(-config.slice).reduce((sum, [, count]) => sum + count, 0);
     };
@@ -203,19 +203,19 @@ const StatsPage = ({ user, role, manageableClassrooms = [], onBack, onNavigateTo
     const sumTier = (type) => {
       let total = 0;
       for (const doc of classroomDocs) {
-        const tierMap = doc.activityByType?.[type]?.[tierKey] || {};
+        const tierMap = doc.effortActivityByType?.[type]?.[tierKey] || {};
         const entries = Object.entries(tierMap).sort(([a], [b]) => a.localeCompare(b));
         total += entries.slice(-sliceN).reduce((sum, [, count]) => sum + count, 0);
       }
       return total;
     };
 
-    // Fall back to all-time noteCounts if activityByType not yet in cache docs
-    const hasTypeTiers = classroomDocs.some(d => d.activityByType);
+    // Fall back to all-time effortCounts if effortActivityByType not yet in cache docs
+    const hasTypeTiers = classroomDocs.some(d => d.effortActivityByType);
     if (!hasTypeTiers) {
       const nc = { voice: 0, text: 0, lesson: 0, media: 0 };
       for (const doc of classroomDocs) {
-        const c = doc.noteCounts || {};
+        const c = doc.effortCounts || {};
         nc.voice += c.voice || 0; nc.text += c.text || 0;
         nc.lesson += c.lesson || 0; nc.media += c.media || 0;
       }
@@ -259,7 +259,7 @@ const StatsPage = ({ user, role, manageableClassrooms = [], onBack, onNavigateTo
     const sliceN = sliceMap[timePeriod] || 7;
     let total = 0;
     for (const doc of classroomDocs) {
-      const tierMap = doc.activity?.[tierKey] || {};
+      const tierMap = doc.effortActivity?.[tierKey] || {};
       const entries = Object.entries(tierMap).sort(([a], [b]) => a.localeCompare(b));
       const recent = entries.slice(-sliceN);
       total += recent.reduce((sum, [, count]) => sum + count, 0);
@@ -278,15 +278,17 @@ const StatsPage = ({ user, role, manageableClassrooms = [], onBack, onNavigateTo
     const list = (doc.teachers || []).map(t => {
       const periodObs = is7d ? (t.observations7d || 0) : (t.observations30d || 0);
       const periodLessons = is7d ? (t.lessons7d || 0) : (t.lessons30d || 0);
+      const periodMedia = is7d ? (t.media7d || 0) : (t.media30d || 0);
 
       return {
         id: t.id,
         name: t.name,
         email: t.email,
         status: t.status,
-        periodObservations: periodObs + periodLessons,
+        periodObservations: periodObs + periodLessons + periodMedia,
         periodObservationNotes: periodObs,
         periodLessonNotes: periodLessons,
+        periodMediaNotes: periodMedia,
         otherClassroomCount: is7d
           ? (t.otherCount7d || 0)
           : (t.otherCount30d || 0),
@@ -318,52 +320,64 @@ const StatsPage = ({ user, role, manageableClassrooms = [], onBack, onNavigateTo
     );
   }
 
-  // Generate activity data from pre-computed tiers
+  // Generate per-type activity data from pre-computed effort tiers
   const generateActivityData = (period) => {
     const tierKey = period === '1W' ? 'daily'
       : (period === '1M') ? 'weekly' : 'monthly';
 
-    // Merge tier maps across all classroom docs
-    const merged = {};
-    for (const doc of classroomDocs) {
-      const tierMap = doc.activity?.[tierKey] || {};
-      for (const [key, count] of Object.entries(tierMap)) {
-        merged[key] = (merged[key] || 0) + count;
+    // Merge per-type tier maps across all classroom docs
+    const mergeType = (types) => {
+      const merged = {};
+      for (const doc of classroomDocs) {
+        for (const type of types) {
+          const tierMap = doc.effortActivityByType?.[type]?.[tierKey] || {};
+          for (const [key, count] of Object.entries(tierMap)) {
+            merged[key] = (merged[key] || 0) + count;
+          }
+        }
       }
-    }
+      return merged;
+    };
 
-    const sortedEntries = Object.entries(merged).sort(([a], [b]) => a.localeCompare(b));
+    const obsMerged = mergeType(['voice', 'text']);  // observations = voice + text
+    const lessonMerged = mergeType(['lesson']);
+    const mediaMerged = mergeType(['media']);
+
+    // Get all unique time keys across all types
+    const allKeys = [...new Set([
+      ...Object.keys(obsMerged),
+      ...Object.keys(lessonMerged),
+      ...Object.keys(mediaMerged),
+    ])].sort();
+
     const dayNames = ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'];
     const monthNames = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
 
-    switch (period) {
-      case '1W':
-        return sortedEntries.slice(-7).map(([key, count]) => {
+    const formatLabel = (key, period, index) => {
+      switch (period) {
+        case '1W': {
           const d = new Date(key + 'T00:00:00');
-          return { period: dayNames[d.getDay()] || key, count };
-        });
-      case '1M':
-        return sortedEntries.slice(-4).map(([_key, count], i) => ({
-          period: `Week ${i + 1}`, count
-        }));
-      case '3M':
-        return sortedEntries.slice(-3).map(([key, count]) => {
+          return dayNames[d.getDay()] || key;
+        }
+        case '1M':
+          return `Week ${index + 1}`;
+        default: {
           const m = parseInt(key.split('-')[1], 10) - 1;
-          return { period: monthNames[m] || key, count };
-        });
-      case '6M':
-        return sortedEntries.slice(-6).map(([key, count]) => {
-          const m = parseInt(key.split('-')[1], 10) - 1;
-          return { period: monthNames[m] || key, count };
-        });
-      case '1Y':
-        return sortedEntries.slice(-12).map(([key, count]) => {
-          const m = parseInt(key.split('-')[1], 10) - 1;
-          return { period: monthNames[m] || key, count };
-        });
-      default:
-        return [];
-    }
+          return monthNames[m] || key;
+        }
+      }
+    };
+
+    const sliceMap = { '1W': 7, '1M': 4, '3M': 3, '6M': 6, '1Y': 12 };
+    const sliceN = sliceMap[period] || 7;
+    const slicedKeys = allKeys.slice(-sliceN);
+
+    return slicedKeys.map((key, i) => ({
+      period: formatLabel(key, period, i),
+      observations: obsMerged[key] || 0,
+      lessons: lessonMerged[key] || 0,
+      media: mediaMerged[key] || 0,
+    }));
   };
 
   const StatCard = ({ title, value, icon, color = 'primary', subtitle, trend }) => (
@@ -660,60 +674,83 @@ const StatsPage = ({ user, role, manageableClassrooms = [], onBack, onNavigateTo
     }
 
     return (
-      <Box sx={{ height: 250, width: '100%', minWidth: 0, minHeight: 250, position: 'relative' }}>
-        <ResponsiveContainer width="100%" height="100%">
+      <Box sx={{ width: '100%', minWidth: 0 }}>
+        <Box sx={{ height: 250, width: '100%', minWidth: 0, minHeight: 250, position: 'relative' }}>
+          <ResponsiveContainer width="100%" height="100%">
             <LineChart data={activityData} margin={{ top: 20, right: 20, left: 0, bottom: 5 }}>
-            <CartesianGrid strokeDasharray="3 3" stroke="#f0f0f0" /> {/* Recharts — hex required */}
-            <XAxis
-              dataKey="period"
-              tick={{ fontSize: 12, fill: '#64748b' }} /* Recharts */
-              axisLine={{ stroke: '#e2e8f0' }} /* Recharts */
-            />
-            <YAxis
-              tick={{ fontSize: 12, fill: '#64748b' }} /* Recharts */
-              axisLine={{ stroke: '#e2e8f0' }} /* Recharts */
-              tickLine={false}
-              width={45}
-              tickFormatter={(value) => value >= 1000 ? `${Math.round(value / 100) / 10}k` : Math.round(value)}
-            />
-            <RechartsTooltip
-              contentStyle={{
-                backgroundColor: 'white',
-                border: '1px solid var(--color-border)',
-                borderRadius: 8,
-                boxShadow: '0 4px 12px rgba(0,0,0,0.1)'
-              }}
-              content={({ active, payload, label: _label }) => {
-                if (active && payload && payload.length) {
-                  return (
-                    <Box sx={{
-                      backgroundColor: 'white',
-                      border: '1px solid var(--color-border)',
-                      borderRadius: 2,
-                      p: 1.5,
-                      boxShadow: '0 4px 12px rgba(0,0,0,0.1)'
-                    }}>
-                      <Typography sx={{ fontSize: '16px', fontWeight: 'bold', color: 'var(--color-primary)' }}>
-                        {payload[0].value} {payload[0].value === 1 ? 'note' : 'notes'}
-                      </Typography>
-                      <Typography sx={{ fontSize: '12px', color: 'var(--color-text-soft)' }}>
-                        Time: {payload[0].payload.period}
-                      </Typography>
-                    </Box>
-                  );
-                }
-                return null;
-              }}
-            />
-            <Line
-              type="monotone"
-              dataKey="count"
-              stroke="#4f46e5" /* Recharts */
-              strokeWidth={3}
-              dot={{ fill: '#4f46e5', strokeWidth: 2, r: 4 }} /* Recharts */
-            />
-          </LineChart>
-        </ResponsiveContainer>
+              <CartesianGrid strokeDasharray="3 3" stroke="#f0f0f0" /> {/* Recharts — hex required */}
+              <XAxis
+                dataKey="period"
+                tick={{ fontSize: 12, fill: '#64748b' }} /* Recharts */
+                axisLine={{ stroke: '#e2e8f0' }} /* Recharts */
+              />
+              <YAxis
+                tick={{ fontSize: 12, fill: '#64748b' }} /* Recharts */
+                axisLine={{ stroke: '#e2e8f0' }} /* Recharts */
+                tickLine={false}
+                width={45}
+                tickFormatter={(value) => value >= 1000 ? `${Math.round(value / 100) / 10}k` : Math.round(value)}
+              />
+              <RechartsTooltip
+                contentStyle={{
+                  backgroundColor: 'white',
+                  border: '1px solid var(--color-border)',
+                  borderRadius: 8,
+                  boxShadow: '0 4px 12px rgba(0,0,0,0.1)'
+                }}
+                content={({ active, payload }) => {
+                  if (active && payload && payload.length) {
+                    const d = payload[0]?.payload;
+                    const total = (d?.observations || 0) + (d?.lessons || 0) + (d?.media || 0);
+                    return (
+                      <Box sx={{
+                        backgroundColor: 'white',
+                        border: '1px solid var(--color-border)',
+                        borderRadius: 2,
+                        p: 1.5,
+                        boxShadow: '0 4px 12px rgba(0,0,0,0.1)'
+                      }}>
+                        <Typography sx={{ fontSize: '14px', fontWeight: 700, mb: 0.5 }}>
+                          {d?.period} — {total} {total === 1 ? 'note' : 'notes'}
+                        </Typography>
+                        <Typography sx={{ fontSize: '12px', color: '#4f46e5' }}>
+                          Observations: {d?.observations || 0}
+                        </Typography>
+                        <Typography sx={{ fontSize: '12px', color: '#059669' }}>
+                          Lessons: {d?.lessons || 0}
+                        </Typography>
+                        <Typography sx={{ fontSize: '12px', color: '#ec4899' }}>
+                          Media: {d?.media || 0}
+                        </Typography>
+                      </Box>
+                    );
+                  }
+                  return null;
+                }}
+              />
+              <Line type="monotone" dataKey="observations" name="Observations" stroke="#4f46e5" strokeWidth={2.5} dot={{ fill: '#4f46e5', r: 3 }} /> {/* Recharts */}
+              <Line type="monotone" dataKey="lessons" name="Lessons" stroke="#059669" strokeWidth={2.5} dot={{ fill: '#059669', r: 3 }} /> {/* Recharts */}
+              <Line type="monotone" dataKey="media" name="Media" stroke="#ec4899" strokeWidth={2.5} dot={{ fill: '#ec4899', r: 3 }} /> {/* Recharts */}
+            </LineChart>
+          </ResponsiveContainer>
+        </Box>
+        {/* Legend */}
+        <Box sx={{ mt: 1, display: 'flex', justifyContent: 'center' }}>
+          <Box sx={{ display: 'flex', gap: 2, alignItems: 'center', px: 1.5, py: 0.5, borderRadius: 999, border: '1px solid var(--color-border)', backgroundColor: 'white' }}>
+            <Box sx={{ display: 'flex', alignItems: 'center', gap: 0.6 }}>
+              <Box sx={{ width: 10, height: 10, borderRadius: '50%', backgroundColor: '#4f46e5' }} />
+              <Typography variant="caption" sx={{ color: 'text.secondary', fontWeight: 600 }}>Observations</Typography>
+            </Box>
+            <Box sx={{ display: 'flex', alignItems: 'center', gap: 0.6 }}>
+              <Box sx={{ width: 10, height: 10, borderRadius: '50%', backgroundColor: '#059669' }} />
+              <Typography variant="caption" sx={{ color: 'text.secondary', fontWeight: 600 }}>Lessons</Typography>
+            </Box>
+            <Box sx={{ display: 'flex', alignItems: 'center', gap: 0.6 }}>
+              <Box sx={{ width: 10, height: 10, borderRadius: '50%', backgroundColor: '#ec4899' }} />
+              <Typography variant="caption" sx={{ color: 'text.secondary', fontWeight: 600 }}>Media</Typography>
+            </Box>
+          </Box>
+        </Box>
       </Box>
     );
   };
@@ -862,8 +899,14 @@ const StatsPage = ({ user, role, manageableClassrooms = [], onBack, onNavigateTo
                 </ToggleButtonGroup>
               </Box>
 
+              <Box sx={{ mb: 1.5, px: 1.5, py: 0.75, backgroundColor: 'rgba(79, 70, 229, 0.06)', borderRadius: 1.5, border: '1px solid rgba(79, 70, 229, 0.15)' }}>
+                <Typography variant="caption" color="text.secondary" sx={{ fontWeight: 500 }}>
+                  Group notes assigned to multiple students count as 1
+                </Typography>
+              </Box>
+
               {/* Activity Trend Chart */}
-              <Box sx={{ 
+              <Box sx={{
                 backgroundColor: 'white',
                 borderRadius: 2,
                 p: 3,
@@ -1268,6 +1311,7 @@ const StatsPage = ({ user, role, manageableClassrooms = [], onBack, onNavigateTo
                           <Box sx={{ display: 'flex', alignItems: 'center', gap: 1, flexWrap: 'wrap' }}>
                             <Chip size="small" variant="outlined" color="success" label={`Observations: ${teacher.periodObservationNotes ?? 0}`} />
                             <Chip size="small" variant="outlined" color="info" label={`Lessons: ${teacher.periodLessonNotes ?? 0}`} />
+                            <Chip size="small" variant="outlined" sx={{ borderColor: '#ec4899', color: '#ec4899' }} label={`Media: ${teacher.periodMediaNotes ?? 0}`} />
                           </Box>
 
                           {teacher.otherClassroomCount > 0 && (

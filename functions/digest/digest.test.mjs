@@ -77,18 +77,20 @@ function buildFirstUserMessage(classroomDoc, statsCacheDoc, contextualNotes, sna
     name: t.name,
     observations7d: t.observations7d || 0,
     lessons7d: t.lessons7d || 0,
-    total7d: (t.observations7d || 0) + (t.lessons7d || 0),
+    media7d: t.media7d || 0,
+    total7d: (t.observations7d || 0) + (t.lessons7d || 0) + (t.media7d || 0),
     observations: t.observations || 0,
     lessons: t.lessons || 0,
+    media: t.media || 0,
   }));
 
   const students = (statsCacheDoc?.students || []).map((s) => ({
     id: s.id,
     name: s.name,
-    thisWeekNotes: s.thisWeekNotes || 0,
-    last14DaysNotes: s.last14DaysNotes || 0,
-    last42DaysNotes: s.last42DaysNotes || 0,
-    totalNotes: s.totalNotes || 0,
+    thisWeekMentions: s.thisWeekMentions || 0,
+    last14DaysMentions: s.last14DaysMentions || 0,
+    last42DaysMentions: s.last42DaysMentions || 0,
+    totalMentions: s.totalMentions || 0,
   }));
 
   const notesSection = contextualNotes
@@ -96,7 +98,7 @@ function buildFirstUserMessage(classroomDoc, statsCacheDoc, contextualNotes, sna
     : [];
 
   const studentLines = students.flatMap((s) => {
-    const notePart = `this week ${s.thisWeekNotes}, last 14d ${s.last14DaysNotes}, last 42d ${s.last42DaysNotes}, total ${s.totalNotes}`;
+    const notePart = `this week ${s.thisWeekMentions}, last 14d ${s.last14DaysMentions}, last 42d ${s.last42DaysMentions}, total ${s.totalMentions}`;
     const snap = snapshotsMap?.get(s.id);
     let mainLine;
     if (!snap) {
@@ -137,7 +139,7 @@ function buildFirstUserMessage(classroomDoc, statsCacheDoc, contextualNotes, sna
     "## Teacher Activity (last 7 days)",
     ...teachers.map(
       (t) =>
-        `- ${t.name}: ${t.total7d} notes (${t.observations7d} obs, ${t.lessons7d} lessons) | all-time: ${t.observations + t.lessons}`
+        `- ${t.name}: ${t.total7d} notes (${t.observations7d} obs, ${t.lessons7d} lessons, ${t.media7d} media) | all-time: ${t.observations + t.lessons + t.media}`
     ),
     "",
     "## Students",
@@ -297,8 +299,8 @@ test("buildFirstUserMessage includes classroom, stats, and contextual notes", ()
       { name: "Naina", observations7d: 0, lessons7d: 0, observations: 100, lessons: 50 },
     ],
     students: [
-      { id: "s1", name: "Alice", thisWeekNotes: 3, last14DaysNotes: 8, last42DaysNotes: 15, totalNotes: 30 },
-      { id: "s2", name: "Bob", thisWeekNotes: 0, last14DaysNotes: 2, last42DaysNotes: 8, totalNotes: 20 },
+      { id: "s1", name: "Alice", thisWeekMentions: 3, last14DaysMentions: 8, last42DaysMentions: 15, totalMentions: 30 },
+      { id: "s2", name: "Bob", thisWeekMentions: 0, last14DaysMentions: 2, last42DaysMentions: 8, totalMentions: 20 },
     ],
   };
   const notes = "- Diana is admin, not a teacher.\n- Summer break April-May.";
@@ -329,7 +331,7 @@ test("buildFirstUserMessage handles missing statsCache and empty notes", () => {
 test("buildFirstUserMessage shows 'no weekly snapshot yet' when snapshotsMap is null", () => {
   const statsDoc = {
     teachers: [],
-    students: [{ id: "s1", name: "Alice", thisWeekNotes: 1, last14DaysNotes: 3, last42DaysNotes: 5, totalNotes: 10 }],
+    students: [{ id: "s1", name: "Alice", thisWeekMentions: 1, last14DaysMentions: 3, last42DaysMentions: 5, totalMentions: 10 }],
   };
   const msg = buildFirstUserMessage({ id: "test", name: "Test" }, statsDoc, "", null);
   assert.ok(msg.includes("no weekly snapshot yet"), "should indicate missing snapshot");
@@ -340,8 +342,8 @@ test("buildFirstUserMessage merges note counts and snapshot flags per student", 
   const statsDoc = {
     teachers: [{ name: "Geetha", observations7d: 3, lessons7d: 1, observations: 100, lessons: 50 }],
     students: [
-      { id: "s1", name: "Alice", thisWeekNotes: 2, last14DaysNotes: 5, last42DaysNotes: 10, totalNotes: 25 },
-      { id: "s2", name: "Bob", thisWeekNotes: 0, last14DaysNotes: 0, last42DaysNotes: 0, totalNotes: 0 },
+      { id: "s1", name: "Alice", thisWeekMentions: 2, last14DaysMentions: 5, last42DaysMentions: 10, totalMentions: 25 },
+      { id: "s2", name: "Bob", thisWeekMentions: 0, last14DaysMentions: 0, last42DaysMentions: 0, totalMentions: 0 },
     ],
   };
   const snapshots = new Map([
@@ -371,8 +373,8 @@ test("buildFirstUserMessage includes writing analysis teaser when writingMap pro
   const statsDoc = {
     teachers: [],
     students: [
-      { id: "s1", name: "Alice", thisWeekNotes: 2, last14DaysNotes: 5, last42DaysNotes: 10, totalNotes: 25 },
-      { id: "s2", name: "Bob", thisWeekNotes: 1, last14DaysNotes: 3, last42DaysNotes: 6, totalNotes: 12 },
+      { id: "s1", name: "Alice", thisWeekMentions: 2, last14DaysMentions: 5, last42DaysMentions: 10, totalMentions: 25 },
+      { id: "s2", name: "Bob", thisWeekMentions: 1, last14DaysMentions: 3, last42DaysMentions: 6, totalMentions: 12 },
     ],
   };
   const writingMap = new Map([

@@ -4,6 +4,7 @@ import {
   classifyNote,
   getObservationDate,
   buildActivityTiers,
+  deduplicateObservations,
   CACHE_TTL_MS,
 } from "../stats/helpers.js";
 
@@ -207,6 +208,69 @@ describe("buildActivityTiers", () => {
     const tiers = buildActivityTiers(obs, refDate);
     const dailyTotal = Object.values(tiers.daily).reduce((a, b) => a + b, 0);
     assert.equal(dailyTotal, 0);
+  });
+});
+
+// ── deduplicateObservations ──────────────────────────────────────────
+
+describe("deduplicateObservations", () => {
+  it("returns 1 doc per unique groupId", () => {
+    const obs = [
+      {id: "a1", groupId: "g1", type: "lesson"},
+      {id: "a2", groupId: "g1", type: "lesson"},
+      {id: "a3", groupId: "g1", type: "lesson"},
+    ];
+    const result = deduplicateObservations(obs);
+    assert.equal(result.length, 1);
+    assert.equal(result[0].id, "a1");
+  });
+
+  it("passes through docs without groupId unchanged", () => {
+    const obs = [
+      {id: "b1", type: "text"},
+      {id: "b2", type: "voice"},
+    ];
+    const result = deduplicateObservations(obs);
+    assert.equal(result.length, 2);
+  });
+
+  it("handles mixed group + individual docs correctly", () => {
+    const obs = [
+      {id: "c1", groupId: "g1", type: "lesson"},
+      {id: "c2", groupId: "g1", type: "lesson"},
+      {id: "c3", type: "text"},
+      {id: "c4", groupId: "g2", type: "voice"},
+      {id: "c5", groupId: "g2", type: "voice"},
+      {id: "c6", type: "media"},
+    ];
+    const result = deduplicateObservations(obs);
+    // g1 → 1, individual text → 1, g2 → 1, individual media → 1
+    assert.equal(result.length, 4);
+  });
+
+  it("counts two different groupIds as 2", () => {
+    const obs = [
+      {id: "d1", groupId: "g1", type: "lesson"},
+      {id: "d2", groupId: "g1", type: "lesson"},
+      {id: "d3", groupId: "g2", type: "lesson"},
+      {id: "d4", groupId: "g2", type: "lesson"},
+    ];
+    const result = deduplicateObservations(obs);
+    assert.equal(result.length, 2);
+  });
+
+  it("returns empty array for empty input", () => {
+    assert.deepEqual(deduplicateObservations([]), []);
+  });
+
+  it("handles null/undefined groupId as individual docs", () => {
+    const obs = [
+      {id: "e1", groupId: null, type: "text"},
+      {id: "e2", groupId: undefined, type: "voice"},
+      {id: "e3", type: "media"},
+    ];
+    const result = deduplicateObservations(obs);
+    assert.equal(result.length, 3);
   });
 });
 

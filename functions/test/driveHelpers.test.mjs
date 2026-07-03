@@ -69,17 +69,17 @@ describe("capitalize", () => {
 });
 
 describe("buildReportDocTitle", () => {
-  it("formats as 'Name | Educator Summary | Month Year'", () => {
+  it("formats as 'Name | Term Report | Month Year'", () => {
     assert.equal(
       buildReportDocTitle("Aakash Mehta", "2026-02-28T10:00:00.000Z"),
-      "Aakash Mehta | Educator Summary | February 2026",
+      "Aakash Mehta | Term Report | February 2026",
     );
   });
 
   it("uses month-year from generatedAt", () => {
     assert.equal(
       buildReportDocTitle("Aakash Mehta", "2026-03-15T10:00:00.000Z"),
-      "Aakash Mehta | Educator Summary | March 2026",
+      "Aakash Mehta | Term Report | March 2026",
     );
   });
 
@@ -87,13 +87,13 @@ describe("buildReportDocTitle", () => {
     const title = buildReportDocTitle("Aakash Mehta", null);
     const now = new Date();
     const monthYear = now.toLocaleDateString("en-US", { month: "long", year: "numeric", timeZone: "UTC" });
-    assert.equal(title, `Aakash Mehta | Educator Summary | ${monthYear}`);
+    assert.equal(title, `Aakash Mehta | Term Report | ${monthYear}`);
   });
 
   it("trims student name", () => {
     assert.equal(
       buildReportDocTitle("  Aakash Mehta  ", "2026-02-28T10:00:00.000Z"),
-      "Aakash Mehta | Educator Summary | February 2026",
+      "Aakash Mehta | Term Report | February 2026",
     );
   });
 
@@ -104,17 +104,17 @@ describe("buildReportDocTitle", () => {
     );
   });
 
-  it("uses Educator Summary label when reportType is term", () => {
+  it("uses Term Report label when reportType is term", () => {
     assert.equal(
       buildReportDocTitle("Ava", "2026-06-01T10:00:00.000Z", "term"),
-      "Ava | Educator Summary | June 2026",
+      "Ava | Term Report | June 2026",
     );
   });
 
-  it("defaults to Educator Summary when reportType is undefined", () => {
+  it("defaults to Term Report when reportType is undefined", () => {
     assert.equal(
       buildReportDocTitle("Ava", "2026-06-01T10:00:00.000Z"),
-      "Ava | Educator Summary | June 2026",
+      "Ava | Term Report | June 2026",
     );
   });
 });
@@ -161,17 +161,17 @@ describe("deriveAcademicYear", () => {
 // --- formatDateForMeta ---
 
 describe("formatDateForMeta", () => {
-  it("formats a Date object to DD/MM/YYYY", () => {
-    assert.equal(formatDateForMeta(new Date("2025-11-01T00:00:00.000Z")), "01/11/2025");
+  it("formats a Date object to D Month YYYY", () => {
+    assert.equal(formatDateForMeta(new Date("2025-11-01T00:00:00.000Z")), "1 November 2025");
   });
 
-  it("formats an ISO string to DD/MM/YYYY", () => {
-    assert.equal(formatDateForMeta("2026-03-15T10:00:00.000Z"), "15/03/2026");
+  it("formats an ISO string to D Month YYYY", () => {
+    assert.equal(formatDateForMeta("2026-03-15T10:00:00.000Z"), "15 March 2026");
   });
 
   it("handles a Firestore-like Timestamp with toDate()", () => {
     const fakeTimestamp = { toDate: () => new Date("2025-11-01T00:00:00.000Z") };
-    assert.equal(formatDateForMeta(fakeTimestamp), "01/11/2025");
+    assert.equal(formatDateForMeta(fakeTimestamp), "1 November 2025");
   });
 
   it("returns empty string for null/undefined", () => {
@@ -261,7 +261,7 @@ describe("buildDocInsertRequests formatting", () => {
   // AC3: Metadata line — pink/magenta with program, classroom, date range, and AY
   it("inserts metadata line with classroom, date range, and AY", () => {
     const requests = buildDocInsertRequests(sampleMarkdown, baseOpts);
-    const metaText = "Adolescent | Gulmohar | 01/11/2025 to 31/03/2026 | AY 2025-26";
+    const metaText = "Adolescent | Gulmohar | 1 November 2025 to 31 March 2026 | AY 2025-26";
     const styleReq = findTextStyleForText(requests, metaText);
     assert.ok(styleReq, "should have a text style for metadata line");
     const style = styleReq.updateTextStyle.textStyle;

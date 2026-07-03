@@ -12,6 +12,7 @@ import {
   classifyNote,
   getObservationDate,
   buildActivityTiers,
+  deduplicateObservations,
   CACHE_TTL_MS,
 } from "./helpers.js";
 
@@ -187,28 +188,33 @@ export const recomputeStats = functions
         studentsByClassroom.get(classroom.id) || []
       ).filter((s) => (s.status || "active") === "active");
 
-      // Note counts by type
-      const noteCounts = {voice: 0, text: 0, lesson: 0, media: 0, total: 0};
-      for (const obs of classroomObs) {
+      // Dedup classroom obs for effort counts (group note = 1 act)
+      const dedupedObs = deduplicateObservations(classroomObs);
+
+      // Effort counts by type (deduped — teacher effort)
+      const effortCounts = {
+        voice: 0, text: 0, lesson: 0, media: 0, total: 0,
+      };
+      for (const obs of dedupedObs) {
         const type = classifyNote(obs);
-        if (type in noteCounts) noteCounts[type]++;
-        noteCounts.total++;
+        if (type in effortCounts) effortCounts[type]++;
+        effortCounts.total++;
       }
 
-      // Activity tiers (aggregate + per-type)
-      const activity = buildActivityTiers(classroomObs, now);
+      // Effort activity tiers (deduped aggregate)
+      const effortActivity = buildActivityTiers(dedupedObs, now);
 
-      // Per-type activity tiers for time-filtered pie chart
-      const obsByType = {voice: [], text: [], lesson: [], media: []};
-      for (const obs of classroomObs) {
+      // Effort per-type activity tiers (deduped)
+      const dedupedByType = {voice: [], text: [], lesson: [], media: []};
+      for (const obs of dedupedObs) {
         const t = classifyNote(obs);
-        if (t in obsByType) obsByType[t].push(obs);
+        if (t in dedupedByType) dedupedByType[t].push(obs);
       }
-      const activityByType = {
-        voice: buildActivityTiers(obsByType.voice, now),
-        text: buildActivityTiers(obsByType.text, now),
-        lesson: buildActivityTiers(obsByType.lesson, now),
-        media: buildActivityTiers(obsByType.media, now),
+      const effortActivityByType = {
+        voice: buildActivityTiers(dedupedByType.voice, now),
+        text: buildActivityTiers(dedupedByType.text, now),
+        lesson: buildActivityTiers(dedupedByType.lesson, now),
+        media: buildActivityTiers(dedupedByType.media, now),
       };
 
       // Teacher stats for this classroom
@@ -222,24 +228,41 @@ export const recomputeStats = functions
           status: "active",
         };
 
-        // Count notes by this teacher IN this classroom
+        // Count notes by this teacher IN this classroom (deduped)
         const teacherObsHere = classroomObs.filter(
           (o) => o.createdBy === tid,
         );
+        const dedupedTeacherObs = deduplicateObservations(teacherObsHere);
         let observations = 0;
         let lessons = 0;
+        let media = 0;
+        let handwritten = 0;
         let observations7d = 0;
         let lessons7d = 0;
+        let media7d = 0;
+        let handwritten7d = 0;
         let observations30d = 0;
         let lessons30d = 0;
-        for (const o of teacherObsHere) {
+        let media30d = 0;
+        let handwritten30d = 0;
+        for (const o of dedupedTeacherObs) {
           const d = getObservationDate(o);
-          const isLesson = classifyNote(o) === "lesson";
-          if (isLesson) {
+          const noteType = classifyNote(o);
+          if (noteType === "lesson") {
             lessons++;
             if (d >= weekAgo) lessons7d++;
             if (d >= thirtyDaysAgo) lessons30d++;
+          } else if (noteType === "media") {
+            media++;
+            if (d >= weekAgo) media7d++;
+            if (d >= thirtyDaysAgo) media30d++;
+            if (o.handwritten === true) {
+              handwritten++;
+              if (d >= weekAgo) handwritten7d++;
+              if (d >= thirtyDaysAgo) handwritten30d++;
+            }
           } else {
+            // voice + text = observations
             observations++;
             if (d >= weekAgo) observations7d++;
             if (d >= thirtyDaysAgo) observations30d++;
@@ -247,13 +270,14 @@ export const recomputeStats = functions
         }
 
         // Cross-classroom: count this teacher's notes in OTHER classrooms
-        // filtered by time window (7d and 30d)
+        // (deduped, filtered by time window)
         const allTeacherObs = obsByCreator.get(tid) || [];
+        const dedupedAllTeacherObs = deduplicateObservations(allTeacherObs);
         let otherNotes7d = 0;
         let otherNotes30d = 0;
         const otherIds7d = new Set();
         const otherIds30d = new Set();
-        for (const o of allTeacherObs) {
+        for (const o of dedupedAllTeacherObs) {
           if (o._classroomId !== classroom.id) {
             const d = getObservationDate(o);
             if (d >= weekAgo) {
@@ -274,10 +298,16 @@ export const recomputeStats = functions
           status: user.status,
           observations,
           lessons,
+          media,
+          handwritten,
           observations7d,
           lessons7d,
+          media7d,
+          handwritten7d,
           observations30d,
           lessons30d,
+          media30d,
+          handwritten30d,
           otherNotes7d,
           otherCount7d: otherIds7d.size,
           otherNotes30d,
@@ -287,34 +317,63 @@ export const recomputeStats = functions
         // Exclude ghost teachers: orphaned UIDs or stale pending users with zero activity.
         // These pollute downstream consumers (e.g., digest agent reports "Unknown" teachers).
         const isGhost = !usersById.has(t.id) || t.id.startsWith("pending_");
-        const hasActivity = (t.observations + t.lessons) > 0;
+        const hasActivity = (t.observations + t.lessons + t.media) > 0;
         return !isGhost || hasActivity;
       });
 
-      // Student stats
+      // Student stats (per-student fan-out — NOT deduped)
       const students = classroomStudents.map((s) => {
-        let totalNotes = 0;
-        let thisWeekNotes = 0;
-        let last14DaysNotes = 0;
-        let last42DaysNotes = 0;
+        let totalMentions = 0;
+        let thisWeekMentions = 0;
+        let last14DaysMentions = 0;
+        let last42DaysMentions = 0;
+        let mediaMentions = 0;
+        let mediaThisWeek = 0;
+        let mediaLast14Days = 0;
+        let mediaLast42Days = 0;
+        let handwrittenMentions = 0;
+        let handwrittenThisWeek = 0;
+        let handwrittenLast14Days = 0;
+        let handwrittenLast42Days = 0;
 
         for (const obs of classroomObs) {
           if (obs.studentId !== s.id) continue;
-          totalNotes++;
+          totalMentions++;
           const d = getObservationDate(obs);
-          if (d >= weekAgo) thisWeekNotes++;
-          if (d >= fourteenDaysAgo) last14DaysNotes++;
-          if (d >= fortyTwoDaysAgo) last42DaysNotes++;
+          if (d >= weekAgo) thisWeekMentions++;
+          if (d >= fourteenDaysAgo) last14DaysMentions++;
+          if (d >= fortyTwoDaysAgo) last42DaysMentions++;
+
+          if (classifyNote(obs) === "media") {
+            mediaMentions++;
+            if (d >= weekAgo) mediaThisWeek++;
+            if (d >= fourteenDaysAgo) mediaLast14Days++;
+            if (d >= fortyTwoDaysAgo) mediaLast42Days++;
+            if (obs.handwritten === true) {
+              handwrittenMentions++;
+              if (d >= weekAgo) handwrittenThisWeek++;
+              if (d >= fourteenDaysAgo) handwrittenLast14Days++;
+              if (d >= fortyTwoDaysAgo) handwrittenLast42Days++;
+            }
+          }
         }
 
         return {
           id: s.id,
           name: s.displayName || s.name || "Unknown Student",
           status: s.status || "active",
-          totalNotes,
-          thisWeekNotes,
-          last14DaysNotes,
-          last42DaysNotes,
+          totalMentions,
+          thisWeekMentions,
+          last14DaysMentions,
+          last42DaysMentions,
+          mediaMentions,
+          mediaThisWeek,
+          mediaLast14Days,
+          mediaLast42Days,
+          handwrittenMentions,
+          handwrittenThisWeek,
+          handwrittenLast14Days,
+          handwrittenLast42Days,
         };
       });
 
@@ -326,9 +385,9 @@ export const recomputeStats = functions
         classroomId: classroom.id,
         classroomName: classroom.name || classroom.id,
         branchId: classroom.branchId || null,
-        noteCounts,
-        activity,
-        activityByType,
+        effortCounts,
+        effortActivity,
+        effortActivityByType,
         studentCount: classroomStudents.length,
         teachers,
         students,

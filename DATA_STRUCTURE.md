@@ -1057,7 +1057,7 @@ interface StatsClassroomDoc {
   classroomName: string;
   branchId: string | null;
 
-  noteCounts: {
+  effortCounts: {               // deduped by groupId — group note = 1 act
     voice: number;
     text: number;
     lesson: number;
@@ -1065,33 +1065,60 @@ interface StatsClassroomDoc {
     total: number;
   };
 
-  activity: {
+  effortActivity: {             // deduped aggregate activity tiers
     daily: Record<string, number>;   // "YYYY-MM-DD" → count, last 30 days
     weekly: Record<string, number>;  // "YYYY-Www" → count, last 12 weeks
     monthly: Record<string, number>; // "YYYY-MM" → count, last 12 months
   };
 
+  effortActivityByType: {       // deduped per-type activity tiers
+    voice: { daily: Record<string, number>; weekly: Record<string, number>; monthly: Record<string, number>; };
+    text:  { daily: Record<string, number>; weekly: Record<string, number>; monthly: Record<string, number>; };
+    lesson:{ daily: Record<string, number>; weekly: Record<string, number>; monthly: Record<string, number>; };
+    media: { daily: Record<string, number>; weekly: Record<string, number>; monthly: Record<string, number>; };
+  };
+
   studentCount: number;
 
-  teachers: Array<{
+  teachers: Array<{             // all counts deduped by groupId
     id: string;
     name: string;
     email: string;
     status: string;
-    observations: number;           // observation notes in THIS classroom
-    lessons: number;                // lesson notes in THIS classroom
-    otherClassroomNotes: number;    // notes in OTHER classrooms
-    otherClassroomCount: number;    // number of other classrooms
+    observations: number;       // voice + text in THIS classroom
+    lessons: number;            // lessons in THIS classroom
+    media: number;              // media in THIS classroom
+    handwritten: number;        // handwritten subset of media
+    observations7d: number;
+    lessons7d: number;
+    media7d: number;
+    handwritten7d: number;
+    observations30d: number;
+    lessons30d: number;
+    media30d: number;
+    handwritten30d: number;
+    otherNotes7d: number;       // deduped notes in OTHER classrooms (7d)
+    otherCount7d: number;       // number of other classrooms (7d)
+    otherNotes30d: number;      // deduped notes in OTHER classrooms (30d)
+    otherCount30d: number;      // number of other classrooms (30d)
   }>;
 
-  students: Array<{
+  students: Array<{             // per-student fan-out (NOT deduped)
     id: string;
     name: string;
     status: string;
-    totalNotes: number;
-    thisWeekNotes: number;
-    last14DaysNotes: number;  // trailing 2-week observation count — used by digest agent for student negligence detection
-    last42DaysNotes: number;
+    totalMentions: number;
+    thisWeekMentions: number;
+    last14DaysMentions: number;  // trailing 2-week count — used by digest agent for negligence detection
+    last42DaysMentions: number;
+    mediaMentions: number;
+    mediaThisWeek: number;
+    mediaLast14Days: number;
+    mediaLast42Days: number;
+    handwrittenMentions: number;
+    handwrittenThisWeek: number;
+    handwrittenLast14Days: number;
+    handwrittenLast42Days: number;
   }>;
 }
 ```
