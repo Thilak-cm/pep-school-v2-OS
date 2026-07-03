@@ -1,5 +1,14 @@
 # Changelog
 
+# 11.3.2 — 2026-07-03
+
+### Changed
+- Classroom-level and per-teacher stats deduped by groupId — group notes count as 1 act of documentation regardless of student count (#130)
+- Stats fields renamed by intent: classroom `noteCounts` → `effortCounts`, `activity` → `effortActivity`; per-student `totalNotes` → `totalMentions` (#130)
+- Overview Activity Trend chart shows 3 colored lines (observations, lessons, media) instead of 1 aggregate line (#130)
+- Per-teacher and per-student stats now include media and handwritten breakdowns across all time windows (#130)
+- Digest CF teacher summary includes media in total count and prompt text (#130)
+
 # 11.3.1 — 2026-07-01
 
 ### Changed
