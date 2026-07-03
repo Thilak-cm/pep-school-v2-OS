@@ -215,10 +215,10 @@ export function buildFirstUserMessage(classroomDoc, statsCacheDoc, contextualNot
   const students = (statsCacheDoc?.students || []).map((s) => ({
     id: s.id,
     name: s.name,
-    thisWeekNotes: s.thisWeekNotes || 0,
-    last14DaysNotes: s.last14DaysNotes || 0,
-    last42DaysNotes: s.last42DaysNotes || 0,
-    totalNotes: s.totalNotes || 0,
+    thisWeekMentions: s.thisWeekMentions || 0,
+    last14DaysMentions: s.last14DaysMentions || 0,
+    last42DaysMentions: s.last42DaysMentions || 0,
+    totalMentions: s.totalMentions || 0,
   }));
 
   const notesSection = contextualNotes
@@ -226,7 +226,7 @@ export function buildFirstUserMessage(classroomDoc, statsCacheDoc, contextualNot
     : [];
 
   const studentLines = students.flatMap((s) => {
-    const notePart = `this week ${s.thisWeekNotes}, last 14d ${s.last14DaysNotes}, last 42d ${s.last42DaysNotes}, total ${s.totalNotes}`;
+    const notePart = `this week ${s.thisWeekMentions}, last 14d ${s.last14DaysMentions}, last 42d ${s.last42DaysMentions}, total ${s.totalMentions}`;
     const snap = snapshotsMap?.get(s.id);
     let mainLine;
     if (!snap) {
