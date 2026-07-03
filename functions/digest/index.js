@@ -207,9 +207,11 @@ export function buildFirstUserMessage(classroomDoc, statsCacheDoc, contextualNot
     name: t.name,
     observations7d: t.observations7d || 0,
     lessons7d: t.lessons7d || 0,
-    total7d: (t.observations7d || 0) + (t.lessons7d || 0),
+    media7d: t.media7d || 0,
+    total7d: (t.observations7d || 0) + (t.lessons7d || 0) + (t.media7d || 0),
     observations: t.observations || 0,
     lessons: t.lessons || 0,
+    media: t.media || 0,
   }));
 
   const students = (statsCacheDoc?.students || []).map((s) => ({
@@ -267,7 +269,7 @@ export function buildFirstUserMessage(classroomDoc, statsCacheDoc, contextualNot
     "## Teacher Activity (last 7 days)",
     ...teachers.map(
       (t) =>
-        `- ${t.name}: ${t.total7d} notes (${t.observations7d} obs, ${t.lessons7d} lessons) | all-time: ${t.observations + t.lessons}`
+        `- ${t.name}: ${t.total7d} notes (${t.observations7d} obs, ${t.lessons7d} lessons, ${t.media7d} media) | all-time: ${t.observations + t.lessons + t.media}`
     ),
     "",
     "## Students",
