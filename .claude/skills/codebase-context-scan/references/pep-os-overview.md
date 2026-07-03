@@ -1,7 +1,7 @@
 # Pep OS Overview
 
-Generated: 2026-07-01T07:49:14.782Z
-App version: 11.3.1
+Generated: 2026-07-03T18:07:25.511Z
+App version: 11.3.2
 
 ## App Snapshot
 
@@ -149,6 +149,11 @@ App version: 11.3.1
 
 ## Recent Changes
 
+### 11.3.2 (2026-07-03)
+- Classroom-level and per-teacher stats deduped by groupId — group notes count as 1 act of documentation regardless of student count (#130)
+- Stats fields renamed by intent: classroom `noteCounts` → `effortCounts`, `activity` → `effortActivity`; per-student `totalNotes` → `totalMentions` (#130)
+- Overview Activity Trend chart shows 3 colored lines (observations, lessons, media) instead of 1 aggregate line (#130)
+
 ### 11.3.1 (2026-07-01)
 - Monthly plan batch generation refactored from single-CF inline processing to Pub/Sub fan-out — dispatcher publishes one message per eligible student, worker processes one student per invocation with 5-instance concurrency cap (#167)
 - Dispatcher skips students whose plan already matches the target month, reducing redundant work (#167)
@@ -163,9 +168,4 @@ App version: 11.3.1
 - Baseline report generation pipeline — independent judge scores reports at export time, persists `reportEval` with sentiment, area balance, and missing input flags (#152)
 - Report type landing page — students now have a type selector (Term, Baseline, Monthly coming soon) before entering the report list (#152)
 - Langfuse tracing on report generation and export+judge flows with per-trace score logging (#152)
-
-### 11.1.1 (2026-06-30)
-- Student count on classroom timeline now uses authoritative `classroom.studentCount` instead of computing from loaded student list, which included transferred students (#151)
-- Transferred students excluded from Students tab card list in classroom timeline (#151)
-- Notes tab search count now correctly includes transferred students whose notes match the query (#151)
 
