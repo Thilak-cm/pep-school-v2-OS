@@ -901,7 +901,7 @@ const StatsPage = ({ user, role, manageableClassrooms = [], onBack, onNavigateTo
 
               <Box sx={{ mb: 1.5, px: 1.5, py: 0.75, backgroundColor: 'rgba(79, 70, 229, 0.06)', borderRadius: 1.5, border: '1px solid rgba(79, 70, 229, 0.15)' }}>
                 <Typography variant="caption" color="text.secondary" sx={{ fontWeight: 500 }}>
-                  Group notes assigned to multiple students count as 1
+                  Group notes assigned to multiple students count as 1 teacher note
                 </Typography>
               </Box>
 
