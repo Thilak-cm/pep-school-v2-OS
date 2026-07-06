@@ -23,7 +23,7 @@ import {
   Backdrop
 } from '@mui/material';
 import {
-  collection, doc, getDocs, getDoc, query, where, limit, writeBatch, serverTimestamp, increment
+  collection, doc, getDocs, getDoc, query, where, limit, writeBatch, serverTimestamp
 } from 'firebase/firestore';
 import { db } from '../firebase';
 import useNotify from '../notifications/useNotify.js';
@@ -205,13 +205,7 @@ export default function GraduateStudentsPage({ _currentUser, _userRole }) {
         }
       }
 
-      // Update denormalized studentCount on source and destination classrooms
-      if (successCount > 0) {
-        const srcRef = doc(db, 'classrooms', sourceClassroomId);
-        const dstRef = doc(db, 'classrooms', destClassroomId);
-        batch.set(srcRef, { studentCount: increment(-successCount), updatedAt: serverTimestamp() }, { merge: true });
-        batch.set(dstRef, { studentCount: increment(successCount), updatedAt: serverTimestamp() }, { merge: true });
-      }
+      // studentCount maintained by onStudentWrite trigger (#161)
 
       await batch.commit();
       setResult({ ok: successCount, failed: failures });

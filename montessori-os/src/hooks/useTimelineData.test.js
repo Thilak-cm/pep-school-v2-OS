@@ -280,16 +280,16 @@ describe('ClassroomTimeline student count display (#151)', () => {
     assert.ok(timelineSource.length > 0);
   });
 
-  it('uses classroom.studentCount for count display, not computed length', async () => {
+  it('uses live classroomStudents.length for count display, not cached classroom.studentCount (#161)', async () => {
     timelineSource = timelineSource || await readFile(timelinePath, 'utf8');
     assert.ok(
-      timelineSource.includes('classroom.studentCount'),
-      'should use classroom.studentCount for the student count display'
+      timelineSource.includes('classroomStudents.length'),
+      'should use classroomStudents.length (live query) for the student count display'
     );
-    // The old pattern — sortedFilteredStudents.length used as count label — should be gone
+    // The stale pattern — classroom.studentCount from cached prop — should be gone
     assert.ok(
-      !timelineSource.includes('sortedFilteredStudents.length} students'),
-      'should NOT use sortedFilteredStudents.length as the student count label'
+      !timelineSource.includes('classroom.studentCount'),
+      'should NOT use classroom.studentCount (stale cache) for count display'
     );
     // Notes tab search branch should use filteredStudents (includes transferred) not sortedFilteredStudents
     assert.ok(

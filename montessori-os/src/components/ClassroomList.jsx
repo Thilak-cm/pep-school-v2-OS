@@ -18,9 +18,6 @@ import { collection, getDocs, query, where, doc, getDoc, documentId } from 'fire
 import { db } from '../firebase';
 import { trackEvent } from '../utils/analytics';
 
-const CACHE_KEY_PREFIX = 'classroomListCache';
-const CACHE_TTL_MS = 24 * 60 * 60 * 1000; // 24 hours
-
 const PROGRAM_LABELS = {
   toddler: 'Toddler',
   primary: 'Primary',
@@ -46,44 +43,6 @@ const getProgramLabel = (programId) => {
   const key = String(programId || '').trim();
   if (!key) return PROGRAM_LABELS.unassigned;
   return PROGRAM_LABELS[key] || key.charAt(0).toUpperCase() + key.slice(1);
-};
-
-const buildCacheKey = (uid, role, manageableClassrooms = []) => {
-  const classroomKey = Array.isArray(manageableClassrooms) && manageableClassrooms.length
-    ? manageableClassrooms.slice().sort().join('|')
-    : 'all-classrooms';
-  return `${CACHE_KEY_PREFIX}:${role || 'unknown'}:${uid || 'anonymous'}:${classroomKey}`;
-};
-
-const readCachedClassrooms = (key) => {
-  if (typeof window === 'undefined' || !window?.localStorage) return null;
-  try {
-    const raw = window.localStorage.getItem(key);
-    if (!raw) return null;
-    const parsed = JSON.parse(raw);
-    if (!parsed?.timestamp || Date.now() - parsed.timestamp > CACHE_TTL_MS) {
-      window.localStorage.removeItem(key);
-      return null;
-    }
-    return parsed;
-  } catch {
-    return null;
-  }
-};
-
-const writeCachedClassrooms = (key, payload) => {
-  if (typeof window === 'undefined' || !window?.localStorage) return;
-  try {
-    window.localStorage.setItem(
-      key,
-      JSON.stringify({
-        ...payload,
-        timestamp: Date.now(),
-      })
-    );
-  } catch {
-    /* ignored */
-  }
 };
 
 const normalizeClassroomId = (value) => {
@@ -122,16 +81,10 @@ function ClassroomList({ onSelectClassroom, currentUser, userRole, manageableCla
     // Skip own fetch if classrooms were provided via prop
     if (classroomsProp) return;
 
+    // ClassroomList receives classrooms via prop from App.jsx.
+    // This fetch path is only reached if rendered without the prop.
     let isMounted = true;
-    const cacheKey = buildCacheKey(currentUser?.uid, userRole, manageableClassrooms);
-    const cached = readCachedClassrooms(cacheKey);
-
-    if (cached) {
-      setClassrooms(cached.classrooms || []);
-      setLoading(false);
-    } else {
-      setLoading(true);
-    }
+    setLoading(true);
 
     const fetchClassrooms = async () => {
       try {
@@ -139,11 +92,11 @@ function ClassroomList({ onSelectClassroom, currentUser, userRole, manageableCla
 
         if (userRole === 'teacher') {
           const allClassroomsSnap = await getDocs(query(collection(db, 'classrooms')));
-          const allClassrooms = allClassroomsSnap.docs.map(doc => ({ 
-            id: doc.id, 
-            ...doc.data() 
+          const allClassrooms = allClassroomsSnap.docs.map(doc => ({
+            id: doc.id,
+            ...doc.data()
           }));
-          
+
           classroomsToShow = allClassrooms
             .filter(classroom => (classroom.status || 'active') !== 'archived')
             .filter(classroom => {
@@ -188,10 +141,6 @@ function ClassroomList({ onSelectClassroom, currentUser, userRole, manageableCla
         });
 
         setClassrooms(classroomsToShow);
-
-        writeCachedClassrooms(cacheKey, {
-          classrooms: classroomsToShow,
-        });
       } catch {
         /* ignored */
       } finally {
@@ -199,9 +148,7 @@ function ClassroomList({ onSelectClassroom, currentUser, userRole, manageableCla
       }
     };
 
-    if (!cached) {
-      fetchClassrooms();
-    }
+    fetchClassrooms();
 
     return () => {
       isMounted = false;

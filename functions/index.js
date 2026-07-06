@@ -71,6 +71,9 @@ export {
   backfillStudentProfiles,
 } from "./students/soul.js";
 
+// Student — Denormalized counter maintenance (#161)
+export { onStudentWrite } from "./students/onStudentWrite.js";
+
 // Monthly Plan (PEP-260, PEP-279)
 export { generateMonthlyPlan, exportMonthlyPlanToDrive, batchGenerateMonthlyPlans, monthlyPlanWorker } from "./monthlyPlan/index.js";
 
@@ -86,3 +89,6 @@ export { autoExpireBroadcast } from "./alerts/index.js";
 
 // Weekly Digest (PEP-297)
 export { weeklyDigestClassroomAdmin, weeklyDigestSuperadmin, triggerDigestTest } from "./digest/index.js";
+
+// Data Integrity Checks (#161)
+export { dataIntegrityChecks } from "./integrity/index.js";

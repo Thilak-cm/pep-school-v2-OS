@@ -892,7 +892,6 @@ const UsersAccessPage = ({ onBack, currentUser, userRole, manageableClassrooms =
         });
         if (user.classroomId) {
           batch.update(doc(db, 'classrooms', user.classroomId), {
-            studentCount: increment(-1),
             deletedStudentCount: increment(1),
             updatedAt: serverTimestamp()
           });
@@ -902,7 +901,7 @@ const UsersAccessPage = ({ onBack, currentUser, userRole, manageableClassrooms =
         if (user.classroomId) {
           setClassrooms(prev => prev.map(c =>
             c.id === user.classroomId
-              ? { ...c, studentCount: Math.max(0, (c.studentCount || 0) - 1), deletedStudentCount: (c.deletedStudentCount || 0) + 1 }
+              ? { ...c, deletedStudentCount: (c.deletedStudentCount || 0) + 1 }
               : c
           ));
         }
@@ -1252,8 +1251,7 @@ const UsersAccessPage = ({ onBack, currentUser, userRole, manageableClassrooms =
               createdAt: serverTimestamp(),
               updatedAt: serverTimestamp(),
             });
-            const classroomRef = doc(db, 'classrooms', studentForm.classroomId);
-            tx.set(classroomRef, { studentCount: increment(1), updatedAt: serverTimestamp() }, { merge: true });
+            // studentCount maintained by onStudentWrite trigger (#161)
           });
           // Transaction succeeded — break out of the retry loop
           break;
