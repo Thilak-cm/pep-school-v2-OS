@@ -1,4 +1,4 @@
-import React, { useState, useMemo } from 'react'; 
+import React, { useState, useMemo, useRef } from 'react';
 import {
   Box,
   Typography,
@@ -44,6 +44,7 @@ const FilterPanel = ({
   availableCurriculumAreas = [],
 }) => {
   const [creatorSearch, setCreatorSearch] = useState('');
+  const toDateRef = useRef(null);
   
   // Use fuzzy search for better teacher matching
   const filteredTeachers = useMemo(() => {
@@ -129,29 +130,61 @@ const FilterPanel = ({
               </Box>
             </Box>
             
-            {/* Date Range */}
+            {/* Date Range - connected pill */}
             <Box>
               <Typography variant="caption" sx={{ mb: 0.5, display: 'block', color: 'text.secondary', fontWeight: 500 }}>
                 Date Range
               </Typography>
-              <Box sx={{ display: 'flex', gap: 2 }}>
+              <Box sx={{
+                display: 'flex',
+                border: '1px solid',
+                borderColor: (filters.dateFrom || filters.dateTo) ? 'primary.main' : 'divider',
+                borderRadius: 2,
+                overflow: 'hidden',
+                transition: 'border-color 0.2s ease',
+              }}>
                 <TextField
-                  label="From Date"
+                  label="From"
                   type="date"
                   size="small"
                   value={filters.dateFrom}
-                  onChange={(e) => onFilterChange('dateFrom', e.target.value)}
+                  onChange={(e) => {
+                    onFilterChange('dateFrom', e.target.value);
+                    if (e.target.value && !filters.dateTo) {
+                      onFilterChange('dateTo', e.target.value);
+                      setTimeout(() => {
+                        try { toDateRef.current?.showPicker(); } catch { toDateRef.current?.focus(); }
+                      }, 100);
+                    }
+                  }}
                   InputLabelProps={{ shrink: true }}
-                  sx={{ flex: 1 }}
+                  sx={{
+                    flex: 1,
+                    '& .MuiOutlinedInput-notchedOutline': { border: 'none' },
+                    '& .MuiInputBase-root': { borderRadius: 0 },
+                  }}
                 />
+                <Box sx={{
+                  width: '1px',
+                  alignSelf: 'stretch',
+                  bgcolor: (filters.dateFrom || filters.dateTo) ? 'primary.main' : 'divider',
+                  my: 1,
+                  transition: 'background-color 0.2s ease',
+                }} />
                 <TextField
-                  label="To Date"
+                  label="To"
                   type="date"
                   size="small"
                   value={filters.dateTo}
                   onChange={(e) => onFilterChange('dateTo', e.target.value)}
+                  inputRef={toDateRef}
+                  inputProps={{ min: filters.dateFrom || undefined }}
                   InputLabelProps={{ shrink: true }}
-                  sx={{ flex: 1 }}
+                  sx={{
+                    flex: 1,
+                    '& .MuiOutlinedInput-notchedOutline': { border: 'none' },
+                    '& .MuiInputBase-root': { borderRadius: 0 },
+                  }}
                 />
               </Box>
             </Box>
