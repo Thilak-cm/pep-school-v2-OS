@@ -63,24 +63,41 @@ export async function checkStudentCounts() {
 export async function checkOrphanedStudents() {
   const name = "orphaned students";
 
-  const classroomsSnap = await db.collection("classrooms").select().get();
-  const classroomIds = new Set();
-  classroomsSnap.forEach((doc) => classroomIds.add(doc.id));
+  const classroomsSnap = await db.collection("classrooms").get();
+  const activeClassroomIds = new Set();
+  const inactiveClassrooms = new Map(); // id → status
+  classroomsSnap.forEach((doc) => {
+    const status = doc.data().status || "active";
+    if (status === "active") {
+      activeClassroomIds.add(doc.id);
+    } else {
+      inactiveClassrooms.set(doc.id, status);
+    }
+  });
 
   const studentsSnap = await db.collection("students").get();
   const orphans = [];
 
   studentsSnap.forEach((doc) => {
     const data = doc.data();
-    if (
-      (data.status || "active") === "active" &&
-      data.classroomId &&
-      !classroomIds.has(data.classroomId)
-    ) {
+    if ((data.status || "active") !== "active" || !data.classroomId) return;
+
+    const studentName =
+      data.displayName || `${data.firstName || ""} ${data.lastName || ""}`.trim();
+
+    if (inactiveClassrooms.has(data.classroomId)) {
       orphans.push({
         id: doc.id,
-        name: data.displayName || `${data.firstName || ""} ${data.lastName || ""}`.trim(),
+        name: studentName,
         classroomId: data.classroomId,
+        reason: `classroom is ${inactiveClassrooms.get(data.classroomId)}`,
+      });
+    } else if (!activeClassroomIds.has(data.classroomId)) {
+      orphans.push({
+        id: doc.id,
+        name: studentName,
+        classroomId: data.classroomId,
+        reason: "classroom does not exist",
       });
     }
   });
@@ -90,7 +107,7 @@ export async function checkOrphanedStudents() {
   }
 
   const lines = orphans.map(
-    (o) => `${o.name} (${o.id}) → missing classroom ${o.classroomId}`,
+    (o) => `${o.name} (${o.id}) → ${o.classroomId} (${o.reason})`,
   );
   return {
     name,
