@@ -1,5 +1,13 @@
 # Changelog
 
+# 11.3.3 — 2026-07-05
+
+### Fixed
+- Baseball card pipeline now uses per-program config docs (`baseball_card_primary`, `baseball_card_toddler`, `baseball_card_elementary`, `baseball_card_adolescent`) with program-specific curriculum domains — elementary/adolescent students no longer get "Practical Life" or "Sensorial" as false coverage gaps (#132)
+- Frontend baseball card config reads use per-program doc matching the student's program instead of the deprecated single `config/baseball_card` doc (#132)
+- `regenerateBaseballCardForStudent` now propagates generation failures to the caller instead of returning false success (#132)
+- Baseball card config editor screen removed from admin navigation (config managed via seed script until per-program UI is built) (#132)
+
 # 11.3.2 — 2026-07-03
 
 ### Changed
