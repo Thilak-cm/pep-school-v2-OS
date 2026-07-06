@@ -99,7 +99,7 @@ RED FLAG LOGIC (set severity + reason)
 
 QUALITY CHECK BEFORE YOU OUTPUT
 - Ensure output is one JSON object only, and that it is valid.
-- Ensure coverageGaps is an array (possibly empty), never null. Only include domains from the list: ${domainList}.
+- Ensure coverageGaps is an array (possibly empty), never null. Only include domains from the program's curriculum list above.
 - Ensure redFlag.severity is one of: low, medium, high, null.
 - Ensure redFlag.reason is null when severity is null.
 `;

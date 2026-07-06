@@ -17,7 +17,6 @@ const STATIC_TITLES = {
   configAiTools: "AI Tools",
   configDigest: "School Context Notes",
   bulkUpload: "Bulk Upload",
-  baseballCardConfig: "Baseball Card Config",
   aiTextEditor: "Text Cleanup Editor",
   aiVoiceEditor: "Voice Transcriber Editor",
   aiCoachEditor: "Coach Editor",
@@ -140,7 +139,6 @@ export function getBackNavigation(screen, state, setters) {
     case "bulkUpload":
     case "broadcastComposer":
       return () => setters.setScreen?.("settings");
-    case "baseballCardConfig":
     case "aiTextEditor":
     case "aiVoiceEditor":
     case "aiCoachEditor":
@@ -167,7 +165,7 @@ export const FAB_HIDDEN_SCREENS = new Set([
   "profile", "stats", "feedback", "feedbackTimeline",
   "accessDenied", "classroomNotesReview", "graduateStudents", "lessonNotes",
   "studentAliases", "settings", "addUser", "childChat", "config",
-  "configLessonNotes", "configAiTools", "configDigest", "chatCommandCentre", "baseballCardConfig",
+  "configLessonNotes", "configAiTools", "configDigest", "chatCommandCentre",
   "reportGenConfig", "bulkUpload", "alerts", "interviews", "broadcastComposer",
 ]);
 

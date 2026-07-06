@@ -133,24 +133,6 @@ function calculateAgeFromDob(dobValue) {
   return parts.length > 0 ? `${parts.join(" ")} old` : "age unavailable";
 }
 
-async function getStudentContext(studentId) {
-  try {
-    const snap = await db.collection("students").doc(studentId).get();
-    if (!snap.exists) {
-      return { studentName: "Unknown student", dob: "dob unavailable in context", age: "age unavailable" };
-    }
-    const data = snap.data() || {};
-    const fallbackName = [data.firstName, data.lastName].filter(Boolean).join(" ").trim();
-    const studentName = data.displayName || data.name || fallbackName || "Unknown student";
-    const dob = formatDobForContext(data.dateOfBirth);
-    const age = calculateAgeFromDob(data.dateOfBirth);
-    return { studentName, dob, age };
-  } catch (err) {
-    console.warn(`[studentHelpers] failed to fetch student context for ${studentId}:`, err);
-    return { studentName: "Unknown student", dob: "dob unavailable in context", age: "age unavailable" };
-  }
-}
-
 async function getStudentWithProgram(studentId) {
   const studentSnap = await db.collection("students").doc(studentId).get();
   if (!studentSnap.exists) {
@@ -183,6 +165,5 @@ export {
   fetchStudentInterviews,
   formatDobForContext,
   calculateAgeFromDob,
-  getStudentContext,
   getStudentWithProgram,
 };

@@ -724,7 +724,7 @@ Current documents
 - `soul_guidelines_{program}` — per-program developmental guidelines markdown (areas, skill areas, benchmarks from report cards). Shape: `{ markdown: string, programId: ProgramId, benchmarkCount: number, updatedBy: string, updatedAt: Timestamp }`.
 - `soul_generation` — soul generation instruction prompt + model config (PEP-163). Shape: `{ systemPrompt: string, model: string, temperature: number, max_tokens: number }`. Fallback defaults in `functions/utils/soulHelpers.js:SOUL_DEFAULTS`. Note: this doc may not exist in Firestore — CFs fall back to hardcoded defaults when missing.
 - `readiness_{program}` — per-program report readiness checker prompts + model config
-- `baseball_card` — prompts + model config for student baseball card generation
+- `baseball_card_{program}` — per-program prompts + model config for student baseball card generation (PEP-132). One doc per program: `baseball_card_primary`, `baseball_card_toddler`, `baseball_card_elementary`, `baseball_card_adolescent`. Each contains program-specific curriculum domains baked into the system prompt.
 - `photo_classification` — prompts + model config for photo classification (Call 1, gpt-5.4-nano)
 - `writing_analysis_{programId}` — per-program prompts + model config for writing analysis (PEP-132, PEP-263). Doc IDs: `writing_analysis_primary`, `writing_analysis_elementary`, `writing_analysis_toddler`, `writing_analysis_adolescent`. Shape: `{ systemPrompt: string, model: string, temperature: number, max_tokens: number, minSamples: number, description: string, programId: ProgramId, createdAt: Timestamp, updatedAt: Timestamp }`. Fallback defaults in `functions/config/handwritingAnalysisFallbacks.js`. Legacy `handwriting_analysis` doc deleted by seeding script.
 - `interview_question_gen` — interview agent turn-by-turn prompt template with placeholders for student-specific data. Shape: `{ systemPrompt: string, model: string, temperature: number, max_tokens: number, description: string, createdAt: Timestamp, updatedAt: Timestamp }`. Not read by any production CF at runtime — serves as the default config source for the prompt test bench only.
@@ -815,15 +815,16 @@ interface CoachProgramConfig {
 }
 ```
 
-`config/baseball_card`
-Unified config: prompts + model settings for the baseball card Cloud Function.
+`config/baseball_card_{program}` (e.g., `baseball_card_primary`, `baseball_card_elementary`)
+Per-program config: prompts + model settings for the baseball card Cloud Function (PEP-132). Each program has its own doc with curriculum-specific domains baked into the system prompt.
 ```typescript
 interface BaseballCardConfig {
   // Prompt fields
   title: string;
   description: string;
-  systemPrompt: string;
+  systemPrompt: string;            // program-specific domains baked in
   version: number;
+  programId: ProgramId;
 
   // Model config
   model: string;                   // e.g., "gpt-5.4-mini"
@@ -832,9 +833,9 @@ interface BaseballCardConfig {
   windowDays: number;              // e.g., 42
   timezone: string;                // e.g., "Asia/Kolkata"
 
-  // Change tracking
-  updatedAt: Timestamp;
-  updatedBy: string;
+  // Provenance
+  createdAt: string;               // ISO timestamp
+  createdBy: string;               // e.g., "seed-baseball-card-configs.mjs (PEP-132)"
 }
 ```
 

@@ -22,7 +22,6 @@ import FeedbackPage from "./components/FeedbackPage";
 import FeedbackTimeline from "./components/FeedbackTimeline";
 import UsersAccessPage from "./components/UsersAccessPage";
 import ReviewClassroomNotes from "./components/ReviewClassroomNotes";
-import BaseballCardConfigEditor from "./components/BaseballCardConfigEditor.jsx";
 import ReportGenConfigEditor from "./components/ReportGenConfigEditor.jsx";
 import AccessDenied from "./AccessDenied";
 import SettingsPage from "./components/SettingsPage.jsx";
@@ -325,14 +324,10 @@ function renderScreen(screen, ctx) {
           onOpenTextEditor={() => ctx.setScreen("aiTextEditor")}
           onOpenVoiceEditor={() => ctx.setScreen("aiVoiceEditor")}
           onOpenCoachEditor={() => ctx.setScreen("aiCoachEditor")}
-          onOpenBaseballCardConfig={() => ctx.setScreen("baseballCardConfig")}
           onOpenChatCommandCentre={() => ctx.setScreen("chatCommandCentre")}
           onOpenReportGenConfig={() => ctx.setScreen("reportGenConfig")}
         />
       );
-
-    case "baseballCardConfig":
-      return <BaseballCardConfigEditor currentUser={ctx.user} userRole={ctx.role} />;
 
     case "aiTextEditor":
       return <AITextCleanupEditor currentUser={ctx.user} userRole={ctx.role} />;
