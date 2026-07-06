@@ -39,7 +39,7 @@ import {
 } from 'firebase/firestore';
 import { db } from '../firebase';
 import { isSuperAdmin } from '../utils/roleUtils';
-import { parseCSV, validateCSV, extractUniqueNames, applyDefaultDate, DEFAULT_PLACEHOLDER_DATE } from '../utils/csvParser';
+import { parseCSV, validateCSV, extractUniqueNames, applyDefaultDate } from '../utils/csvParser';
 import {
   matchStudentNames,
   buildObservationDoc,
@@ -66,7 +66,7 @@ export default function BulkUploadPage({ currentUser, userRole }) {
   const [selectedBranch, setSelectedBranch] = useState('');
   const [selectedProgram, setSelectedProgram] = useState('');
   const [selectedClassrooms, setSelectedClassrooms] = useState([]);
-  const [defaultDate, setDefaultDate] = useState(DEFAULT_PLACEHOLDER_DATE);
+  const [defaultDate, setDefaultDate] = useState('');
 
   // Step 1: Matching state
   const [allStudents, setAllStudents] = useState([]);
@@ -387,7 +387,7 @@ export default function BulkUploadPage({ currentUser, userRole }) {
                   </TableRow>
                   <TableRow>
                     <TableCell><code>date</code></TableCell>
-                    <TableCell>DD-MM-YYYY (blank defaults to {defaultDate})</TableCell>
+                    <TableCell>DD-MM-YYYY (blank rows use the default date above)</TableCell>
                   </TableRow>
                   <TableRow>
                     <TableCell><code>content</code></TableCell>
@@ -448,7 +448,8 @@ export default function BulkUploadPage({ currentUser, userRole }) {
                 label="Default date"
                 value={defaultDate}
                 onChange={(e) => setDefaultDate(e.target.value)}
-                helperText="Used when CSV rows have no date"
+                required
+                helperText={defaultDate ? 'Used when CSV rows have no date' : 'Required - select a date'}
                 slotProps={{ inputLabel: { shrink: true } }}
                 sx={{ minWidth: 170 }}
               />
@@ -511,14 +512,18 @@ export default function BulkUploadPage({ currentUser, userRole }) {
                 <Button
                   variant="contained"
                   onClick={handleStartMatching}
-                  disabled={selectedClassrooms.length === 0}
+                  disabled={selectedClassrooms.length === 0 || !defaultDate}
                   sx={{ alignSelf: 'flex-start' }}
                 >
                   Next: Match Students
                 </Button>
-                {selectedClassrooms.length === 0 && (
+                {(selectedClassrooms.length === 0 || !defaultDate) && (
                   <Typography variant="caption" color="text.secondary">
-                    Select at least one classroom to proceed with student matching.
+                    {selectedClassrooms.length === 0 && !defaultDate
+                      ? 'Select at least one classroom and a default date to proceed.'
+                      : selectedClassrooms.length === 0
+                        ? 'Select at least one classroom to proceed.'
+                        : 'Select a default date to proceed.'}
                   </Typography>
                 )}
               </>
@@ -738,7 +743,7 @@ export default function BulkUploadPage({ currentUser, userRole }) {
                 setSelectedBranch('');
                 setSelectedProgram('');
                 setSelectedClassrooms([]);
-                setDefaultDate(DEFAULT_PLACEHOLDER_DATE);
+                setDefaultDate('');
               }}
             >
               Upload Another CSV
