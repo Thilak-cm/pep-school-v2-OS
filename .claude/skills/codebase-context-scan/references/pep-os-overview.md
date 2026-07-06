@@ -1,7 +1,7 @@
 # Pep OS Overview
 
-Generated: 2026-07-03T18:07:25.511Z
-App version: 11.3.2
+Generated: 2026-07-06T06:46:48.783Z
+App version: 11.3.3
 
 ## App Snapshot
 
@@ -149,6 +149,11 @@ App version: 11.3.2
 
 ## Recent Changes
 
+### 11.3.3 (2026-07-05)
+- Baseball card pipeline now uses per-program config docs (`baseball_card_primary`, `baseball_card_toddler`, `baseball_card_elementary`, `baseball_card_adolescent`) with program-specific curriculum domains — elementary/adolescent students no longer get "Practical Life" or "Sensorial" as false coverage gaps (#132)
+- Frontend baseball card config reads use per-program doc matching the student's program instead of the deprecated single `config/baseball_card` doc (#132)
+- `regenerateBaseballCardForStudent` now propagates generation failures to the caller instead of returning false success (#132)
+
 ### 11.3.2 (2026-07-03)
 - Classroom-level and per-teacher stats deduped by groupId — group notes count as 1 act of documentation regardless of student count (#130)
 - Stats fields renamed by intent: classroom `noteCounts` → `effortCounts`, `activity` → `effortActivity`; per-student `totalNotes` → `totalMentions` (#130)
@@ -163,9 +168,4 @@ App version: 11.3.2
 - Rich writing analysis tab on student dashboard — dimension ratings grid, sorted recommendations with expand/collapse, confidence chip with popover, and three context-aware empty states (#137)
 - Classroom name shown as subtitle in app header on student screens, with fallback resolution from classrooms list (#137)
 - Empty-state flash prevented with loading guard while media counts are fetched (#137)
-
-### 11.2.0 (2026-06-30)
-- Baseline report generation pipeline — independent judge scores reports at export time, persists `reportEval` with sentiment, area balance, and missing input flags (#152)
-- Report type landing page — students now have a type selector (Term, Baseline, Monthly coming soon) before entering the report list (#152)
-- Langfuse tracing on report generation and export+judge flows with per-trace score logging (#152)
 
