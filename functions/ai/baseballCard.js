@@ -2,13 +2,12 @@ import * as functions from "firebase-functions/v1";
 import { db } from "../shared/firebase.js";
 import { OPENAI_API_KEY, getOpenAiKey, buildChatBody, CHAT_ENDPOINT } from "../shared/openai.js";
 import { BASEBALL_CARD_DEFAULTS } from "../config/baseballCardConstants.js";
-import { BASEBALL_SYSTEM_PROMPT_FALLBACK } from "../config/baseballCardPrompt.js";
 import { getIstIsoWeekKey } from "../utils/weekKey.js";
 import { Timestamp } from "firebase-admin/firestore";
 import {
   formatObservationForPrompt,
   fetchStudentNotesForWindow,
-  getStudentContext,
+  getStudentWithProgram,
 } from "../shared/studentHelpers.js";
 import { fetchActiveStudentIds, runWithConcurrency } from "../shared/scheduling.js";
 import { writeHeatmapCache, patchHeatmapStudent } from "../heatmap/index.js";
@@ -17,47 +16,55 @@ import { writeHeatmapCache, patchHeatmapStudent } from "../heatmap/index.js";
 // AI: Baseball Card (Last 6 Weeks summary)
 // -----------------------------------------------
 
-// Unified baseball card config: prompt + model params from config/baseball_card (PEP-139)
+// Per-program baseball card config: prompt + model params from config/baseball_card_{programId} (PEP-132)
 const BASEBALL_CACHE_TTL_MS = 5 * 60 * 1000; // 5 minutes
-let baseballCardCache = { data: null, ts: 0 };
+const baseballCardCache = new Map(); // keyed by programId
 
-function isFreshCache(cacheEntry) {
-  return cacheEntry?.data && (Date.now() - cacheEntry.ts < BASEBALL_CACHE_TTL_MS);
+const VALID_PROGRAMS = ["toddler", "primary", "elementary", "adolescent"];
+
+function getBaseballCardConfigDocId(programId) {
+  if (!programId || !VALID_PROGRAMS.includes(programId)) {
+    throw new functions.https.HttpsError(
+      "failed-precondition",
+      `Cannot resolve baseball card config: invalid programId "${programId}". ` +
+      `Must be one of: ${VALID_PROGRAMS.join(", ")}`
+    );
+  }
+  return `baseball_card_${programId}`;
 }
 
-async function getBaseballCardConfig({ forceRefresh = false } = {}) {
-  if (!forceRefresh && isFreshCache(baseballCardCache)) return baseballCardCache.data;
+async function getBaseballCardConfig(programId, { forceRefresh = false } = {}) {
+  const docId = getBaseballCardConfigDocId(programId);
 
-  try {
-    const snap = await db.collection("config").doc("baseball_card").get();
-    const data = snap.exists ? (snap.data() || {}) : {};
-    const out = {
-      // Prompt fields
-      title: String(data.title || ""),
-      description: String(data.description || ""),
-      systemPrompt: String(data.systemPrompt || BASEBALL_SYSTEM_PROMPT_FALLBACK),
-      version: Number.isFinite(data.version) ? data.version : 1,
-      // Model config with fallback to defaults
-      model: data.model || BASEBALL_CARD_DEFAULTS.model,
-      temperature: Number.isFinite(data.temperature) ? data.temperature : BASEBALL_CARD_DEFAULTS.temperature,
-      windowDays: Number.isFinite(data.windowDays) ? data.windowDays : BASEBALL_CARD_DEFAULTS.windowDays,
-      timezone: data.timezone || BASEBALL_CARD_DEFAULTS.timezone,
-      max_tokens: Number.isFinite(data.max_tokens) ? data.max_tokens : BASEBALL_CARD_DEFAULTS.max_tokens,
-    };
-    baseballCardCache = { data: out, ts: Date.now() };
-    return out;
-  } catch (err) {
-    console.warn("[baseballCard] config fetch failed, using defaults:", err);
-    const out = {
-      title: "Baseball Card Summary",
-      description: "Coach Pepper's last 6 weeks summary",
-      systemPrompt: BASEBALL_SYSTEM_PROMPT_FALLBACK,
-      version: 1,
-      ...BASEBALL_CARD_DEFAULTS,
-    };
-    baseballCardCache = { data: out, ts: Date.now() };
-    return out;
+  if (!forceRefresh) {
+    const cached = baseballCardCache.get(programId);
+    if (cached?.data && (Date.now() - cached.ts < BASEBALL_CACHE_TTL_MS)) {
+      return cached.data;
+    }
   }
+
+  const snap = await db.collection("config").doc(docId).get();
+  if (!snap.exists) {
+    throw new functions.https.HttpsError(
+      "not-found",
+      `Baseball card config not found: config/${docId}. Run seed-baseball-card-configs.mjs --apply to create it.`
+    );
+  }
+
+  const data = snap.data() || {};
+  const out = {
+    title: String(data.title || ""),
+    description: String(data.description || ""),
+    systemPrompt: String(data.systemPrompt || ""),
+    version: Number.isFinite(data.version) ? data.version : 1,
+    model: data.model || BASEBALL_CARD_DEFAULTS.model,
+    temperature: Number.isFinite(data.temperature) ? data.temperature : BASEBALL_CARD_DEFAULTS.temperature,
+    windowDays: Number.isFinite(data.windowDays) ? data.windowDays : BASEBALL_CARD_DEFAULTS.windowDays,
+    timezone: data.timezone || BASEBALL_CARD_DEFAULTS.timezone,
+    max_tokens: Number.isFinite(data.max_tokens) ? data.max_tokens : BASEBALL_CARD_DEFAULTS.max_tokens,
+  };
+  baseballCardCache.set(programId, { data: out, ts: Date.now() });
+  return out;
 }
 
 async function callBaseballCard(notes, config, prompt, windowDays, studentContext) {
@@ -71,7 +78,7 @@ async function callBaseballCard(notes, config, prompt, windowDays, studentContex
     dob: studentContext?.dob || "dob unavailable in context",
     age: studentContext?.age || "age unavailable",
   };
-  const renderedSystem = (prompt.systemPrompt || BASEBALL_SYSTEM_PROMPT_FALLBACK)
+  const renderedSystem = prompt.systemPrompt
     .replace("<WINDOW_DAYS>", String(windowDays))
     .replaceAll("<STUDENT_NAME>", safeContext.studentName)
     .replaceAll("<STUDENT_AGE>", safeContext.age);
@@ -283,28 +290,35 @@ async function buildSignalsPayload(studentId, baseSignals) {
 
 async function runBaseballCards({
   studentIds,
-  config,
-  prompt,
   windowDays,
   dryRun = false,
   collectResults = false,
   concurrency = 12,
   archiveHistory = false,
   requesterInfo = null,
+  forceRefresh = false,
 }) {
   const ids = Array.isArray(studentIds) && studentIds.length ? studentIds : await fetchActiveStudentIds();
   if (!dryRun) {
     console.log(`[baseballCard] running for ${ids.length} student(s)`);
   }
   const results = [];
-  const effectiveWindowDays = Number.isFinite(windowDays) && windowDays > 0 ? windowDays : config.windowDays;
+  let errorCount = 0;
 
   await runWithConcurrency(ids, async (studentId) => {
     try {
+      const studentContext = await getStudentWithProgram(studentId);
+      const { programId, classroomId } = studentContext;
+
+      if (!programId) {
+        throw new Error(`Cannot resolve programId for student ${studentId} (classroomId: ${classroomId})`);
+      }
+
+      const config = await getBaseballCardConfig(programId, { forceRefresh });
+      const prompt = { systemPrompt: config.systemPrompt };
+      const effectiveWindowDays = Number.isFinite(windowDays) && windowDays > 0 ? windowDays : config.windowDays;
+
       const notes = await fetchStudentNotesForWindow(studentId, effectiveWindowDays);
-      const studentContext = await getStudentContext(studentId);
-      const studentSnap = await db.collection("students").doc(studentId).get();
-      const classroomId = studentSnap.exists ? (studentSnap.data().classroomId || null) : null;
 
       if (!notes.length) {
         const payload = {
@@ -373,15 +387,20 @@ async function runBaseballCards({
           status: payload.status,
           evidenceCount: payload.noteCount,
         });
-        await writeWeeklySnapshot(studentId, payload, signals, archiveHistory, requesterInfo, existingSnapshot);
+        await writeWeeklySnapshot(studentId, payload, signals, archiveHistory, requesterInfo, existingSnapshot, classroomId);
       }
     } catch (err) {
+      errorCount++;
       console.error(`[baseballCard] run failed for student ${studentId}`, err);
       if (dryRun && collectResults) {
         results.push({ studentId, status: "error", error: err?.message || "Unknown error" });
       }
     }
   }, concurrency);
+
+  if (errorCount > 0) {
+    console.warn(`[baseballCard] ${errorCount}/${ids.length} students failed (see errors above)`);
+  }
 
   return results;
 }
@@ -410,37 +429,39 @@ export const previewBaseballCard = functions
       throw new functions.https.HttpsError("invalid-argument", "studentId is required");
     }
 
-    const baseConfig = await getBaseballCardConfig({ forceRefresh: !!data?.forceRefresh });
+    // Resolve programId from student doc
+    const studentContext = await getStudentWithProgram(studentId);
+    if (!studentContext.programId) {
+      throw new functions.https.HttpsError(
+        "failed-precondition",
+        `Cannot resolve programId for student ${studentId}. Ensure the student's classroom has a programId set.`
+      );
+    }
+
+    const baseConfig = await getBaseballCardConfig(studentContext.programId, { forceRefresh: !!data?.forceRefresh });
 
     const windowDaysInput = Number(data?.windowDays);
     const windowDays = Number.isFinite(windowDaysInput) && windowDaysInput > 0
       ? windowDaysInput
       : baseConfig.windowDays;
 
-    const mergedConfig = {
-      model: data?.config?.model || baseConfig.model,
-      temperature: Number.isFinite(Number(data?.config?.temperature))
-        ? Number(data?.config?.temperature)
-        : baseConfig.temperature,
-      max_tokens: Number.isFinite(Number(data?.config?.max_tokens))
-        ? Number(data?.config?.max_tokens)
-        : baseConfig.max_tokens,
-      timezone: data?.config?.timezone || baseConfig.timezone,
+    const usedConfig = {
+      model: baseConfig.model,
+      temperature: baseConfig.temperature,
+      max_tokens: baseConfig.max_tokens,
+      timezone: baseConfig.timezone,
+      windowDays,
     };
 
-    const systemPrompt = typeof data?.systemPrompt === "string" && data.systemPrompt.trim()
-      ? data.systemPrompt
-      : (baseConfig.systemPrompt || BASEBALL_SYSTEM_PROMPT_FALLBACK);
-    const promptPayload = { title: baseConfig.title, description: baseConfig.description, systemPrompt, version: baseConfig.version };
+    const promptPayload = { title: baseConfig.title, description: baseConfig.description, systemPrompt: baseConfig.systemPrompt, version: baseConfig.version };
 
     const results = await runBaseballCards({
       studentIds: [studentId],
-      config: mergedConfig,
-      prompt: promptPayload,
       windowDays,
       dryRun: true,
       collectResults: true,
       concurrency: 1,
+      forceRefresh: !!data?.forceRefresh,
     });
 
     const result = results?.[0];
@@ -456,7 +477,7 @@ export const previewBaseballCard = functions
       status: result.status,
       noteCount: result.payload?.noteCount ?? 0,
       windowDays: result.payload?.windowDays ?? windowDays,
-      usedConfig: mergedConfig,
+      usedConfig,
       usedPrompt: promptPayload,
       summary: result.payload?.summary,
       redFlag: result.payload?.redFlag,
@@ -497,30 +518,28 @@ export const regenerateBaseballCardForStudent = functions
       throw new functions.https.HttpsError("invalid-argument", "studentId is required");
     }
 
-    const baseConfig = await getBaseballCardConfig({ forceRefresh: !!data?.forceRefresh });
-
     const windowDaysInput = Number(data?.windowDays);
     const windowDays = Number.isFinite(windowDaysInput) && windowDaysInput > 0
       ? windowDaysInput
-      : baseConfig.windowDays;
+      : BASEBALL_CARD_DEFAULTS.windowDays;
 
-    const mergedConfig = {
-      model: baseConfig.model,
-      temperature: baseConfig.temperature,
-      max_tokens: baseConfig.max_tokens,
-      timezone: baseConfig.timezone,
-    };
-
-    await runBaseballCards({
+    const regenResults = await runBaseballCards({
       studentIds: [studentId],
-      config: mergedConfig,
-      prompt: { title: baseConfig.title, description: baseConfig.description, systemPrompt: baseConfig.systemPrompt, version: baseConfig.version },
       windowDays,
       dryRun: false,
-      collectResults: false,
+      collectResults: true,
       concurrency: 1,
       requesterInfo,
+      forceRefresh: !!data?.forceRefresh,
     });
+
+    const regenResult = regenResults?.[0];
+    if (regenResult?.status === "error") {
+      throw new functions.https.HttpsError(
+        "internal",
+        regenResult.error || `Baseball card generation failed for student ${studentId}`
+      );
+    }
 
     // Patch heatmap cache with updated student data (PEP-303)
     try {
@@ -550,14 +569,9 @@ export const generateBaseballCards = functions
       return null;
     }
 
-    const config = await getBaseballCardConfig();
-
-    console.log("[baseballCard] generating for active students");
+    console.log("[baseballCard] generating for active students (per-program config)");
 
     await runBaseballCards({
-      config,
-      prompt: { title: config.title, description: config.description, systemPrompt: config.systemPrompt, version: config.version },
-      windowDays: config.windowDays,
       dryRun: false,
       collectResults: false,
       concurrency: 12,

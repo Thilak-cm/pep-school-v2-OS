@@ -3,7 +3,7 @@ import { Box, Card, CardContent, CardActionArea, Typography, Avatar } from '@mui
 import { FileText as Description, AudioLines as GraphicEq, Brain as Psychology, Sparkles as AutoAwesome, MessageCircle as Chat, ClipboardList as Assessment } from '../icons';
 import { isSuperAdmin } from '../utils/roleUtils';
 
-export default function AIHomePage({ userRole, onOpenTextEditor, onOpenVoiceEditor, onOpenCoachEditor, onOpenBaseballCardConfig, onOpenChatCommandCentre, onOpenReportGenConfig }) {
+export default function AIHomePage({ userRole, onOpenTextEditor, onOpenVoiceEditor, onOpenCoachEditor, onOpenChatCommandCentre, onOpenReportGenConfig }) {
   const isAdmin = isSuperAdmin(userRole);
 
   if (!isAdmin) {
@@ -56,24 +56,22 @@ export default function AIHomePage({ userRole, onOpenTextEditor, onOpenVoiceEdit
       </CardActionArea>
     </Card>
 
-    <Card sx={{ borderRadius: 2, '&:hover': { boxShadow: '0 8px 24px rgba(0,0,0,0.12)', transform: 'translateY(-2px)' }, transition: 'all 0.2s ease-in-out' }}>
-      <CardActionArea onClick={onOpenBaseballCardConfig} sx={{ p: 0 }}>
-        <CardContent sx={{ p: 3 }}>
-          <Box sx={{ display: 'flex', alignItems: 'center', gap: 2 }}>
-            <Avatar sx={{ bgcolor: 'var(--color-rose-accent)', width: 56, height: 56 }}>
-              <AutoAwesome />
-            </Avatar>
-            <Box>
-              <Typography variant="h6" component="h3" sx={{ color: 'var(--color-text)', fontWeight: 600 }}>
-                Baseball Card
-              </Typography>
-              <Typography variant="body2" sx={{ color: 'var(--color-text-soft)', mt: 0.5 }}>
-                Configure Coach Pepper’s last 6 weeks summary prompt and model
-              </Typography>
-            </Box>
+    <Card sx={{ borderRadius: 2, opacity: 0.5, pointerEvents: 'none' }}>
+      <CardContent sx={{ p: 3 }}>
+        <Box sx={{ display: 'flex', alignItems: 'center', gap: 2 }}>
+          <Avatar sx={{ bgcolor: 'var(--color-rose-accent)', width: 56, height: 56 }}>
+            <AutoAwesome />
+          </Avatar>
+          <Box>
+            <Typography variant="h6" component="h3" sx={{ color: 'var(--color-text)', fontWeight: 600 }}>
+              Baseball Card
+            </Typography>
+            <Typography variant="body2" sx={{ color: 'var(--color-text-soft)', mt: 0.5 }}>
+              Per-program config -- use seed script to manage
+            </Typography>
           </Box>
-        </CardContent>
-      </CardActionArea>
+        </Box>
+      </CardContent>
     </Card>
 
     <Card sx={{ borderRadius: 2, '&:hover': { boxShadow: '0 8px 24px rgba(0,0,0,0.12)', transform: 'translateY(-2px)' }, transition: 'all 0.2s ease-in-out' }}>

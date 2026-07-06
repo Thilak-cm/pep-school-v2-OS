@@ -213,7 +213,7 @@ function NotificationsPage() {
   const [baseballCardData, setBaseballCardData] = useState({});
   const [baseballCardLoading, setBaseballCardLoading] = useState({});
   const [baseballCardError, setBaseballCardError] = useState({});
-  const [baseballCardConfig, setBaseballCardConfig] = useState({ ...BASEBALL_CARD_DEFAULTS });
+  // baseballCardConfig removed (PEP-132): windowDays now read from BASEBALL_CARD_DEFAULTS directly
   const [signalsDataMap, setSignalsDataMap] = useState({});
   const [regenRunning, setRegenRunning] = useState({});
   const [regenError, setRegenError] = useState({});
@@ -286,32 +286,7 @@ function NotificationsPage() {
     };
   }, [accessLoaded, currentRole, accessibleClassrooms]);
 
-  // ── Load baseball card config ─────────────────────────────────────────────
-
-  useEffect(() => {
-    let active = true;
-    const loadConfig = async () => {
-      try {
-        const ref = doc(db, 'config', 'baseball_card');
-        const snap = await getDoc(ref);
-        if (!active) return;
-        if (snap.exists()) {
-          const data = snap.data() || {};
-          setBaseballCardConfig({
-            model: data.model || BASEBALL_CARD_DEFAULTS.model,
-            temperature: Number.isFinite(data.temperature) ? data.temperature : BASEBALL_CARD_DEFAULTS.temperature,
-            windowDays: Number.isFinite(data.windowDays) ? data.windowDays : BASEBALL_CARD_DEFAULTS.windowDays,
-            timezone: data.timezone || BASEBALL_CARD_DEFAULTS.timezone,
-            max_tokens: Number.isFinite(data.max_tokens) ? data.max_tokens : BASEBALL_CARD_DEFAULTS.max_tokens
-          });
-        } else {
-          setBaseballCardConfig({ ...BASEBALL_CARD_DEFAULTS });
-        }
-      } catch { setBaseballCardConfig({ ...BASEBALL_CARD_DEFAULTS }); }
-    };
-    loadConfig();
-    return () => { active = false; };
-  }, []);
+  // Baseball card config load removed (PEP-132): windowDays read from BASEBALL_CARD_DEFAULTS
 
   // ── Load access scope ─────────────────────────────────────────────────────
 
@@ -892,7 +867,7 @@ function NotificationsPage() {
       }
       return `Missing: ${coverageCount} ${coverageCount === 1 ? 'domain' : 'domains'}`;
     })();
-    const cardWindowDays = Number.isFinite(baseballCardConfig?.windowDays) ? baseballCardConfig.windowDays : BASEBALL_CARD_DEFAULTS.windowDays;
+    const cardWindowDays = BASEBALL_CARD_DEFAULTS.windowDays;
     const palette = {
       balanced: { borderColor: 'var(--color-green-bright)', hoverBorderColor: 'var(--color-green-mid)', backgroundColor: 'rgba(34,197,94,0.1)', hoverBackground: 'rgba(22,163,74,0.12)', textColor: 'var(--color-green-dark)', iconColor: 'var(--color-green-bright)', title: 'Coverage balanced' },
       warning: { borderColor: 'var(--color-warning)', hoverBorderColor: 'var(--color-warning-dark)', backgroundColor: 'rgba(245,158,11,0.1)', hoverBackground: 'rgba(245,158,11,0.14)', textColor: 'var(--color-amber-text)', iconColor: 'var(--color-warning)', title: 'Missing domains' },
@@ -978,7 +953,7 @@ function NotificationsPage() {
     const cardData = baseballCardData[studentId];
     const cardLoading = baseballCardLoading[studentId];
     const cardError = baseballCardError[studentId];
-    const cardWindowDays = Number.isFinite(baseballCardConfig?.windowDays) ? baseballCardConfig.windowDays : BASEBALL_CARD_DEFAULTS.windowDays;
+    const cardWindowDays = BASEBALL_CARD_DEFAULTS.windowDays;
     const cardNoteCount = cardData?.noteCount;
     const signalsData = signalsDataMap[studentId];
     const signalsStatus = signalsData?.status || null;

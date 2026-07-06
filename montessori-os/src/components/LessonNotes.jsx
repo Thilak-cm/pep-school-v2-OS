@@ -133,6 +133,9 @@ function LessonNoteWizard({
   const [groupCommentCleaning, setGroupCommentCleaning] = useState(false);
   const [groupCommentCleanedOnce, setGroupCommentCleanedOnce] = useState(false);
   const [groupCommentPrevText, setGroupCommentPrevText] = useState('');
+  const [studentCommentCleaning, setStudentCommentCleaning] = useState({});
+  const [studentCommentCleanedOnce, setStudentCommentCleanedOnce] = useState({});
+  const [studentCommentPrevText, setStudentCommentPrevText] = useState({});
   const initialPrefillDoneRef = useRef(false);
   const editPrefillDoneRef = useRef(false);
   const inputRefs = useRef({
@@ -721,6 +724,58 @@ function LessonNoteWizard({
       source: 'lesson_group_comment',
       component: 'LessonNotes.GroupComment',
       length_bucket: lengthBucket(groupCommentPrevText.length),
+    });
+  };
+
+  const handlePolishStudentComment = async (studentId) => {
+    const text = studentOverrides[studentId]?.comment || '';
+    if (!text.trim() || studentCommentCleaning[studentId] || studentCommentCleanedOnce[studentId]) return;
+    try {
+      setStudentCommentCleaning((prev) => ({ ...prev, [studentId]: true }));
+      trackEvent('polish_click', {
+        source: 'lesson_student_comment',
+        component: 'LessonNotes.StudentComment',
+        length_bucket: lengthBucket(text.length),
+      });
+      const t0 = performance.now();
+      const cleaned = await cleanUpText(text);
+      if (cleaned && cleaned !== text) {
+        setStudentCommentPrevText((prev) => ({ ...prev, [studentId]: text }));
+        setStudentComment(studentId, cleaned);
+        setStudentCommentCleanedOnce((prev) => ({ ...prev, [studentId]: true }));
+      } else {
+        setStudentCommentCleanedOnce((prev) => ({ ...prev, [studentId]: false }));
+      }
+      const dt = Math.round(performance.now() - t0);
+      trackEvent('polish_success', {
+        source: 'lesson_student_comment',
+        component: 'LessonNotes.StudentComment',
+        length_bucket: lengthBucket(text.length),
+        latency_ms: dt,
+      });
+    } catch {
+      notify.error('Unable to polish text. Please try again.');
+      trackEvent('polish_error', {
+        source: 'lesson_student_comment',
+        component: 'LessonNotes.StudentComment',
+        length_bucket: lengthBucket(text.length),
+        error: 'cleanup_failed',
+      });
+    } finally {
+      setStudentCommentCleaning((prev) => ({ ...prev, [studentId]: false }));
+    }
+  };
+
+  const handleUndoPolishStudentComment = (studentId) => {
+    const prev = studentCommentPrevText[studentId];
+    if (!prev) return;
+    setStudentComment(studentId, prev);
+    setStudentCommentPrevText((p) => ({ ...p, [studentId]: '' }));
+    setStudentCommentCleanedOnce((p) => ({ ...p, [studentId]: false }));
+    trackEvent('polish_undo', {
+      source: 'lesson_student_comment',
+      component: 'LessonNotes.StudentComment',
+      length_bucket: lengthBucket(prev.length),
     });
   };
 
@@ -1536,42 +1591,83 @@ function LessonNoteWizard({
                         {voice.error && <Alert severity="error" sx={{ mt: 1 }} onClose={voice.clearError}>{voice.error}</Alert>}
                       </Box>
                     ) : (
-                      <TextField
-                        fullWidth
-                        label="Student comment (optional)"
-                        multiline
-                        minRows={1}
-                        placeholder="Add a student-specific comment (optional)"
-                        value={studentOverrides[student.id]?.comment || ''}
-                        onChange={(e) => setStudentComment(student.id, e.target.value)}
-                        sx={{ mt: 1 }}
-                        inputRef={(el) => {
-                          if (!inputRefs.current.studentComment) {
-                            inputRefs.current.studentComment = {};
-                          }
-                          inputRefs.current.studentComment[student.id] = el;
-                        }}
-                        InputProps={{
-                          endAdornment: (
-                            <InputAdornment position="end">
-                              <IconButton
-                                aria-label={`Dictate comment for ${getStudentDisplayName(student)}`}
-                                onClick={() => startVoiceFor({ field: 'studentComment', studentId: student.id })}
-                                disabled={voice.active}
-                                color="primary"
-                                size="small"
-                                sx={{
-                                  border: 1,
-                                  borderColor: 'divider',
-                                  bgcolor: 'action.hover'
-                                }}
-                              >
-                                <Mic size={20} />
-                              </IconButton>
-                            </InputAdornment>
-                          )
-                        }}
-                      />
+                      <>
+                        <TextField
+                          fullWidth
+                          label="Student comment (optional)"
+                          multiline
+                          minRows={1}
+                          placeholder="Add a student-specific comment (optional)"
+                          value={studentOverrides[student.id]?.comment || ''}
+                          onChange={(e) => {
+                            setStudentComment(student.id, e.target.value);
+                            if (studentCommentCleanedOnce[student.id]) {
+                              setStudentCommentCleanedOnce((prev) => ({ ...prev, [student.id]: false }));
+                              setStudentCommentPrevText((prev) => ({ ...prev, [student.id]: '' }));
+                            }
+                          }}
+                          sx={{ mt: 1 }}
+                          inputRef={(el) => {
+                            if (!inputRefs.current.studentComment) {
+                              inputRefs.current.studentComment = {};
+                            }
+                            inputRefs.current.studentComment[student.id] = el;
+                          }}
+                          InputProps={{
+                            endAdornment: (
+                              <InputAdornment position="end">
+                                <Box sx={{ display: 'flex', gap: 0.5 }}>
+                                  <Tooltip
+                                    title="Add text first to polish with AI"
+                                    disableHoverListener={!!(studentOverrides[student.id]?.comment || '').trim()}
+                                    disableFocusListener={!!(studentOverrides[student.id]?.comment || '').trim()}
+                                  >
+                                    <span>
+                                      <IconButton
+                                        aria-label={`Polish comment for ${getStudentDisplayName(student)} with AI`}
+                                        onClick={() => handlePolishStudentComment(student.id)}
+                                        disabled={!(studentOverrides[student.id]?.comment || '').trim() || studentCommentCleaning[student.id] || studentCommentCleanedOnce[student.id]}
+                                        size="small"
+                                        sx={{
+                                          border: 1,
+                                          borderColor: 'divider',
+                                          bgcolor: 'action.hover',
+                                          color: studentCommentCleanedOnce[student.id] ? 'var(--color-secondary)' : studentCommentCleaning[student.id] ? 'var(--color-violet-dark)' : !(studentOverrides[student.id]?.comment || '').trim() ? 'text.disabled' : 'var(--color-violet-dark)'
+                                        }}
+                                      >
+                                        {studentCommentCleaning[student.id] ? <CircularProgress size={16} color="inherit" /> : <AutoFixHigh size={20} />}
+                                      </IconButton>
+                                    </span>
+                                  </Tooltip>
+                                  <IconButton
+                                    aria-label={`Dictate comment for ${getStudentDisplayName(student)}`}
+                                    onClick={() => startVoiceFor({ field: 'studentComment', studentId: student.id })}
+                                    disabled={voice.active}
+                                    color="primary"
+                                    size="small"
+                                    sx={{
+                                      border: 1,
+                                      borderColor: 'divider',
+                                      bgcolor: 'action.hover'
+                                    }}
+                                  >
+                                    <Mic size={20} />
+                                  </IconButton>
+                                </Box>
+                              </InputAdornment>
+                            )
+                          }}
+                        />
+                        {studentCommentCleanedOnce[student.id] && studentCommentPrevText[student.id] && (
+                          <Button
+                            variant="text"
+                            onClick={() => handleUndoPolishStudentComment(student.id)}
+                            sx={{ color: 'var(--color-text-soft)', textTransform: 'none', minWidth: 'auto', px: 1, alignSelf: 'flex-start', mt: -1 }}
+                          >
+                            Undo polish
+                          </Button>
+                        )}
+                      </>
                     )}
                   </Paper>
                 ))}

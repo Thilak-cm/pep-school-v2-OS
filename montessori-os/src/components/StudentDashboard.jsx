@@ -258,12 +258,16 @@ function StudentDashboard({ student, onOpenTimeline, onOpenFeedback, onOpenChat,
     return () => { active = false; };
   }, [studentId]);
 
-  // Load baseball card config (windowDays, model, etc.)
+  // Load baseball card config (windowDays, model, etc.) from per-program doc (PEP-132)
   useEffect(() => {
     let active = true;
+    if (!studentProgramId) {
+      setCardConfig({ ...BASEBALL_CARD_DEFAULTS });
+      return () => { active = false; };
+    }
     const loadConfig = async () => {
       try {
-        const ref = doc(db, 'config', 'baseball_card');
+        const ref = doc(db, 'config', `baseball_card_${studentProgramId}`);
         const snap = await getDoc(ref);
         if (!active) return;
         if (snap.exists()) {
@@ -284,7 +288,7 @@ function StudentDashboard({ student, onOpenTimeline, onOpenFeedback, onOpenChat,
     };
     loadConfig();
     return () => { active = false; };
-  }, []);
+  }, [studentProgramId]);
 
   // Load baseball card data for the student
   useEffect(() => {
@@ -400,9 +404,18 @@ function StudentDashboard({ student, onOpenTimeline, onOpenFeedback, onOpenChat,
   const handlePlanRegenerate = async () => {
     try {
       setPlanRegenRunning(true);
-      const call = httpsCallable(cloudFunctions, 'generateMonthlyPlan', { timeout: 300_000 });
-      await call({ studentId });
+      const genCall = httpsCallable(cloudFunctions, 'generateMonthlyPlan', { timeout: 300_000 });
+      await genCall({ studentId, targetMonth: planData?.month });
       setReloadKey((k) => k + 1);
+
+      // Auto-export to Drive after successful generation
+      try {
+        const exportCall = httpsCallable(cloudFunctions, 'exportMonthlyPlanToDrive', { timeout: 120_000 });
+        await exportCall({ studentId });
+        notify.success('Plan regenerated and exported to Google Drive');
+      } catch {
+        notify.warning('Plan regenerated but Drive export failed — you can export manually');
+      }
     } catch (e) {
       notify.error(friendlyFunctionError(e));
     } finally {

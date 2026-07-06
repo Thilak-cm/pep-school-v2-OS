@@ -208,7 +208,7 @@ describe("FAB_HIDDEN_SCREENS", () => {
       "profile", "stats", "feedback", "feedbackTimeline",
       "accessDenied", "classroomNotesReview", "graduateStudents", "lessonNotes",
       "studentAliases", "settings", "addUser", "childChat", "config",
-      "configLessonNotes", "configAiTools", "chatCommandCentre", "baseballCardConfig",
+      "configLessonNotes", "configAiTools", "chatCommandCentre",
       "reportGenConfig", "bulkUpload", "alerts", "interviews", "broadcastComposer",
     ];
     for (const s of expected) {
