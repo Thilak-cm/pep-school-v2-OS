@@ -1,6 +1,6 @@
 /**
  * Firestore trigger: maintain classrooms.studentCount on every student
- * create/update/delete.
+ * create/update/delete, and close active placements on inactivation.
  *
  * Uses a count query (not increment) so the value self-heals on every
  * invocation - even if prior writes drifted or the trigger fires twice,
@@ -39,6 +39,37 @@ async function recountStudents(classroomId) {
   console.log(`[studentCount] ${classroomId} → ${count}`);
 }
 
+/**
+ * Close all open placements for a student (set endDate to today).
+ * Called when a student is inactivated (soft-deleted).
+ * @param {string} studentId
+ */
+async function closeOpenPlacements(studentId) {
+  const placementsSnap = await db
+    .collection("students")
+    .doc(studentId)
+    .collection("placements")
+    .where("endDate", "==", null)
+    .get();
+
+  if (placementsSnap.empty) return;
+
+  const today = new Date().toISOString().slice(0, 10); // YYYY-MM-DD
+  const batch = db.batch();
+  placementsSnap.forEach((doc) => {
+    batch.update(doc.ref, {
+      endDate: today,
+      status: "ended",
+      updatedAt: new Date(),
+    });
+  });
+  await batch.commit();
+
+  console.log(
+    `[studentCount] Closed ${placementsSnap.size} open placement(s) for ${studentId}`,
+  );
+}
+
 export const onStudentWrite = functions
   .region("asia-south1")
   .firestore.document("students/{studentId}")
@@ -55,11 +86,9 @@ export const onStudentWrite = functions
     const classroomsToRecount = new Set();
 
     if (beforeClassroom) {
-      // Student deleted, transferred out, or status changed
       classroomsToRecount.add(beforeClassroom);
     }
     if (afterClassroom) {
-      // Student created, transferred in, or status changed
       classroomsToRecount.add(afterClassroom);
     }
 
@@ -70,6 +99,11 @@ export const onStudentWrite = functions
       if (!classroomChanged && !statusChanged) {
         return null;
       }
+    }
+
+    // Close open placements when student is inactivated
+    if (before && after && beforeStatus === "active" && afterStatus !== "active") {
+      await closeOpenPlacements(change.after.id);
     }
 
     // Recount all affected classrooms in parallel

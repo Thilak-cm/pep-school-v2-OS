@@ -126,6 +126,10 @@ export default function GraduateStudentsPage({ _currentUser, _userRole }) {
 
   const handleSubmit = async () => {
     if (!sourceClassroomId || !destClassroomId || selectedIds.length === 0) return;
+    if (sourceClassroomId === destClassroomId) {
+      notify.error('Cannot transfer students to the same classroom');
+      return;
+    }
     setSubmitting(true);
     setResult(null);
 
