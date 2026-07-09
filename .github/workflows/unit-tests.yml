@@ -15,6 +15,7 @@ on:
       - 'functions/config/**'
       - 'functions/test/**'
       - 'functions/index.js'
+      - 'firestore.rules'
       - '.github/workflows/unit-tests.yml'
   pull_request:
     branches:
@@ -30,6 +31,7 @@ on:
       - 'functions/config/**'
       - 'functions/test/**'
       - 'functions/index.js'
+      - 'firestore.rules'
 
 jobs:
   frontend_tests:
