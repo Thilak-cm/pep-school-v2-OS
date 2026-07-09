@@ -136,13 +136,17 @@ function RecommendationRow({ rec, isExpanded, onToggle, isLast }) {
     if (node) setMeasuredHeight(node.scrollHeight);
   }, []);
 
-  // Re-measure when expanded (must be in useEffect, not render phase)
+  // Re-measure after expanding so late-rendered content is captured
   useEffect(() => {
     if (isExpanded && contentRef.current) {
-      const h = contentRef.current.scrollHeight;
-      if (h !== measuredHeight) setMeasuredHeight(h);
+      // RAF lets the browser finish layout before we read scrollHeight
+      const id = requestAnimationFrame(() => {
+        if (contentRef.current) {
+          setMeasuredHeight(contentRef.current.scrollHeight);
+        }
+      });
+      return () => cancelAnimationFrame(id);
     }
-  // eslint-disable-next-line react-hooks/exhaustive-deps -- measuredHeight intentionally omitted to avoid re-measure loop
   }, [isExpanded]);
 
   return (
@@ -186,7 +190,7 @@ function RecommendationRow({ rec, isExpanded, onToggle, isLast }) {
         overflow: 'hidden',
         transition: 'height 280ms ease, opacity 250ms ease 80ms',
       }}>
-        <Box ref={measureRef}>
+        <Box ref={measureRef} sx={{ pb: 1 }}>
           <Typography sx={{ fontSize: '0.78rem', color: 'var(--grey-600)', mt: 0.75, ml: 3.75, lineHeight: 1.5 }}>
             {rec.action}
           </Typography>
