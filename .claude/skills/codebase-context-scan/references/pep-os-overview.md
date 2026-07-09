@@ -1,7 +1,7 @@
 # Pep OS Overview
 
-Generated: 2026-07-09T05:03:25.055Z
-App version: 11.3.4
+Generated: 2026-07-09T07:59:35.897Z
+App version: 11.3.5
 
 ## App Snapshot
 
@@ -31,17 +31,17 @@ App version: 11.3.4
 ## Existing Pages and Components
 
 ### Observation Capture (`observation-capture`)
-- Count: 12
-- Components: `AddNoteFab`, `AddNoteFab.test`, `AddNoteModal`, `AddNoteModal.photoUX.test`, `AddNoteModal.saveButton.test`, `ClassroomStudentPicker`, `LessonNoteConfigEditor`, `LessonNotes`, `LessonNotesPage`, `LessonNoteTagDialog`, `MentionTextArea`, `VoiceRecorder`
+- Count: 13
+- Components: `AddNoteFab`, `AddNoteFab.test`, `AddNoteModal`, `AddNoteModal.photoUX.test`, `AddNoteModal.saveButton.test`, `AddNoteModal.syncSave.test`, `ClassroomStudentPicker`, `LessonNoteConfigEditor`, `LessonNotes`, `LessonNotesPage`, `LessonNoteTagDialog`, `MentionTextArea`, `VoiceRecorder`
 - Representative paths:
 - `montessori-os/src/components/AddNoteFab.jsx`
 - `montessori-os/src/components/AddNoteFab.test.js`
 - `montessori-os/src/components/AddNoteModal.jsx`
 - `montessori-os/src/components/AddNoteModal.photoUX.test.js`
 - `montessori-os/src/components/AddNoteModal.saveButton.test.js`
+- `montessori-os/src/components/AddNoteModal.syncSave.test.js`
 - `montessori-os/src/components/ClassroomStudentPicker.jsx`
 - `montessori-os/src/components/LessonNoteConfigEditor.jsx`
-- `montessori-os/src/components/LessonNotes.jsx`
 
 ### Timelines and Media (`timelines-and-media`)
 - Count: 10
@@ -149,6 +149,11 @@ App version: 11.3.4
 
 ## Recent Changes
 
+### 11.3.5 (2026-07-08)
+- Note saves (text, voice, media, lesson) are now synchronous - modal waits for Firestore write to complete before dismissing, replacing async background queue (#129)
+- "Note saved" toast includes a "View" button that navigates to the note in the appropriate timeline (#129)
+- Classroom and student timelines instantly show new notes via inject-on-save without page reload (#129)
+
 ### 11.3.4 (2026-07-08)
 - `studentCount` now maintained by a self-healing Firestore trigger (`onStudentWrite`) instead of fragile client-side `increment()` calls - corrupted counts (e.g., Parijat's -7) auto-correct on next student write (#161)
 - Removed 24-hour localStorage cache for classrooms so `studentCount` is always fresh on login (#161)
@@ -163,9 +168,4 @@ App version: 11.3.4
 - Classroom-level and per-teacher stats deduped by groupId — group notes count as 1 act of documentation regardless of student count (#130)
 - Stats fields renamed by intent: classroom `noteCounts` → `effortCounts`, `activity` → `effortActivity`; per-student `totalNotes` → `totalMentions` (#130)
 - Overview Activity Trend chart shows 3 colored lines (observations, lessons, media) instead of 1 aggregate line (#130)
-
-### 11.3.1 (2026-07-01)
-- Monthly plan batch generation refactored from single-CF inline processing to Pub/Sub fan-out — dispatcher publishes one message per eligible student, worker processes one student per invocation with 5-instance concurrency cap (#167)
-- Dispatcher skips students whose plan already matches the target month, reducing redundant work (#167)
-- Worker includes idempotency guard and permanent-error handling to prevent infinite Pub/Sub retries (#167)
 
