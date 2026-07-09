@@ -1,7 +1,7 @@
 # Pep OS Overview
 
-Generated: 2026-07-06T06:46:48.783Z
-App version: 11.3.3
+Generated: 2026-07-09T05:03:25.055Z
+App version: 11.3.4
 
 ## App Snapshot
 
@@ -149,6 +149,11 @@ App version: 11.3.3
 
 ## Recent Changes
 
+### 11.3.4 (2026-07-08)
+- `studentCount` now maintained by a self-healing Firestore trigger (`onStudentWrite`) instead of fragile client-side `increment()` calls - corrupted counts (e.g., Parijat's -7) auto-correct on next student write (#161)
+- Removed 24-hour localStorage cache for classrooms so `studentCount` is always fresh on login (#161)
+- ClassroomTimeline uses live student query count instead of stale denormalized `classroom.studentCount` (#161)
+
 ### 11.3.3 (2026-07-05)
 - Baseball card pipeline now uses per-program config docs (`baseball_card_primary`, `baseball_card_toddler`, `baseball_card_elementary`, `baseball_card_adolescent`) with program-specific curriculum domains — elementary/adolescent students no longer get "Practical Life" or "Sensorial" as false coverage gaps (#132)
 - Frontend baseball card config reads use per-program doc matching the student's program instead of the deprecated single `config/baseball_card` doc (#132)
@@ -163,9 +168,4 @@ App version: 11.3.3
 - Monthly plan batch generation refactored from single-CF inline processing to Pub/Sub fan-out — dispatcher publishes one message per eligible student, worker processes one student per invocation with 5-instance concurrency cap (#167)
 - Dispatcher skips students whose plan already matches the target month, reducing redundant work (#167)
 - Worker includes idempotency guard and permanent-error handling to prevent infinite Pub/Sub retries (#167)
-
-### 11.3.0 (2026-06-30)
-- Rich writing analysis tab on student dashboard — dimension ratings grid, sorted recommendations with expand/collapse, confidence chip with popover, and three context-aware empty states (#137)
-- Classroom name shown as subtitle in app header on student screens, with fallback resolution from classrooms list (#137)
-- Empty-state flash prevented with loading guard while media counts are fetched (#137)
 
