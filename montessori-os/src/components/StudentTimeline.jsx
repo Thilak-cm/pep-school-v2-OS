@@ -53,7 +53,7 @@ import { ref, getDownloadURL } from 'firebase/storage';
 
 const MEDIA_URL_FETCH_CONCURRENCY = 6;
 
-function StudentTimeline({ student, currentUser, userRole, noteTypeFilter = null }) {
+function StudentTimeline({ student, currentUser, userRole, noteTypeFilter = null, onInjectReady }) {
   const notify = useNotify();
   const isSuperAdminUser = isSuperAdmin(userRole);
   const [reportPreviewData, setReportPreviewData] = useState(null);
@@ -70,11 +70,18 @@ function StudentTimeline({ student, currentUser, userRole, noteTypeFilter = null
     loading,
     displayLimit,
     showMore,
+    injectNote,
   } = useTimelineData({
     scope: 'student',
     id: student?.id,
   });
-  
+
+  // Expose injectNote to parent for post-save timeline refresh (#129)
+  useEffect(() => {
+    if (onInjectReady) onInjectReady(injectNote);
+    return () => { if (onInjectReady) onInjectReady(null); };
+  }, [injectNote, onInjectReady]);
+
   // Export states
   const [exporting, setExporting] = useState(false);
   const [exportWizardOpen, setExportWizardOpen] = useState(false);

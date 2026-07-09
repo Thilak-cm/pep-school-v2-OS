@@ -23,8 +23,10 @@ import InlineVoiceOverlay from './InlineVoiceOverlay';
 import { cleanUpText } from '../textCleanup';
 import { trackEvent, lengthBucket } from '../utils/analytics';
 import ClassroomStudentPicker from './ClassroomStudentPicker';
-import { collection, getDoc, doc, query, where, limit, getDocs } from 'firebase/firestore';
-import { db, cloudFunctions } from '../firebase';
+import { collection, getDoc, doc, query, where, limit, getDocs, setDoc, deleteDoc, serverTimestamp, updateDoc, arrayUnion } from 'firebase/firestore';
+import { deleteObject, ref, uploadBytesResumable } from 'firebase/storage';
+import { db, cloudFunctions, storage } from '../firebase';
+import { buildMediaDocData } from '../utils/mediaDocBuilder';
 import useNotify from '../notifications/useNotify.js';
 import { httpsCallable } from 'firebase/functions';
 import { makeCoachRequest, parseCoachResponse } from '../coach/coachIO.js';
@@ -35,7 +37,6 @@ import MentionTextArea from './MentionTextArea';
 import useMentionableStudents from '../hooks/useMentionableStudents';
 import useTranscriptStudentSuggestions from '../hooks/useTranscriptStudentSuggestions';
 import LessonNoteTagDialog from './LessonNoteTagDialog';
-import { enqueueSaveQueueItems } from '../services/saveQueue';
 import { reportCaughtError } from '../utils/reportCaughtError.js';
 import { mapVLMResultsToMediaItems } from '../utils/photoAnalysis.js';
 
@@ -303,6 +304,7 @@ const STEP_MEDIA = 'media';
 function AddNoteModal({
   open,
   onClose,
+  onSave,
   initialStudents = [],
   initialStep = STEP_RECORD,
   currentUser,
@@ -924,9 +926,9 @@ function AddNoteModal({
   };
 
   const handleStudentsChange = (nextStudents) => {
-    // Photo mode: swap-to-replace — keep only the newest student (PEP-243)
+    // Media mode (photo/PDF): swap-to-replace — keep only the newest student (PEP-243)
     let didSwap = false;
-    if (step === STEP_MEDIA && mediaMode === 'photo' && nextStudents?.length > 1) {
+    if (step === STEP_MEDIA && (mediaMode === 'photo' || mediaMode === 'pdf') && nextStudents?.length > 1) {
       const newStudent = nextStudents.find((id) => !selectedStudents.includes(id));
       nextStudents = newStudent ? [newStudent] : [nextStudents[nextStudents.length - 1]];
       didSwap = true;
@@ -942,7 +944,7 @@ function AddNoteModal({
       const nextStu = nextStudents?.length === 1 ? nextStudents[0] : null;
       if (prevStu && (!nextStu || nextStu !== prevStu)) {
         setSelectedLessonIds([]);
-        if (didSwap) notify.info('Lesson tag cleared — photo notes are per-student.');
+        if (didSwap) notify.info('Lesson tag cleared — media notes are per-student.');
       }
     }
     setSelectedStudents(nextStudents);
@@ -1592,45 +1594,63 @@ function AddNoteModal({
     setSaving(true);
     setMediaUploading(true);
 
-    const batchId = `batch_${Date.now().toString(36)}_${Math.random().toString(36).slice(2, 6)}`;
-    const itemsToUpload = isPdf
-      ? [{
-          id: 'pdf',
-          kind: 'pdf',
-          source: pdfSource,
-          displayName: pdfDisplayName,
-          teacherComment: mediaTeacherComment
-        }]
-      : mediaItems;
-    const studentsToUpload = [...selectedStudents];
+    try {
+      const batchId = `batch_${Date.now().toString(36)}_${Math.random().toString(36).slice(2, 6)}`;
+      const itemsToUpload = isPdf
+        ? [{
+            id: 'pdf',
+            kind: 'pdf',
+            source: pdfSource,
+            displayName: pdfDisplayName,
+            teacherComment: mediaTeacherComment
+          }]
+        : mediaItems;
+      const studentsToUpload = [...selectedStudents];
 
-    // Lesson tag guard — same logic as saveNote() for text/voice
-    const normalizedMediaLessonIds = Array.from(new Set(selectedLessonIds || []));
-    const selectedMediaLessonObjects = lessonNotes.filter((n) =>
-      normalizedMediaLessonIds.includes(n.id)
-    );
-    const canTagMediaLesson = (
-      studentsToUpload.length === 1 &&
-      normalizedMediaLessonIds.length > 0 &&
-      selectedMediaLessonObjects.length === normalizedMediaLessonIds.length
-    );
-    const mediaTaggedLessonIds = canTagMediaLesson ? normalizedMediaLessonIds : [];
+      // Lesson tag guard - same logic as saveNote() for text/voice
+      const normalizedMediaLessonIds = Array.from(new Set(selectedLessonIds || []));
+      const selectedMediaLessonObjects = lessonNotes.filter((n) =>
+        normalizedMediaLessonIds.includes(n.id)
+      );
+      const canTagMediaLesson = (
+        studentsToUpload.length === 1 &&
+        normalizedMediaLessonIds.length > 0 &&
+        selectedMediaLessonObjects.length === normalizedMediaLessonIds.length
+      );
+      const mediaTaggedLessonIds = canTagMediaLesson ? normalizedMediaLessonIds : [];
 
-    const queueEntries = [];
-    studentsToUpload.forEach((studentId) => {
-      itemsToUpload.forEach((item) => {
-        if (!item?.source) return;
-        const mediaLabel = item.kind === 'pdf' ? 'PDF upload' : item.kind === 'video' ? 'Video upload' : 'Photo upload';
-        queueEntries.push({
-          kind: 'media',
-          studentId,
-          groupId: batchId,
-          title: mediaLabel,
-          summary: item.source?.originalName || '',
-          persistent: false,
-          maxAttempts: 2,
-          payload: {
+      const observedAtClient = new Date();
+      const savedNotes = [];
+      const studentDataMap = {};
+
+      await Promise.all(studentsToUpload.map(async (studentId) => {
+        let classroomId;
+        const studentSnap = await getDoc(doc(db, 'students', studentId));
+        if (studentSnap.exists()) {
+          const studentData = studentSnap.data();
+          classroomId = studentData?.classroomId;
+          if (!classroomId) throw new Error('Student is missing classroom assignment.');
+          studentDataMap[studentId] = { id: studentId, ...studentData };
+        } else {
+          throw new Error('Student record not found. Please refresh and retry.');
+        }
+
+        for (const item of itemsToUpload) {
+          if (!item?.source) continue;
+          if (!item.source.file && !item.source.blob) {
+            throw new Error('Media source is missing. Please re-select the file and retry.');
+          }
+
+          const mediaId = `media_${Date.now().toString(36)}_${Math.random().toString(36).slice(2, 6)}_${studentId.slice(0, 4)}`;
+          const mediaRef = doc(db, 'students', studentId, 'media', mediaId);
+          const storagePath = `students/${studentId}/media/${mediaId}/original.${item.source.extension}`;
+
+          await deleteDoc(mediaRef).catch((e) => { reportCaughtError(e, 'AddNoteModal', 'pre-cleanup deleteDoc for media'); });
+          await deleteObject(ref(storage, storagePath)).catch((e) => { reportCaughtError(e, 'AddNoteModal', 'pre-cleanup deleteObject for media storage'); });
+
+          const payload = {
             studentId,
+            classroomId,
             mediaKind: item.kind,
             source: item.source,
             displayName: item.displayName || '',
@@ -1645,31 +1665,95 @@ function AddNoteModal({
               materialsIdentified: Array.isArray(item.materialsIdentified) ? item.materialsIdentified : [],
             } : {}),
             ...(canTagMediaLesson ? { linkedLessonObservationId: mediaTaggedLessonIds } : {}),
-            ...(canTagMediaLesson ? { lessonBacklinkIds: mediaTaggedLessonIds } : {}),
             createdBy: currentUser.uid,
             createdByName: currentUser?.displayName || 'Unknown Teacher',
             createdByEmail: currentUser?.email || 'unknown@email.com',
-          }
-        });
-      });
-    });
+          };
 
-    if (queueEntries.length === 0) {
+          const docData = {
+            ...buildMediaDocData(payload, mediaId, storagePath),
+            observedAt: serverTimestamp(),
+            createdAt: serverTimestamp(),
+            updatedAt: serverTimestamp(),
+          };
+
+          await setDoc(mediaRef, docData);
+          await new Promise((r) => setTimeout(r, 350)); // allow Firestore doc to propagate before upload triggers mediaFinalize CF
+
+          // Write backlinks to tagged lesson observations
+          if (canTagMediaLesson && mediaTaggedLessonIds.length > 0) {
+            await Promise.allSettled(
+              mediaTaggedLessonIds.map(async (lessonId) => {
+                if (!lessonId) return;
+                const lessonRef = doc(db, 'students', studentId, 'observations', lessonId);
+                await updateDoc(lessonRef, {
+                  linkedObservations: arrayUnion(mediaId),
+                });
+              })
+            );
+          }
+
+          // Upload file to Storage
+          const storageRef = ref(storage, storagePath);
+          const filePayload = item.source.blob || item.source.file;
+          await new Promise((resolve, reject) => {
+            const task = uploadBytesResumable(storageRef, filePayload, {
+              contentType: item.source.contentType,
+              customMetadata: { mediaId, studentId },
+            });
+            task.on('state_changed', () => {}, async (error) => {
+              await deleteObject(storageRef).catch((e) => { reportCaughtError(e, 'AddNoteModal', 'upload error cleanup deleteObject'); });
+              reject(error);
+            }, () => resolve());
+          });
+
+          savedNotes.push({
+            id: mediaId,
+            studentId,
+            classroomId,
+            type: 'media',
+            mediaKind: item.kind,
+            observedAt: observedAtClient,
+            createdBy: currentUser.uid,
+            createdByName: currentUser?.displayName || 'Unknown Teacher',
+          });
+        }
+      }));
+
+      const classroomId = savedNotes[0]?.classroomId;
+      if (onSave) {
+        onSave({
+          noteType: 'media',
+          studentIds: studentsToUpload,
+          classroomId,
+          notes: savedNotes,
+          students: studentDataMap,
+        });
+      }
+
+      notify.success('Note saved', {
+        actionLabel: 'View',
+        duration: 5000,
+        onUndo: () => {
+          if (onSave) {
+            onSave({
+              navigate: true,
+              noteType: 'media',
+              studentIds: studentsToUpload,
+              classroomId,
+              notes: savedNotes,
+              students: studentDataMap,
+            });
+          }
+        },
+      });
+      handleClose();
+    } catch {
+      notify.error('Could not save media. Check your connection and try again.');
+    } finally {
       setSaving(false);
       setMediaUploading(false);
-      notify.error('No media items were selected. Please re-select files and retry.');
-      return;
     }
-
-    enqueueSaveQueueItems(queueEntries);
-
-    notify.success('Media saving in the background — you may continue your work', {
-      duration: 4000,
-    });
-
-    setSaving(false);
-    setMediaUploading(false);
-    handleClose();
   };
 
   const saveNote = async (coachResult = null) => {
@@ -1717,22 +1801,43 @@ function AddNoteModal({
           }
         : null;
 
-      const queueEntries = selectedStudents.map((studentId) => ({
-        kind: 'text_voice',
-        studentId,
-        groupId: groupId || null,
-        title: transcriptionData ? 'Voice note save' : 'Text note save',
-        summary: textToSave.slice(0, 120),
-        payload: {
+      if (selectedStudents.length === 0) {
+        notify.warning('Select at least one student.');
+        return;
+      }
+
+      const noteType = transcriptionData ? 'voice' : 'text';
+      const observedAtClient = new Date();
+      const savedNotes = [];
+
+      const studentDataMap = {};
+      await Promise.all(selectedStudents.map(async (studentId) => {
+        let classroomId;
+        const studentSnap = await getDoc(doc(db, 'students', studentId));
+        if (studentSnap.exists()) {
+          const studentData = studentSnap.data();
+          classroomId = studentData?.classroomId;
+          if (!classroomId) throw new Error('Student is missing classroom assignment.');
+          studentDataMap[studentId] = { id: studentId, ...studentData };
+        } else {
+          throw new Error('Student record not found. Please refresh and retry.');
+        }
+
+        const observationId = `obs_${Date.now().toString(36)}_${Math.random().toString(36).slice(2, 6)}_${studentId.slice(0, 4)}`;
+        const observationRef = doc(db, 'students', studentId, 'observations', observationId);
+        const observationData = {
           studentId,
-          noteType: transcriptionData ? 'voice' : 'text',
+          classroomId,
+          type: noteType,
           text: textToSave,
+          observedAt: serverTimestamp(),
+          createdAt: serverTimestamp(),
+          updatedAt: serverTimestamp(),
           createdBy: currentUser.uid,
           createdByName: currentUser?.displayName || 'Unknown Teacher',
           createdByEmail: currentUser?.email || 'unknown@email.com',
           ...(groupId ? { groupId } : {}),
           ...(canTagLesson ? { linkedLessonObservationId: taggedLessonIds } : {}),
-          ...(canTagLesson && taggedLessonIds.length > 0 ? { lessonBacklinkIds: taggedLessonIds } : {}),
           ...(transcriptionData && typeof transcriptionData.duration === 'number'
             ? { durationSec: transcriptionData.duration }
             : {}),
@@ -1743,22 +1848,70 @@ function AddNoteModal({
             ? { detectedLanguage: transcriptionData.detectedLanguage }
             : {}),
           ...(coachPayload ? { coach: coachPayload } : {}),
-        },
+        };
+
+        const cleaned = Object.fromEntries(
+          Object.entries(observationData).filter(([, value]) => value !== undefined)
+        );
+        await deleteDoc(observationRef).catch((e) => { reportCaughtError(e, 'AddNoteModal', 'pre-cleanup deleteDoc for observation'); });
+        await setDoc(observationRef, cleaned);
+
+        // Write backlinks to tagged lesson observations
+        if (canTagLesson && taggedLessonIds.length > 0) {
+          await Promise.allSettled(
+            taggedLessonIds.map(async (lessonId) => {
+              if (!lessonId) return;
+              const lessonRef = doc(db, 'students', studentId, 'observations', lessonId);
+              await updateDoc(lessonRef, {
+                linkedObservations: arrayUnion(observationId),
+              });
+            })
+          );
+        }
+
+        savedNotes.push({
+          id: observationId,
+          studentId,
+          classroomId,
+          type: noteType,
+          text: textToSave,
+          observedAt: observedAtClient,
+          createdBy: currentUser.uid,
+          createdByName: currentUser?.displayName || 'Unknown Teacher',
+          ...(groupId ? { groupId } : {}),
+        });
       }));
 
-      if (queueEntries.length === 0) {
-        notify.warning('Select at least one student.');
-        return;
+      const classroomId = savedNotes[0]?.classroomId;
+      if (onSave) {
+        onSave({
+          noteType,
+          studentIds: selectedStudents,
+          classroomId,
+          notes: savedNotes,
+          students: studentDataMap,
+        });
       }
 
-      enqueueSaveQueueItems(queueEntries);
-
-      notify.success('Note saving in the background — you may continue your work', {
-        duration: 4000,
+      notify.success('Note saved', {
+        actionLabel: 'View',
+        duration: 5000,
+        onUndo: () => {
+          if (onSave) {
+            onSave({
+              navigate: true,
+              noteType,
+              studentIds: selectedStudents,
+              classroomId,
+              notes: savedNotes,
+              students: studentDataMap,
+            });
+          }
+        },
       });
       handleClose();
     } catch {
-      notify.error('Unable to start note save. Please try again.');
+      notify.error('Could not save note. Check your connection and try again.');
     } finally {
       setSaving(false);
     }
@@ -1775,6 +1928,7 @@ function AddNoteModal({
       return;
     }
 
+    setSaving(true);
     const programIds = await getSelectedProgramIds(selectedStudents);
     if (programIds.length !== 1) {
       await saveNote(null);
@@ -1793,12 +1947,14 @@ function AddNoteModal({
 
     // If nothing changed and nudges already exist, reuse without rerun
     if (lastCoachSignatureRef.current === signature && coachNudges.length > 0) {
+      setSaving(false);
       setCoachLoading(false);
       setCoachLoadingMessage('');
       setStep(STEP_COACH);
       return;
     }
 
+    setSaving(false);
     setStep(STEP_COACH);
     const coachResult = await runCoachReview(noteData.text, signature).catch(() => ({ skipped: true }));
     if (!coachResult) return; // cancelled or superseded
@@ -2519,7 +2675,7 @@ function AddNoteModal({
                       }),
                     }}
                   >
-                    {needsStudent ? 'Select a student above' : 'Create Media Note'}
+                    {needsStudent ? 'Select a student above' : (saving || mediaUploading) ? <><CircularProgress size={20} sx={{ mr: 1 }} color="inherit" /> Saving...</> : 'Create Media Note'}
                   </Button>
                 );
               })()}

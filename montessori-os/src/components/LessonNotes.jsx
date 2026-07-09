@@ -34,14 +34,16 @@ import {
   where,
   doc,
   serverTimestamp,
-  updateDoc
+  updateDoc,
+  setDoc,
+  deleteDoc
 } from 'firebase/firestore';
 import { db } from '../firebase';
 import useNotify from '../notifications/useNotify';
 import { genericFuzzySearch } from '../utils/fuzzySearch';
 import useInlineVoice from '../hooks/useInlineVoice';
 import InlineVoiceOverlay from './InlineVoiceOverlay';
-import { enqueueSaveQueueItems } from '../services/saveQueue';
+import { reportCaughtError } from '../utils/reportCaughtError.js';
 import { cleanUpText } from '../textCleanup';
 import { trackEvent, lengthBucket } from '../utils/analytics';
 import {
@@ -98,6 +100,7 @@ function LessonNoteWizard({
   userRole,
   onCancel,
   onSaved,
+  onSave,
   onDirtyChange,
   initialClassroomId = null,
   initialStudentId = null,
@@ -917,8 +920,10 @@ function LessonNoteWizard({
         onSaved?.({ observationId: obsId, studentId });
       } else {
         const groupId = lessonMode === 'group' ? buildGroupId() : undefined;
-        const queueGroupId = `lesson_save_${Date.now().toString(36)}_${Math.random().toString(36).slice(2, 6)}`;
-        const queueEntries = selectedStudents.map((studentId) => {
+        const observedAtClient = new Date();
+        const savedNotes = [];
+
+        await Promise.all(selectedStudents.map(async (studentId) => {
           const ratings = {};
           dimensionList.forEach((dimension) => {
             const overrideValue = studentOverrides[studentId]?.dimensions?.[dimension];
@@ -926,36 +931,80 @@ function LessonNoteWizard({
             ratings[dimension] = overrideValue || baseValue;
           });
 
-          return {
-            kind: 'lesson',
+          const observationId = `lesson_${Date.now().toString(36)}_${Math.random().toString(36).slice(2, 6)}_${studentId.slice(0, 4)}`;
+          const observationRef = doc(db, 'students', studentId, 'observations', observationId);
+          const lessonData = {
             studentId,
-            groupId: queueGroupId,
-            title: 'Lesson note save',
-            summary: context.lessonTitle.trim(),
-            payload: {
-              studentId,
-              classroomId: context.classroomId,
-              lessonTitle: context.lessonTitle.trim(),
-              lessonDescription: context.lessonDescription.trim() || null,
-              groupComment: context.groupComment.trim() || null,
-              programId: selectedClassroom?.programId || null,
-              dimensionOrder: dimensionList,
-              ...(showDefaults ? { groupDefaults: effectiveDefaults } : {}),
-              ratings,
-              studentComment: studentOverrides[studentId]?.comment?.trim() || null,
-              attendanceStatus: 'present',
-              lessonMode,
-              ...(groupId ? { groupId } : {}),
-              createdBy: currentUser?.uid || 'unknown',
-              createdByName: currentUser?.displayName || 'Unknown Teacher',
-              createdByEmail: currentUser?.email || 'unknown@email.com',
-            }
+            classroomId: context.classroomId,
+            type: 'lesson',
+            lessonTitle: context.lessonTitle.trim(),
+            lessonDescription: context.lessonDescription.trim() || null,
+            groupComment: context.groupComment.trim() || null,
+            programId: selectedClassroom?.programId || null,
+            dimensionOrder: dimensionList,
+            ...(showDefaults ? { groupDefaults: effectiveDefaults } : {}),
+            ratings,
+            studentComment: studentOverrides[studentId]?.comment?.trim() || null,
+            attendanceStatus: 'present',
+            lessonMode,
+            ...(groupId ? { groupId } : {}),
+            createdBy: currentUser?.uid || 'unknown',
+            createdByName: currentUser?.displayName || 'Unknown Teacher',
+            createdByEmail: currentUser?.email || 'unknown@email.com',
+            observedAt: serverTimestamp(),
+            createdAt: serverTimestamp(),
+            updatedAt: serverTimestamp(),
           };
-        });
 
-        enqueueSaveQueueItems(queueEntries);
-        notify.success('Lesson note saving in the background — you may continue your work', {
-          duration: 4000,
+          const cleaned = Object.fromEntries(
+            Object.entries(lessonData).filter(([, value]) => value !== undefined && value !== null)
+          );
+          await deleteDoc(observationRef).catch((e) => { reportCaughtError(e, 'LessonNotes', 'pre-cleanup deleteDoc for lesson observation'); });
+          await setDoc(observationRef, cleaned);
+
+          savedNotes.push({
+            id: observationId,
+            studentId,
+            classroomId: context.classroomId,
+            type: 'lesson',
+            lessonTitle: context.lessonTitle.trim(),
+            observedAt: observedAtClient,
+            createdBy: currentUser?.uid || 'unknown',
+            createdByName: currentUser?.displayName || 'Unknown Teacher',
+            ...(groupId ? { groupId } : {}),
+          });
+        }));
+
+        const classroomId = context.classroomId;
+        const studentDataMap = {};
+        selectedStudents.forEach((sid) => {
+          if (studentsById[sid]) studentDataMap[sid] = studentsById[sid];
+        });
+        if (onSave) {
+          onSave({
+            noteType: 'lesson',
+            studentIds: selectedStudents,
+            classroomId,
+            notes: savedNotes,
+            students: studentDataMap,
+          });
+        }
+
+        notify.success('Lesson note saved', {
+          actionLabel: 'View',
+          duration: 5000,
+          onUndo: () => {
+            if (onSave) {
+              onSave({
+                navigate: true,
+                noteType: 'lesson',
+                studentIds: selectedStudents,
+                classroomId,
+                notes: savedNotes,
+                students: studentDataMap,
+              });
+            }
+          },
         });
         setIsDirty(false);
         onSaved?.();
