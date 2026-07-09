@@ -16,7 +16,7 @@ const TELEGRAM_BOT_TOKEN = defineSecret("TELEGRAM_BOT_TOKEN");
 /**
  * Send a message via Coach Pepper Telegram bot.
  * @param {string} chatId
- * @param {string} text - Telegram MarkdownV2 or plain text
+ * @param {string} text - Telegram HTML-formatted message
  */
 async function sendTelegramAlert(chatId, text) {
   const token = TELEGRAM_BOT_TOKEN.value();
@@ -42,6 +42,10 @@ async function sendTelegramAlert(chatId, text) {
   }
 }
 
+function escapeHtml(s) {
+  return s.replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;");
+}
+
 /**
  * Format results into a Telegram message.
  * @param {Array<{name: string, passed: boolean, details: string}>} results
@@ -57,8 +61,8 @@ function formatMessage(results) {
 
   const lines = [`<b>Data integrity alert</b> - ${now}\n`];
   for (const f of failures) {
-    lines.push(`<b>${f.name}</b>`);
-    lines.push(`${f.details}\n`);
+    lines.push(`<b>${escapeHtml(f.name)}</b>`);
+    lines.push(`${escapeHtml(f.details)}\n`);
   }
 
   const passCount = results.length - failures.length;
@@ -102,6 +106,7 @@ export const dataIntegrityChecks = functions
       console.warn(
         "[integrity] No alertChatIds in config/telegram_bot, skipping alert",
       );
+      console.warn("[integrity] Results:\n" + formatMessage(results));
       return null;
     }
 

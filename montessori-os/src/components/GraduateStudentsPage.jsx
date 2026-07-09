@@ -231,7 +231,7 @@ export default function GraduateStudentsPage({ _currentUser, _userRole }) {
     }
   };
 
-  const destOptions = useMemo(() => classrooms.filter(c => !!c?.id && c.id !== sourceClassroomId), [classrooms, sourceClassroomId]);
+  const destOptions = useMemo(() => classrooms.filter(c => !!c?.id && c.id !== sourceClassroomId && (c.status || 'active') === 'active'), [classrooms, sourceClassroomId]);
 
   return (
     <Box sx={{ display: 'flex', flexDirection: 'column', gap: 2 }}>

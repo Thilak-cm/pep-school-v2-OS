@@ -98,7 +98,7 @@ function ClassroomList({ onSelectClassroom, currentUser, userRole, manageableCla
           }));
 
           classroomsToShow = allClassrooms
-            .filter(classroom => (classroom.status || 'active') !== 'archived')
+            .filter(classroom => (classroom.status || 'active') === 'active')
             .filter(classroom => {
               return classroom.teacherIds && classroom.teacherIds.includes(currentUser.uid);
             });

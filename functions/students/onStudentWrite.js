@@ -8,6 +8,7 @@
  */
 
 import * as functions from "firebase-functions/v1";
+import { FieldValue } from "firebase-admin/firestore";
 import { db } from "../shared/firebase.js";
 
 /**
@@ -33,7 +34,7 @@ async function recountStudents(classroomId) {
   const count = studentsSnap.size;
   await classroomRef.update({
     studentCount: count,
-    updatedAt: new Date(),
+    updatedAt: FieldValue.serverTimestamp(),
   });
 
   console.log(`[studentCount] ${classroomId} → ${count}`);
@@ -60,7 +61,7 @@ async function closeOpenPlacements(studentId) {
     batch.update(doc.ref, {
       endDate: today,
       status: "ended",
-      updatedAt: new Date(),
+      updatedAt: FieldValue.serverTimestamp(),
     });
   });
   await batch.commit();

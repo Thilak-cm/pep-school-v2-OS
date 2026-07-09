@@ -307,6 +307,15 @@ function App() {
   useEffect(() => {
     if (!user || !role) { setClassrooms([]); setClassroomsLoaded(false); return; }
 
+    // One-time cleanup of stale classroom cache keys removed in #161
+    try {
+      Object.keys(window.localStorage || {}).forEach(k => {
+        if (k.startsWith('pep-classrooms:') || k.startsWith('classroomListCache:')) {
+          window.localStorage.removeItem(k);
+        }
+      });
+    } catch { /* ignored */ }
+
     const fetchClassrooms = async () => {
       try {
         let result = [];

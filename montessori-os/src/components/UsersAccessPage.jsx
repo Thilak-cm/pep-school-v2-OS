@@ -1262,10 +1262,6 @@ const UsersAccessPage = ({ onBack, currentUser, userRole, manageableClassrooms =
       }
       
       notify.success(`Student ${studentForm.firstName} ${studentForm.lastName || ''} has been added to the roster!`);
-      const addedClassroomId = studentForm.classroomId;
-      setClassrooms(prev => prev.map(c =>
-        c.id === addedClassroomId ? { ...c, studentCount: (c.studentCount || 0) + 1 } : c
-      ));
       resetStudentForm();
       setSuccess(true);
       await fetchStudents();

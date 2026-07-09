@@ -21,7 +21,7 @@ export async function checkStudentCounts() {
   const actualCounts = new Map();
   studentsSnap.forEach((doc) => {
     const data = doc.data();
-    if ((data.status || "active") === "active" && data.classroomId) {
+    if (data.status === "active" && data.classroomId) {
       actualCounts.set(
         data.classroomId,
         (actualCounts.get(data.classroomId) || 0) + 1,
@@ -80,7 +80,7 @@ export async function checkOrphanedStudents() {
 
   studentsSnap.forEach((doc) => {
     const data = doc.data();
-    if ((data.status || "active") !== "active" || !data.classroomId) return;
+    if (data.status !== "active" || !data.classroomId) return;
 
     const studentName =
       data.displayName || `${data.firstName || ""} ${data.lastName || ""}`.trim();
@@ -121,40 +121,49 @@ export async function checkOrphanedStudents() {
 export async function checkZombiePlacements() {
   const name = "zombie placements";
 
+  // 1. Fetch all students in one query
   const studentsSnap = await db.collection("students").get();
-  const issues = [];
-
-  // Check a sample — full scan of all placement subcollections is expensive.
-  // We check all students but only flag the structural issue.
-  const checks = [];
+  const studentMap = new Map(); // studentId -> { isActive, name }
   studentsSnap.forEach((doc) => {
     const data = doc.data();
-    const isActive = (data.status || "active") === "active";
-    checks.push({ id: doc.id, data, isActive });
+    const studentName =
+      data.displayName ||
+      `${data.firstName || ""} ${data.lastName || ""}`.trim();
+    studentMap.set(doc.id, {
+      isActive: data.status === "active",
+      name: studentName,
+    });
   });
 
-  for (const student of checks) {
-    const placementsSnap = await db
-      .collection("students")
-      .doc(student.id)
-      .collection("placements")
-      .where("endDate", "==", null)
-      .get();
+  // 2. Fetch ALL open placements in one collectionGroup query
+  const openPlacementsSnap = await db
+    .collectionGroup("placements")
+    .where("endDate", "==", null)
+    .get();
 
-    const openCount = placementsSnap.size;
-    const studentName =
-      student.data.displayName ||
-      `${student.data.firstName || ""} ${student.data.lastName || ""}`.trim();
+  // 3. Count open placements per student
+  const openCounts = new Map(); // studentId -> count
+  openPlacementsSnap.forEach((doc) => {
+    const studentId = doc.ref.parent.parent.id;
+    openCounts.set(studentId, (openCounts.get(studentId) || 0) + 1);
+  });
+
+  // 4. Cross-reference
+  const issues = [];
+  for (const [studentId, student] of studentMap) {
+    const openCount = openCounts.get(studentId) || 0;
 
     if (student.isActive && openCount === 0) {
-      issues.push(`${studentName} (${student.id}): active but no open placement`);
+      issues.push(
+        `${student.name} (${studentId}): active but no open placement`,
+      );
     } else if (student.isActive && openCount > 1) {
       issues.push(
-        `${studentName} (${student.id}): active with ${openCount} open placements`,
+        `${student.name} (${studentId}): active with ${openCount} open placements`,
       );
     } else if (!student.isActive && openCount > 0) {
       issues.push(
-        `${studentName} (${student.id}): inactive but has ${openCount} open placement(s)`,
+        `${student.name} (${studentId}): inactive but has ${openCount} open placement(s)`,
       );
     }
   }
