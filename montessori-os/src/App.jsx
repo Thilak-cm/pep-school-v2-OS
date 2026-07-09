@@ -138,6 +138,42 @@ function App() {
 
   const handleHome = () => { setSelectedStudent(null); setScreen('landingPage'); };
 
+  // Ref to the currently mounted timeline's injectNote function (#129)
+  const timelineInjectRef = useRef(null);
+  const onTimelineInjectReady = useCallback((fn) => {
+    timelineInjectRef.current = fn;
+  }, []);
+
+  const handleNoteSaved = useCallback((info) => {
+    if (!info) return;
+    // Inject saved notes into the currently mounted timeline
+    if (!info.navigate && timelineInjectRef.current && info.notes) {
+      info.notes.forEach((note) => timelineInjectRef.current(note));
+    }
+    // "View note" toast action - navigate to appropriate timeline
+    if (info.navigate) {
+      if (info.studentIds?.length === 1) {
+        // Single-student: navigate to student timeline
+        const sid = info.studentIds[0];
+        const studentObj = info.students?.[sid];
+        setSelectedStudent(studentObj || { id: sid });
+        setTimelineFilter(null);
+        setScreen('timeline');
+      } else {
+        // Multi-student: navigate to classroom timeline
+        if (info.classroomId) {
+          // Look up classroom name from already-loaded classrooms state
+          setSelectedClassroom((prev) => {
+            if (prev?.id === info.classroomId && prev?.name) return prev;
+            const found = classrooms.find((c) => c.id === info.classroomId);
+            return found || { id: info.classroomId };
+          });
+        }
+        setScreen('classroomTimeline');
+      }
+    }
+  }, [classrooms]);
+
   const scrollRef = useRef(null);
   const handleScrollToTop = useCallback(() => {
     scrollRef.current?.scrollTo({ top: 0, behavior: 'smooth' });
@@ -375,6 +411,7 @@ function App() {
     openFeedbackWithMessage, handleLessonNotesSaved, handleNavigation, handleSignOut,
     getStudentDisplayName, broadcastDeepLink, setBroadcastDeepLink,
     pageTitle, backNavigation, showBackButton,
+    onTimelineInjectReady,
   };
 
   return (
@@ -441,6 +478,7 @@ function App() {
                 <AddNoteModal
                   open={addNoteOpen}
                   onClose={() => { setAddNoteOpen(false); setAddNoteInitialStep('record'); }}
+                  onSave={handleNoteSaved}
                   initialStep={addNoteInitialStep}
                   initialStudents={selectedStudent && (screen === 'timeline' || screen === 'studentDashboard' || screen === 'studentReportTypes' || screen === 'studentReports') ? [selectedStudent.id] : []}
                   currentUser={user}

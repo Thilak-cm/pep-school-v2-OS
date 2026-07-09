@@ -32,7 +32,7 @@ import { toDate, groupByCalendarDay } from './classroomTimelineUtils.js';
 import { HFTabs, DayHeader, HFSearchInput, HFFilterChip } from './ui';
 import { trackEvent } from '../utils/analytics';
 
-function ClassroomTimeline({ classroom, currentUser, userRole, manageableClassrooms = [], onNavigateToStudent }) {
+function ClassroomTimeline({ classroom, currentUser, userRole, manageableClassrooms = [], onNavigateToStudent, onInjectReady }) {
   const notify = useNotify();
   const [activeTab, setActiveTab] = useState(0); // 0 = Notes, 1 = Students
   const [selectedNote, setSelectedNote] = useState(null); // for text/voice/lesson expansion
@@ -58,6 +58,7 @@ function ClassroomTimeline({ classroom, currentUser, userRole, manageableClassro
     displayLimit,
     showMore,
     perStudentCounts,
+    injectNote,
   } = useTimelineData({
     scope: 'classroom',
     id: classroom?.id,
@@ -65,6 +66,12 @@ function ClassroomTimeline({ classroom, currentUser, userRole, manageableClassro
     userRole,
     manageableClassrooms,
   });
+
+  // Expose injectNote to parent for post-save timeline refresh (#129)
+  useEffect(() => {
+    if (onInjectReady) onInjectReady(injectNote);
+    return () => { if (onInjectReady) onInjectReady(null); };
+  }, [injectNote, onInjectReady]);
 
   // Sync hook teachers into local state so supplement useEffect can append extras
   useEffect(() => {
