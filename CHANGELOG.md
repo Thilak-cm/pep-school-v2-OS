@@ -1,5 +1,19 @@
 # Changelog
 
+# 11.3.4 — 2026-07-08
+
+### Fixed
+- `studentCount` now maintained by a self-healing Firestore trigger (`onStudentWrite`) instead of fragile client-side `increment()` calls - corrupted counts (e.g., Parijat's -7) auto-correct on next student write (#161)
+- Removed 24-hour localStorage cache for classrooms so `studentCount` is always fresh on login (#161)
+- ClassroomTimeline uses live student query count instead of stale denormalized `classroom.studentCount` (#161)
+- GraduateStudentsPage blocks same-classroom transfers and filters inactive classrooms from destination options (#161)
+- Open placements auto-closed when students are inactivated via the trigger (#161)
+
+### Added
+- Daily data integrity scheduled check (6 AM IST) with Telegram alerts - validates studentCount consistency, orphaned students, zombie placements, and teacher-classroom assignments (#161)
+- `reconcile-student-counts.mjs` admin script for one-time studentCount backfill (#161)
+- `seed-telegram-alert-chatid.mjs` admin script to configure integrity alert recipients (#161)
+
 # 11.3.3 — 2026-07-05
 
 ### Fixed
