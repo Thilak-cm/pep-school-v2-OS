@@ -408,7 +408,7 @@ function App() {
     setScreen, setSelectedClassroom, setSelectedStudent, setClassroomTimelineReturnScreen, setStudentDashboardReturnScreen,
     setStudentDashboardNoteType, setTimelineFilter, setUsersAccessView, setPendingViewReportId, setReportTypeFilter, setInitialStudentId,
     setLessonNoteEditObservation, setFeedbackReturnScreen, studentDashboardFlagOpen, setStudentDashboardFlagOpen,
-    openFeedbackWithMessage, handleLessonNotesSaved, handleNavigation, handleSignOut,
+    openFeedbackWithMessage, handleLessonNotesSaved, handleNoteSaved, handleNavigation, handleSignOut,
     getStudentDisplayName, broadcastDeepLink, setBroadcastDeepLink,
     pageTitle, backNavigation, showBackButton,
     onTimelineInjectReady,

@@ -926,9 +926,9 @@ function AddNoteModal({
   };
 
   const handleStudentsChange = (nextStudents) => {
-    // Photo mode: swap-to-replace — keep only the newest student (PEP-243)
+    // Media mode (photo/PDF): swap-to-replace — keep only the newest student (PEP-243)
     let didSwap = false;
-    if (step === STEP_MEDIA && mediaMode === 'photo' && nextStudents?.length > 1) {
+    if (step === STEP_MEDIA && (mediaMode === 'photo' || mediaMode === 'pdf') && nextStudents?.length > 1) {
       const newStudent = nextStudents.find((id) => !selectedStudents.includes(id));
       nextStudents = newStudent ? [newStudent] : [nextStudents[nextStudents.length - 1]];
       didSwap = true;
@@ -944,7 +944,7 @@ function AddNoteModal({
       const nextStu = nextStudents?.length === 1 ? nextStudents[0] : null;
       if (prevStu && (!nextStu || nextStu !== prevStu)) {
         setSelectedLessonIds([]);
-        if (didSwap) notify.info('Lesson tag cleared — photo notes are per-student.');
+        if (didSwap) notify.info('Lesson tag cleared — media notes are per-student.');
       }
     }
     setSelectedStudents(nextStudents);
@@ -1645,8 +1645,8 @@ function AddNoteModal({
           const mediaRef = doc(db, 'students', studentId, 'media', mediaId);
           const storagePath = `students/${studentId}/media/${mediaId}/original.${item.source.extension}`;
 
-          await deleteDoc(mediaRef).catch(() => {});
-          await deleteObject(ref(storage, storagePath)).catch(() => {});
+          await deleteDoc(mediaRef).catch((e) => { reportCaughtError(e, 'AddNoteModal', 'pre-cleanup deleteDoc for media'); });
+          await deleteObject(ref(storage, storagePath)).catch((e) => { reportCaughtError(e, 'AddNoteModal', 'pre-cleanup deleteObject for media storage'); });
 
           const payload = {
             studentId,
@@ -1665,7 +1665,6 @@ function AddNoteModal({
               materialsIdentified: Array.isArray(item.materialsIdentified) ? item.materialsIdentified : [],
             } : {}),
             ...(canTagMediaLesson ? { linkedLessonObservationId: mediaTaggedLessonIds } : {}),
-            ...(canTagMediaLesson ? { lessonBacklinkIds: mediaTaggedLessonIds } : {}),
             createdBy: currentUser.uid,
             createdByName: currentUser?.displayName || 'Unknown Teacher',
             createdByEmail: currentUser?.email || 'unknown@email.com',
@@ -1679,6 +1678,7 @@ function AddNoteModal({
           };
 
           await setDoc(mediaRef, docData);
+          await new Promise((r) => setTimeout(r, 350)); // allow Firestore doc to propagate before upload triggers mediaFinalize CF
 
           // Write backlinks to tagged lesson observations
           if (canTagMediaLesson && mediaTaggedLessonIds.length > 0) {
@@ -1702,7 +1702,7 @@ function AddNoteModal({
               customMetadata: { mediaId, studentId },
             });
             task.on('state_changed', () => {}, async (error) => {
-              await deleteObject(storageRef).catch(() => {});
+              await deleteObject(storageRef).catch((e) => { reportCaughtError(e, 'AddNoteModal', 'upload error cleanup deleteObject'); });
               reject(error);
             }, () => resolve());
           });
@@ -1816,10 +1816,11 @@ function AddNoteModal({
         const studentSnap = await getDoc(doc(db, 'students', studentId));
         if (studentSnap.exists()) {
           const studentData = studentSnap.data();
-          classroomId = studentData?.classroomId || 'unknown';
+          classroomId = studentData?.classroomId;
+          if (!classroomId) throw new Error('Student is missing classroom assignment.');
           studentDataMap[studentId] = { id: studentId, ...studentData };
         } else {
-          classroomId = 'unknown';
+          throw new Error('Student record not found. Please refresh and retry.');
         }
 
         const observationId = `obs_${Date.now().toString(36)}_${Math.random().toString(36).slice(2, 6)}_${studentId.slice(0, 4)}`;
@@ -1852,7 +1853,7 @@ function AddNoteModal({
         const cleaned = Object.fromEntries(
           Object.entries(observationData).filter(([, value]) => value !== undefined)
         );
-        await deleteDoc(observationRef).catch(() => {});
+        await deleteDoc(observationRef).catch((e) => { reportCaughtError(e, 'AddNoteModal', 'pre-cleanup deleteDoc for observation'); });
         await setDoc(observationRef, cleaned);
 
         // Write backlinks to tagged lesson observations
@@ -2674,7 +2675,7 @@ function AddNoteModal({
                       }),
                     }}
                   >
-                    {needsStudent ? 'Select a student above' : 'Create Media Note'}
+                    {needsStudent ? 'Select a student above' : (saving || mediaUploading) ? <><CircularProgress size={20} sx={{ mr: 1 }} color="inherit" /> Saving...</> : 'Create Media Note'}
                   </Button>
                 );
               })()}

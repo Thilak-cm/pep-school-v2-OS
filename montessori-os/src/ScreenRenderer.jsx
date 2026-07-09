@@ -208,6 +208,7 @@ function renderScreen(screen, ctx) {
             ctx.setScreen(ctx.lessonNotesReturnScreen || "timeline");
           }}
           onSaved={ctx.handleLessonNotesSaved}
+          onSave={ctx.handleNoteSaved}
         />
       );
 
