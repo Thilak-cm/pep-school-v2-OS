@@ -61,6 +61,10 @@ const EXPECTED_EXPORTS = [
   "weeklyDigestClassroomAdmin",
   "weeklyDigestSuperadmin",
   "triggerDigestTest",
+  // Student — Denormalized counter maintenance (#161)
+  "onStudentWrite",
+  // Data Integrity Checks (#161)
+  "dataIntegrityChecks",
 ];
 
 describe("barrel file (functions/index.js)", () => {

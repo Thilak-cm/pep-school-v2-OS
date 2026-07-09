@@ -303,24 +303,18 @@ function App() {
   }, [user]);
 
   // ── Fetch classrooms once after login (shared by LandingPage + ClassroomList) ──
+  // No localStorage cache — always fetch fresh so studentCount is accurate (#161).
   useEffect(() => {
     if (!user || !role) { setClassrooms([]); setClassroomsLoaded(false); return; }
 
-    const CACHE_KEY = `pep-classrooms:${role}:${user.uid}:${manageableClassrooms.slice().sort().join('|') || 'all'}`;
-    const CACHE_TTL = 24 * 60 * 60 * 1000;
-
-    // Try cache first
+    // One-time cleanup of stale classroom cache keys removed in #161
     try {
-      const raw = window.localStorage?.getItem(CACHE_KEY);
-      if (raw) {
-        const parsed = JSON.parse(raw);
-        if (parsed?.timestamp && Date.now() - parsed.timestamp < CACHE_TTL) {
-          setClassrooms(parsed.classrooms || []);
-          setClassroomsLoaded(true);
-          return; // cache hit — skip fetch
+      Object.keys(window.localStorage || {}).forEach(k => {
+        if (k.startsWith('pep-classrooms:') || k.startsWith('classroomListCache:')) {
+          window.localStorage.removeItem(k);
         }
-      }
-    } catch { /* proceed to fetch */ }
+      });
+    } catch { /* ignored */ }
 
     const fetchClassrooms = async () => {
       try {
@@ -352,9 +346,6 @@ function App() {
         result = result.filter(c => !String(c?.name || '').toLowerCase().includes('adolescent'));
         setClassrooms(result);
         setClassroomsLoaded(true);
-        try {
-          window.localStorage?.setItem(CACHE_KEY, JSON.stringify({ classrooms: result, timestamp: Date.now() }));
-        } catch { /* ignored */ }
       } catch {
         setClassroomsLoaded(true);
       }
