@@ -1,5 +1,17 @@
 # Changelog
 
+# 11.3.5 — 2026-07-08
+
+### Changed
+- Note saves (text, voice, media, lesson) are now synchronous - modal waits for Firestore write to complete before dismissing, replacing async background queue (#129)
+- "Note saved" toast includes a "View" button that navigates to the note in the appropriate timeline (#129)
+- Classroom and student timelines instantly show new notes via inject-on-save without page reload (#129)
+- Media and PDF uploads enforce single-student selection via swap-to-replace (#129)
+- Create Media Note button shows spinner during upload (#129)
+
+### Fixed
+- SaveQueueNotificationBridge simplified to only handle report_export completions - note save toasts now handled inline (#129)
+
 # 11.3.4 — 2026-07-08
 
 ### Fixed
