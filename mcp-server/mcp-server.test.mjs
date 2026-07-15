@@ -2,6 +2,8 @@ import { describe, it, beforeEach } from "node:test";
 import assert from "node:assert/strict";
 import {
   handleGetStudent,
+  handleListBrain,
+  handleGetBrainFile,
   handleGetObservations,
   handleGetBaseballCard,
   handleGetAiSummary,
@@ -34,6 +36,7 @@ function createMockQuery(docs) {
     },
     orderBy() { return query; },
     limit() { return query; },
+    select() { return query; }, // projection is a server-side optimization; mock returns full docs
     async get() {
       let filtered = docs;
       for (const { field, op, value } of filters) {
@@ -85,23 +88,17 @@ function createMockDb(collections = {}) {
 // --- Tool Definitions ---
 
 describe("TOOL_DEFINITIONS", () => {
-  it("should export exactly 9 tools", () => {
-    assert.equal(TOOL_DEFINITIONS.length, 9);
+  // NOTE: an exact-inventory assertion went stale as the server grew
+  // (9 -> 29 tools). Assert structural invariants instead of a frozen list.
+  it("should have unique tool names", () => {
+    const names = TOOL_DEFINITIONS.map((t) => t.name);
+    assert.equal(new Set(names).size, names.length);
   });
 
-  it("should have correct tool names", () => {
-    const names = TOOL_DEFINITIONS.map((t) => t.name).sort();
-    assert.deepEqual(names, [
-      "get_ai_summary",
-      "get_baseball_card",
-      "get_config",
-      "get_media_stats",
-      "get_observations",
-      "get_student",
-      "list_classrooms",
-      "list_config",
-      "list_students",
-    ]);
+  it("should include the brain knowledge base tools (#157)", () => {
+    const names = TOOL_DEFINITIONS.map((t) => t.name);
+    assert.ok(names.includes("list_brain"), "missing list_brain");
+    assert.ok(names.includes("get_brain_file"), "missing get_brain_file");
   });
 
   it("each tool should have name, description, and inputSchema", () => {
@@ -428,5 +425,90 @@ describe("handleListClassrooms", () => {
     assert.ok(first.programId);
     assert.ok(first.branchId);
     assert.equal(typeof first.studentCount, "number");
+  });
+});
+
+// --- Brain (knowledge base, #157) ---
+
+describe("handleListBrain", () => {
+  const brainDb = () =>
+    createMockDb({
+      brain: [
+        mockDoc("primary", { name: "Primary", docCount: 2, pipelineIds: ["coach"] }),
+        mockDoc("school-wide", { name: "School-wide", docCount: 1, pipelineIds: [] }),
+      ],
+      "brain/primary/files": [
+        mockDoc("teacher-facing--coach--prompt", {
+          path: "primary/teacher-facing/coach/prompt.md",
+          type: "prompt",
+          pipeline: "coach",
+          audience: "teacher-facing",
+          filename: "prompt.md",
+          content: "PROMPT",
+        }),
+        mockDoc("context", {
+          path: "primary/context.md",
+          type: "knowledge",
+          pipeline: null,
+          audience: null,
+          filename: "context.md",
+          content: "CTX",
+        }),
+      ],
+    });
+
+  it("returns all parent docs when no program given", async () => {
+    const result = await handleListBrain(brainDb(), {});
+    assert.equal(result.length, 2);
+    assert.deepEqual(result.map((p) => p.id).sort(), ["primary", "school-wide"]);
+  });
+
+  it("returns parent metadata plus file index sorted by path for a program", async () => {
+    const result = await handleListBrain(brainDb(), { program: "primary" });
+    assert.equal(result.id, "primary");
+    assert.equal(result.docCount, 2);
+    assert.deepEqual(
+      result.files.map((f) => f.path),
+      ["primary/context.md", "primary/teacher-facing/coach/prompt.md"],
+    );
+  });
+
+  it("returns null for unknown program", async () => {
+    const result = await handleListBrain(brainDb(), { program: "nope" });
+    assert.equal(result, null);
+  });
+});
+
+describe("handleGetBrainFile", () => {
+  const brainDb = () =>
+    createMockDb({
+      "brain/primary/files": [
+        mockDoc("teacher-facing--coach--prompt", {
+          path: "primary/teacher-facing/coach/prompt.md",
+          type: "prompt",
+          content: "PROMPT-CONTENT",
+        }),
+      ],
+    });
+
+  it("fetches by docId", async () => {
+    const result = await handleGetBrainFile(brainDb(), {
+      program: "primary",
+      docId: "teacher-facing--coach--prompt",
+    });
+    assert.equal(result.content, "PROMPT-CONTENT");
+  });
+
+  it("fetches by path", async () => {
+    const result = await handleGetBrainFile(brainDb(), {
+      program: "primary",
+      path: "primary/teacher-facing/coach/prompt.md",
+    });
+    assert.equal(result.id, "teacher-facing--coach--prompt");
+  });
+
+  it("returns null when missing or params incomplete", async () => {
+    assert.equal(await handleGetBrainFile(brainDb(), { program: "primary", docId: "nope" }), null);
+    assert.equal(await handleGetBrainFile(brainDb(), { program: "primary" }), null);
   });
 });
