@@ -1,0 +1,5 @@
+{
+  "model": "placeholder-set-before-use",
+  "temperature": 0.3,
+  "maxTokens": 2048
+}
