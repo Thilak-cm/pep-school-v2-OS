@@ -11,7 +11,6 @@ import { readFile } from 'node:fs/promises';
 const providerPath = new URL('./CoachmarkProvider.jsx', import.meta.url);
 const componentPath = new URL('./Coachmark.jsx', import.meta.url);
 const hookPath = new URL('./useCoachmark.js', import.meta.url);
-const dashboardPath = new URL('../components/StudentDashboard.jsx', import.meta.url);
 const appPath = new URL('../App.jsx', import.meta.url);
 
 
@@ -188,33 +187,7 @@ describe('App.jsx CoachmarkProvider integration (PEP-322)', () => {
   });
 });
 
-// ── StudentDashboard plan feedback coachmark ──
-
-describe('StudentDashboard plan feedback coachmark (PEP-322)', () => {
-  it('imports Coachmark from coachmark module', async () => {
-    const src = await readFile(dashboardPath, 'utf8');
-    assert.ok(
-      /import\s+Coachmark\s+from\s*['"].*coachmark/.test(src),
-      'Should import Coachmark component',
-    );
-  });
-
-  it('has a planFeedbackChipRef', async () => {
-    const src = await readFile(dashboardPath, 'utf8');
-    assert.ok(
-      /planFeedbackChipRef/.test(src),
-      'Should define planFeedbackChipRef for coachmark anchoring',
-    );
-  });
-
-  it('renders Coachmark with plan_feedback key', async () => {
-    const src = await readFile(dashboardPath, 'utf8');
-    assert.ok(
-      /plan_feedback/.test(src) && /Coachmark/.test(src),
-      'Should render Coachmark with plan_feedback coachmarkKey',
-    );
-  });
-});
+// ── StudentDashboard plan feedback coachmark (removed — coachmark retired) ──
 
 // ── Session vs permanent dismiss ──
 

@@ -29,7 +29,6 @@ import SnapshotBody from './SnapshotBody';
 import MonthlyPlanTab from './MonthlyPlanTab';
 import WritingAnalysisTab from './WritingAnalysisTab';
 import PlanFeedbackDialog from './PlanFeedbackDialog';
-import Coachmark from '../coachmark/Coachmark';
 import NotesOverTimeDrawer from './NotesOverTimeDrawer';
 import NoteBottomSheet from './noteBottomSheet/NoteBottomSheet';
 import { friendlyFunctionError } from '../utils/cloudFunctionErrors';
@@ -54,7 +53,6 @@ const CHIP_BASE = {
 };
 
 const PLAN_PROGRAMS = ['toddler', 'primary'];
-const PLAN_FEEDBACK_COACHMARK_KEY = 'plan_feedback_v1';
 
 const SNAPSHOT_TABS_WITH_PLAN = [
   { label: 'Plan', value: 'plan' },
@@ -931,18 +929,6 @@ function StudentDashboard({ student, onOpenTimeline, onOpenFeedback, onOpenChat,
                   <FeedbackIcon size={14} />
                 </Box>
               </Tooltip>
-            )}
-
-            {/* Plan feedback coachmark — first-time discovery (PEP-322) */}
-            {activeTab === 'plan' && planData && (
-              <Coachmark
-                coachmarkKey={PLAN_FEEDBACK_COACHMARK_KEY}
-                title="Latest feature!"
-                body="Tap here to rate this plan and help improve future ones"
-                anchorRef={planFeedbackChipRef}
-                placement="bottom"
-                enabled={!planFeedbackOpen}
-              />
             )}
 
             {/* Export to Drive chip — plan tab, superadmin only, only when plan exists */}
