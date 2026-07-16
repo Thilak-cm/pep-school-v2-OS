@@ -33,7 +33,7 @@ export function assembleSystemPrompt(template, { studentName, age, programId, so
     if (areaKeys.length > 0 && totalCount > 0) {
       const sections = areaKeys.map((area) => {
         const questions = openQuestions[area] || [];
-        return `### ${area}\n${questions.map((q, i) => `${i + 1}. ${q}`).join("\n")}`;
+        return `### ${area}\n${questions.map((q, i) => `${i + 1}. ${typeof q === "string" ? q : q.question}`).join("\n")}`;
       });
       oqBlock = `OPEN QUESTIONS BANK (${totalCount} question${totalCount !== 1 ? "s" : ""} across ${areaKeys.length} area${areaKeys.length !== 1 ? "s" : ""} — use these as a starting point, adapt or rephrase as needed, and generate your own when the conversation goes somewhere new):\n${sections.join("\n\n")}`;
     }

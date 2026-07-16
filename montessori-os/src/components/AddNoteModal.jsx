@@ -308,7 +308,9 @@ function AddNoteModal({
   initialStudents = [],
   initialStep = STEP_RECORD,
   currentUser,
-  userRole
+  userRole,
+  openQuestion = null,
+  lockStudents = false,
 }) {
   const notify = useNotify();
   const [step, setStep] = useState(initialStep);
@@ -1848,6 +1850,7 @@ function AddNoteModal({
             ? { detectedLanguage: transcriptionData.detectedLanguage }
             : {}),
           ...(coachPayload ? { coach: coachPayload } : {}),
+          ...(openQuestion ? { openQuestion: { version: openQuestion.version || '', area: openQuestion.area, index: openQuestion.index, questionText: openQuestion.questionText } } : {}),
         };
 
         const cleaned = Object.fromEntries(
@@ -2748,10 +2751,26 @@ function AddNoteModal({
             minHeight: 'fit-content'
           }}>
 
+            {/* Open question context banner (#144) */}
+            {openQuestion && (
+              <Box sx={{
+                p: 1.5, borderRadius: 2,
+                backgroundColor: 'rgba(79, 70, 229, 0.06)',
+                border: '1px solid rgba(79, 70, 229, 0.15)',
+              }}>
+                <Typography sx={{ fontSize: '0.7rem', fontWeight: 700, color: 'var(--color-primary)', mb: 0.5, textTransform: 'uppercase', letterSpacing: '0.05em' }}>
+                  Answering question
+                </Typography>
+                <Typography sx={{ fontSize: '0.82rem', color: 'var(--color-text)', fontStyle: 'italic', lineHeight: 1.4 }}>
+                  {openQuestion.questionText}
+                </Typography>
+              </Box>
+            )}
+
             <Box sx={{ flex: 1, minHeight: 300 }}>
               <ClassroomStudentPicker
                 selectedStudents={selectedStudents}
-                onStudentsChange={handleStudentsChange}
+                onStudentsChange={lockStudents ? undefined : handleStudentsChange}
                 currentUser={currentUser}
                 userRole={userRole}
                 textData={textData}

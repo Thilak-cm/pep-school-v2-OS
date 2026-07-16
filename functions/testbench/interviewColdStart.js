@@ -28,7 +28,9 @@ export function pickRandomAreas(areas, n) {
 
 /**
  * Pick a random question from the selected areas.
- * @param {{ [areaName: string]: string[] }} areas - Full areas object
+ * Supports both enriched shape (#144: [{question, status}]) and
+ * legacy string arrays for backwards compatibility.
+ * @param {{ [areaName: string]: Array<string|{question: string}> }} areas - Full areas object
  * @param {string[]} selectedAreaKeys - Area keys to pick from
  * @returns {{ question: string, area: string }}
  */
@@ -38,7 +40,8 @@ export function pickRandomQuestion(areas, selectedAreaKeys) {
   for (const key of selectedAreaKeys) {
     const questions = areas[key] || [];
     for (const q of questions) {
-      pool.push({ question: q, area: key });
+      const text = typeof q === "string" ? q : q.question;
+      pool.push({ question: text, area: key });
     }
   }
   if (pool.length === 0) {

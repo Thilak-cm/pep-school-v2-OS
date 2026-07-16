@@ -4,6 +4,20 @@ import { db } from "../../firebase.js";
 import CircularProgress from "@mui/material/CircularProgress";
 
 /**
+ * Unwrap enriched open_questions areas (#144) back to string arrays
+ * for downstream interview consumers that expect { area: string[] }.
+ */
+function unwrapOpenQuestionAreas(areas) {
+  if (!areas || typeof areas !== "object") return null;
+  const unwrapped = {};
+  for (const [area, questions] of Object.entries(areas)) {
+    if (!Array.isArray(questions)) continue;
+    unwrapped[area] = questions.map((q) => (typeof q === "string" ? q : q.question));
+  }
+  return Object.keys(unwrapped).length > 0 ? unwrapped : null;
+}
+
+/**
  * Pure data loader for interview question gen config + student context.
  * No rendering — context display is handled by FeatureWorkbench's
  * full-width LLM context pipeline section.
@@ -59,7 +73,7 @@ export default function InterviewQuestionConfig({ selectedStudent, reloadKey, on
         soul: soulSnap.exists() ? soulSnap.data().content : null,
         guidelines: guidelinesSnap.exists() ? guidelinesSnap.data().content : null,
         baseballCard: bcSnap.exists() ? bcSnap.data() : null,
-        openQuestions: oqSnap.exists() ? oqSnap.data().areas ?? null : null,
+        openQuestions: oqSnap.exists() ? unwrapOpenQuestionAreas(oqSnap.data().areas) : null,
       };
       onStudentContextLoaded?.(ctx);
     } catch (err) {

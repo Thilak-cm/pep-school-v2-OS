@@ -24,6 +24,7 @@ import {
   formatObservationForPrompt,
   chooseObservationTimestamp,
 } from "../shared/studentHelpers.js";
+import { fetchActiveStudentIds, runWithConcurrency } from "../shared/scheduling.js";
 
 // -----------------------------------------------
 // Student Soul: Generate soul narrative for a single student (PEP-149)
@@ -252,86 +253,94 @@ export const generateStudentProfile = functions
       }
     }
 
-    const templateConfig = await getSoulTemplateConfig(studentInfo.programId);
-
-    // Default to 365-day observation window; pass windowDays to override
     const windowDays = data?.windowDays ?? 365;
-    const [notes, rawInterviews] = await Promise.all([
-      fetchStudentNotesForWindow(studentId, windowDays),
-      fetchStudentInterviews(studentId, windowDays),
-    ]);
+    return await generateSoulForStudent(studentId, openAiKey, { windowDays });
+  });
 
-    // Read existing guidelines (if any) to use as the reference lens
-    const guidelinesSnap = await db.collection("students").doc(studentId)
-      .collection("ai_summaries").doc("guidelines").get();
-    const guidelinesContent = guidelinesSnap.exists
-      ? guidelinesSnap.data().content
-      : templateConfig.markdown;
+// -----------------------------------------------
+// Core soul generation for a single student (no auth checks).
+// Reused by the on-demand callable and the monthly scheduled CF.
+// -----------------------------------------------
 
-    // Read previous soul for continuity
-    const prevSoulSnap = await db.collection("students").doc(studentId)
-      .collection("ai_summaries").doc("soul").get();
-    const previousSoul = prevSoulSnap.exists ? prevSoulSnap.data().content : null;
+async function generateSoulForStudent(studentId, openAiKey, { windowDays = 365 } = {}) {
+  const studentInfo = await getStudentWithProgram(studentId);
+  if (!studentInfo.classroomId) {
+    console.warn(`[soul] Skipping ${studentId} — no classroom assignment`);
+    return { status: "skipped", studentId, reason: "no_classroom" };
+  }
+  if (!studentInfo.programId || !VALID_PROGRAMS.includes(studentInfo.programId)) {
+    console.warn(`[soul] Skipping ${studentId} — invalid program: ${studentInfo.programId}`);
+    return { status: "skipped", studentId, reason: "invalid_program" };
+  }
 
-    if (!notes.length && !rawInterviews.length) {
-      console.log(`[soul] No observations or interviews for ${studentId}, writing empty soul`);
-      await writeSoulAndGuidelines(
-        studentId,
-        "No observations or interviews available yet.",
-        studentInfo.programId,
-        templateConfig,
-        0, 0, null, null,
-        studentInfo.classroomId,
-      );
-      return {
-        status: "no_notes",
-        studentId,
-        programId: studentInfo.programId,
-        noteCount: 0,
-        interviewCount: 0,
-      };
-    }
+  const templateConfig = await getSoulTemplateConfig(studentInfo.programId);
 
-    const formatted = notes.map(formatObservationForPrompt);
-    const formattedInterviews = rawInterviews.map(formatInterviewForPrompt);
+  const [notes, rawInterviews] = await Promise.all([
+    fetchStudentNotesForWindow(studentId, windowDays),
+    fetchStudentInterviews(studentId, windowDays),
+  ]);
 
-    // Find latest timestamps for sourceStats
-    const lastObsAt = notes.length ? chooseObservationTimestamp(notes[0]) : null;
-    const lastInterviewAt = rawInterviews.length && rawInterviews[0].conductedAt
-      ? (rawInterviews[0].conductedAt.toDate ? rawInterviews[0].conductedAt.toDate() : new Date(rawInterviews[0].conductedAt))
-      : null;
+  const guidelinesSnap = await db.collection("students").doc(studentId)
+    .collection("ai_summaries").doc("guidelines").get();
+  const guidelinesContent = guidelinesSnap.exists
+    ? guidelinesSnap.data().content
+    : templateConfig.markdown;
 
-    const soulContent = await callSoulGeneration(
-      formatted, formattedInterviews, guidelinesContent,
-      { studentName: studentInfo.studentName, dob: studentInfo.dob, age: studentInfo.age, programId: studentInfo.programId },
-      previousSoul, openAiKey,
-    );
+  const prevSoulSnap = await db.collection("students").doc(studentId)
+    .collection("ai_summaries").doc("soul").get();
+  const previousSoul = prevSoulSnap.exists ? prevSoulSnap.data().content : null;
 
+  if (!notes.length && !rawInterviews.length) {
+    console.log(`[soul] No observations or interviews for ${studentId}, writing empty soul`);
     await writeSoulAndGuidelines(
-      studentId, soulContent, studentInfo.programId, templateConfig,
-      formatted.length, formattedInterviews.length, lastObsAt, lastInterviewAt,
+      studentId,
+      "No observations or interviews available yet.",
+      studentInfo.programId,
+      templateConfig,
+      0, 0, null, null,
       studentInfo.classroomId,
     );
+    return { status: "no_notes", studentId, programId: studentInfo.programId, noteCount: 0, interviewCount: 0 };
+  }
 
-    // Extract narrative for boolean flags (strip both fenced blocks)
-    const { content: withoutYaml } = extractGuidelinesSuggestions(soulContent);
-    const { areas: openQuestionAreas, content: narrative } = extractOpenQuestions(withoutYaml);
+  const formatted = notes.map(formatObservationForPrompt);
+  const formattedInterviews = rawInterviews.map(formatInterviewForPrompt);
 
-    const areaKeys = Object.keys(openQuestionAreas);
-    const totalQuestions = Object.values(openQuestionAreas).reduce((sum, qs) => sum + qs.length, 0);
-    console.log(`[soul] Generated soul for ${studentId}: ${formatted.length} observations, ${formattedInterviews.length} interviews, ${totalQuestions} open questions across ${areaKeys.length} areas`);
+  const lastObsAt = notes.length ? chooseObservationTimestamp(notes[0]) : null;
+  const lastInterviewAt = rawInterviews.length && rawInterviews[0].conductedAt
+    ? (rawInterviews[0].conductedAt.toDate ? rawInterviews[0].conductedAt.toDate() : new Date(rawInterviews[0].conductedAt))
+    : null;
 
-    return {
-      status: "ok",
-      studentId,
-      programId: studentInfo.programId,
-      noteCount: formatted.length,
-      interviewCount: formattedInterviews.length,
-      hasEmergentObservations: hasEmergentObservations(narrative),
-      openQuestionAreaCount: areaKeys.length,
-      openQuestionCount: totalQuestions,
-    };
-  });
+  const soulContent = await callSoulGeneration(
+    formatted, formattedInterviews, guidelinesContent,
+    { studentName: studentInfo.studentName, dob: studentInfo.dob, age: studentInfo.age, programId: studentInfo.programId },
+    previousSoul, openAiKey,
+  );
+
+  await writeSoulAndGuidelines(
+    studentId, soulContent, studentInfo.programId, templateConfig,
+    formatted.length, formattedInterviews.length, lastObsAt, lastInterviewAt,
+    studentInfo.classroomId,
+  );
+
+  const { content: withoutYaml } = extractGuidelinesSuggestions(soulContent);
+  const { areas: openQuestionAreas, content: narrative } = extractOpenQuestions(withoutYaml);
+
+  const areaKeys = Object.keys(openQuestionAreas);
+  const totalQuestions = Object.values(openQuestionAreas).reduce((sum, qs) => sum + qs.length, 0);
+  console.log(`[soul] Generated soul for ${studentId}: ${formatted.length} observations, ${formattedInterviews.length} interviews, ${totalQuestions} open questions across ${areaKeys.length} areas`);
+
+  return {
+    status: "ok",
+    studentId,
+    programId: studentInfo.programId,
+    noteCount: formatted.length,
+    interviewCount: formattedInterviews.length,
+    hasEmergentObservations: hasEmergentObservations(narrative),
+    openQuestionAreaCount: areaKeys.length,
+    openQuestionCount: totalQuestions,
+  };
+}
 
 // -----------------------------------------------
 // Student Soul: Bulk backfill for all active students (PEP-149)
@@ -463,6 +472,50 @@ export const backfillStudentProfiles = functions
     const hasMore = filteredStudents.length === batchSize;
     console.log(`[backfill] Batch complete: ${succeeded}/${processed} succeeded, ${failed} failed, hasMore=${hasMore}`);
     return { status: "ok", processed, succeeded, failed, errors, results, lastStudentId, hasMore };
+  });
+
+// -----------------------------------------------
+// Monthly scheduled soul regeneration for all active students (#144)
+// Follows the baseball card pattern: fetchActiveStudentIds + runWithConcurrency
+// -----------------------------------------------
+
+export const regenerateSoulsMonthly = functions
+  .region("asia-south1")
+  .runWith({ timeoutSeconds: 540, memory: "1GB", secrets: [OPENAI_API_KEY] })
+  .pubsub.schedule("0 0 1 * *")
+  .timeZone("Asia/Kolkata")
+  .onRun(async () => {
+    const openAiKey = getOpenAiKey();
+    if (!openAiKey) {
+      console.error("[soul-monthly] OpenAI key not configured");
+      return null;
+    }
+
+    const studentIds = await fetchActiveStudentIds();
+    console.log(`[soul-monthly] Regenerating souls for ${studentIds.length} active students`);
+
+    const startTime = Date.now();
+    let succeeded = 0;
+    let failed = 0;
+
+    await runWithConcurrency(studentIds, async (studentId) => {
+      try {
+        const result = await generateSoulForStudent(studentId, openAiKey);
+        if (result.status === "ok" || result.status === "no_notes") {
+          succeeded++;
+        } else {
+          console.warn(`[soul-monthly] ${studentId}: ${result.status} — ${result.reason || ""}`);
+          failed++;
+        }
+      } catch (err) {
+        console.error(`[soul-monthly] ${studentId} failed:`, err.message || err);
+        failed++;
+      }
+    }, 5);
+
+    const durationSec = Math.round((Date.now() - startTime) / 1000);
+    console.log(`[soul-monthly] Complete: ${succeeded} succeeded, ${failed} failed, ${durationSec}s elapsed`);
+    return null;
   });
 
 // -----------------------------------------------

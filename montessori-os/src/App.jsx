@@ -4,7 +4,7 @@ import { auth, db, cloudFunctions } from "./firebase";
 import SignIn from "./SignIn";
 import AppFooter from "./AppFooter";
 import { setAnalyticsUserId, setUserProperty, setAppVersionProperty, trackEvent } from './utils/analytics';
-import { doc, getDoc, collection, query, where, getDocs, documentId, onSnapshot } from "firebase/firestore";
+import { doc, getDoc, setDoc, collection, query, where, getDocs, documentId, onSnapshot, Timestamp } from "firebase/firestore";
 import { httpsCallable } from 'firebase/functions';
 import { Box, Typography, CircularProgress, Card } from "@mui/material";
 import AddNoteFab from './components/AddNoteFab';
@@ -31,6 +31,7 @@ function App() {
   const [_unauthorized, setUnauthorized] = useState(false);
   const [addNoteOpen, setAddNoteOpen] = useState(false);
   const [addNoteInitialStep, setAddNoteInitialStep] = useState('record');
+  const [addNoteOpenQuestion, setAddNoteOpenQuestion] = useState(null);
   const [prefilledFeedback, setPrefilledFeedback] = useState('');
   const [classrooms, setClassrooms] = useState([]);
   const [classroomsLoaded, setClassroomsLoaded] = useState(false);
@@ -150,6 +151,34 @@ function App() {
     if (!info.navigate && timelineInjectRef.current && info.notes) {
       info.notes.forEach((note) => timelineInjectRef.current(note));
     }
+
+    // If this note was answering an open question, update the open_questions doc (#144)
+    if (addNoteOpenQuestion && info.notes?.length > 0 && info.studentIds?.length === 1) {
+      const oq = addNoteOpenQuestion;
+      const studentId = info.studentIds[0];
+      const observationId = info.notes[0]?.id;
+      const ref = doc(db, 'students', studentId, 'ai_summaries', 'open_questions');
+      getDoc(ref).then((snap) => {
+        if (!snap.exists()) return;
+        const data = snap.data();
+        const rawQuestions = data.areas?.[oq.area];
+        if (!rawQuestions || !rawQuestions[oq.index]) return;
+        // Normalize old string format to enriched objects
+        const normalized = rawQuestions.map((q) => typeof q === 'string' ? { question: q, status: 'pending' } : q);
+        const updated = [...normalized];
+        updated[oq.index] = {
+          ...updated[oq.index],
+          status: 'answered',
+          answeredAt: Timestamp.now(),
+          method: 'voice',
+          observationId: observationId || null,
+          answeredBy: { uid: user?.uid || '', name: user?.displayName || 'Unknown' },
+        };
+        setDoc(ref, { areas: { ...data.areas, [oq.area]: updated } }, { merge: true }).catch(() => {});
+      }).catch(() => {});
+      setAddNoteOpenQuestion(null);
+    }
+
     // "View note" toast action - navigate to appropriate timeline
     if (info.navigate) {
       if (info.studentIds?.length === 1) {
@@ -172,7 +201,7 @@ function App() {
         setScreen('classroomTimeline');
       }
     }
-  }, [classrooms]);
+  }, [classrooms, addNoteOpenQuestion, user]);
 
   const scrollRef = useRef(null);
   const handleScrollToTop = useCallback(() => {
@@ -412,6 +441,7 @@ function App() {
     getStudentDisplayName, broadcastDeepLink, setBroadcastDeepLink,
     pageTitle, backNavigation, showBackButton,
     onTimelineInjectReady,
+    setAddNoteOpenQuestion, setAddNoteInitialStep, setAddNoteOpen: setAddNoteOpen,
   };
 
   return (
@@ -477,12 +507,14 @@ function App() {
                 )}
                 <AddNoteModal
                   open={addNoteOpen}
-                  onClose={() => { setAddNoteOpen(false); setAddNoteInitialStep('record'); }}
+                  onClose={() => { setAddNoteOpen(false); setAddNoteInitialStep('record'); setAddNoteOpenQuestion(null); }}
                   onSave={handleNoteSaved}
                   initialStep={addNoteInitialStep}
-                  initialStudents={selectedStudent && (screen === 'timeline' || screen === 'studentDashboard' || screen === 'studentReportTypes' || screen === 'studentReports') ? [selectedStudent.id] : []}
+                  initialStudents={selectedStudent && (screen === 'timeline' || screen === 'studentDashboard' || screen === 'studentReportTypes' || screen === 'studentReports' || screen === 'questionDeck') ? [selectedStudent.id] : []}
                   currentUser={user}
                   userRole={role}
+                  openQuestion={addNoteOpenQuestion}
+                  lockStudents={!!addNoteOpenQuestion}
                 />
                 <UpdateNotification />
                 {showFooter && (

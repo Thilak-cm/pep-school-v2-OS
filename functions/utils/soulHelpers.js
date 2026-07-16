@@ -236,16 +236,23 @@ export function extractOpenQuestions(soulContent) {
 
 /**
  * Build the Firestore document shape for an open_questions doc.
- * PEP-207: Now uses area-keyed shape instead of flat question list.
+ * PEP-207: Area-keyed shape. #144: Enriched with status tracking.
+ *
+ * Transforms raw LLM-extracted string arrays into enriched question objects
+ * with status tracking fields for the Question Deck UI.
  *
  * @param {Object} params
- * @param {Object<string, string[]>} params.areas - Area name → question strings
+ * @param {Object<string, string[]>} params.areas - Area name → question strings (from LLM)
  * @param {string} params.programId
- * @returns {Object} Open questions document fields
+ * @returns {Object} Open questions document fields with enriched question objects
  */
 export function buildOpenQuestionsDoc({ areas, programId }) {
+  const enriched = {};
+  for (const [area, questions] of Object.entries(areas)) {
+    enriched[area] = questions.map((q) => ({ question: q, status: "pending" }));
+  }
   return {
-    areas,
+    areas: enriched,
     programId,
     updatedBy: "cloud-function:soul-generate",
   };

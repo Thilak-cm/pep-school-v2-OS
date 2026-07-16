@@ -439,6 +439,20 @@ export default function NoteBottomSheet({
             />
           )}
 
+          {/* Open question answer chip — full text in expanded view (#144) */}
+          {observation.openQuestion?.questionText && (
+            <Box sx={{
+              display: 'flex', alignItems: 'flex-start', gap: 1,
+              px: 1.5, py: 1, mb: 1, borderRadius: 2,
+              backgroundColor: 'rgba(79, 70, 229, 0.06)',
+              border: '1px solid rgba(79, 70, 229, 0.15)',
+            }}>
+              <Typography sx={{ fontSize: '0.78rem', color: 'var(--color-primary)', fontWeight: 600, lineHeight: 1.4 }}>
+                Answers: <span style={{ fontWeight: 400, fontStyle: 'italic' }}>{observation.openQuestion.questionText}</span>
+              </Typography>
+            </Box>
+          )}
+
           {/* Type-specific content */}
           {observation.type === 'voice' ? (
             <VoiceContent

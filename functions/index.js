@@ -69,6 +69,7 @@ export {
 export {
   generateStudentProfile,
   backfillStudentProfiles,
+  regenerateSoulsMonthly,
 } from "./students/soul.js";
 
 // Student — Denormalized counter maintenance (#161)

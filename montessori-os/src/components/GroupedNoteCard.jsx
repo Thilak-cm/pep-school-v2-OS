@@ -239,6 +239,23 @@ export default function GroupedNoteCard({
           </Typography>
         )}
 
+        {/* Open question answer chip (#144) */}
+        {note.openQuestion?.questionText && (
+          <Box sx={{
+            display: 'inline-flex', alignItems: 'center', gap: 0.5,
+            px: 1, py: 0.5, mt: 0.5, borderRadius: '8px',
+            backgroundColor: 'rgba(79, 70, 229, 0.06)',
+            border: '1px solid rgba(79, 70, 229, 0.15)',
+          }}>
+            <Typography sx={{
+              fontSize: '0.7rem', color: 'var(--color-primary)', fontWeight: 600,
+              overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', maxWidth: 260,
+            }}>
+              Answers: {note.openQuestion.questionText}
+            </Typography>
+          </Box>
+        )}
+
         {/* Linked lesson tags */}
         {!isLesson && Array.isArray(note.linkedLessonObservationId) && note.linkedLessonObservationId.length > 0 && (
           <Box sx={{ display: 'flex', alignItems: 'center', gap: 0.5, flexWrap: 'wrap', mb: 0.5 }}>

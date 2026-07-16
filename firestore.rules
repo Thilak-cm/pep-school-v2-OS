@@ -226,6 +226,9 @@ service cloud.firestore {
       // AI summaries (baseball card, reports, signals, soul, guidelines) stored per student
       match /ai_summaries/{summaryId} {
         allow read: if isPrivilegedAdmin() || isTeacherInClassroom(studentClassroomId(studentId));
+        // Teachers can update open_questions doc to mark questions as answered (#144)
+        allow update: if summaryId == 'open_questions'
+          && isTeacherInClassroom(studentClassroomId(studentId));
         allow create, update, delete: if isSuperAdmin();
 
         // Version history for soul and guidelines (PEP-149)
