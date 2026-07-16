@@ -1,5 +1,19 @@
 # Changelog
 
+# 12.0.0 — 2026-07-15
+
+### Added
+- `brain/` knowledge base at repo root - single source of truth for all LLM pipeline context (knowledge, prompts, model config) across school-wide, primary, elementary, and adolescent programs with teacher-facing/parent-facing splits (#157)
+- `npm run push-brain` sync script: validates the folder tree (pipeline folders need config.json + prompt.md, blank/duplicate/reserved-name and empty-folder checks), shows NEW/CHANGED/DELETED/UNCHANGED with full diffs, and pushes to the Firestore `brain/{program}/files/{docId}` subcollections with SHA-256 change detection and y/N confirmation (#157)
+- `readBrain()` Cloud Function utility - four-layer deterministic context assembly (school-wide, program, audience, pipeline) with 5-min per-program cache, toddler→primary normalization, and school-wide-only mode for text-summarizer/voice-transcriber (#157)
+- MCP server tools `list_brain` and `get_brain_file` for inspecting the live brain collection (#157)
+- Firestore rules for `brain`: reads restricted to privileged admins, client writes blocked (#157)
+- `BRAIN_RULES.md` maintenance guide for authoring and pushing brain content (#157)
+
+### Fixed
+- `.gitignore` `admin/` pattern anchored to root so `scripts/admin/` files are never accidentally ignored (#157)
+- MCP server baseball card test aligned with the `weekly_snapshot` doc id (#157)
+
 # 11.3.5 — 2026-07-08
 
 ### Changed
