@@ -406,4 +406,24 @@ export const ACCESS_CONTROL_SPEC = [
     criticality: 'critical',
     pattern: /allow\s+delete:[\s\S]*?role\s*==\s*['\"]classroomadmin['\"]\s*&&[\s\S]*?manageableClassrooms[\s\S]*?hasAny/,
   },
+
+  // ============================================================================
+  // BRAIN KNOWLEDGE BASE (Firestore) - Admin-only read, no client writes (#157)
+  // ============================================================================
+
+  {
+    name: 'Brain collection read restricted to privileged admins',
+    description: 'allow read: if isPrivilegedAdmin() on brain/{program} and brain/{program}/files/{fileId}',
+    file: 'firestore',
+    criticality: 'important',
+    pattern: /match\s+\/brain\/\{program\}[\s\S]*?allow\s+read:\s*if\s+isPrivilegedAdmin\s*\(\s*\)/,
+  },
+
+  {
+    name: 'Brain collection write denied for all clients',
+    description: 'allow write: if false on brain/{program} and files subcollection',
+    file: 'firestore',
+    criticality: 'important',
+    pattern: /match\s+\/brain\/\{program\}[\s\S]*?allow\s+write:\s*if\s+false/,
+  },
 ];

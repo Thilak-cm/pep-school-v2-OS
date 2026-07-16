@@ -1,0 +1,8 @@
+{
+  "model": "gpt-5-mini",
+  "temperature": 0.7,
+  "max_tokens": 2000,
+  "chatMessageLimit": 6,
+  "observationLimit": "all",
+  "seed": true
+}

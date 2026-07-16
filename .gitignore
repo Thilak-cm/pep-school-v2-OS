@@ -89,8 +89,8 @@ node_modules
 # Build outputs
 montessori-os/dist/
 
-# admin scripts
-admin/
+# admin scripts — use /admin/ (anchored to root) so scripts/admin/ is NOT excluded
+/admin/
 
 # Temporary test output/data (but keep actual test files)
 test-data/

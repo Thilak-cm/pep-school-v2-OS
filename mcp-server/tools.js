@@ -499,6 +499,47 @@ export const TOOL_DEFINITIONS = [
     },
   },
 
+  // ── Brain (knowledge base, #157) ──
+  {
+    name: "list_brain",
+    description:
+      "List the brain knowledge base (synced from the repo's brain/ folder via push-brain). Without a program: returns all program parent docs with metadata (docCount, pipelineIds, lastSyncedBy). With a program: also returns the file index (path, type, pipeline, audience) without content.",
+    inputSchema: {
+      type: "object",
+      properties: {
+        program: {
+          type: "string",
+          description:
+            "Program folder: school-wide, primary (includes toddler), elementary, or adolescent. Omit to list all parent docs.",
+        },
+      },
+    },
+  },
+  {
+    name: "get_brain_file",
+    description:
+      "Fetch one brain knowledge base file doc with full content. Identify it by program + docId (e.g., 'teacher-facing--coach--prompt') or by program + path (e.g., 'primary/teacher-facing/coach/prompt.md').",
+    inputSchema: {
+      type: "object",
+      properties: {
+        program: {
+          type: "string",
+          description: "Program folder: school-wide, primary, elementary, or adolescent.",
+        },
+        docId: {
+          type: "string",
+          description: "File doc ID (e.g., teacher-facing--coach--prompt, nomenclature).",
+        },
+        path: {
+          type: "string",
+          description:
+            "Alternative to docId: full brain-relative file path (e.g., primary/teacher-facing/coach/prompt.md).",
+        },
+      },
+      required: ["program"],
+    },
+  },
+
   // ── Digests ──
   {
     name: "get_digest",
@@ -1179,6 +1220,55 @@ export async function handleGetConfig(db, params) {
 
   const doc = await db.collection("config").doc(docId).get();
   if (!doc.exists) return null;
+  return serializeTimestamps({ id: doc.id, ...doc.data() });
+}
+
+// ── Brain (knowledge base, #157) ──
+
+export async function handleListBrain(db, params) {
+  const { program } = params || {};
+
+  if (!program) {
+    const snap = await db.collection("brain").get();
+    const results = [];
+    snap.forEach((doc) => {
+      results.push(serializeTimestamps({ id: doc.id, ...doc.data() }));
+    });
+    return results;
+  }
+
+  const parentDoc = await db.collection("brain").doc(program).get();
+  if (!parentDoc.exists) return null;
+
+  const filesSnap = await db
+    .collection("brain").doc(program).collection("files")
+    .select("path", "type", "pipeline", "audience", "filename", "updatedAt")
+    .get();
+
+  const files = [];
+  filesSnap.forEach((doc) => {
+    files.push(serializeTimestamps({ id: doc.id, ...doc.data() }));
+  });
+  files.sort((a, b) => a.path.localeCompare(b.path));
+
+  return serializeTimestamps({ id: parentDoc.id, ...parentDoc.data(), files });
+}
+
+export async function handleGetBrainFile(db, params) {
+  const { program, docId, path } = params || {};
+  if (!program || (!docId && !path)) return null;
+
+  const filesRef = db.collection("brain").doc(program).collection("files");
+
+  if (docId) {
+    const doc = await filesRef.doc(docId).get();
+    if (!doc.exists) return null;
+    return serializeTimestamps({ id: doc.id, ...doc.data() });
+  }
+
+  const snap = await filesRef.where("path", "==", path).limit(1).get();
+  if (snap.empty) return null;
+  const doc = snap.docs[0];
   return serializeTimestamps({ id: doc.id, ...doc.data() });
 }
 

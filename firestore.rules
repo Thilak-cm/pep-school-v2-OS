@@ -578,6 +578,19 @@ service cloud.firestore {
         );
     }
 
+    // Brain knowledge base (#157)
+    // - Written ONLY by the push-brain admin script (Admin SDK bypasses rules)
+    // - Only privileged admins (superadmin/classroomadmin) may read; no client writes
+    match /brain/{program} {
+      allow read: if isPrivilegedAdmin();
+      allow write: if false;
+
+      match /files/{fileId} {
+        allow read: if isPrivilegedAdmin();
+        allow write: if false;
+      }
+    }
+
     // Testbench — nested under testbench/settings anchor doc
     // Settings doc: superadmins read/write
     match /testbench/settings {
