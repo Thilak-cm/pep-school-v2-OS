@@ -1,7 +1,7 @@
 # Pep OS Overview
 
-Generated: 2026-07-09T07:59:35.897Z
-App version: 11.3.5
+Generated: 2026-07-16T17:13:43.276Z
+App version: 12.0.0
 
 ## App Snapshot
 
@@ -115,18 +115,20 @@ App version: 11.3.5
 
 ## Firestore/Data Surface
 
-- Core collections/signals: `users`, `branches`, `programs`, `classrooms`, `students`, `observations`, `media`, `ai_summaries`, `config`, `feedback`, `placements`, `chats`, `messages`, `access`, `alerts`, `digests`, `history`, `interviews`, `monthly_plan_feedback`, `runs`, `statsCache`, `testbench`
+- Core collections/signals: `users`, `branches`, `programs`, `classrooms`, `students`, `observations`, `media`, `ai_summaries`, `config`, `feedback`, `placements`, `chats`, `messages`, `access`, `alerts`, `brain`, `digests`, `files`, `history`, `interviews`, `monthly_plan_feedback`, `runs`, `statsCache`, `testbench`
 - Rule-declared paths:
 - `/{document=**}`
 - `/access/{uid}`
 - `/ai_summaries/{summaryId}`
 - `/alerts/{alertId}`
+- `/brain/{program}`
 - `/branches/{branchId}`
 - `/chats/{chatId}`
 - `/classrooms/{classroomId}`
 - `/config/{docId}`
 - `/digests/{digestId}`
 - `/feedback/{feedbackId}`
+- `/files/{fileId}`
 - `/history/{historyId}`
 - `/history/{weekKey}`
 - `/interviews/{interviewId}`
@@ -149,6 +151,11 @@ App version: 11.3.5
 
 ## Recent Changes
 
+### 12.0.0 (2026-07-15)
+- `brain/` knowledge base at repo root - single source of truth for all LLM pipeline context (knowledge, prompts, model config) across school-wide, primary, elementary, and adolescent programs with teacher-facing/parent-facing splits (#157)
+- `npm run push-brain` sync script: validates the folder tree (pipeline folders need config.json + prompt.md, blank/duplicate/reserved-name and empty-folder checks), shows NEW/CHANGED/DELETED/UNCHANGED with full diffs, and pushes to the Firestore `brain/{program}/files/{docId}` subcollections with SHA-256 change detection and y/N confirmation (#157)
+- `readBrain()` Cloud Function utility - four-layer deterministic context assembly (school-wide, program, audience, pipeline) with 5-min per-program cache, toddler→primary normalization, and school-wide-only mode for text-summarizer/voice-transcriber (#157)
+
 ### 11.3.5 (2026-07-08)
 - Note saves (text, voice, media, lesson) are now synchronous - modal waits for Firestore write to complete before dismissing, replacing async background queue (#129)
 - "Note saved" toast includes a "View" button that navigates to the note in the appropriate timeline (#129)
@@ -163,9 +170,4 @@ App version: 11.3.5
 - Baseball card pipeline now uses per-program config docs (`baseball_card_primary`, `baseball_card_toddler`, `baseball_card_elementary`, `baseball_card_adolescent`) with program-specific curriculum domains — elementary/adolescent students no longer get "Practical Life" or "Sensorial" as false coverage gaps (#132)
 - Frontend baseball card config reads use per-program doc matching the student's program instead of the deprecated single `config/baseball_card` doc (#132)
 - `regenerateBaseballCardForStudent` now propagates generation failures to the caller instead of returning false success (#132)
-
-### 11.3.2 (2026-07-03)
-- Classroom-level and per-teacher stats deduped by groupId — group notes count as 1 act of documentation regardless of student count (#130)
-- Stats fields renamed by intent: classroom `noteCounts` → `effortCounts`, `activity` → `effortActivity`; per-student `totalNotes` → `totalMentions` (#130)
-- Overview Activity Trend chart shows 3 colored lines (observations, lessons, media) instead of 1 aggregate line (#130)
 
