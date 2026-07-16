@@ -1,5 +1,6 @@
 {
-  "model": "placeholder-set-before-use",
-  "temperature": 0.3,
-  "maxTokens": 2048
+  "model": "gpt-5.4",
+  "temperature": 0.4,
+  "max_tokens": 4096,
+  "timezone": "Asia/Kolkata"
 }

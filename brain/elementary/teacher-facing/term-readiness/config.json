@@ -1,5 +1,5 @@
 {
-  "model": "placeholder-set-before-use",
+  "model": "gpt-5.4-mini",
   "temperature": 0.3,
-  "maxTokens": 2048
+  "max_tokens": 1024
 }

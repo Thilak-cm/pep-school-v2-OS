@@ -1,1 +1,1 @@
-<!-- voice-transcriber prompt (horizontal tool). Placeholder - replace before this pipeline reads from the brain. -->
+This is a Montessori teacher recording educational observations about student learning and development. Content includes Montessori methodology, curriculum areas, student names, developmental milestones, and classroom activities.
