@@ -53,6 +53,13 @@ uploading anything. Nothing is uploaded without your `y`.
 8. **Don't edit `.brain-manifest.json`** - it's maintained automatically by
    the push script.
 
+9. **Set a real model before going live.** New pipeline `config.json` files
+   start with `"model": "placeholder-set-before-use"`. This is fine for
+   initial pushes (the push script warns but does not block), but LLM calls
+   will fail until you replace it with a real model name (e.g.
+   `"gpt-4o-mini"`). The push script flags any remaining placeholders in
+   its pre-upload summary.
+
 ## Folder map
 
 ```

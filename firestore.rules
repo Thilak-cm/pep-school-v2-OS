@@ -580,13 +580,13 @@ service cloud.firestore {
 
     // Brain knowledge base (#157)
     // - Written ONLY by the push-brain admin script (Admin SDK bypasses rules)
-    // - Signed-in users may read (future frontend surfaces); no client writes
+    // - Only privileged admins (superadmin/classroomadmin) may read; no client writes
     match /brain/{program} {
-      allow read: if isSignedIn();
+      allow read: if isPrivilegedAdmin();
       allow write: if false;
 
       match /files/{fileId} {
-        allow read: if isSignedIn();
+        allow read: if isPrivilegedAdmin();
         allow write: if false;
       }
     }

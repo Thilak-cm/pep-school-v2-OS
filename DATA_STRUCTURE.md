@@ -896,7 +896,7 @@ Read pattern (four layers, assembled in memory from ONE subcollection fetch per 
 1. school-wide knowledge → 2. program knowledge (`pipeline == null, audience == null`) → 3. audience knowledge (`pipeline == null, audience == X`) → 4. pipeline content (`pipeline == X`: config + prompt + knowledge). Exceptions: `text-summarizer` and `voice-transcriber` read school-wide only.
 
 Security
-- Reads: any authenticated user (`isSignedIn()`) — for future frontend surfaces.
+- Reads: privileged admins only (`isPrivilegedAdmin()` — superadmin or classroomadmin).
 - Writes: blocked for all clients (`allow write: if false`) — only the `push-brain` admin script writes (Admin SDK bypasses rules).
 
 MCP tools: `list_brain`, `get_brain_file`.

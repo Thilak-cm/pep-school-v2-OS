@@ -6,11 +6,13 @@
  *
  * Flow:
  *   1. Walk brain/ (skips manifest, BRAIN_RULES.md, hidden files)
- *   2. Validate (fixed files present, no blanks, no duplicates, valid JSON)
- *   3. Detect structural changes vs .brain-manifest.json (extra confirmation)
- *   4. Diff against Firestore checksums: NEW / CHANGED / DELETED / UNCHANGED
- *   5. Show summary (+/- line deltas); `d` shows full diffs
- *   6. On confirmed `y`: batched writes + parent metadata + manifest update
+ *   2. Walk directory tree (for validation + structural change detection)
+ *   3. Validate (fixed files present, no blanks, no duplicates, valid JSON,
+ *      no empty program/pipeline folders)
+ *   4. Detect structural changes vs .brain-manifest.json (extra confirmation)
+ *   5. Diff against Firestore checksums: NEW / CHANGED / DELETED / UNCHANGED
+ *   6. Show summary (+/- line deltas); `d` shows full diffs
+ *   7. On confirmed `y`: batched writes + parent metadata + manifest update
  *
  * DESIGN DECISIONS (issue #157):
  * - Checksums (SHA-256) let us skip unchanged files without downloading
@@ -22,26 +24,27 @@
  */
 
 import admin from "firebase-admin";
-import { execSync } from "node:child_process";
+import { execSync, spawnSync } from "node:child_process";
 import { writeFileSync, mkdtempSync, rmSync } from "node:fs";
-import { tmpdir } from "node:os";
+import { tmpdir, devNull } from "node:os";
 import { join, dirname } from "node:path";
 import { fileURLToPath } from "node:url";
 import { createInterface } from "node:readline";
 
 import {
   walkBrainFolder,
+  walkBrainDirectories,
   readFileContent,
   classifyFile,
   buildDocId,
   buildFileDoc,
   computeChecksum,
-  extractFolders,
   detectStructuralChanges,
   diffStates,
   validateBrainTree,
   buildParentMetadata,
   countLineDelta,
+  findPlaceholderModels,
 } from "./push-brain.helpers.mjs";
 
 const __dirname = dirname(fileURLToPath(import.meta.url));
@@ -123,16 +126,11 @@ function showFullDiff(remoteContent, localPath, relativePath) {
   const tmp = mkdtempSync(join(tmpdir(), "brain-diff-"));
   const remoteFile = join(tmp, "remote");
   writeFileSync(remoteFile, remoteContent);
-  try {
-    // git diff --no-index exits 1 when files differ — capture output either way
-    execSync(`git diff --no-index --color -- "${remoteFile}" "${localPath}"`, {
-      stdio: ["ignore", "inherit", "inherit"],
-    });
-  } catch {
-    // non-zero exit = files differ; diff already printed to stdout
-  } finally {
-    rmSync(tmp, { recursive: true, force: true });
-  }
+  // git diff --no-index exits 1 when files differ — that's expected, not an error
+  spawnSync("git", ["diff", "--no-index", "--color", "--", remoteFile, localPath], {
+    stdio: ["ignore", "inherit", "inherit"],
+  });
+  rmSync(tmp, { recursive: true, force: true });
   console.log(`  ^ ${relativePath}\n`);
 }
 
@@ -158,10 +156,16 @@ async function run() {
     }
   }
 
-  // 2. Validate — every error blocks the push
+  // 2. Walk directory tree (needed for both validation and structural change detection)
+  const currentFolders = walkBrainDirectories(BRAIN_ROOT);
+
+  // 3. Validate — every error blocks the push
   const errors = [
     ...classifyErrors,
-    ...validateBrainTree(entries.map((e) => ({ relativePath: e.relativePath, content: e.content }))),
+    ...validateBrainTree(
+      entries.map((e) => ({ relativePath: e.relativePath, content: e.content })),
+      { directories: currentFolders },
+    ),
   ];
   if (errors.length > 0) {
     console.error("Validation failed — fix these before pushing:\n");
@@ -170,28 +174,31 @@ async function run() {
   }
   console.log(`Validated ${entries.length} files — OK`);
 
-  // 3. Structural changes vs manifest
-  const currentFolders = extractFolders(entries.map((e) => e.relativePath));
-  let manifestFolders = [];
+  // 4. Structural changes vs manifest
+  let manifestFolders = null;
   try {
     manifestFolders = JSON.parse(readFileContent(MANIFEST_PATH)).folders ?? [];
   } catch {
-    console.log("No readable .brain-manifest.json — treating current structure as new.");
+    // Manifest missing or unreadable — first run or manual deletion.
   }
-  const structural = detectStructuralChanges(currentFolders, manifestFolders);
-  if (structural.added.length > 0 || structural.removed.length > 0) {
-    console.log("\n⚠ STRUCTURAL CHANGES DETECTED (folders differ from manifest):");
-    for (const f of structural.added) console.log(`  + folder added:   ${f}`);
-    for (const f of structural.removed) console.log(`  - folder removed: ${f}`);
-    console.log("\nFolder structure is managed deliberately (see BRAIN_RULES.md).");
-    const okStructural = await ask("Are these structural changes intentional? (y/N) ");
-    if (!okStructural.startsWith("y")) {
-      console.log("Aborted — no changes pushed.");
-      process.exit(0);
+  if (manifestFolders === null) {
+    console.log("Fresh sync — no manifest to compare against.");
+  } else {
+    const structural = detectStructuralChanges(currentFolders, manifestFolders);
+    if (structural.added.length > 0 || structural.removed.length > 0) {
+      console.log("\n⚠ STRUCTURAL CHANGES DETECTED (folders differ from manifest):");
+      for (const f of structural.added) console.log(`  + folder added:   ${f}`);
+      for (const f of structural.removed) console.log(`  - folder removed: ${f}`);
+      console.log("\nFolder structure is managed deliberately (see BRAIN_RULES.md).");
+      const okStructural = await ask("Are these structural changes intentional? (y/N) ");
+      if (!okStructural.startsWith("y")) {
+        console.log("Aborted — no changes pushed.");
+        process.exit(0);
+      }
     }
   }
 
-  // 4. Diff against remote
+  // 5. Diff against remote
   const local = entries.map((e) => ({
     ...e,
     path: e.relativePath,
@@ -201,12 +208,17 @@ async function run() {
   const remote = await fetchRemoteIndex();
   const diff = diffStates(local, remote);
 
-  // 5. Summary (fetch old content only for CHANGED files)
+  // 6. Summary (fetch old content for CHANGED and DELETED files)
   const changedWithOld = [];
   for (const file of diff.changed) {
     const remoteDoc = remote.find((r) => r.path === file.path);
     const oldContent = await fetchRemoteContent(remoteDoc.program, remoteDoc.docId);
     changedWithOld.push({ file, oldContent });
+  }
+  const deletedWithContent = [];
+  for (const d of diff.deleted) {
+    const oldContent = await fetchRemoteContent(d.program, d.docId);
+    deletedWithContent.push({ doc: d, oldContent });
   }
 
   console.log("");
@@ -218,13 +230,22 @@ async function run() {
   for (const d of diff.deleted) console.log(`  DELETE:    ${d.path}`);
   console.log(`  UNCHANGED: ${diff.unchanged.length} files\n`);
 
+  // Warn about placeholder models (non-blocking — initial workflow pushes
+  // placeholders, but they must be replaced before the pipeline goes live).
+  const placeholders = findPlaceholderModels(entries);
+  if (placeholders.length > 0) {
+    console.log("  *** PLACEHOLDER MODELS (will fail at LLM call time) ***");
+    for (const p of placeholders) console.log(`    - ${p.relativePath}`);
+    console.log("  Set a real model name before the pipeline goes live.\n");
+  }
+
   const toWrite = diff.new.length + diff.changed.length;
   if (toWrite === 0 && diff.deleted.length === 0) {
     console.log("Nothing to push — Firestore matches local.");
     process.exit(0);
   }
 
-  // 6. Confirm (d = full diffs)
+  // 7. Confirm (d = full diffs)
   let answer = await ask(
     `${toWrite} to upload, ${diff.deleted.length} to delete. Proceed? (y/N, d=show diffs) `,
   );
@@ -233,8 +254,12 @@ async function run() {
     for (const { file, oldContent } of changedWithOld) {
       showFullDiff(oldContent, file.fullPath, file.path);
     }
-    for (const f of diff.new) console.log(`  NEW (full content will upload): ${f.path}`);
-    for (const d of diff.deleted) console.log(`  DELETE (doc will be removed): ${d.path}`);
+    for (const f of diff.new) {
+      showFullDiff("", f.fullPath, f.path);
+    }
+    for (const { doc: d, oldContent } of deletedWithContent) {
+      showFullDiff(oldContent, devNull, d.path);
+    }
     answer = await ask(`\n${toWrite} to upload, ${diff.deleted.length} to delete. Proceed? (y/N) `);
   }
   if (!answer.startsWith("y")) {
@@ -242,7 +267,7 @@ async function run() {
     process.exit(0);
   }
 
-  // 7. Batched writes
+  // 8. Batched writes
   let batch = db.batch();
   let batchCount = 0;
   const commitIfFull = async () => {
@@ -283,7 +308,7 @@ async function run() {
 
   if (batchCount > 0) await batch.commit();
 
-  // 8. Manifest auto-update (structure confirmed above)
+  // 9. Manifest auto-update (structure confirmed above)
   writeFileSync(MANIFEST_PATH, JSON.stringify({ folders: currentFolders }, null, 2) + "\n");
 
   console.log(`\nDone. Uploaded ${toWrite}, deleted ${diff.deleted.length}.`);

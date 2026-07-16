@@ -12,7 +12,7 @@ import {
   resolveProgramFolder,
   isSchoolWideOnly,
   assembleBrainContext,
-} from "../shared/brain.helpers.mjs";
+} from "../shared/brain.helpers.js";
 
 // ---------------------------------------------------------------------------
 // resolveProgramFolder

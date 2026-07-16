@@ -53,6 +53,32 @@ export function walkBrainFolder(rootPath) {
   }
 }
 
+/**
+ * Recursively walks the brain folder and returns all directory paths
+ * (not files). Skips hidden directories (dotfiles). Returns sorted
+ * posix-style relative paths for structural-change detection.
+ *
+ * Detects empty directories that contain no content files (unlike
+ * deriving folders from walked file paths, which misses them).
+ */
+export function walkBrainDirectories(rootPath) {
+  const results = [];
+  walk(rootPath);
+  return results.sort();
+
+  function walk(dir) {
+    for (const name of readdirSync(dir)) {
+      if (name.startsWith(".")) continue;
+      const fullPath = join(dir, name);
+      if (statSync(fullPath).isDirectory()) {
+        const rel = relative(rootPath, fullPath).split(sep).join("/");
+        results.push(rel);
+        walk(fullPath);
+      }
+    }
+  }
+}
+
 /** Reads a walked file's content as UTF-8. */
 export function readFileContent(fullPath) {
   return readFileSync(fullPath, "utf8");
@@ -157,18 +183,6 @@ export function buildFileDoc(classified, relativePath, content) {
 // Structural change detection
 // ---------------------------------------------------------------------------
 
-/** Unique sorted folder paths derived from file paths. */
-export function extractFolders(filePaths) {
-  const folders = new Set();
-  for (const p of filePaths) {
-    const segments = p.split("/");
-    for (let i = 1; i < segments.length; i++) {
-      folders.add(segments.slice(0, i).join("/"));
-    }
-  }
-  return [...folders].sort();
-}
-
 /**
  * Compares the current folder tree against the manifest's expected tree.
  * A rename surfaces as one added + one removed entry.
@@ -219,11 +233,14 @@ export function diffStates(localFiles, remoteDocs) {
  * - blank .md files
  * - duplicate basenames within a folder (docId collision)
  * - config.json that fails to parse or lacks `model`
+ * - empty program or pipeline folders (when directories provided)
  *
  * @param {Array<{relativePath: string, content: string}>} entries
+ * @param {Object} [options]
+ * @param {string[]} [options.directories] - sorted posix-style directory paths from walkBrainDirectories
  * @returns {Array<{path: string, message: string}>}
  */
-export function validateBrainTree(entries) {
+export function validateBrainTree(entries, { directories } = {}) {
   const errors = [];
   const byFolder = new Map(); // folder -> [{ filename, basename, content }]
 
@@ -239,6 +256,14 @@ export function validateBrainTree(entries) {
         message: `Unsupported extension "${ext}" — only .md and .json files are synced`,
       });
       continue;
+    }
+
+    const basename = filename.replace(/\.[^.]+$/, "");
+    if (basename.includes("--")) {
+      errors.push({
+        path: relativePath,
+        message: `Basename "${basename}" contains "--" which is reserved as the Firestore doc ID separator — rename the file`,
+      });
     }
 
     if (ext === ".md" && content.trim() === "") {
@@ -288,6 +313,84 @@ export function validateBrainTree(entries) {
     }
   }
 
+  // Cross-folder docId uniqueness check per program. Two files in different
+  // folders can map to the same Firestore doc ID (e.g. audience-level file
+  // "notes.md" under teacher-facing/ vs pipeline file with matching segments).
+  const byProgram = new Map(); // program -> Map<docId, relativePath>
+  for (const { relativePath } of entries) {
+    try {
+      const classified = classifyFile(relativePath);
+      const docId = buildDocId(classified);
+      const { program } = classified;
+      if (!byProgram.has(program)) byProgram.set(program, new Map());
+      const programMap = byProgram.get(program);
+      if (programMap.has(docId)) {
+        errors.push({
+          path: relativePath,
+          message: `Doc ID collision "${docId}" in program "${program}" — collides with ${programMap.get(docId)}`,
+        });
+      } else {
+        programMap.set(docId, relativePath);
+      }
+    } catch {
+      // classifyFile errors are already caught during the classify phase
+    }
+  }
+
+  // Empty folder checks — a program or pipeline directory on disk with zero
+  // classified files would leave stale Firestore parent metadata and escape
+  // the config.json+prompt.md requirement. Only runs when directories are
+  // provided (the caller passes walkBrainDirectories output).
+  if (directories) {
+    // Set of folders that contain at least one file.
+    const foldersWithFiles = new Set();
+    for (const { relativePath } of entries) {
+      const segments = relativePath.split("/");
+      // Add every ancestor folder (e.g. "primary", "primary/teacher-facing", ...)
+      for (let i = 1; i < segments.length; i++) {
+        foldersWithFiles.add(segments.slice(0, i).join("/"));
+      }
+    }
+
+    for (const dir of directories) {
+      const segments = dir.split("/");
+
+      // Depth 1: program folder (e.g. "primary")
+      if (segments.length === 1) {
+        if (!foldersWithFiles.has(dir)) {
+          errors.push({
+            path: dir,
+            message: `${dir} contains no files — a program folder cannot be pushed empty. Delete the folder itself (structural change) or restore its files.`,
+          });
+        }
+        continue;
+      }
+
+      // Depth 2: either an audience folder (skip) or a pipeline folder (school-wide pipelines)
+      if (segments.length === 2) {
+        if (AUDIENCES.includes(segments[1])) continue; // audience folder, not a pipeline
+        // Non-audience depth-2 dir = pipeline folder
+        if (!foldersWithFiles.has(dir)) {
+          errors.push({
+            path: dir,
+            message: `Pipeline folder ${dir} contains no files — add config.json + prompt.md or delete the folder.`,
+          });
+        }
+        continue;
+      }
+
+      // Depth 3: pipeline folder under audience (e.g. "primary/teacher-facing/coach")
+      if (segments.length === 3 && AUDIENCES.includes(segments[1])) {
+        if (!foldersWithFiles.has(dir)) {
+          errors.push({
+            path: dir,
+            message: `Pipeline folder ${dir} contains no files — add config.json + prompt.md or delete the folder.`,
+          });
+        }
+      }
+    }
+  }
+
   return errors;
 }
 
@@ -297,7 +400,7 @@ export function validateBrainTree(entries) {
 
 // Toddler is a 1-year feeder into the 3-year primary program — one folder,
 // same knowledge (Rahul, Jul 13 meeting). Reader-side normalization lives in
-// functions/shared/brain.helpers.mjs (resolveProgramFolder).
+// functions/shared/brain.helpers.js (resolveProgramFolder).
 const INCLUDES_PROGRAMS = {
   primary: ["toddler", "primary"],
 };
@@ -357,6 +460,28 @@ export function parseConfigJson(content, path) {
     throw new Error(`Config ${path} missing required "model" field`);
   }
   return parsed;
+}
+
+const PLACEHOLDER_MODEL = "placeholder-set-before-use";
+
+/**
+ * Returns entries whose config.json model is the placeholder value.
+ * These are valid for pushing (initial workflow) but would fail at
+ * LLM call time, so the sync script warns about them non-blockingly.
+ *
+ * @param {Array<{relativePath: string, content: string, classified: {type: string}}>} entries
+ * @returns {Array<{relativePath: string}>}
+ */
+export function findPlaceholderModels(entries) {
+  return entries.filter((e) => {
+    if (e.classified.type !== "config") return false;
+    try {
+      const parsed = JSON.parse(e.content);
+      return parsed.model === PLACEHOLDER_MODEL;
+    } catch {
+      return false;
+    }
+  });
 }
 
 // ---------------------------------------------------------------------------

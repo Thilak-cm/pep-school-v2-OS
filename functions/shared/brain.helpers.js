@@ -2,7 +2,7 @@
  * Pure helpers for the brain knowledge base reader (#157).
  *
  * Firebase-free by design so they can be unit tested directly
- * (node --test functions/shared/brain.helpers.test.mjs). The Firestore
+ * (node --test functions/test/brainHelpers.test.mjs). The Firestore
  * fetch + cache layer lives in ./brain.js.
  */
 
@@ -21,6 +21,9 @@ const PROGRAM_FOLDER_MAP = {
 // Horizontal, context-free tools — they read only school-wide content,
 // never program/audience knowledge (spec decision, confirmed with Rahul).
 const SCHOOL_WIDE_ONLY_PIPELINES = new Set(["text-summarizer", "voice-transcriber"]);
+
+// Blank line between knowledge segments for LLM readability.
+const KNOWLEDGE_SEPARATOR = "\n\n";
 
 /** Maps a live programId to its brain folder (toddler -> primary). */
 export function resolveProgramFolder(programId) {
@@ -75,7 +78,7 @@ export function assembleBrainContext(schoolWideDocs, programDocs, { pipeline, au
   const knowledge = [layer1, layer2, layer3, layer4]
     .map((layer) => sortByFilename(layer).map((d) => d.content))
     .flat()
-    .join("\n\n");
+    .join(KNOWLEDGE_SEPARATOR);
 
   return {
     config: configDoc ? (configDoc.config ?? null) : null,

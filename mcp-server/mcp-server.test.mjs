@@ -1,5 +1,8 @@
 import { describe, it, beforeEach } from "node:test";
 import assert from "node:assert/strict";
+import { readFileSync } from "node:fs";
+import { dirname, resolve } from "node:path";
+import { fileURLToPath } from "node:url";
 import {
   handleGetStudent,
   handleListBrain,
@@ -29,6 +32,7 @@ function mockSnapshot(docs) {
 
 function createMockQuery(docs) {
   const filters = [];
+  let selectedFields = null;
   const query = {
     where(field, op, value) {
       filters.push({ field, op, value });
@@ -36,7 +40,11 @@ function createMockQuery(docs) {
     },
     orderBy() { return query; },
     limit() { return query; },
-    select() { return query; }, // projection is a server-side optimization; mock returns full docs
+    select(...fields) {
+      // Mirror Firestore's projection: get() returns only the selected fields
+      selectedFields = fields;
+      return query;
+    },
     async get() {
       let filtered = docs;
       for (const { field, op, value } of filters) {
@@ -50,6 +58,14 @@ function createMockQuery(docs) {
           if (op === "<") return v < value;
           return true;
         });
+      }
+      if (selectedFields) {
+        filtered = filtered.map((d) => ({
+          ...d,
+          data: () => Object.fromEntries(
+            selectedFields.filter((f) => f in d.data()).map((f) => [f, d.data()[f]]),
+          ),
+        }));
       }
       return mockSnapshot(filtered);
     },
@@ -250,7 +266,7 @@ describe("handleGetObservations", () => {
 
 describe("handleGetBaseballCard", () => {
   it("should return baseball card when it exists", async () => {
-    const card = mockDoc("baseball_card", {
+    const card = mockDoc("weekly_snapshot", {
       bullets: ["Great at math", "Loves reading"],
       lessonSummary: "Strong progress in multiplication",
       noteCount: 12,
@@ -471,6 +487,10 @@ describe("handleListBrain", () => {
       result.files.map((f) => f.path),
       ["primary/context.md", "primary/teacher-facing/coach/prompt.md"],
     );
+    // The .select() projection must exclude content from the file index
+    for (const f of result.files) {
+      assert.equal(f.content, undefined, "file index should not include content field");
+    }
   });
 
   it("returns null for unknown program", async () => {
@@ -510,5 +530,42 @@ describe("handleGetBrainFile", () => {
   it("returns null when missing or params incomplete", async () => {
     assert.equal(await handleGetBrainFile(brainDb(), { program: "primary", docId: "nope" }), null);
     assert.equal(await handleGetBrainFile(brainDb(), { program: "primary" }), null);
+  });
+});
+
+// --- TOOL_DEFINITIONS <-> HANDLERS pairing (#157 W4) ---
+
+describe("TOOL_DEFINITIONS / HANDLERS pairing", () => {
+  // index.js has side effects (Firebase init, server startup), so we cannot
+  // import it. Instead, read it as text and extract handler keys from the
+  // HANDLERS object literal via regex. This is intentionally conservative -
+  // it only matches bare identifier keys (foo_bar:) in the HANDLERS block.
+  const __testDir = dirname(fileURLToPath(import.meta.url));
+  const indexSource = readFileSync(resolve(__testDir, "index.js"), "utf8");
+
+  // Extract the HANDLERS block and pull out key names
+  const handlersMatch = indexSource.match(/const\s+HANDLERS\s*=\s*\{([\s\S]*?)\};/);
+  const handlerKeys = handlersMatch
+    ? [...handlersMatch[1].matchAll(/^\s*([\w]+)\s*:/gm)].map((m) => m[1])
+    : [];
+
+  it("every TOOL_DEFINITION has a matching HANDLER entry", () => {
+    const toolNames = TOOL_DEFINITIONS.map((t) => t.name);
+    const missing = toolNames.filter((name) => !handlerKeys.includes(name));
+    assert.deepEqual(
+      missing,
+      [],
+      `Tool(s) defined in TOOL_DEFINITIONS but missing from HANDLERS: ${missing.join(", ")}`,
+    );
+  });
+
+  it("every HANDLER entry has a matching TOOL_DEFINITION", () => {
+    const toolNames = new Set(TOOL_DEFINITIONS.map((t) => t.name));
+    const orphaned = handlerKeys.filter((name) => !toolNames.has(name));
+    assert.deepEqual(
+      orphaned,
+      [],
+      `Handler(s) in HANDLERS but missing from TOOL_DEFINITIONS: ${orphaned.join(", ")}`,
+    );
   });
 });
