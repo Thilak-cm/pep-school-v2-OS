@@ -12,7 +12,7 @@
  * interview-agent-core.mjs (imported by tests).
  *
  * Usage:
- *   node scripts/admin/test-question-gen.mjs <studentId>
+ *   node scripts/debug/test-question-gen.mjs <studentId>
  *
  * Requires: OPENAI_API_KEY environment variable
  */
@@ -110,7 +110,7 @@ const args = process.argv.slice(2);
 const studentId = args.find((a) => !a.startsWith("--"));
 
 if (!studentId) {
-  console.error("Usage: node scripts/admin/test-question-gen.mjs <studentId>");
+  console.error("Usage: node scripts/debug/test-question-gen.mjs <studentId>");
   process.exit(1);
 }
 

@@ -1,8 +1,8 @@
 // PEP-207: Generate soul + open_questions for a student locally.
 // Replicates generateStudentProfile logic without needing Firebase Auth context.
 //
-// Usage: OPENAI_API_KEY=sk-... node scripts/admin/generate-soul.mjs <studentId>
-// Example: OPENAI_API_KEY=sk-... node scripts/admin/generate-soul.mjs 2025-ADO-001
+// Usage: OPENAI_API_KEY=sk-... node scripts/debug/generate-soul.mjs <studentId>
+// Example: OPENAI_API_KEY=sk-... node scripts/debug/generate-soul.mjs 2025-ADO-001
 
 // Set project ID before any firebase-admin import so shared/firebase.js picks it up
 process.env.GCLOUD_PROJECT = "pep-os";
@@ -40,14 +40,14 @@ import { formatInterviewForPrompt } from "../../functions/utils/interviewHelpers
 const OPENAI_API_KEY = process.env.OPENAI_API_KEY;
 if (!OPENAI_API_KEY) {
   console.error("ERROR: OPENAI_API_KEY env var is required");
-  console.error("Usage: OPENAI_API_KEY=sk-... node scripts/admin/generate-soul.mjs <studentId>");
+  console.error("Usage: OPENAI_API_KEY=sk-... node scripts/debug/generate-soul.mjs <studentId>");
   process.exit(1);
 }
 
 const studentId = process.argv[2]?.trim();
 if (!studentId) {
   console.error("ERROR: studentId argument is required");
-  console.error("Usage: OPENAI_API_KEY=sk-... node scripts/admin/generate-soul.mjs <studentId>");
+  console.error("Usage: OPENAI_API_KEY=sk-... node scripts/debug/generate-soul.mjs <studentId>");
   process.exit(1);
 }
 

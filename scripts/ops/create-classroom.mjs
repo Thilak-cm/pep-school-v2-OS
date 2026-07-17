@@ -14,11 +14,11 @@
  * Two modes:
  *
  * INTERACTIVE (for humans) — run with no flags; prompts for everything:
- *   node scripts/admin/create-classroom.mjs
+ *   node scripts/ops/create-classroom.mjs
  *
  * FLAG MODE (for agents / automation) — no prompts, fails fast with actionable
  * errors on missing or ambiguous input:
- *   node scripts/admin/create-classroom.mjs \
+ *   node scripts/ops/create-classroom.mjs \
  *     --name "Phoenix" --branch varthur --program elementary \
  *     --user ajay@ribbons.education --dry-run
  *

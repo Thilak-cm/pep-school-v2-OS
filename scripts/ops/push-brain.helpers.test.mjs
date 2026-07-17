@@ -5,7 +5,7 @@
  * so they are imported directly — unlike older admin script tests that
  * inline logic to dodge Firebase initialization.
  *
- * Run with: node --test scripts/admin/push-brain.helpers.test.mjs
+ * Run with: node --test scripts/ops/push-brain.helpers.test.mjs
  */
 
 import { describe, test, before, after } from "node:test";

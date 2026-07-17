@@ -23,8 +23,9 @@ Pep OS (Montessori OS) — a mobile-first React PWA for Montessori teachers to c
 ├── functions/            Firebase Cloud Functions (Node 20, ESM)
 │   ├── index.js              All callable functions (~3800 lines)
 │   └── config/               Shared constants (coach, baseball card, chat)
-├── scripts/              Admin CLI tools and utilities
-│   └── admin/                create-user, delete-users, recompute-stats, etc.
+├── scripts/              CLI tools and utilities
+│   ├── ops/                  Operational tools (create-classroom, push-brain)
+│   └── debug/                Local dev/debug tools (soul, writing analysis, interview)
 ├── firestore.rules       Firestore security rules
 ├── storage.rules         Storage security rules (max 2 firestore.get() calls)
 └── DATA_STRUCTURE.md     Complete Firestore schema reference
@@ -59,12 +60,12 @@ npm run deploy:firestore    # Deploy Firestore rules + indexes
 npx firebase emulators:start   # Auth:9099, Functions:5001, Firestore:8080, Hosting:5000, Storage:9199
 ```
 
-### Admin Scripts (run from root)
+### Ops Scripts (run from root)
 ```bash
-node scripts/admin/admin-cli.js        # Interactive admin CLI
-node scripts/admin/create-user.js      # Create user account
-node scripts/admin/recompute-stats.mjs # Recalculate classroom statistics
+node scripts/ops/create-classroom.mjs  # Create classroom (interactive, or flag mode for agents: --name --branch --program --user --dry-run/--yes)
+npm run push-brain                     # Sync brain/ knowledge base to Firestore config
 ```
+Debug tools for local testing of AI features (soul generation, writing analysis, interview questions) live in `scripts/debug/`.
 
 ## Architecture
 

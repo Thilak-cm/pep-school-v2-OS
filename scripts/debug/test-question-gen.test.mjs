@@ -5,7 +5,7 @@
  * guidelines markdown + recent interviews + baseball card (not old profile
  * dimensions) and generates targeted interview questions.
  *
- * Run: node --test scripts/admin/test-question-gen.test.mjs
+ * Run: node --test scripts/debug/test-question-gen.test.mjs
  */
 import { describe, it } from "node:test";
 import assert from "node:assert/strict";
