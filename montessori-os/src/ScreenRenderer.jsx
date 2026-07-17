@@ -147,7 +147,7 @@ function renderScreen(screen, ctx) {
         <QuestionDeck
           student={ctx.selectedStudent}
           currentUser={ctx.user}
-          onViewTimeline={() => ctx.setScreen("timeline")}
+          reloadKey={ctx.questionDeckReloadKey}
           onAnswerQuestion={(oq) => {
             ctx.setAddNoteOpenQuestion(oq);
             ctx.setAddNoteInitialStep("record");

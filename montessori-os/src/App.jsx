@@ -4,7 +4,7 @@ import { auth, db, cloudFunctions } from "./firebase";
 import SignIn from "./SignIn";
 import AppFooter from "./AppFooter";
 import { setAnalyticsUserId, setUserProperty, setAppVersionProperty, trackEvent } from './utils/analytics';
-import { doc, getDoc, setDoc, collection, query, where, getDocs, documentId, onSnapshot, Timestamp } from "firebase/firestore";
+import { doc, getDoc, collection, query, where, getDocs, documentId, onSnapshot } from "firebase/firestore";
 import { httpsCallable } from 'firebase/functions';
 import { Box, Typography, CircularProgress, Card } from "@mui/material";
 import AddNoteFab from './components/AddNoteFab';
@@ -39,6 +39,7 @@ function App() {
   const [noteDrawerOpen, setNoteDrawerOpen] = useState(false);
   const [broadcastDeepLink, setBroadcastDeepLink] = useState(null);
   const [alertBadgeCount, setAlertBadgeCount] = useState(0);
+  const [questionDeckReloadKey, setQuestionDeckReloadKey] = useState(0);
 
   const {
     screen, setScreen,
@@ -152,31 +153,9 @@ function App() {
       info.notes.forEach((note) => timelineInjectRef.current(note));
     }
 
-    // If this note was answering an open question, update the open_questions doc (#144)
-    if (addNoteOpenQuestion && info.notes?.length > 0 && info.studentIds?.length === 1) {
-      const oq = addNoteOpenQuestion;
-      const studentId = info.studentIds[0];
-      const observationId = info.notes[0]?.id;
-      const ref = doc(db, 'students', studentId, 'ai_summaries', 'open_questions');
-      getDoc(ref).then((snap) => {
-        if (!snap.exists()) return;
-        const data = snap.data();
-        const rawQuestions = data.areas?.[oq.area];
-        if (!rawQuestions || !rawQuestions[oq.index]) return;
-        // Normalize old string format to enriched objects
-        const normalized = rawQuestions.map((q) => typeof q === 'string' ? { question: q, status: 'pending' } : q);
-        const updated = [...normalized];
-        updated[oq.index] = {
-          ...updated[oq.index],
-          status: 'answered',
-          answeredAt: Timestamp.now(),
-          method: 'voice',
-          observationId: observationId || null,
-          answeredBy: { uid: user?.uid || '', name: user?.displayName || 'Unknown' },
-        };
-        setDoc(ref, { areas: { ...data.areas, [oq.area]: updated } }, { merge: true }).catch(() => {});
-      }).catch(() => {});
-      setAddNoteOpenQuestion(null);
+    // If an open question was answered, bump the reload key so QuestionDeck refreshes (#144)
+    if (info.openQuestionAnswered) {
+      setQuestionDeckReloadKey((k) => k + 1);
     }
 
     // "View note" toast action - navigate to appropriate timeline
@@ -201,7 +180,7 @@ function App() {
         setScreen('classroomTimeline');
       }
     }
-  }, [classrooms, addNoteOpenQuestion, user]);
+  }, [classrooms]);
 
   const scrollRef = useRef(null);
   const handleScrollToTop = useCallback(() => {
@@ -442,6 +421,7 @@ function App() {
     pageTitle, backNavigation, showBackButton,
     onTimelineInjectReady,
     setAddNoteOpenQuestion, setAddNoteInitialStep, setAddNoteOpen: setAddNoteOpen,
+    questionDeckReloadKey,
   };
 
   return (

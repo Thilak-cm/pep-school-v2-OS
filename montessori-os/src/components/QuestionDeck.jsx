@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useMemo, useState } from 'react';
+import { useCallback, useEffect, useState } from 'react';
 import {
   Accordion,
   AccordionDetails,
@@ -27,6 +27,7 @@ import { doc, getDoc, setDoc, Timestamp } from 'firebase/firestore';
 import { db } from '../firebase';
 import useNotify from '../notifications/useNotify.js';
 import { trackEvent } from '../utils/analytics';
+import NoteBottomSheet from './noteBottomSheet/NoteBottomSheet';
 
 // ── Helpers ──
 
@@ -70,52 +71,6 @@ function formatRelativeDate(ts) {
 
   if (year === now.getFullYear()) return `${day} ${month}`;
   return `${day} ${month} ${year}`;
-}
-
-// ── Progress ring with background track ──
-
-function ProgressRing({ value, size = 56, thickness = 5 }) {
-  return (
-    <Box sx={{ position: 'relative', display: 'inline-flex', width: size, height: size }}>
-      {/* Background track */}
-      <CircularProgress
-        variant="determinate"
-        value={100}
-        size={size}
-        thickness={thickness}
-        sx={{
-          color: 'rgba(0,0,0,0.06)',
-          position: 'absolute',
-          top: 0,
-          left: 0,
-        }}
-      />
-      {/* Foreground */}
-      <CircularProgress
-        variant="determinate"
-        value={value}
-        size={size}
-        thickness={thickness}
-        sx={{
-          color: 'var(--color-secondary)',
-          '& .MuiCircularProgress-circle': { strokeLinecap: 'round' },
-        }}
-      />
-      <Box
-        sx={{
-          position: 'absolute',
-          inset: 0,
-          display: 'flex',
-          alignItems: 'center',
-          justifyContent: 'center',
-        }}
-      >
-        <Typography sx={{ fontSize: '0.75rem', fontWeight: 700, color: 'var(--color-text)' }}>
-          {Math.round(value)}%
-        </Typography>
-      </Box>
-    </Box>
-  );
 }
 
 // ── Question row ──
@@ -264,7 +219,7 @@ function AreaAccordion({ area, questions, onAnswer, onManualMark, onViewNote }) 
             area={area}
             onAnswer={onAnswer}
             onManualMark={onManualMark}
-            onViewNote={q.observationId ? () => onViewNote?.() : undefined}
+            onViewNote={q.observationId ? () => onViewNote?.(q.observationId) : undefined}
           />
         ))}
       </AccordionDetails>
@@ -278,7 +233,6 @@ function QuestionDeck({
   student,
   currentUser,
   onAnswerQuestion,
-  onViewTimeline,
   reloadKey = 0,
 }) {
   const notify = useNotify();
@@ -286,6 +240,21 @@ function QuestionDeck({
   const [error, setError] = useState('');
   const [data, setData] = useState(null);
   const [confirmDialog, setConfirmDialog] = useState(null); // { area, index, questionText }
+  const [previewNote, setPreviewNote] = useState(null);
+
+  // ── View note in bottom sheet ──
+  const handleViewNote = useCallback(async (observationId) => {
+    if (!observationId || !student?.id) return;
+    try {
+      const obsRef = doc(db, 'students', student.id, 'observations', observationId);
+      const obsSnap = await getDoc(obsRef);
+      if (obsSnap.exists()) {
+        setPreviewNote({ id: obsSnap.id, ...obsSnap.data() });
+      }
+    } catch (err) {
+      console.error('[QuestionDeck] Failed to fetch note:', err);
+    }
+  }, [student?.id]);
 
   // ── Fetch open_questions ──
   const fetchData = useCallback(async () => {
@@ -313,34 +282,19 @@ function QuestionDeck({
     fetchData();
   }, [fetchData, reloadKey]);
 
-  // ── Computed stats ──
-  const { areas, totalAnswered, totalPending, pctAnswered } = useMemo(() => {
-    if (!data?.areas) return { areas: {}, totalAnswered: 0, totalPending: 0, pctAnswered: 0 };
-    let ans = 0;
-    let pen = 0;
-    for (const [, qs] of Object.entries(data.areas)) {
-      for (const q of qs) {
-        if (q.status === 'answered') ans++;
-        else pen++;
-      }
-    }
-    const tot = ans + pen;
-    return {
-      areas: data.areas,
-      totalAnswered: ans,
-      totalPending: pen,
-      pctAnswered: tot > 0 ? (ans / tot) * 100 : 0,
-    };
-  }, [data]);
+  // ── Computed areas ──
+  const areas = data?.areas ?? {};
 
   // ── Mark question as answered (manual) ──
   const markAnswered = useCallback(async (area, index) => {
+    if (!student?.id) return;
     try {
       const ref = doc(db, 'students', student.id, 'ai_summaries', 'open_questions');
       const snap = await getDoc(ref);
-      if (!snap.exists()) return;
+      if (!snap.exists()) { notify.error('Questions have been refreshed - try reloading.'); return; }
       const current = snap.data();
       const normalized = normalizeAreas(current.areas);
+      if (!normalized[area]?.[index]) { notify.error('Question no longer available - try refreshing.'); return; }
       const questions = [...normalized[area]];
       questions[index] = {
         ...questions[index],
@@ -482,53 +436,16 @@ function QuestionDeck({
         {/* Content */}
         {!loading && !error && !isEmpty && (
           <>
-            {/* ── Progress summary ── */}
-            <Box
+            <Typography
               sx={{
-                display: 'flex',
-                gap: 2,
-                alignItems: 'center',
-                mb: 2.5,
-                p: 2,
-                backgroundColor: 'white',
-                borderRadius: '14px',
-                border: '1px solid rgba(0,0,0,0.08)',
+                fontSize: '0.88rem',
+                fontWeight: 600,
+                color: 'var(--color-text-soft)',
+                mb: 2,
               }}
             >
-              <ProgressRing value={pctAnswered} />
-              <Box sx={{ flex: 1, minWidth: 0 }}>
-                <Typography
-                  sx={{
-                    fontSize: '0.82rem',
-                    fontWeight: 600,
-                    color: 'var(--color-text)',
-                    lineHeight: 1.4,
-                    mb: 0.75,
-                  }}
-                >
-                  What Pep is still learning about {studentName}
-                </Typography>
-                <Stack direction="row" spacing={2} sx={{ flexWrap: 'wrap' }}>
-                  <Box sx={{ display: 'flex', alignItems: 'center', gap: 0.5 }}>
-                    <Box sx={{ width: 8, height: 8, borderRadius: '50%', backgroundColor: 'var(--color-secondary)', flexShrink: 0 }} />
-                    <Typography sx={{ fontSize: '0.7rem', color: 'var(--color-text-soft)' }}>
-                      {totalAnswered} answered
-                    </Typography>
-                  </Box>
-                  <Box sx={{ display: 'flex', alignItems: 'center', gap: 0.5 }}>
-                    <Box sx={{ width: 8, height: 8, borderRadius: '50%', backgroundColor: 'var(--color-primary)', flexShrink: 0 }} />
-                    <Typography sx={{ fontSize: '0.7rem', color: 'var(--color-text-soft)' }}>
-                      {totalPending} pending
-                    </Typography>
-                  </Box>
-                </Stack>
-                {data?.updatedAt && (
-                  <Typography sx={{ fontSize: '0.65rem', color: 'var(--color-text-faint)', mt: 0.25 }}>
-                    Updated {formatRelativeDate(data.updatedAt)}
-                  </Typography>
-                )}
-              </Box>
-            </Box>
+              Coach Pepper is curious about {studentName}
+            </Typography>
 
             {/* ── Area accordions ── */}
             {Object.entries(areas).sort(([a], [b]) => a.localeCompare(b)).map(([area, questions]) => (
@@ -538,7 +455,7 @@ function QuestionDeck({
                 questions={questions}
                 onAnswer={onAnswerQuestion}
                 onManualMark={handleManualMark}
-                onViewNote={onViewTimeline}
+                onViewNote={handleViewNote}
               />
             ))}
           </>
@@ -623,6 +540,16 @@ function QuestionDeck({
           </Button>
         </DialogActions>
       </Dialog>
+
+      <NoteBottomSheet
+        open={!!previewNote}
+        onClose={() => setPreviewNote(null)}
+        observation={previewNote}
+        student={student}
+        currentUser={currentUser}
+        userRole={null}
+        isClassroomContext={false}
+      />
     </Box>
   );
 }
