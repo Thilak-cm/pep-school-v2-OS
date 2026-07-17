@@ -1,16 +1,16 @@
 #!/usr/bin/env node
 
 /**
- * seed-telegram-alert-chatid.mjs
+ * add-telegram-alert-recipient.mjs
  *
  * Adds a chat ID to config/telegram_bot.alertChatIds array for data
  * integrity check alerts. Idempotent — won't add duplicates.
  *
  * Usage:
- *   node scripts/admin/seed-telegram-alert-chatid.mjs <chat_id>
+ *   node scripts/admin/add-telegram-alert-recipient.mjs <chat_id>
  *
  * Example:
- *   node scripts/admin/seed-telegram-alert-chatid.mjs 8210978985
+ *   node scripts/admin/add-telegram-alert-recipient.mjs 8210978985
  */
 
 import admin from "firebase-admin";
@@ -34,7 +34,7 @@ const db = admin.firestore();
 
 const chatId = process.argv[2];
 if (!chatId) {
-  console.error("Usage: node seed-telegram-alert-chatid.mjs <chat_id>");
+  console.error("Usage: node add-telegram-alert-recipient.mjs <chat_id>");
   process.exit(1);
 }
 

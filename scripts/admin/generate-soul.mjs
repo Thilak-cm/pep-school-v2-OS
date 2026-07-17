@@ -73,7 +73,7 @@ async function getSoulTemplateConfig(programId) {
   const docId = `soul_guidelines_${programId}`;
   const snap = await db.collection("config").doc(docId).get();
   if (!snap.exists) {
-    throw new Error(`Soul template not found: ${docId}. Run seed-soul-templates.mjs`);
+    throw new Error(`Soul template not found: ${docId}. Edit config directly in Firestore (seeder was removed)`);
   }
   const data = snap.data();
   if (!data.markdown || typeof data.markdown !== "string") {
