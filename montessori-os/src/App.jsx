@@ -31,6 +31,7 @@ function App() {
   const [_unauthorized, setUnauthorized] = useState(false);
   const [addNoteOpen, setAddNoteOpen] = useState(false);
   const [addNoteInitialStep, setAddNoteInitialStep] = useState('record');
+  const [addNoteOpenQuestion, setAddNoteOpenQuestion] = useState(null);
   const [prefilledFeedback, setPrefilledFeedback] = useState('');
   const [classrooms, setClassrooms] = useState([]);
   const [classroomsLoaded, setClassroomsLoaded] = useState(false);
@@ -38,6 +39,7 @@ function App() {
   const [noteDrawerOpen, setNoteDrawerOpen] = useState(false);
   const [broadcastDeepLink, setBroadcastDeepLink] = useState(null);
   const [alertBadgeCount, setAlertBadgeCount] = useState(0);
+  const [questionDeckReloadKey, setQuestionDeckReloadKey] = useState(0);
 
   const {
     screen, setScreen,
@@ -150,6 +152,12 @@ function App() {
     if (!info.navigate && timelineInjectRef.current && info.notes) {
       info.notes.forEach((note) => timelineInjectRef.current(note));
     }
+
+    // If an open question was answered, bump the reload key so QuestionDeck refreshes (#144)
+    if (info.openQuestionAnswered) {
+      setQuestionDeckReloadKey((k) => k + 1);
+    }
+
     // "View note" toast action - navigate to appropriate timeline
     if (info.navigate) {
       if (info.studentIds?.length === 1) {
@@ -412,6 +420,8 @@ function App() {
     getStudentDisplayName, broadcastDeepLink, setBroadcastDeepLink,
     pageTitle, backNavigation, showBackButton,
     onTimelineInjectReady,
+    setAddNoteOpenQuestion, setAddNoteInitialStep, setAddNoteOpen: setAddNoteOpen,
+    questionDeckReloadKey,
   };
 
   return (
@@ -477,12 +487,14 @@ function App() {
                 )}
                 <AddNoteModal
                   open={addNoteOpen}
-                  onClose={() => { setAddNoteOpen(false); setAddNoteInitialStep('record'); }}
+                  onClose={() => { setAddNoteOpen(false); setAddNoteInitialStep('record'); setAddNoteOpenQuestion(null); }}
                   onSave={handleNoteSaved}
                   initialStep={addNoteInitialStep}
-                  initialStudents={selectedStudent && (screen === 'timeline' || screen === 'studentDashboard' || screen === 'studentReportTypes' || screen === 'studentReports') ? [selectedStudent.id] : []}
+                  initialStudents={selectedStudent && (screen === 'timeline' || screen === 'studentDashboard' || screen === 'studentReportTypes' || screen === 'studentReports' || screen === 'questionDeck') ? [selectedStudent.id] : []}
                   currentUser={user}
                   userRole={role}
+                  openQuestion={addNoteOpenQuestion}
+                  lockStudents={!!addNoteOpenQuestion}
                 />
                 <UpdateNotification />
                 {showFooter && (

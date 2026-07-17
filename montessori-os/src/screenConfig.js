@@ -60,6 +60,9 @@ export function getPageTitle(screen, state) {
     case "studentDashboard":
       return `${state.getStudentDisplayName?.() || "Student"}'s Dashboard`;
 
+    case "questionDeck":
+      return `${state.getStudentDisplayName?.() || "Student"}'s Questions`;
+
     case "timeline":
       return state.timelineTitleAsDashboard
         ? `${state.getStudentDisplayName?.() || "Student"}'s Dashboard`
@@ -112,6 +115,7 @@ export function getBackNavigation(screen, state, setters) {
     case "timeline":
     case "childChat":
     case "studentReportTypes":
+    case "questionDeck":
       return () => setters.setScreen?.("studentDashboard");
     case "studentReports":
       return () => setters.setScreen?.("studentReportTypes");
@@ -167,6 +171,7 @@ export const FAB_HIDDEN_SCREENS = new Set([
   "studentAliases", "settings", "addUser", "childChat", "config",
   "configLessonNotes", "configAiTools", "configDigest", "chatCommandCentre",
   "reportGenConfig", "bulkUpload", "alerts", "interviews", "broadcastComposer",
+  "questionDeck",
 ]);
 
 // ── Footer tab mapping ─────────────────────────────────────────────────────

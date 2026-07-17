@@ -1017,8 +1017,8 @@ const ClassroomStudentPicker = forwardRef(function ClassroomStudentPicker({
                   <Chip
                     key={id}
                     label={label}
-                    onDelete={() => handleRemoveStudent(id)}
-                    deleteIcon={<Close size={20} />}
+                    onDelete={onStudentsChange ? () => handleRemoveStudent(id) : undefined}
+                    deleteIcon={onStudentsChange ? <Close size={20} /> : undefined}
                     color="primary"
                     variant="outlined"
                   />

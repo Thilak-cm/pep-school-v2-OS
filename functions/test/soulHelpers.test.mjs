@@ -356,17 +356,28 @@ guidelines_suggestions:
 // buildOpenQuestionsDoc (PEP-173, updated PEP-207: area-keyed shape)
 // ---------------------------------------------------------------------------
 
-test("buildOpenQuestionsDoc returns correct shape with areas", async () => {
+test("buildOpenQuestionsDoc returns enriched shape with status tracking (#144)", async () => {
   const { buildOpenQuestionsDoc } = await import("../utils/soulHelpers.js");
   const areas = {
     "Self-Regulation": ["How does the child handle frustration?"],
-    "Reading": ["What reading materials do they choose?"],
+    "Reading": ["What reading materials do they choose?", "How often does the child read independently?"],
   };
   const doc = buildOpenQuestionsDoc({ areas, programId: "primary" });
 
-  assert.deepStrictEqual(doc.areas, areas);
   assert.equal(doc.programId, "primary");
   assert.equal(doc.updatedBy, "cloud-function:soul-generate");
+  assert.equal(Object.keys(doc.areas).length, 2);
+  // Verify enriched shape
+  assert.equal(doc.areas["Self-Regulation"].length, 1);
+  assert.deepStrictEqual(doc.areas["Self-Regulation"][0], {
+    question: "How does the child handle frustration?",
+    status: "pending",
+  });
+  assert.equal(doc.areas["Reading"].length, 2);
+  assert.equal(doc.areas["Reading"][0].question, "What reading materials do they choose?");
+  assert.equal(doc.areas["Reading"][0].status, "pending");
+  assert.equal(doc.areas["Reading"][1].status, "pending");
+  // No legacy fields
   assert.equal(doc.questions, undefined, "should not have legacy questions field");
   assert.equal(doc.questionCount, undefined, "should not have legacy questionCount field");
 });

@@ -15,7 +15,7 @@ import {
   Popover,
   Tooltip
 } from '@mui/material';
-import { StickyNote as NotesIcon, MessageCircle as ChatIcon, ThumbsUp as FeedbackIcon, Info as InfoOutlined, RefreshCw as Refresh, Flag as FlagRounded, CircleCheck as CheckCircle, ClipboardList as ReportsIcon, TriangleAlert as WarningIcon, Pencil, Image as ImageIcon, X as CloseIcon, Upload as UploadIcon, Gauge } from '../icons';
+import { StickyNote as NotesIcon, MessageCircle as ChatIcon, ThumbsUp as FeedbackIcon, Info as InfoOutlined, RefreshCw as Refresh, Flag as FlagRounded, CircleCheck as CheckCircle, ClipboardList as ReportsIcon, TriangleAlert as WarningIcon, Pencil, Image as ImageIcon, X as CloseIcon, Upload as UploadIcon, Gauge, Lightbulb } from '../icons';
 import { QuickJumpButton, HFTabs } from './ui';
 import useNotify from '../notifications/useNotify';
 import { collection, collectionGroup, query, getDocs, where, orderBy, doc, getDoc, Timestamp, limit } from 'firebase/firestore';
@@ -29,12 +29,13 @@ import SnapshotBody from './SnapshotBody';
 import MonthlyPlanTab from './MonthlyPlanTab';
 import WritingAnalysisTab from './WritingAnalysisTab';
 import PlanFeedbackDialog from './PlanFeedbackDialog';
-import Coachmark from '../coachmark/Coachmark';
 import NotesOverTimeDrawer from './NotesOverTimeDrawer';
 import NoteBottomSheet from './noteBottomSheet/NoteBottomSheet';
 import { friendlyFunctionError } from '../utils/cloudFunctionErrors';
 import { calculateAgeFromDob } from '../utils/dateFormat';
 import { isSuperAdmin } from '../utils/roleUtils';
+import Coachmark from '../coachmark/Coachmark';
+import useCoachmark from '../coachmark/useCoachmark';
 
 /* Shared chip base sx for uniform toolbar items */
 const CHIP_BASE = {
@@ -54,7 +55,6 @@ const CHIP_BASE = {
 };
 
 const PLAN_PROGRAMS = ['toddler', 'primary'];
-const PLAN_FEEDBACK_COACHMARK_KEY = 'plan_feedback_v1';
 
 const SNAPSHOT_TABS_WITH_PLAN = [
   { label: 'Plan', value: 'plan' },
@@ -67,8 +67,10 @@ const SNAPSHOT_TABS_NO_PLAN = [
   { label: 'Writing', value: 'writing' },
 ];
 
-function StudentDashboard({ student, onOpenTimeline, onOpenFeedback, onOpenChat, onOpenReports, onNavigateToManageStudent, initialNoteType = 'textVoice', userRole, initialFlagOpen = false, onClearFlagOpen }) {
+function StudentDashboard({ student, onOpenTimeline, onOpenFeedback, onOpenChat, onOpenReports, onOpenQuestions, onNavigateToManageStudent, initialNoteType = 'textVoice', userRole, initialFlagOpen = false, onClearFlagOpen }) {
   const notify = useNotify();
+  const questionsCoachmark = useCoachmark('open_questions_v1');
+  const questionsButtonRef = useRef(null);
   const [activeTab, setActiveTab] = useState('weekly');
   const [cardLoading, setCardLoading] = useState(true);
   const [cardError, setCardError] = useState('');
@@ -933,18 +935,6 @@ function StudentDashboard({ student, onOpenTimeline, onOpenFeedback, onOpenChat,
               </Tooltip>
             )}
 
-            {/* Plan feedback coachmark — first-time discovery (PEP-322) */}
-            {activeTab === 'plan' && planData && (
-              <Coachmark
-                coachmarkKey={PLAN_FEEDBACK_COACHMARK_KEY}
-                title="Latest feature!"
-                body="Tap here to rate this plan and help improve future ones"
-                anchorRef={planFeedbackChipRef}
-                placement="bottom"
-                enabled={!planFeedbackOpen}
-              />
-            )}
-
             {/* Export to Drive chip — plan tab, superadmin only, only when plan exists */}
             {activeTab === 'plan' && isSuperAdmin(userRole) && planData && (
               <Tooltip title="Export to Google Drive" arrow>
@@ -1612,7 +1602,26 @@ function StudentDashboard({ student, onOpenTimeline, onOpenFeedback, onOpenChat,
       />
 
       {/* ── Quick jump buttons — pinned at bottom ── */}
-      <Box sx={{ display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', gap: 1, flexShrink: 0 }}>
+      <Box sx={{ display: 'grid', gridTemplateColumns: 'repeat(4, 1fr)', gap: 1, flexShrink: 0 }}>
+        <Box ref={questionsButtonRef} sx={{ position: 'relative' }}>
+          <QuickJumpButton
+            icon={<Lightbulb size={22} />}
+            label="Questions"
+            iconColor="var(--color-primary)"
+            onClick={() => { trackEvent('student_dashboard_card_click', { card: 'questions', studentId }).catch(() => {}); onOpenQuestions?.(); }}
+          />
+          {!questionsCoachmark.isDismissed && (
+            <Box sx={{
+              position: 'absolute', top: 4, right: 4,
+              px: 0.75, py: 0.25, borderRadius: '8px',
+              backgroundColor: 'var(--color-primary)',
+              color: '#fff', fontSize: '0.6rem', fontWeight: 700,
+              lineHeight: 1.2, pointerEvents: 'none',
+            }}>
+              New
+            </Box>
+          )}
+        </Box>
         <QuickJumpButton
           icon={<NotesIcon size={22} />}
           label="Timeline"
@@ -1632,6 +1641,15 @@ function StudentDashboard({ student, onOpenTimeline, onOpenFeedback, onOpenChat,
           onClick={() => { trackEvent('student_dashboard_card_click', { card: 'chat', studentId }).catch(() => {}); onOpenChat?.(); }}
         />
       </Box>
+
+      {/* Coachmark for Questions button (#144) */}
+      <Coachmark
+        coachmarkKey="open_questions_v1"
+        title="Open Questions"
+        body="See what Pep still needs to learn about this student. Answer questions to help the AI build a deeper understanding."
+        anchorRef={questionsButtonRef}
+        placement="top"
+      />
     </Box>
   );
 }

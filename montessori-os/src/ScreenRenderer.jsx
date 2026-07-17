@@ -32,6 +32,7 @@ import BulkUploadPage from "./components/BulkUploadPage.jsx";
 import BroadcastComposer from "./components/BroadcastComposer.jsx";
 import LessonNoteConfigEditor from "./components/LessonNoteConfigEditor.jsx";
 import WeeklyDigestConfigEditor from "./components/WeeklyDigestConfigEditor.jsx";
+import QuestionDeck from "./components/QuestionDeck.jsx";
 
 /**
  * Renders the correct screen component based on the current `screen` value.
@@ -130,6 +131,7 @@ function renderScreen(screen, ctx) {
           onOpenFeedback={ctx.openFeedbackWithMessage}
           onOpenChat={() => ctx.setScreen("childChat")}
           onOpenReports={() => ctx.setScreen("studentReportTypes")}
+          onOpenQuestions={() => ctx.setScreen("questionDeck")}
           onNavigateToManageStudent={ctx.isTeacher ? undefined : (studentId) => {
             ctx.setInitialStudentId(studentId);
             ctx.setUsersAccessView("manage");
@@ -137,6 +139,20 @@ function renderScreen(screen, ctx) {
           }}
           initialFlagOpen={ctx.studentDashboardFlagOpen}
           onClearFlagOpen={() => ctx.setStudentDashboardFlagOpen(false)}
+        />
+      );
+
+    case "questionDeck":
+      return (
+        <QuestionDeck
+          student={ctx.selectedStudent}
+          currentUser={ctx.user}
+          reloadKey={ctx.questionDeckReloadKey}
+          onAnswerQuestion={(oq) => {
+            ctx.setAddNoteOpenQuestion(oq);
+            ctx.setAddNoteInitialStep("record");
+            ctx.setAddNoteOpen(true);
+          }}
         />
       );
 

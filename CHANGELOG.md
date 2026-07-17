@@ -1,5 +1,24 @@
 # Changelog
 
+# 11.4.0 — 2026-07-16
+
+### Added
+- Question Deck screen accessible from student dashboard - shows AI-generated open questions organized by area with accordion layout, answer progress, and "Coach Pepper is curious about" subtitle (#144)
+- Voice answer flow: tap "Answer" to open AddNoteModal with locked student and question context, saves observation linked to the question (#144)
+- Manual "Mark as answered" with confirmation dialog (#144)
+- "View note" on answered questions opens NoteBottomSheet directly on the Question Deck (#144)
+- Indigo "Answers: [question]" chip on timeline note cards for notes that answered open questions (#144)
+- "New" pill and coachmark on Questions button in student dashboard (#144)
+- `regenerateSoulsMonthly` scheduled Cloud Function - regenerates soul + open questions for all active students on the 1st of each month at 2am IST (#144)
+- Enriched `open_questions` data shape with per-question status tracking (`pending`/`answered`, `answeredAt`, `method`, `observationId`, `answeredBy`) (#144)
+- Firestore rule for teacher and classroomadmin updates on `open_questions` doc with field-level guard (#144)
+
+### Changed
+- `generateStudentProfile` callable refactored to share core logic with monthly scheduled CF via `generateSoulForStudent` helper (#144)
+- `buildOpenQuestionsDoc` now produces enriched question objects instead of flat string arrays (#144)
+- Testbench interview consumers updated for backward compatibility with enriched open_questions shape (#144)
+- Student dashboard quick-jump grid expanded from 3 to 4 columns (#144)
+
 # 11.3.5 — 2026-07-08
 
 ### Changed

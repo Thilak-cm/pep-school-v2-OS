@@ -14,6 +14,7 @@ function getHeaderActions(screen, ctx) {
     case 'timeline':
     case 'studentReports':
     case 'childChat':
+    case 'questionDeck':
       return ctx.selectedStudent ? (
         <Avatar name={ctx.getStudentDisplayName(ctx.selectedStudent)} size="sm" />
       ) : null;
@@ -22,7 +23,7 @@ function getHeaderActions(screen, ctx) {
   }
 }
 
-const AGE_SCREENS = new Set(['studentDashboard', 'timeline', 'studentReportTypes', 'studentReports', 'childChat']);
+const AGE_SCREENS = new Set(['studentDashboard', 'timeline', 'studentReportTypes', 'studentReports', 'childChat', 'questionDeck']);
 
 export default function AppHeader({ screen, ctx, onTitleClick }) {
   const onBack = ctx.showBackButton ? ctx.backNavigation : undefined;

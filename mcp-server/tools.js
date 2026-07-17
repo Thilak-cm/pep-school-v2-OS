@@ -452,6 +452,30 @@ export const TOOL_DEFINITIONS = [
     },
   },
 
+  // ── Plan Feedback ──
+  {
+    name: "list_plan_feedback",
+    description:
+      "List monthly plan feedback across all students (collection group query on monthly_plan_feedback). Each doc has: difficulty, pace, text, planMonth, createdBy, createdByName, createdAt. studentId is derived from the document path. Ordered by most recent first.",
+    inputSchema: {
+      type: "object",
+      properties: {
+        studentId: {
+          type: "string",
+          description: "Filter by student document ID (post-query filter on path).",
+        },
+        createdBy: {
+          type: "string",
+          description: "Filter by user ID who submitted the feedback.",
+        },
+        limit: {
+          type: "number",
+          description: "Max entries to return (default: 50).",
+        },
+      },
+    },
+  },
+
   // ── Test Bench ──
   {
     name: "list_testbench_runs",
@@ -1144,6 +1168,31 @@ export async function handleListFeedback(db, params) {
   const results = [];
   snap.forEach((doc) => {
     results.push(serializeTimestamps({ id: doc.id, ...doc.data() }));
+  });
+
+  return results;
+}
+
+// ── Plan Feedback ──
+
+export async function handleListPlanFeedback(db, params) {
+  const { studentId, createdBy, limit: maxResults = 50 } = params || {};
+
+  let query = db.collectionGroup("monthly_plan_feedback");
+
+  if (createdBy) query = query.where("createdBy", "==", createdBy);
+
+  query = query.orderBy("createdAt", "desc").limit(maxResults);
+  const snap = await query.get();
+
+  const results = [];
+  snap.forEach((doc) => {
+    // Path: students/{studentId}/ai_summaries/monthly_plan/monthly_plan_feedback/{id}
+    const pathStudentId = doc.ref.parent.parent?.parent?.parent?.id;
+    if (studentId && pathStudentId !== studentId) return;
+    results.push(
+      serializeTimestamps({ id: doc.id, studentId: pathStudentId, ...doc.data() })
+    );
   });
 
   return results;

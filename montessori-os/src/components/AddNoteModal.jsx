@@ -23,7 +23,7 @@ import InlineVoiceOverlay from './InlineVoiceOverlay';
 import { cleanUpText } from '../textCleanup';
 import { trackEvent, lengthBucket } from '../utils/analytics';
 import ClassroomStudentPicker from './ClassroomStudentPicker';
-import { collection, getDoc, doc, query, where, limit, getDocs, setDoc, deleteDoc, serverTimestamp, updateDoc, arrayUnion } from 'firebase/firestore';
+import { collection, getDoc, doc, query, where, limit, getDocs, setDoc, deleteDoc, serverTimestamp, updateDoc, arrayUnion, Timestamp } from 'firebase/firestore';
 import { deleteObject, ref, uploadBytesResumable } from 'firebase/storage';
 import { db, cloudFunctions, storage } from '../firebase';
 import { buildMediaDocData } from '../utils/mediaDocBuilder';
@@ -308,7 +308,9 @@ function AddNoteModal({
   initialStudents = [],
   initialStep = STEP_RECORD,
   currentUser,
-  userRole
+  userRole,
+  openQuestion = null,
+  lockStudents = false,
 }) {
   const notify = useNotify();
   const [step, setStep] = useState(initialStep);
@@ -1848,6 +1850,7 @@ function AddNoteModal({
             ? { detectedLanguage: transcriptionData.detectedLanguage }
             : {}),
           ...(coachPayload ? { coach: coachPayload } : {}),
+          ...(openQuestion ? { openQuestion: { version: openQuestion.version || '', area: openQuestion.area, index: openQuestion.index, questionText: openQuestion.questionText } } : {}),
         };
 
         const cleaned = Object.fromEntries(
@@ -1883,6 +1886,39 @@ function AddNoteModal({
       }));
 
       const classroomId = savedNotes[0]?.classroomId;
+
+      // Update open_questions doc to mark question as answered (#144)
+      let openQuestionAnswered = false;
+      if (openQuestion && selectedStudents.length === 1) {
+        try {
+          const studentId = selectedStudents[0];
+          const oqRef = doc(db, 'students', studentId, 'ai_summaries', 'open_questions');
+          const oqSnap = await getDoc(oqRef);
+          if (oqSnap.exists()) {
+            const oqData = oqSnap.data();
+            const rawQuestions = oqData.areas?.[openQuestion.area];
+            if (rawQuestions && rawQuestions[openQuestion.index]) {
+              const normalized = rawQuestions.map((q) => typeof q === 'string' ? { question: q, status: 'pending' } : q);
+              const updated = [...normalized];
+              updated[openQuestion.index] = {
+                ...updated[openQuestion.index],
+                status: 'answered',
+                answeredAt: Timestamp.now(),
+                method: 'voice',
+                observationId: savedNotes[0]?.id || null,
+                answeredBy: { uid: currentUser?.uid || '', name: currentUser?.displayName || 'Unknown' },
+              };
+              await setDoc(oqRef, { areas: { ...oqData.areas, [openQuestion.area]: updated } }, { merge: true });
+              openQuestionAnswered = true;
+            }
+          }
+        } catch (err) {
+          console.error('[AddNoteModal] Failed to update open question status:', err);
+          // Note is saved; mark answered so QuestionDeck refreshes and shows actual state
+          openQuestionAnswered = true;
+        }
+      }
+
       if (onSave) {
         onSave({
           noteType,
@@ -1890,6 +1926,7 @@ function AddNoteModal({
           classroomId,
           notes: savedNotes,
           students: studentDataMap,
+          openQuestionAnswered,
         });
       }
 
@@ -2748,10 +2785,26 @@ function AddNoteModal({
             minHeight: 'fit-content'
           }}>
 
+            {/* Open question context banner (#144) */}
+            {openQuestion && (
+              <Box sx={{
+                p: 1.5, borderRadius: 2,
+                backgroundColor: 'rgba(79, 70, 229, 0.06)',
+                border: '1px solid rgba(79, 70, 229, 0.15)',
+              }}>
+                <Typography sx={{ fontSize: '0.7rem', fontWeight: 700, color: 'var(--color-primary)', mb: 0.5, textTransform: 'uppercase', letterSpacing: '0.05em' }}>
+                  Answering question
+                </Typography>
+                <Typography sx={{ fontSize: '0.82rem', color: 'var(--color-text)', fontStyle: 'italic', lineHeight: 1.4 }}>
+                  {openQuestion.questionText}
+                </Typography>
+              </Box>
+            )}
+
             <Box sx={{ flex: 1, minHeight: 300 }}>
               <ClassroomStudentPicker
                 selectedStudents={selectedStudents}
-                onStudentsChange={handleStudentsChange}
+                onStudentsChange={lockStudents ? undefined : handleStudentsChange}
                 currentUser={currentUser}
                 userRole={userRole}
                 textData={textData}
