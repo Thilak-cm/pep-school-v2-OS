@@ -1,7 +1,7 @@
 # Pep OS Overview
 
-Generated: 2026-07-09T07:59:35.897Z
-App version: 11.3.5
+Generated: 2026-07-17T02:05:42.502Z
+App version: 11.4.0
 
 ## App Snapshot
 
@@ -93,8 +93,8 @@ App version: 11.3.5
 - `montessori-os/src/components/UsersAccessPage.jsx`
 
 ### Settings, Feedback, and App Shell (`settings-feedback-shell`)
-- Count: 45
-- Components: `App`, `AppFooter`, `AppHeader`, `BroadcastComposer`, `BroadcastComposer.test`, `BulkUploadPage`, `BulkUploadPage.helpers`, `BulkUploadPage.test`, `ClassroomNoteCard`, `ClassroomStudentCard`, `CopyToClipboardButton`, `DynamicIslandPill`, `DynamicIslandPill.test`, `FeedbackPage`, `GroupedNoteCard`, `GroupedNoteDialog`, `InlineVoiceOverlay`, `InterviewsPage`, `InterviewsPage.helpers`, `InterviewsPage.test`, `LandingPage`, `LandingPage.test`, `MonthlyPlanTab`, `MonthlyPlanTab.test`, `NoteBottomSheet.structure.test`, `NotesOverTimeDrawer`, `PlanFeedbackDialog`, `PlanFeedbackDialog.test`, `ProfilePage`, `ReadinessCheckDialog`, `ReportGenerateDialog`, `ReportPreviewDialog`, `ReportsCard`, `ReportsPage`, `ReportsPage.test`, `ReportTypeLandingPage`, `ReportTypeLandingPage.test`, `ReviewClassroomNotes`, `SettingsPage`, `SettingsPage.test`, `SnapshotBody`, `SnapshotCard`, `VersionBadge`, `WritingAnalysisTab`, `WritingAnalysisTab.test`
+- Count: 46
+- Components: `App`, `AppFooter`, `AppHeader`, `BroadcastComposer`, `BroadcastComposer.test`, `BulkUploadPage`, `BulkUploadPage.helpers`, `BulkUploadPage.test`, `ClassroomNoteCard`, `ClassroomStudentCard`, `CopyToClipboardButton`, `DynamicIslandPill`, `DynamicIslandPill.test`, `FeedbackPage`, `GroupedNoteCard`, `GroupedNoteDialog`, `InlineVoiceOverlay`, `InterviewsPage`, `InterviewsPage.helpers`, `InterviewsPage.test`, `LandingPage`, `LandingPage.test`, `MonthlyPlanTab`, `MonthlyPlanTab.test`, `NoteBottomSheet.structure.test`, `NotesOverTimeDrawer`, `PlanFeedbackDialog`, `PlanFeedbackDialog.test`, `ProfilePage`, `QuestionDeck`, `ReadinessCheckDialog`, `ReportGenerateDialog`, `ReportPreviewDialog`, `ReportsCard`, `ReportsPage`, `ReportsPage.test`, `ReportTypeLandingPage`, `ReportTypeLandingPage.test`, `ReviewClassroomNotes`, `SettingsPage`, `SettingsPage.test`, `SnapshotBody`, `SnapshotCard`, `VersionBadge`, `WritingAnalysisTab`, `WritingAnalysisTab.test`
 - Representative paths:
 - `montessori-os/src/App.jsx`
 - `montessori-os/src/AppFooter.jsx`
@@ -149,6 +149,11 @@ App version: 11.3.5
 
 ## Recent Changes
 
+### 11.4.0 (2026-07-16)
+- Question Deck screen accessible from student dashboard - shows AI-generated open questions organized by area with accordion layout, answer progress, and "Coach Pepper is curious about" subtitle (#144)
+- Voice answer flow: tap "Answer" to open AddNoteModal with locked student and question context, saves observation linked to the question (#144)
+- Manual "Mark as answered" with confirmation dialog (#144)
+
 ### 11.3.5 (2026-07-08)
 - Note saves (text, voice, media, lesson) are now synchronous - modal waits for Firestore write to complete before dismissing, replacing async background queue (#129)
 - "Note saved" toast includes a "View" button that navigates to the note in the appropriate timeline (#129)
@@ -163,9 +168,4 @@ App version: 11.3.5
 - Baseball card pipeline now uses per-program config docs (`baseball_card_primary`, `baseball_card_toddler`, `baseball_card_elementary`, `baseball_card_adolescent`) with program-specific curriculum domains — elementary/adolescent students no longer get "Practical Life" or "Sensorial" as false coverage gaps (#132)
 - Frontend baseball card config reads use per-program doc matching the student's program instead of the deprecated single `config/baseball_card` doc (#132)
 - `regenerateBaseballCardForStudent` now propagates generation failures to the caller instead of returning false success (#132)
-
-### 11.3.2 (2026-07-03)
-- Classroom-level and per-teacher stats deduped by groupId — group notes count as 1 act of documentation regardless of student count (#130)
-- Stats fields renamed by intent: classroom `noteCounts` → `effortCounts`, `activity` → `effortActivity`; per-student `totalNotes` → `totalMentions` (#130)
-- Overview Activity Trend chart shows 3 colored lines (observations, lessons, media) instead of 1 aggregate line (#130)
 
