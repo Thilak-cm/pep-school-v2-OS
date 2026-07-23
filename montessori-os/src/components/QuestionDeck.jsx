@@ -365,6 +365,7 @@ function QuestionDeck({
   const [data, setData] = useState(null);
   const [confirmDialog, setConfirmDialog] = useState(null); // { area, index, questionText }
   const [previewNote, setPreviewNote] = useState(null);
+  const [openQuestionsVersion, setOpenQuestionsVersion] = useState(null); // updatedAt millis (#215)
 
   // ── View note in bottom sheet ──
   const handleViewNote = useCallback(async (observationId) => {
@@ -392,8 +393,10 @@ function QuestionDeck({
       if (snap.exists()) {
         const raw = snap.data();
         setData({ ...raw, areas: normalizeAreas(raw.areas) });
+        setOpenQuestionsVersion(raw.updatedAt?.toMillis?.() ?? null);
       } else {
         setData(null);
+        setOpenQuestionsVersion(null);
       }
     } catch (err) {
       console.error('QuestionDeck: fetch error', err);
@@ -419,6 +422,11 @@ function QuestionDeck({
         const snap = await transaction.get(ref);
         if (!snap.exists()) throw new Error('doc-missing');
         const current = snap.data();
+        // Version check: reject if doc was regenerated since we loaded (#215)
+        const currentVersion = current.updatedAt?.toMillis?.() ?? null;
+        if (openQuestionsVersion != null && currentVersion !== openQuestionsVersion) {
+          throw new Error('version-mismatch');
+        }
         const normalized = normalizeAreas(current.areas);
         if (!normalized[area]?.[index]) throw new Error('question-missing');
         const questions = [...normalized[area]];
@@ -443,7 +451,10 @@ function QuestionDeck({
       trackEvent('question_deck_mark_answered', { area, method: 'manual', studentId: student.id });
     } catch (err) {
       console.error('QuestionDeck: mark answered error', err);
-      if (err.message === 'doc-missing') {
+      if (err.message === 'version-mismatch') {
+        notify.error('These questions were updated - please try again.');
+        fetchData();
+      } else if (err.message === 'doc-missing') {
         notify.error('Questions have been refreshed - try reloading.');
       } else if (err.message === 'question-missing') {
         notify.error('Question no longer available - try refreshing.');
@@ -451,7 +462,7 @@ function QuestionDeck({
         notify.error('Failed to update question');
       }
     }
-  }, [student?.id, currentUser, notify]);
+  }, [student?.id, currentUser, notify, openQuestionsVersion, fetchData]);
 
   // ── Handle manual mark action ──
   const handleManualMark = useCallback((area, index) => {
@@ -464,9 +475,9 @@ function QuestionDeck({
     if (!confirmDialog) return;
     const { area, index, questionText } = confirmDialog;
     setConfirmDialog(null);
-    onAnswerQuestion?.({ area, index, questionText });
+    onAnswerQuestion?.({ area, index, questionText, version: openQuestionsVersion });
     trackEvent('question_deck_record_answer', { area, studentId: student?.id });
-  }, [confirmDialog, onAnswerQuestion, student?.id]);
+  }, [confirmDialog, onAnswerQuestion, student?.id, openQuestionsVersion]);
 
   const handleConfirmMark = useCallback(() => {
     if (!confirmDialog) return;
@@ -477,13 +488,13 @@ function QuestionDeck({
 
   // ── Handle answer action (#216) ──
   const handleAnswerQuestion = useCallback((oq) => {
-    onAnswerQuestion?.(oq);
+    onAnswerQuestion?.({ ...oq, version: openQuestionsVersion });
     const q = data?.areas?.[oq.area]?.[oq.index];
     const ctaState = getQuestionCTAState(q, currentUser?.uid);
     if (ctaState === 'self-answered') {
       trackEvent('question_deck_add_more', { area: oq.area, studentId: student?.id });
     }
-  }, [data, currentUser?.uid, onAnswerQuestion, student?.id]);
+  }, [data, currentUser?.uid, onAnswerQuestion, student?.id, openQuestionsVersion]);
 
   // ── Render states ──
 

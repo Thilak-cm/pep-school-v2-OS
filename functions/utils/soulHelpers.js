@@ -259,6 +259,23 @@ export function buildOpenQuestionsDoc({ areas, programId }) {
 }
 
 /**
+ * Build a history snapshot from a previous open_questions document.
+ * Unlike buildHistorySnapshot (soul-specific), this preserves all fields
+ * from the raw doc and adds archival metadata.
+ *
+ * @param {Object} prevDoc - Previous open_questions document data
+ * @param {import("firebase-admin/firestore").Timestamp} archivedAt - Timestamp of archival
+ * @returns {Object} History document fields
+ */
+export function buildOpenQuestionsHistorySnapshot(prevDoc, archivedAt) {
+  return {
+    ...prevDoc,
+    archivedAt,
+    archivedBy: "cloud-function:soul-generate",
+  };
+}
+
+/**
  * Build the Firestore document shape for a soul doc.
  *
  * @param {Object} params

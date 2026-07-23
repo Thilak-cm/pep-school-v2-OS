@@ -11,6 +11,7 @@ import {
   buildSoulDoc,
   buildGuidelinesDoc,
   buildOpenQuestionsDoc,
+  buildOpenQuestionsHistorySnapshot,
   buildHistorySnapshot,
   hasEmergentObservations,
   extractGuidelinesSuggestions,
@@ -183,7 +184,16 @@ async function writeSoulAndGuidelines(studentId, soulContent, programId, templat
   soulDoc.classroomId = classroomId;
   batch.set(soulRef, soulDoc);
 
-  // Write open_questions doc (full overwrite, no archiving)
+  // Snapshot previous open_questions to history before overwrite (#215)
+  const existingOQ = await openQuestionsRef.get();
+  if (existingOQ.exists) {
+    const prevOQ = existingOQ.data();
+    const oqHistoryRef = openQuestionsRef.collection("history")
+      .doc(prevOQ.updatedAt.toMillis().toString());
+    batch.set(oqHistoryRef, buildOpenQuestionsHistorySnapshot(prevOQ, now));
+  }
+
+  // Write open_questions doc (full overwrite)
   const oqDoc = buildOpenQuestionsDoc({ areas: openQuestionAreas, programId });
   oqDoc.updatedAt = now;
   oqDoc.classroomId = classroomId;

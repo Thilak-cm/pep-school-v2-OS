@@ -391,6 +391,42 @@ test("buildOpenQuestionsDoc handles empty areas object", async () => {
 });
 
 // ---------------------------------------------------------------------------
+// buildOpenQuestionsHistorySnapshot (#215)
+// ---------------------------------------------------------------------------
+
+test("buildOpenQuestionsHistorySnapshot preserves all original fields and adds archival metadata", async () => {
+  const { buildOpenQuestionsHistorySnapshot } = await import("../utils/soulHelpers.js");
+  const prevDoc = {
+    areas: {
+      "Math": [{ question: "How does the child count?", answers: [] }],
+      "Reading": [{ question: "What books do they choose?", answers: [{ answeredBy: { uid: "u1", name: "Priya" } }] }],
+    },
+    programId: "primary",
+    classroomId: "allstars",
+    updatedBy: "cloud-function:soul-generate",
+    updatedAt: { toMillis: () => 1751654400000 },
+  };
+  const archivedAt = new Date("2026-08-01T02:00:00Z");
+
+  const snapshot = buildOpenQuestionsHistorySnapshot(prevDoc, archivedAt);
+  assert.deepStrictEqual(snapshot.areas, prevDoc.areas, "should preserve areas with answer data");
+  assert.equal(snapshot.programId, "primary");
+  assert.equal(snapshot.classroomId, "allstars");
+  assert.equal(snapshot.updatedBy, "cloud-function:soul-generate");
+  assert.equal(snapshot.archivedAt, archivedAt);
+  assert.equal(snapshot.archivedBy, "cloud-function:soul-generate");
+});
+
+test("buildOpenQuestionsHistorySnapshot does not mutate the original doc", async () => {
+  const { buildOpenQuestionsHistorySnapshot } = await import("../utils/soulHelpers.js");
+  const prevDoc = { areas: {}, programId: "toddler", updatedBy: "cloud-function:soul-generate" };
+  const snapshot = buildOpenQuestionsHistorySnapshot(prevDoc, new Date());
+  assert.equal(prevDoc.archivedAt, undefined, "original doc should not have archivedAt");
+  assert.equal(prevDoc.archivedBy, undefined, "original doc should not have archivedBy");
+  assert.ok(snapshot.archivedAt, "snapshot should have archivedAt");
+});
+
+// ---------------------------------------------------------------------------
 // hasInformationGaps removed (PEP-207)
 // ---------------------------------------------------------------------------
 

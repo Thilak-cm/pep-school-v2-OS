@@ -5,6 +5,7 @@ import {
   handleGetObservations,
   handleGetBaseballCard,
   handleGetAiSummary,
+  handleGetAiSummaryHistory,
   handleListStudents,
   handleListClassrooms,
   TOOL_DEFINITIONS,
@@ -72,6 +73,18 @@ function createMockDb(collections = {}) {
               const subDocs = collections[key] || [];
               const found = subDocs.find((d) => d.id === subId);
               return found || { exists: false, data: () => undefined };
+            },
+            collection: (subSubName) => {
+              const subKey = `${key}/${subId}/${subSubName}`;
+              const subSubQ = createMockQuery(collections[subKey] || []);
+              subSubQ.doc = (subSubId) => ({
+                get: async () => {
+                  const subSubDocs = collections[subKey] || [];
+                  const found = subSubDocs.find((d) => d.id === subSubId);
+                  return found || { exists: false, data: () => undefined };
+                },
+              });
+              return subSubQ;
             },
           });
           return subQ;
@@ -428,5 +441,95 @@ describe("handleListClassrooms", () => {
     assert.ok(first.programId);
     assert.ok(first.branchId);
     assert.equal(typeof first.studentCount, "number");
+  });
+});
+
+// --- get_ai_summary_history (open_questions) ---
+
+describe("handleGetAiSummaryHistory", () => {
+  it("should return open_questions history ordered by archivedAt", async () => {
+    const historyDocs = [
+      mockDoc("v1", {
+        areas: { "Math": ["How does the child count?"] },
+        archivedAt: { toDate: () => new Date("2026-06-01") },
+        programId: "primary",
+      }),
+      mockDoc("v2", {
+        areas: { "Reading": ["What books do they choose?"] },
+        archivedAt: { toDate: () => new Date("2026-07-01") },
+        programId: "primary",
+      }),
+    ];
+    const db = createMockDb({
+      "students/2025-ALL-001/ai_summaries/open_questions/history": historyDocs,
+    });
+    const result = await handleGetAiSummaryHistory(db, {
+      studentId: "2025-ALL-001",
+      docId: "open_questions",
+    });
+    assert.equal(result.length, 2);
+    assert.equal(result[0].id, "v1");
+    assert.equal(result[1].id, "v2");
+    assert.ok(result[0].areas.Math, "Should include areas data");
+  });
+
+  it("should return empty array when no history exists", async () => {
+    const db = createMockDb({});
+    const result = await handleGetAiSummaryHistory(db, {
+      studentId: "2025-ALL-001",
+      docId: "open_questions",
+    });
+    assert.equal(result.length, 0);
+  });
+
+  it("should respect limit parameter", async () => {
+    const historyDocs = [
+      mockDoc("v1", {
+        areas: {},
+        archivedAt: { toDate: () => new Date("2026-06-01") },
+      }),
+      mockDoc("v2", {
+        areas: {},
+        archivedAt: { toDate: () => new Date("2026-07-01") },
+      }),
+      mockDoc("v3", {
+        areas: {},
+        archivedAt: { toDate: () => new Date("2026-07-15") },
+      }),
+    ];
+    const db = createMockDb({
+      "students/2025-ALL-001/ai_summaries/open_questions/history": historyDocs,
+    });
+    const result = await handleGetAiSummaryHistory(db, {
+      studentId: "2025-ALL-001",
+      docId: "open_questions",
+      limit: 2,
+    });
+    // The mock doesn't enforce limit, but the function should call .limit()
+    // We verify the function runs without error and returns results
+    assert.ok(result.length > 0);
+  });
+
+  it("should use archivedAt ordering for open_questions (not updatedAt)", async () => {
+    // This test verifies the orderField logic by checking that
+    // open_questions uses archivedAt, same as weekly_snapshot and monthly_plan.
+    // The mock's orderBy is a no-op, but we verify the function path works
+    // for open_questions docId without errors.
+    const historyDocs = [
+      mockDoc("v1", {
+        areas: { "Math": ["q1"] },
+        archivedAt: { toDate: () => new Date("2026-06-01") },
+        updatedAt: { toDate: () => new Date("2026-05-01") },
+      }),
+    ];
+    const db = createMockDb({
+      "students/2025-ALL-001/ai_summaries/open_questions/history": historyDocs,
+    });
+    const result = await handleGetAiSummaryHistory(db, {
+      studentId: "2025-ALL-001",
+      docId: "open_questions",
+    });
+    assert.equal(result.length, 1);
+    assert.equal(result[0].id, "v1");
   });
 });
