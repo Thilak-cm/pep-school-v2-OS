@@ -18,9 +18,22 @@ function normalizeAreas(areas) {
   const out = {};
   for (const [area, questions] of Object.entries(areas)) {
     if (!Array.isArray(questions)) continue;
-    out[area] = questions.map((q) =>
-      typeof q === "string" ? { question: q, answers: [] } : q,
-    );
+    out[area] = questions.map((q) => {
+      if (typeof q === "string") return { question: q, answers: [] };
+      if (q.answers) return q;
+      if (q.status === "answered") {
+        return {
+          question: q.question,
+          answers: [{
+            answeredAt: q.answeredAt || null,
+            method: q.method || "voice",
+            observationId: q.observationId || null,
+            answeredBy: q.answeredBy || { uid: "", name: "Unknown" },
+          }],
+        };
+      }
+      return { question: q.question, answers: [] };
+    });
   }
   return out;
 }
@@ -81,6 +94,33 @@ describe("normalizeAreas (#216)", () => {
   it("skips non-array area values", () => {
     const result = normalizeAreas({ "Math": "not an array" });
     assert.deepStrictEqual(result, {});
+  });
+
+  it("converts legacy #144 flat answered shape to answers array", () => {
+    const input = {
+      "Math": [{
+        question: "How does the child count?",
+        status: "answered",
+        answeredAt: 1234567890,
+        method: "voice",
+        observationId: "obs1",
+        answeredBy: { uid: "u1", name: "Priya" },
+      }],
+    };
+    const result = normalizeAreas(input);
+    assert.equal(result.Math[0].answers.length, 1);
+    assert.equal(result.Math[0].answers[0].method, "voice");
+    assert.equal(result.Math[0].answers[0].observationId, "obs1");
+    assert.equal(result.Math[0].answers[0].answeredBy.uid, "u1");
+    assert.equal(result.Math[0].status, undefined, "legacy status field should be stripped");
+  });
+
+  it("converts legacy #144 flat pending shape to empty answers array", () => {
+    const input = {
+      "Math": [{ question: "How does the child count?", status: "pending" }],
+    };
+    const result = normalizeAreas(input);
+    assert.deepStrictEqual(result.Math[0], { question: "How does the child count?", answers: [] });
   });
 });
 

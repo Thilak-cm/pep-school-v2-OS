@@ -28,7 +28,7 @@ export function pickRandomAreas(areas, n) {
 
 /**
  * Pick a random question from the selected areas.
- * Supports both enriched shape (#144: [{question, status}]) and
+ * Supports multi-POV shape (#216: [{question, answers}]) and
  * legacy string arrays for backwards compatibility.
  * @param {{ [areaName: string]: Array<string|{question: string}> }} areas - Full areas object
  * @param {string[]} selectedAreaKeys - Area keys to pick from

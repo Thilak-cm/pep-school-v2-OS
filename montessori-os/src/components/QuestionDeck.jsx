@@ -33,7 +33,8 @@ import NoteBottomSheet from './noteBottomSheet/NoteBottomSheet';
 // ── Helpers ──
 
 /**
- * Normalize areas from Firestore - handles legacy string array format
+ * Normalize areas from Firestore - handles legacy string array format,
+ * legacy #144 flat-object format ({ question, status, answeredAt, ... }),
  * and produces multi-POV shape with answers array (#216).
  */
 function normalizeAreas(areas) {
@@ -41,9 +42,23 @@ function normalizeAreas(areas) {
   const out = {};
   for (const [area, questions] of Object.entries(areas)) {
     if (!Array.isArray(questions)) continue;
-    out[area] = questions.map((q) =>
-      typeof q === 'string' ? { question: q, answers: [] } : q,
-    );
+    out[area] = questions.map((q) => {
+      if (typeof q === 'string') return { question: q, answers: [] };
+      if (q.answers) return q;
+      // Legacy #144 flat shape: synthesize answers array from flat fields
+      if (q.status === 'answered') {
+        return {
+          question: q.question,
+          answers: [{
+            answeredAt: q.answeredAt || null,
+            method: q.method || 'voice',
+            observationId: q.observationId || null,
+            answeredBy: q.answeredBy || { uid: '', name: 'Unknown' },
+          }],
+        };
+      }
+      return { question: q.question, answers: [] };
+    });
   }
   return out;
 }
@@ -142,7 +157,7 @@ function AnswerList({ answers, onViewNote }) {
                     fontSize: '0.65rem', fontWeight: 600, color: 'var(--color-primary)',
                     border: '1px solid rgba(79, 70, 229, 0.25)', borderRadius: '12px',
                     backgroundColor: 'rgba(79, 70, 229, 0.06)', px: 0.75, py: 0.15,
-                    cursor: 'pointer', whiteSpace: 'nowrap', background: 'rgba(79, 70, 229, 0.06)',
+                    cursor: 'pointer', whiteSpace: 'nowrap',
                     '&:hover': { backgroundColor: 'rgba(79, 70, 229, 0.12)' },
                   }}
                 >
@@ -362,8 +377,9 @@ function QuestionDeck({
       }
     } catch (err) {
       console.error('[QuestionDeck] Failed to fetch note:', err);
+      notify.error('Could not load note. Please try again.');
     }
-  }, [student?.id]);
+  }, [student?.id, notify]);
 
   // ── Fetch open_questions ──
   const fetchData = useCallback(async () => {
@@ -459,16 +475,13 @@ function QuestionDeck({
     markAnswered(area, index);
   }, [confirmDialog, markAnswered]);
 
-  // ── Handle answer action - skip dialog for self-answered questions (#216) ──
+  // ── Handle answer action (#216) ──
   const handleAnswerQuestion = useCallback((oq) => {
+    onAnswerQuestion?.(oq);
     const q = data?.areas?.[oq.area]?.[oq.index];
     const ctaState = getQuestionCTAState(q, currentUser?.uid);
     if (ctaState === 'self-answered') {
-      // Skip confirmation dialog, go straight to AddNoteModal
-      onAnswerQuestion?.(oq);
       trackEvent('question_deck_add_more', { area: oq.area, studentId: student?.id });
-    } else {
-      onAnswerQuestion?.(oq);
     }
   }, [data, currentUser?.uid, onAnswerQuestion, student?.id]);
 

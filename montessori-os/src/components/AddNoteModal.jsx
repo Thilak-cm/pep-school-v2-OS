@@ -1895,15 +1895,23 @@ function AddNoteModal({
           const oqRef = doc(db, 'students', studentId, 'ai_summaries', 'open_questions');
           await runTransaction(db, async (transaction) => {
             const oqSnap = await transaction.get(oqRef);
-            if (!oqSnap.exists()) return;
+            if (!oqSnap.exists()) throw new Error('doc-missing');
             const oqData = oqSnap.data();
             const rawQuestions = oqData.areas?.[openQuestion.area];
-            if (!rawQuestions || !rawQuestions[openQuestion.index]) return;
-            const normalized = rawQuestions.map((q) => typeof q === 'string' ? { question: q, answers: [] } : q);
+            if (!rawQuestions || !rawQuestions[openQuestion.index]) throw new Error('question-missing');
+            const normalized = rawQuestions.map((q) => {
+              if (typeof q === 'string') return { question: q, answers: [] };
+              if (q.answers) return q;
+              // Legacy #144 flat shape
+              if (q.status === 'answered') {
+                return { question: q.question, answers: [{ answeredAt: q.answeredAt || null, method: q.method || 'voice', observationId: q.observationId || null, answeredBy: q.answeredBy || { uid: '', name: 'Unknown' } }] };
+              }
+              return { question: q.question, answers: [] };
+            });
             const updated = [...normalized];
             const newAnswer = {
               answeredAt: Timestamp.now(),
-              method: 'voice',
+              method: noteType,
               observationId: savedNotes[0]?.id || null,
               answeredBy: { uid: currentUser?.uid || '', name: currentUser?.displayName || 'Unknown' },
             };
@@ -1916,7 +1924,8 @@ function AddNoteModal({
           openQuestionAnswered = true;
         } catch (err) {
           console.error('[AddNoteModal] Failed to update open question status:', err);
-          // Note is saved; mark answered so QuestionDeck refreshes and shows actual state
+          notify.warning('Note saved, but could not link to the question deck. The deck will refresh automatically.');
+          // Still mark answered so QuestionDeck refreshes and shows actual state
           openQuestionAnswered = true;
         }
       }
@@ -2787,7 +2796,7 @@ function AddNoteModal({
             minHeight: 'fit-content'
           }}>
 
-            {/* Open question context banner (#144) */}
+            {/* Open question context banner (#216) */}
             {openQuestion && (
               <Box sx={{
                 p: 1.5, borderRadius: 2,
