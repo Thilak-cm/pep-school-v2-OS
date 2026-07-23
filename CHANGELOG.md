@@ -1,5 +1,22 @@
 # Changelog
 
+# 11.5.0 — 2026-07-22
+
+### Changed
+- Soul generation refactored from single-CF `runWithConcurrency` to Pub/Sub dispatcher-worker fan-out - handles ~1,500 students without timeout (#203)
+- `regenerateSoulsMonthly` now dispatches to `soulWorker` via `soul-workers` Pub/Sub topic in waves of 25 batches (10 students each) with 90s jitter gap (#203)
+- Soul gen LLM calls migrated from OpenAI direct to OpenRouter (#203)
+
+### Added
+- `soulWorker` Pub/Sub-triggered Cloud Function with per-student idempotency guard and permanent/transient error classification (#203)
+- `triggerSoulGeneration` superadmin callable for manual dispatch with optional student ID selection (#203)
+- Dev-only "Test Soul Generation" UI in Settings with student search Autocomplete (#203)
+- `verify-soul-coverage.mjs` admin script to validate soul + open_questions coverage (#203)
+- Fan-out helper tests for `chunkStudentIds` and `parseSoulWorkerMessage` (#203)
+
+### Removed
+- `backfillStudentProfiles` callable - replaced by `triggerSoulGeneration` (#203)
+
 # 11.4.0 — 2026-07-16
 
 ### Added
