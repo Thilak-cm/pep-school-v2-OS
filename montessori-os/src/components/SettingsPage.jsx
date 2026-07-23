@@ -1,6 +1,7 @@
 // SettingsPage.jsx — Card-of-cards layout with inline profile hero (PEP-199)
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useMemo, useCallback } from 'react';
 import {
+  Autocomplete,
   Box,
   Typography,
   ButtonBase,
@@ -12,6 +13,9 @@ import {
   DialogContentText,
   DialogActions,
   Button,
+  CircularProgress,
+  Chip,
+  TextField,
 } from '@mui/material';
 import {
   Bell,
@@ -22,8 +26,9 @@ import {
   Sparkles,
   Megaphone,
   Send,
+  FlaskConical,
 } from '../icons';
-import { collectionGroup, query, where, getDocs, Timestamp } from 'firebase/firestore';
+import { collection, collectionGroup, query, where, getDocs, Timestamp } from 'firebase/firestore';
 import { httpsCallable } from 'firebase/functions';
 import { db, cloudFunctions } from '../firebase';
 import { Avatar } from './ui';
@@ -31,16 +36,55 @@ import VersionBadge from './VersionBadge';
 import { trackEvent } from '../utils/analytics';
 import { isSuperAdmin, isAdminRole, isClassroomAdmin, getRoleLabel } from '../utils/roleUtils';
 import useNotify from '../notifications/useNotify';
+import { fuzzySearchStudents } from '../utils/fuzzySearch';
+
+// Thilak's UID - gates dev-only UI triggers for ad-hoc testing (soul gen, digest, etc.)
+const DEV_UID = 'T1iLA2qjTqMvgS4hamw2PEtNsov1';
 
 function SettingsPage({ user, userRole, classrooms = [], onNavigate, onSignOut }) {
   const [confirmOpen, setConfirmOpen] = useState(false);
   const [digestConfirmOpen, setDigestConfirmOpen] = useState(false);
   const [digestRunning, setDigestRunning] = useState(false);
+  const [soulDialogOpen, setSoulDialogOpen] = useState(false);
+  const [soulRunning, setSoulRunning] = useState(false);
+  const [soulSelectedStudents, setSoulSelectedStudents] = useState([]);
+  const [soulStudentSearch, setSoulStudentSearch] = useState('');
+  const [allStudents, setAllStudents] = useState([]);
+  const [studentsLoading, setStudentsLoading] = useState(false);
   const [notesThisWeek, setNotesThisWeek] = useState(null);
   const [notesLoading, setNotesLoading] = useState(true);
   const notify = useNotify();
   const isSuperAdminUser = isSuperAdmin(userRole);
   const isAdmin = isAdminRole(userRole);
+  const isDevUser = user?.uid === DEV_UID;
+
+  const loadStudents = useCallback(async () => {
+    if (allStudents.length > 0) return;
+    setStudentsLoading(true);
+    try {
+      const snap = await getDocs(query(collection(db, 'students'), where('status', '==', 'active')));
+      const list = snap.docs.map((d) => ({ id: d.id, ...d.data() }));
+      list.sort((a, b) => {
+        const nameA = (a.displayName || a.name || a.firstName || '').toLowerCase();
+        const nameB = (b.displayName || b.name || b.firstName || '').toLowerCase();
+        return nameA.localeCompare(nameB);
+      });
+      setAllStudents(list);
+    } catch (err) {
+      console.error('[SettingsPage] loadStudents failed:', err);
+      notify.error('Failed to load students');
+    } finally {
+      setStudentsLoading(false);
+    }
+  }, [allStudents.length, notify]);
+
+  const soulStudentOptions = useMemo(
+    () => fuzzySearchStudents(allStudents, soulStudentSearch).slice(0, 10),
+    [allStudents, soulStudentSearch],
+  );
+
+  const getStudentLabel = (stu) =>
+    stu ? (stu.displayName || stu.name || `${stu.firstName || ''} ${stu.lastName || ''}`.trim() || stu.id) : '';
 
   // --- Computed stats (instant) ---
   const classroomCount = classrooms.length;
@@ -226,12 +270,22 @@ function SettingsPage({ user, userRole, classrooms = [], onNavigate, onSignOut }
                 label="Broadcast Message"
                 onClick={() => onNavigate('/broadcastComposer')}
               />
-              <SettingsRow
-                icon={<Send size={20} />}
-                iconColor="var(--color-violet)"
-                label={digestRunning ? 'Digest Running...' : 'Test Weekly Digest'}
-                onClick={() => setDigestConfirmOpen(true)}
-              />
+              {isDevUser && (
+                <>
+                  <SettingsRow
+                    icon={<Send size={20} />}
+                    iconColor="var(--color-violet)"
+                    label={digestRunning ? 'Digest Running...' : 'Test Weekly Digest'}
+                    onClick={() => setDigestConfirmOpen(true)}
+                  />
+                  <SettingsRow
+                    icon={<FlaskConical size={20} />}
+                    iconColor="var(--color-violet)"
+                    label={soulRunning ? 'Soul Gen Running...' : 'Test Soul Generation'}
+                    onClick={() => { loadStudents(); setSoulDialogOpen(true); }}
+                  />
+                </>
+              )}
             </>
           )}
         </Paper>
@@ -294,6 +348,95 @@ function SettingsPage({ user, userRole, classrooms = [], onNavigate, onSignOut }
                 notify.error(`Digest failed: ${err.message}`);
               } finally {
                 setDigestRunning(false);
+              }
+            }}
+          >
+            Run
+          </Button>
+        </DialogActions>
+      </Dialog>
+
+      {/* ── Soul Gen Dialog ─────────────────────────────── */}
+      <Dialog
+        open={soulDialogOpen}
+        onClose={() => !soulRunning && setSoulDialogOpen(false)}
+        PaperProps={{ sx: { borderRadius: 3, maxWidth: 440, width: '90%' } }}
+      >
+        <DialogTitle component="div" sx={{ pb: 1 }}>
+          <Typography component="h2" variant="h6">Trigger Soul Generation</Typography>
+        </DialogTitle>
+        <DialogContent sx={{ pb: 2 }}>
+          <DialogContentText sx={{ mb: 2 }}>
+            Search and select students to regenerate, or leave empty to run for all active students.
+          </DialogContentText>
+          <Autocomplete
+            multiple
+            options={soulStudentOptions}
+            loading={studentsLoading}
+            value={soulSelectedStudents}
+            onChange={(e, newValue) => setSoulSelectedStudents(newValue)}
+            inputValue={soulStudentSearch}
+            onInputChange={(e, newInputValue) => setSoulStudentSearch(newInputValue)}
+            getOptionLabel={getStudentLabel}
+            isOptionEqualToValue={(opt, val) => opt.id === val.id}
+            disabled={soulRunning}
+            renderTags={(value, getTagProps) =>
+              value.map((stu, index) => (
+                <Chip
+                  {...getTagProps({ index })}
+                  key={stu.id}
+                  label={getStudentLabel(stu)}
+                  size="small"
+                />
+              ))
+            }
+            renderInput={(params) => (
+              <TextField
+                {...params}
+                size="small"
+                placeholder={soulSelectedStudents.length ? '' : 'Search students...'}
+                InputProps={{
+                  ...params.InputProps,
+                  endAdornment: (
+                    <>
+                      {studentsLoading ? <CircularProgress color="inherit" size={16} /> : null}
+                      {params.InputProps.endAdornment}
+                    </>
+                  ),
+                }}
+              />
+            )}
+            sx={{ mt: 1 }}
+          />
+        </DialogContent>
+        <DialogActions sx={{ px: 3, pb: 3, gap: 1 }}>
+          <Button onClick={() => setSoulDialogOpen(false)} variant="outlined" disabled={soulRunning} sx={{ minWidth: 80 }}>
+            Cancel
+          </Button>
+          <Button
+            variant="contained"
+            disabled={soulRunning}
+            sx={{ minWidth: 80 }}
+            onClick={async () => {
+              setSoulRunning(true);
+              setSoulDialogOpen(false);
+              try {
+                const call = httpsCallable(cloudFunctions, 'triggerSoulGeneration', { timeout: 540_000 });
+                const ids = soulSelectedStudents.map((s) => s.id);
+                const payload = ids.length > 0 ? { studentIds: ids } : {};
+                const result = await call(payload);
+                const d = result.data;
+                const msg = `Soul gen dispatched: ${d.studentsDispatched} students in ${d.batchesPublished} batches (${d.durationSec}s)`;
+                if (d.batchesFailed > 0) {
+                  notify.error(`${msg} - ${d.batchesFailed} batches FAILED`);
+                } else {
+                  notify.success(msg);
+                }
+                setSoulSelectedStudents([]);
+              } catch (err) {
+                notify.error(`Soul gen failed: ${err.message}`);
+              } finally {
+                setSoulRunning(false);
               }
             }}
           >

@@ -65,11 +65,12 @@ export {
   bulkSyncDrivePermissions,
 } from "./classroom/index.js";
 
-// Student Soul
+// Student Soul (#203: dispatcher-worker fan-out)
 export {
   generateStudentProfile,
-  backfillStudentProfiles,
+  soulWorker,
   regenerateSoulsMonthly,
+  triggerSoulGeneration,
 } from "./students/soul.js";
 
 // Student — Denormalized counter maintenance (#161)
