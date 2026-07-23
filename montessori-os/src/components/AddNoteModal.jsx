@@ -23,7 +23,7 @@ import InlineVoiceOverlay from './InlineVoiceOverlay';
 import { cleanUpText } from '../textCleanup';
 import { trackEvent, lengthBucket } from '../utils/analytics';
 import ClassroomStudentPicker from './ClassroomStudentPicker';
-import { collection, getDoc, doc, query, where, limit, getDocs, setDoc, deleteDoc, serverTimestamp, updateDoc, arrayUnion, Timestamp } from 'firebase/firestore';
+import { collection, getDoc, doc, query, where, limit, getDocs, setDoc, deleteDoc, serverTimestamp, updateDoc, arrayUnion, Timestamp, runTransaction } from 'firebase/firestore';
 import { deleteObject, ref, uploadBytesResumable } from 'firebase/storage';
 import { db, cloudFunctions, storage } from '../firebase';
 import { buildMediaDocData } from '../utils/mediaDocBuilder';
@@ -1887,31 +1887,33 @@ function AddNoteModal({
 
       const classroomId = savedNotes[0]?.classroomId;
 
-      // Update open_questions doc to mark question as answered (#144)
+      // Update open_questions doc: append to answers array via transaction (#216)
       let openQuestionAnswered = false;
       if (openQuestion && selectedStudents.length === 1) {
         try {
           const studentId = selectedStudents[0];
           const oqRef = doc(db, 'students', studentId, 'ai_summaries', 'open_questions');
-          const oqSnap = await getDoc(oqRef);
-          if (oqSnap.exists()) {
+          await runTransaction(db, async (transaction) => {
+            const oqSnap = await transaction.get(oqRef);
+            if (!oqSnap.exists()) return;
             const oqData = oqSnap.data();
             const rawQuestions = oqData.areas?.[openQuestion.area];
-            if (rawQuestions && rawQuestions[openQuestion.index]) {
-              const normalized = rawQuestions.map((q) => typeof q === 'string' ? { question: q, status: 'pending' } : q);
-              const updated = [...normalized];
-              updated[openQuestion.index] = {
-                ...updated[openQuestion.index],
-                status: 'answered',
-                answeredAt: Timestamp.now(),
-                method: 'voice',
-                observationId: savedNotes[0]?.id || null,
-                answeredBy: { uid: currentUser?.uid || '', name: currentUser?.displayName || 'Unknown' },
-              };
-              await setDoc(oqRef, { areas: { ...oqData.areas, [openQuestion.area]: updated } }, { merge: true });
-              openQuestionAnswered = true;
-            }
-          }
+            if (!rawQuestions || !rawQuestions[openQuestion.index]) return;
+            const normalized = rawQuestions.map((q) => typeof q === 'string' ? { question: q, answers: [] } : q);
+            const updated = [...normalized];
+            const newAnswer = {
+              answeredAt: Timestamp.now(),
+              method: 'voice',
+              observationId: savedNotes[0]?.id || null,
+              answeredBy: { uid: currentUser?.uid || '', name: currentUser?.displayName || 'Unknown' },
+            };
+            updated[openQuestion.index] = {
+              ...updated[openQuestion.index],
+              answers: [...(updated[openQuestion.index].answers || []), newAnswer],
+            };
+            transaction.set(oqRef, { areas: { ...oqData.areas, [openQuestion.area]: updated } }, { merge: true });
+          });
+          openQuestionAnswered = true;
         } catch (err) {
           console.error('[AddNoteModal] Failed to update open question status:', err);
           // Note is saved; mark answered so QuestionDeck refreshes and shows actual state
