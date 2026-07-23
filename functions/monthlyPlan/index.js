@@ -736,6 +736,15 @@ export const monthlyPlanWorker = functions
 
     console.log(`[monthlyPlanWorker] processing ${studentId} → ${targetMonth}`);
 
+    // Lightweight idempotency guard: skip if plan already exists for targetMonth.
+    // Prevents redundant LLM calls on Pub/Sub at-least-once redelivery.
+    const existingPlan = await db.collection("students").doc(studentId)
+      .collection("ai_summaries").doc("monthly_plan").get();
+    if (existingPlan.exists && existingPlan.data().month === targetMonth) {
+      console.log(`[monthlyPlanWorker] ${studentId} already has plan for ${targetMonth}, skipping`);
+      return null;
+    }
+
     // Step 1: Generate plan via shared internal helper
     // Permanent errors (not-found, failed-precondition) are ACKed to avoid
     // burning dead-letter retries. Transient errors propagate for retry.

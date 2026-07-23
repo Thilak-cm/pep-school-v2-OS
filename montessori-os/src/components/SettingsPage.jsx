@@ -38,6 +38,7 @@ import { isSuperAdmin, isAdminRole, isClassroomAdmin, getRoleLabel } from '../ut
 import useNotify from '../notifications/useNotify';
 import { fuzzySearchStudents } from '../utils/fuzzySearch';
 
+// Thilak's UID - gates dev-only UI triggers for ad-hoc testing (soul gen, digest, etc.)
 const DEV_UID = 'T1iLA2qjTqMvgS4hamw2PEtNsov1';
 
 function SettingsPage({ user, userRole, classrooms = [], onNavigate, onSignOut }) {
@@ -69,7 +70,8 @@ function SettingsPage({ user, userRole, classrooms = [], onNavigate, onSignOut }
         return nameA.localeCompare(nameB);
       });
       setAllStudents(list);
-    } catch {
+    } catch (err) {
+      console.error('[SettingsPage] loadStudents failed:', err);
       notify.error('Failed to load students');
     } finally {
       setStudentsLoading(false);
@@ -424,9 +426,12 @@ function SettingsPage({ user, userRole, classrooms = [], onNavigate, onSignOut }
                 const payload = ids.length > 0 ? { studentIds: ids } : {};
                 const result = await call(payload);
                 const d = result.data;
-                notify.success(
-                  `Soul gen dispatched: ${d.studentsDispatched} students in ${d.batchesPublished} batches (${d.durationSec}s)`
-                );
+                const msg = `Soul gen dispatched: ${d.studentsDispatched} students in ${d.batchesPublished} batches (${d.durationSec}s)`;
+                if (d.batchesFailed > 0) {
+                  notify.error(`${msg} - ${d.batchesFailed} batches FAILED`);
+                } else {
+                  notify.success(msg);
+                }
                 setSoulSelectedStudents([]);
               } catch (err) {
                 notify.error(`Soul gen failed: ${err.message}`);

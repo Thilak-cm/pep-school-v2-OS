@@ -452,7 +452,10 @@ export const soulWorker = functions
 // -----------------------------------------------
 
 const WAVE_SIZE = 25; // match maxInstances
-const WAVE_GAP_MS = 90_000; // 90 seconds between waves
+// 90s between waves. With 540s timeout and ~2s publish overhead per wave,
+// the dispatcher can handle ~6 waves = 6 * 25 * 10 = 1,500 students safely
+// (theoretical max ~1,750 before timeout). Current school size: ~478.
+const WAVE_GAP_MS = 90_000;
 const sleep = (ms) => new Promise((resolve) => setTimeout(resolve, ms));
 
 async function publishInWaves(studentIds, logPrefix) {
@@ -510,7 +513,8 @@ export const regenerateSoulsMonthly = functions
     const result = await publishInWaves(studentIds, "[soul-dispatcher]");
 
     const duration = ((Date.now() - startTime) / 1000).toFixed(1);
-    console.log(`[soul-dispatcher] done in ${duration}s: ${result.published} batches published (${studentIds.length} students), ${result.publishFailed} failed`);
+    const logFn = result.publishFailed > 0 ? console.error : console.log;
+    logFn(`[soul-dispatcher] done in ${duration}s: ${result.published} batches published (${studentIds.length} students), ${result.publishFailed} failed`);
     return null;
   });
 
@@ -551,7 +555,7 @@ export const triggerSoulGeneration = functions
     console.log(`[soul-dispatcher] manual trigger done in ${duration}s: ${result.published} batches published (${studentIds.length} students), ${result.publishFailed} failed`);
 
     return {
-      status: "ok",
+      status: result.publishFailed > 0 ? "partial" : "ok",
       studentsDispatched: studentIds.length,
       batchesPublished: result.published,
       batchesFailed: result.publishFailed,

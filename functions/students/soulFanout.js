@@ -33,8 +33,8 @@ export function parseSoulWorkerMessage(message) {
   if (!payload) {
     throw new Error("Invalid Pub/Sub message: missing or null JSON payload");
   }
-  if (!payload.studentIds || !payload.studentIds.length) {
-    throw new Error("Invalid Pub/Sub message: studentIds is required");
+  if (!Array.isArray(payload.studentIds) || !payload.studentIds.length) {
+    throw new Error("Invalid Pub/Sub message: studentIds must be a non-empty array");
   }
   return { studentIds: payload.studentIds };
 }

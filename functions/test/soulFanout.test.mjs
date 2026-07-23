@@ -78,14 +78,21 @@ describe("parseSoulWorkerMessage", () => {
   test("throws on missing studentIds field", () => {
     assert.throws(
       () => parseSoulWorkerMessage({ json: { foo: "bar" } }),
-      /studentIds is required/,
+      /studentIds must be a non-empty array/,
     );
   });
 
   test("throws on empty studentIds array", () => {
     assert.throws(
       () => parseSoulWorkerMessage({ json: { studentIds: [] } }),
-      /studentIds is required/,
+      /studentIds must be a non-empty array/,
+    );
+  });
+
+  test("throws on non-array studentIds (string)", () => {
+    assert.throws(
+      () => parseSoulWorkerMessage({ json: { studentIds: "s1s2s3" } }),
+      /studentIds must be a non-empty array/,
     );
   });
 });
