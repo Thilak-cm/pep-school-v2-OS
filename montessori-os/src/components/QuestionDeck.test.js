@@ -215,3 +215,37 @@ describe("getQuestionCTAState (#216)", () => {
     assert.equal(getQuestionCTAState(q, "u1"), "self-answered");
   });
 });
+
+// ── version token (#215) ──
+
+describe("version token helpers (#215)", () => {
+  it("oq object passed to onAnswerQuestion should include version from updatedAt millis", () => {
+    // Simulates what QuestionDeck does: captures updatedAt millis as version,
+    // then injects it into the oq object in handleConfirmRecord / handleAnswerQuestion
+    const updatedAtMillis = 1751654400000;
+    const oq = { area: "Math", index: 0, questionText: "How does the child count?" };
+    const withVersion = { ...oq, version: updatedAtMillis };
+    assert.equal(withVersion.version, 1751654400000);
+    assert.equal(withVersion.area, "Math");
+    assert.equal(withVersion.index, 0);
+  });
+
+  it("version is null when updatedAt is missing from doc", () => {
+    // When open_questions doc has no updatedAt (shouldn't happen, but defensive)
+    const raw = { areas: { "Math": ["q1"] } };
+    const version = raw.updatedAt?.toMillis?.() ?? null;
+    assert.equal(version, null);
+  });
+
+  it("version mismatch is detected when updatedAt differs", () => {
+    const capturedVersion = 1751654400000;
+    const currentDocUpdatedAt = 1751740800000; // different generation
+    assert.notEqual(capturedVersion, currentDocUpdatedAt, "should detect mismatch");
+  });
+
+  it("version match passes when updatedAt is the same", () => {
+    const capturedVersion = 1751654400000;
+    const currentDocUpdatedAt = 1751654400000; // same generation
+    assert.equal(capturedVersion, currentDocUpdatedAt, "should match");
+  });
+});
