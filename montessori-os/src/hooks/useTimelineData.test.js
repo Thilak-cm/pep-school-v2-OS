@@ -256,12 +256,11 @@ describe('Firestore collectionGroup rules for teacher access', () => {
     );
   });
 
-  it('media rule uses classroomId-based teacher path', async () => {
+  it('no separate media collection group rule (#221 - merged into observations)', async () => {
     rules = rules || await readFile(rulesPath, 'utf8');
-    const mediaSection = rules.split('match /{path=**}/media/{mediaId}')[1]?.split('match /')[0] || '';
     assert.ok(
-      mediaSection.includes("isTeacherInClassroom(resource.data.classroomId)"),
-      'media collectionGroup should have classroomId-based teacher path'
+      !rules.includes('match /{path=**}/media/{mediaId}'),
+      'media collection group rule should not exist - media docs covered by observations rule'
     );
   });
 });
@@ -304,6 +303,113 @@ describe('ClassroomTimeline student count display (#151)', () => {
     assert.ok(
       timelineSource.includes('isTransferred'),
       'should reference isTransferred to filter transferred students from the list'
+    );
+  });
+});
+
+// ──────────────────────────────────────────────
+// #221: Media merged into observations — no separate media subcollection
+// ──────────────────────────────────────────────
+
+const noteBottomSheetPath = resolve(__dirname, '..', 'components', 'noteBottomSheet', 'NoteBottomSheet.jsx');
+const useMediaPreviewPath = resolve(__dirname, '..', 'components', 'noteBottomSheet', 'useMediaPreview.js');
+const addNoteModalPath = resolve(__dirname, '..', 'components', 'AddNoteModal.jsx');
+const saveQueuePath = resolve(__dirname, '..', 'services', 'saveQueue.js');
+const studentDashboardPath = resolve(__dirname, '..', 'components', 'StudentDashboard.jsx');
+const settingsPagePath = resolve(__dirname, '..', 'components', 'SettingsPage.jsx');
+const storageRulesPath = resolve(rootDir, 'storage.rules');
+
+describe('Media merged into observations (#221)', () => {
+  it('useTimelineData does not query the media subcollection', async () => {
+    const src = await readFile(hookPath, 'utf8');
+    assert.ok(
+      !src.includes("collectionGroup(db, 'media')"),
+      'should not have collectionGroup media query'
+    );
+    assert.ok(
+      !src.includes("'media'),"),
+      'should not reference media subcollection in collection() calls'
+    );
+  });
+
+  it('NoteBottomSheet does not branch on media subcollection for delete/reassign', async () => {
+    const src = await readFile(noteBottomSheetPath, 'utf8');
+    assert.ok(
+      !src.includes("? 'media' : 'observations'"),
+      'should not branch between media and observations subcollections'
+    );
+    assert.ok(
+      !src.includes("'media' : 'observations'"),
+      'should not have ternary picking media vs observations'
+    );
+  });
+
+  it('useMediaPreview writes to observations subcollection', async () => {
+    const src = await readFile(useMediaPreviewPath, 'utf8');
+    assert.ok(
+      !src.includes("'media', observation.id"),
+      'should not reference media subcollection for comment edits'
+    );
+  });
+
+  it('AddNoteModal writes media to observations subcollection', async () => {
+    const src = await readFile(addNoteModalPath, 'utf8');
+    // Check that media doc writes go to observations, not media subcollection
+    const lines = src.split('\n');
+    const mediaDocLines = lines.filter(l =>
+      l.includes("'media', mediaId") && l.includes('doc(')
+    );
+    assert.equal(
+      mediaDocLines.length, 0,
+      'should not write media docs to media subcollection (should use observations)'
+    );
+  });
+
+  it('saveQueue writes media to observations subcollection', async () => {
+    const src = await readFile(saveQueuePath, 'utf8');
+    const lines = src.split('\n');
+    const mediaDocLines = lines.filter(l =>
+      l.includes("'media', mediaId") && l.includes('doc(')
+    );
+    assert.equal(
+      mediaDocLines.length, 0,
+      'should not write media docs to media subcollection (should use observations)'
+    );
+  });
+
+  it('StudentDashboard reads media from observations subcollection', async () => {
+    const src = await readFile(studentDashboardPath, 'utf8');
+    assert.ok(
+      !src.includes("studentId, 'media'"),
+      'should not query media subcollection directly'
+    );
+  });
+
+  it('SettingsPage reads media from observations collection group', async () => {
+    const src = await readFile(settingsPagePath, 'utf8');
+    assert.ok(
+      !src.includes("collectionGroup(db, 'media')"),
+      'should not query media collection group'
+    );
+  });
+
+  it('NoteBottomSheet does not expose onNotesChanged prop', async () => {
+    const src = await readFile(noteBottomSheetPath, 'utf8');
+    assert.ok(
+      !src.includes('onNotesChanged'),
+      'onNotesChanged prop should be removed'
+    );
+  });
+
+  it('storage.rules mediaDoc() reads from observations subcollection', async () => {
+    const src = await readFile(storageRulesPath, 'utf8');
+    assert.ok(
+      src.includes('students/$(studentId)/observations/$(mediaId)'),
+      'mediaDoc() should read from observations subcollection'
+    );
+    assert.ok(
+      !src.includes('students/$(studentId)/media/$(mediaId)'),
+      'mediaDoc() should NOT read from media subcollection'
     );
   });
 });
