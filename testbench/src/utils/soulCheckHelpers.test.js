@@ -38,4 +38,11 @@ describe("isMissingSoulData", () => {
   it("returns true when openQuestions exists but soul is missing", () => {
     assert.equal(isMissingSoulData({ soul: null, openQuestions: { area1: ["q1"] } }), true);
   });
+
+  it("returns false with multi-POV answers shape (#216)", () => {
+    assert.equal(isMissingSoulData({
+      soul: "narrative",
+      openQuestions: { area1: [{ question: "q1", answers: [] }] },
+    }), false);
+  });
 });

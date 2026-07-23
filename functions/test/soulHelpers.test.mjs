@@ -356,7 +356,7 @@ guidelines_suggestions:
 // buildOpenQuestionsDoc (PEP-173, updated PEP-207: area-keyed shape)
 // ---------------------------------------------------------------------------
 
-test("buildOpenQuestionsDoc returns enriched shape with status tracking (#144)", async () => {
+test("buildOpenQuestionsDoc returns multi-POV shape with answers array (#216)", async () => {
   const { buildOpenQuestionsDoc } = await import("../utils/soulHelpers.js");
   const areas = {
     "Self-Regulation": ["How does the child handle frustration?"],
@@ -367,17 +367,18 @@ test("buildOpenQuestionsDoc returns enriched shape with status tracking (#144)",
   assert.equal(doc.programId, "primary");
   assert.equal(doc.updatedBy, "cloud-function:soul-generate");
   assert.equal(Object.keys(doc.areas).length, 2);
-  // Verify enriched shape
+  // Verify multi-POV shape: answers array instead of flat status
   assert.equal(doc.areas["Self-Regulation"].length, 1);
   assert.deepStrictEqual(doc.areas["Self-Regulation"][0], {
     question: "How does the child handle frustration?",
-    status: "pending",
+    answers: [],
   });
   assert.equal(doc.areas["Reading"].length, 2);
   assert.equal(doc.areas["Reading"][0].question, "What reading materials do they choose?");
-  assert.equal(doc.areas["Reading"][0].status, "pending");
-  assert.equal(doc.areas["Reading"][1].status, "pending");
+  assert.deepStrictEqual(doc.areas["Reading"][0].answers, []);
+  assert.deepStrictEqual(doc.areas["Reading"][1].answers, []);
   // No legacy fields
+  assert.equal(doc.areas["Reading"][0].status, undefined, "should not have legacy status field");
   assert.equal(doc.questions, undefined, "should not have legacy questions field");
   assert.equal(doc.questionCount, undefined, "should not have legacy questionCount field");
 });
