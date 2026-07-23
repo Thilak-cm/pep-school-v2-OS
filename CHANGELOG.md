@@ -1,5 +1,19 @@
 # Changelog
 
+# 11.6.0 — 2026-07-23
+
+### Added
+- Multi-POV answers on Question Deck - all teachers can now answer the same open question, with per-teacher CTA states (pending, others-answered, self-answered) and collapsible answer list (#216)
+- Area accordion sorting by progress ratio (most answered first), then alphabetically (#216)
+- Month subtitle derived from doc's `updatedAt` on Question Deck header (#216)
+- Locked student picker mode with Lock icon when answering from Question Deck (#216)
+- Legacy #144 flat-object normalization so existing answered questions are preserved on deploy (#216)
+
+### Changed
+- Open question data shape from single-answer flat fields to `answers: []` array supporting multiple teacher perspectives (#216)
+- Both write paths (QuestionDeck `markAnswered`, AddNoteModal post-save) wrapped in `runTransaction()` for concurrent-write safety (#216)
+- `buildOpenQuestionsDoc` in Cloud Functions now generates `answers: []` instead of `status: "pending"` (#216)
+
 # 11.5.0 — 2026-07-22
 
 ### Changed

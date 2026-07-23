@@ -21,7 +21,7 @@ import {
   Stack,
   InputAdornment
 } from '@mui/material';
-import { ChevronDown as ExpandMore, ChevronUp as ExpandLess, User as Person, Users as Group, Pencil as Edit, X as Close, CircleCheck as CheckCircle, Sparkles as AutoFixHigh, RefreshCw as Refresh, Search } from '../icons';
+import { ChevronDown as ExpandMore, ChevronUp as ExpandLess, User as Person, Users as Group, Pencil as Edit, X as Close, CircleCheck as CheckCircle, Sparkles as AutoFixHigh, RefreshCw as Refresh, Search, Lock } from '../icons';
 import { collection, getDocs, query, where, doc, getDoc } from 'firebase/firestore';
 import { db } from '../firebase';
 import { cleanUpText } from '../textCleanup';
@@ -1019,6 +1019,7 @@ const ClassroomStudentPicker = forwardRef(function ClassroomStudentPicker({
                     label={label}
                     onDelete={onStudentsChange ? () => handleRemoveStudent(id) : undefined}
                     deleteIcon={onStudentsChange ? <Close size={20} /> : undefined}
+                    icon={!onStudentsChange ? <Lock size={14} /> : undefined}
                     color="primary"
                     variant="outlined"
                   />
@@ -1029,8 +1030,8 @@ const ClassroomStudentPicker = forwardRef(function ClassroomStudentPicker({
         )
       )}
 
-      {/* Search Section (compact) */}
-      <Box>
+      {/* Search Section (compact) - hidden when students are locked (#216) */}
+      {onStudentsChange && <Box>
         <Box sx={{ position: 'relative', mb: 2 }}>
           <TextField
             inputRef={searchInputRef}
@@ -1232,10 +1233,10 @@ const ClassroomStudentPicker = forwardRef(function ClassroomStudentPicker({
             )}
           </Box>
         )}
-      </Box>
-                        
+      </Box>}
+
       {/* Divider */}
-      {searchQuery.trim() && (
+      {onStudentsChange && searchQuery.trim() && (
         <Divider sx={{ my: 2 }}>
           <Typography variant="body2" color="text.secondary">
             OR
@@ -1243,8 +1244,8 @@ const ClassroomStudentPicker = forwardRef(function ClassroomStudentPicker({
         </Divider>
       )}
 
-      {/* Browse by Classroom Section (collapsible) */}
-      <Box>
+      {/* Browse by Classroom Section (collapsible) - hidden when students are locked (#216) */}
+      {onStudentsChange && <Box>
         <Button
           variant="outlined"
           startIcon={<Group />}
@@ -1386,7 +1387,7 @@ const ClassroomStudentPicker = forwardRef(function ClassroomStudentPicker({
             </List>
           )}
         </Collapse>
-      </Box>
+      </Box>}
 
       {/* Bottom summary removed to avoid redundancy */}
     </Box>

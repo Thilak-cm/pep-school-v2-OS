@@ -249,7 +249,7 @@ export function extractOpenQuestions(soulContent) {
 export function buildOpenQuestionsDoc({ areas, programId }) {
   const enriched = {};
   for (const [area, questions] of Object.entries(areas)) {
-    enriched[area] = questions.map((q) => ({ question: q, status: "pending" }));
+    enriched[area] = questions.map((q) => ({ question: q, answers: [] }));
   }
   return {
     areas: enriched,
