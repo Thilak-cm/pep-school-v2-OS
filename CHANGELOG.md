@@ -1,5 +1,15 @@
 # Changelog
 
+# 11.6.1 — 2026-07-23
+
+### Added
+- Open questions archival: previous question set automatically snapshot to `history/` subcollection before each monthly regeneration overwrites the doc (#215)
+- Version-gated saves: teachers answering open questions from a stale doc get an error toast and auto-refresh instead of silently writing to the wrong generation (#215)
+- MCP tool support for querying open questions history via `get_ai_summary_history` (#215)
+
+### Changed
+- Observation docs now store `openQuestion.version` with the actual `updatedAt` millis value instead of empty string (#215)
+
 # 11.6.0 — 2026-07-23
 
 ### Added
