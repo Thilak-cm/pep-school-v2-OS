@@ -25,32 +25,7 @@ export function mergeAndDedupe(observations, media, reports) {
   return deduped;
 }
 
-/**
- * Compute per-student note counts from the in-memory notes array.
- * Excludes reports from counts. Returns Map<studentId, {totalNotes, notesLast7Days}>.
- */
-export function computePerStudentCounts(notes, now = new Date()) {
-  const counts = new Map();
-  const sevenDaysAgo = new Date(now.getTime() - 7 * 24 * 60 * 60 * 1000);
-
-  for (const note of notes) {
-    if (note.type === 'report') continue;
-    const sid = note.studentId || note.parentStudentId;
-    if (!sid) continue;
-
-    if (!counts.has(sid)) {
-      counts.set(sid, { totalNotes: 0, notesLast7Days: 0 });
-    }
-    const entry = counts.get(sid);
-    entry.totalNotes++;
-
-    const d = toDate(note.observedAt);
-    if (d && d >= sevenDaysAgo) {
-      entry.notesLast7Days++;
-    }
-  }
-  return counts;
-}
+// computePerStudentCounts removed in #221 Sprint 2 — stats now from statsCache.
 
 /**
  * Check if the current user has access to a classroom.
