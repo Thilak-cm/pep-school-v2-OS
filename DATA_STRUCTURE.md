@@ -20,8 +20,8 @@
 - `users/{uid}`
 - `classrooms/{classroomId}`
 - `students/{studentId}`
-- `students/{studentId}/observations/{observationId}`  // collection group: `observations`
-- `students/{studentId}/media/{mediaId}`               // uploaded photos, videos, PDFs
+- `students/{studentId}/observations/{observationId}`  // collection group: `observations` (includes media docs with type: 'media' since #221)
+- `students/{studentId}/media/{mediaId}`               // DEPRECATED (#221) - retained for rollback, no longer read/written
 - `students/{studentId}/chats/{chatId}`                // AI chat conversations
 - `students/{studentId}/chats/{chatId}/messages/{messageId}` // chat messages
 - `students/{studentId}/ai_summaries/soul`             // AI-generated student soul narrative (PEP-149)
@@ -507,8 +507,8 @@ Notes
 
 ---
 
-## 📎 Media (`/students/{studentId}/media/{mediaId}`)
-Per-student uploaded files (photos, videos, PDFs). One media doc per file per student; multi-student uploads fan out like observations.
+## 📎 Media (merged into `/students/{studentId}/observations/{mediaId}` - #221)
+Per-student uploaded files (photos, videos, PDFs). One media doc per file per student; multi-student uploads fan out like observations. As of #221, media docs live in the `observations` subcollection with `type: 'media'`. The old `/students/{studentId}/media/` subcollection is retained for rollback safety but is no longer read or written by any code. Storage paths are unchanged (`students/{studentId}/media/{mediaId}/original.webp`).
 
 ```typescript
 interface MediaDoc {

@@ -338,7 +338,8 @@ export const mediaFinalize = functions
     if (!match) return;
 
     const [, studentId, mediaId, fileName] = match;
-    const mediaRef = db.collection("students").doc(studentId).collection("media").doc(mediaId);
+    // #221: media docs migrated to observations subcollection
+    const mediaRef = db.collection("students").doc(studentId).collection("observations").doc(mediaId);
     const mediaSnap = await mediaRef.get();
     if (!mediaSnap.exists) {
       await deleteStorageFile(object.bucket, filePath);
@@ -417,11 +418,14 @@ export const mediaFinalize = functions
 // -------------------------------------------------
 // Firestore onDelete: clean up storage when a media doc is removed
 // -------------------------------------------------
+// #221: media docs migrated to observations - trigger on observations path
 export const mediaCleanup = functions
   .region("asia-south1")
-  .firestore.document("students/{studentId}/media/{mediaId}")
+  .firestore.document("students/{studentId}/observations/{mediaId}")
   .onDelete(async (snap) => {
     const data = snap.data() || {};
+    // Only clean up storage for media-type docs; skip text/voice/lesson deletes
+    if (data.type !== "media") return;
     const storagePath =
       Array.isArray(data.media) && data.media.length > 0
         ? data.media[0]?.storagePath

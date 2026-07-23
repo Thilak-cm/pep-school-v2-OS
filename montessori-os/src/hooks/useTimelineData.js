@@ -55,11 +55,7 @@ async function fetchClassroomData(classroomId, students) {
     orderBy('observedAt', 'desc'),
   );
 
-  const mediaQuery = query(
-    collectionGroup(db, 'media'),
-    where('classroomId', '==', classroomId),
-    orderBy('observedAt', 'desc'),
-  );
+  // #221: media docs merged into observations - no separate media query needed
 
   const reportsQuery = query(
     collectionGroup(db, 'ai_summaries'),
@@ -68,20 +64,13 @@ async function fetchClassroomData(classroomId, students) {
     orderBy('generatedAt', 'desc'),
   );
 
-  const [obsSnap, mediaSnap, reportsSnap] = await Promise.all([
+  // #221: single observations query covers both text/voice/lesson and media docs
+  const [obsSnap, reportsSnap] = await Promise.all([
     getDocs(obsQuery),
-    getDocs(mediaQuery),
     getDocs(reportsQuery).catch(() => ({ docs: [] })), // fallback if index not yet deployed
   ]);
 
   const observations = obsSnap.docs.map(d => ({
-    id: d.id,
-    parentStudentId: d.ref.parent?.parent?.id,
-    docPath: d.ref.path,
-    ...d.data(),
-  }));
-
-  const media = mediaSnap.docs.map(d => ({
     id: d.id,
     parentStudentId: d.ref.parent?.parent?.id,
     docPath: d.ref.path,
@@ -98,7 +87,7 @@ async function fetchClassroomData(classroomId, students) {
     .filter(d => /^report_\d/.test(d.id) && (d.data().status || 'ok') === 'ok')
     .map(d => normalizeReportDoc(d, d.ref.parent?.parent?.id, studentNameMap.get(d.ref.parent?.parent?.id)));
 
-  return { observations, media, reports };
+  return { observations, reports };
 }
 
 async function fetchStudentData(studentId) {
@@ -107,16 +96,13 @@ async function fetchStudentData(studentId) {
     orderBy('observedAt', 'desc'),
   );
 
-  const mediaQuery = query(
-    collection(db, 'students', studentId, 'media'),
-    orderBy('observedAt', 'desc'),
-  );
+  // #221: media docs merged into observations - no separate media query
 
   const reportsQuery = collection(db, 'students', studentId, 'ai_summaries');
 
-  const [obsSnap, mediaSnap, reportsSnap] = await Promise.all([
+  // #221: single observations query covers both text/voice/lesson and media docs
+  const [obsSnap, reportsSnap] = await Promise.all([
     getDocs(obsQuery),
-    getDocs(mediaQuery),
     getDocs(reportsQuery),
   ]);
 
@@ -126,17 +112,11 @@ async function fetchStudentData(studentId) {
     ...d.data(),
   }));
 
-  const media = mediaSnap.docs.map(d => ({
-    id: d.id,
-    studentId,
-    ...d.data(),
-  }));
-
   const reports = reportsSnap.docs
     .filter(d => /^report_\d/.test(d.id) && (d.data().status || 'ok') === 'ok')
     .map(d => normalizeReportDoc(d, studentId));
 
-  return { observations, media, reports };
+  return { observations, reports };
 }
 
 // ── Main hook ────────────────────────────────────────────────
@@ -200,18 +180,18 @@ export default function useTimelineData({ scope, id, classroom, userRole, manage
             if (!cancelled) setTeachers(classroomTeachers);
           }
 
-          // Fetch all notes
-          const { observations, media, reports } = await fetchClassroomData(id, classroomStudents);
+          // Fetch all notes (#221: media merged into observations, no separate media array)
+          const { observations, reports } = await fetchClassroomData(id, classroomStudents);
           if (cancelled) return;
 
-          const merged = mergeAndDedupe(observations, media, reports);
+          const merged = mergeAndDedupe(observations, [], reports);
           setNotes(merged);
         } else {
           // Student scope
-          const { observations, media, reports } = await fetchStudentData(id);
+          const { observations, reports } = await fetchStudentData(id);
           if (cancelled) return;
 
-          const merged = mergeAndDedupe(observations, media, reports);
+          const merged = mergeAndDedupe(observations, [], reports);
           setNotes(merged);
         }
       } catch (err) {

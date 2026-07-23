@@ -63,8 +63,10 @@ async function getWritingAnalysisConfig(programId, { forceRefresh = false } = {}
  * Returns docs ordered by observedAt ascending.
  */
 async function fetchUnprocessedHandwriting(studentId) {
-  const mediaRef = db.collection("students").doc(studentId).collection("media");
+  // #221: media docs migrated to observations subcollection
+  const mediaRef = db.collection("students").doc(studentId).collection("observations");
   const snap = await mediaRef
+    .where("type", "==", "media")
     .where("handwritten", "==", true)
     .where("status", "==", "ready")
     .orderBy("observedAt", "asc")
@@ -338,7 +340,7 @@ async function runWritingAnalysisForStudent(studentId, { dryRun = false, program
   }
   const docsToMark = mediaDocs.slice(0, markLimit);
   for (const doc of docsToMark) {
-    const mediaRef = db.collection("students").doc(studentId).collection("media").doc(doc.id);
+    const mediaRef = db.collection("students").doc(studentId).collection("observations").doc(doc.id);
     batch.update(mediaRef, { batchAnalyzedAt: Timestamp.now() });
   }
   await batch.commit();
@@ -463,8 +465,10 @@ export async function testBenchHandwriting({ studentId, systemPrompt, model, tem
   const student = { displayName: studentData.displayName || studentId, dateOfBirth: dob };
 
   // Fetch ALL handwritten media (not just unprocessed — test bench needs full set)
+  // #221: media docs migrated to observations subcollection
   const mediaSnap = await db.collection("students").doc(studentId)
-    .collection("media")
+    .collection("observations")
+    .where("type", "==", "media")
     .where("handwritten", "==", true)
     .orderBy("observedAt", "asc")
     .get();

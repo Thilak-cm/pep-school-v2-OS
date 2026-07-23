@@ -359,8 +359,9 @@ function StudentDashboard({ student, onOpenTimeline, onOpenFeedback, onOpenChat,
     setWritingMediaLoading(true);
     const fetchMediaCounts = async () => {
       try {
-        const mediaRef = collection(db, 'students', studentId, 'media');
-        const allSnap = await getDocs(query(mediaRef, where('status', '==', 'ready')));
+        // #221: media docs migrated to observations subcollection
+        const mediaRef = collection(db, 'students', studentId, 'observations');
+        const allSnap = await getDocs(query(mediaRef, where('type', '==', 'media'), where('status', '==', 'ready')));
         if (!active) return;
         const total = allSnap.size;
         const hw = allSnap.docs.filter((d) => d.data().handwritten === true).length;
@@ -460,8 +461,10 @@ function StudentDashboard({ student, onOpenTimeline, onOpenFeedback, onOpenChat,
     if (hwMediaFetchedRef.current === studentId) return; // already fetched for this student
     setHwMediaLoading(true);
     try {
+      // #221: media docs migrated to observations subcollection
       const q = query(
-        collection(db, 'students', studentId, 'media'),
+        collection(db, 'students', studentId, 'observations'),
+        where('type', '==', 'media'),
         where('handwritten', '==', true)
       );
       const snap = await getDocs(q);
@@ -679,8 +682,9 @@ function StudentDashboard({ student, onOpenTimeline, onOpenFeedback, onOpenChat,
     setUnprocessedHwLoading(true);
     const fetchCount = async () => {
       try {
-        const mediaRef = collection(db, 'students', studentId, 'media');
-        const q = query(mediaRef, where('handwritten', '==', true), where('status', '==', 'ready'));
+        // #221: media docs migrated to observations subcollection
+        const mediaRef = collection(db, 'students', studentId, 'observations');
+        const q = query(mediaRef, where('type', '==', 'media'), where('handwritten', '==', true), where('status', '==', 'ready'));
         const snap = await getDocs(q);
         if (!active) return;
         const unprocessed = snap.docs.filter((d) => !d.data().batchAnalyzedAt).length;

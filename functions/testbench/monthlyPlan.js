@@ -108,14 +108,10 @@ export async function testBenchMonthlyPlan({ studentId, systemPrompt, model, tem
   const fourMonthsAgo = new Date(now);
   fourMonthsAgo.setMonth(fourMonthsAgo.getMonth() - 4);
 
-  const [obsSnap, mediaSnap, writingSnap] = await Promise.all([
+  // #221: media docs now in observations subcollection - single fetch
+  const [obsSnap, writingSnap] = await Promise.all([
     db.collection("students").doc(studentId)
       .collection("observations")
-      .where("observedAt", ">=", fourMonthsAgo)
-      .orderBy("observedAt", "desc")
-      .get(),
-    db.collection("students").doc(studentId)
-      .collection("media")
       .where("observedAt", ">=", fourMonthsAgo)
       .orderBy("observedAt", "desc")
       .get(),
@@ -123,8 +119,9 @@ export async function testBenchMonthlyPlan({ studentId, systemPrompt, model, tem
       .collection("ai_summaries").doc("writing_analysis").get(),
   ]);
 
-  const observations = obsSnap.docs.map((d) => d.data());
-  const mediaDocs = mediaSnap.docs.map((d) => d.data());
+  const allDocs = obsSnap.docs.map((d) => d.data());
+  const observations = allDocs.filter((d) => d.type !== "media");
+  const mediaDocs = allDocs.filter((d) => d.type === "media" && d.status === "ready");
   const writingAnalysis = writingSnap.exists ? writingSnap.data() : null;
 
   // 4. Build user prompt
