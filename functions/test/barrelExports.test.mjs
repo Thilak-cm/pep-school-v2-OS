@@ -42,10 +42,11 @@ const EXPECTED_EXPORTS = [
   "onUserUpdate",
   "onUserDelete",
   "bulkSyncDrivePermissions",
-  // Student Soul
+  // Student Soul (#203: dispatcher-worker fan-out)
   "generateStudentProfile",
-  "backfillStudentProfiles",
+  "soulWorker",
   "regenerateSoulsMonthly",
+  "triggerSoulGeneration",
   // Monthly Plan
   "generateMonthlyPlan",
   "exportMonthlyPlanToDrive",
