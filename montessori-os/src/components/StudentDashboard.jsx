@@ -1602,26 +1602,29 @@ function StudentDashboard({ student, onOpenTimeline, onOpenFeedback, onOpenChat,
       />
 
       {/* ── Quick jump buttons — pinned at bottom ── */}
-      <Box sx={{ display: 'grid', gridTemplateColumns: 'repeat(4, 1fr)', gap: 1, flexShrink: 0 }}>
-        <Box ref={questionsButtonRef} sx={{ position: 'relative' }}>
-          <QuickJumpButton
-            icon={<Lightbulb size={22} />}
-            label="Questions"
-            iconColor="var(--color-primary)"
-            onClick={() => { trackEvent('student_dashboard_card_click', { card: 'questions', studentId }).catch(() => {}); onOpenQuestions?.(); }}
-          />
-          {!questionsCoachmark.isDismissed && (
-            <Box sx={{
-              position: 'absolute', top: 4, right: 4,
-              px: 0.75, py: 0.25, borderRadius: '8px',
-              backgroundColor: 'var(--color-primary)',
-              color: '#fff', fontSize: '0.6rem', fontWeight: 700,
-              lineHeight: 1.2, pointerEvents: 'none',
-            }}>
-              New
-            </Box>
-          )}
-        </Box>
+      <Box sx={{ display: 'grid', gridTemplateColumns: `repeat(${isSuperAdmin(userRole) ? 4 : 3}, 1fr)`, gap: 1, flexShrink: 0 }}>
+        {/* TODO: remove superadmin gate once Questions is ready for all roles */}
+        {isSuperAdmin(userRole) && (
+          <Box ref={questionsButtonRef} sx={{ position: 'relative' }}>
+            <QuickJumpButton
+              icon={<Lightbulb size={22} />}
+              label="Questions"
+              iconColor="var(--color-primary)"
+              onClick={() => { trackEvent('student_dashboard_card_click', { card: 'questions', studentId }).catch(() => {}); onOpenQuestions?.(); }}
+            />
+            {!questionsCoachmark.isDismissed && (
+              <Box sx={{
+                position: 'absolute', top: 4, right: 4,
+                px: 0.75, py: 0.25, borderRadius: '8px',
+                backgroundColor: 'var(--color-primary)',
+                color: '#fff', fontSize: '0.6rem', fontWeight: 700,
+                lineHeight: 1.2, pointerEvents: 'none',
+              }}>
+                New
+              </Box>
+            )}
+          </Box>
+        )}
         <QuickJumpButton
           icon={<NotesIcon size={22} />}
           label="Timeline"
@@ -1642,14 +1645,16 @@ function StudentDashboard({ student, onOpenTimeline, onOpenFeedback, onOpenChat,
         />
       </Box>
 
-      {/* Coachmark for Questions button (#144) */}
-      <Coachmark
-        coachmarkKey="open_questions_v1"
-        title="Open Questions"
-        body="See what Pep still needs to learn about this student. Answer questions to help the AI build a deeper understanding."
-        anchorRef={questionsButtonRef}
-        placement="top"
-      />
+      {/* Coachmark for Questions button (#144) - gated with Questions button */}
+      {isSuperAdmin(userRole) && (
+        <Coachmark
+          coachmarkKey="open_questions_v1"
+          title="Open Questions"
+          body="See what Pep still needs to learn about this student. Answer questions to help the AI build a deeper understanding."
+          anchorRef={questionsButtonRef}
+          placement="top"
+        />
+      )}
     </Box>
   );
 }
