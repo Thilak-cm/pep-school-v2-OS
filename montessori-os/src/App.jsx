@@ -489,6 +489,7 @@ function App() {
                   open={addNoteOpen}
                   onClose={() => { setAddNoteOpen(false); setAddNoteInitialStep('record'); setAddNoteOpenQuestion(null); }}
                   onSave={handleNoteSaved}
+                  onRefreshQuestionDeck={() => setQuestionDeckReloadKey((k) => k + 1)}
                   initialStep={addNoteInitialStep}
                   initialStudents={selectedStudent && (screen === 'timeline' || screen === 'studentDashboard' || screen === 'studentReportTypes' || screen === 'studentReports' || screen === 'questionDeck') ? [selectedStudent.id] : []}
                   currentUser={user}

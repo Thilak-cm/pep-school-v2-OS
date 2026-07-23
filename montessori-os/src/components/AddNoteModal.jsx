@@ -305,6 +305,7 @@ function AddNoteModal({
   open,
   onClose,
   onSave,
+  onRefreshQuestionDeck,
   initialStudents = [],
   initialStep = STEP_RECORD,
   currentUser,
@@ -1788,6 +1789,23 @@ function AddNoteModal({
 
     try {
       setSaving(true);
+
+      // Version-gated save: reject if open_questions doc was regenerated since QuestionDeck loaded (#215)
+      if (openQuestion?.version != null && selectedStudents.length === 1) {
+        const studentId = selectedStudents[0];
+        const oqRef = doc(db, 'students', studentId, 'ai_summaries', 'open_questions');
+        const oqSnap = await getDoc(oqRef);
+        if (oqSnap.exists()) {
+          const currentVersion = oqSnap.data().updatedAt?.toMillis?.() ?? null;
+          if (currentVersion !== openQuestion.version) {
+            notify.error('These questions were updated - please try again.');
+            onRefreshQuestionDeck?.();
+            onClose();
+            return;
+          }
+        }
+      }
+
       const groupId = selectedStudents.length > 1
         ? `group_${Date.now().toString(36)}_${Math.random().toString(36).slice(2, 6)}`
         : undefined;
@@ -1850,7 +1868,7 @@ function AddNoteModal({
             ? { detectedLanguage: transcriptionData.detectedLanguage }
             : {}),
           ...(coachPayload ? { coach: coachPayload } : {}),
-          ...(openQuestion ? { openQuestion: { version: openQuestion.version || '', area: openQuestion.area, index: openQuestion.index, questionText: openQuestion.questionText } } : {}),
+          ...(openQuestion ? { openQuestion: { version: openQuestion.version != null ? String(openQuestion.version) : '', area: openQuestion.area, index: openQuestion.index, questionText: openQuestion.questionText } } : {}),
         };
 
         const cleaned = Object.fromEntries(

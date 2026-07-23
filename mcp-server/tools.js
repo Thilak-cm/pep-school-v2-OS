@@ -188,8 +188,8 @@ export const TOOL_DEFINITIONS = [
         },
         docId: {
           type: "string",
-          description: "Parent doc ID — 'soul', 'guidelines', 'weekly_snapshot', or 'monthly_plan'.",
-          enum: ["soul", "guidelines", "weekly_snapshot", "monthly_plan"],
+          description: "Parent doc ID — 'soul', 'guidelines', 'weekly_snapshot', 'monthly_plan', or 'open_questions'.",
+          enum: ["soul", "guidelines", "weekly_snapshot", "monthly_plan", "open_questions"],
         },
         limit: {
           type: "number",
@@ -798,7 +798,7 @@ export async function handleGetAiSummaryHistory(db, params) {
   const { studentId, docId, limit: maxResults = 10 } = params;
 
   // weekly_snapshot and monthly_plan history uses archivedAt; soul/guidelines use updatedAt
-  const orderField = (docId === "weekly_snapshot" || docId === "monthly_plan") ? "archivedAt" : "updatedAt";
+  const orderField = (docId === "weekly_snapshot" || docId === "monthly_plan" || docId === "open_questions") ? "archivedAt" : "updatedAt";
   const snap = await db
     .collection("students")
     .doc(studentId)
