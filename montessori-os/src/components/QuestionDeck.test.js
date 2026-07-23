@@ -216,36 +216,102 @@ describe("getQuestionCTAState (#216)", () => {
   });
 });
 
-// ── version token (#215) ──
+// ── version token (#215) — source analysis tests ──
 
-describe("version token helpers (#215)", () => {
-  it("oq object passed to onAnswerQuestion should include version from updatedAt millis", () => {
-    // Simulates what QuestionDeck does: captures updatedAt millis as version,
-    // then injects it into the oq object in handleConfirmRecord / handleAnswerQuestion
-    const updatedAtMillis = 1751654400000;
-    const oq = { area: "Math", index: 0, questionText: "How does the child count?" };
-    const withVersion = { ...oq, version: updatedAtMillis };
-    assert.equal(withVersion.version, 1751654400000);
-    assert.equal(withVersion.area, "Math");
-    assert.equal(withVersion.index, 0);
+import { readFileSync } from "node:fs";
+import { join, dirname } from "node:path";
+import { fileURLToPath } from "node:url";
+
+const __qdDirname = dirname(fileURLToPath(import.meta.url));
+const qdSource = readFileSync(join(__qdDirname, "QuestionDeck.jsx"), "utf-8");
+
+describe("version token in QuestionDeck (#215)", () => {
+  it("captures updatedAt millis as openQuestionsVersion on fetch", () => {
+    // fetchData should store raw.updatedAt?.toMillis?.() as the version
+    assert.ok(
+      qdSource.includes("setOpenQuestionsVersion(raw.updatedAt?.toMillis?.() ?? null)"),
+      "fetchData should capture updatedAt millis into openQuestionsVersion state"
+    );
   });
 
-  it("version is null when updatedAt is missing from doc", () => {
-    // When open_questions doc has no updatedAt (shouldn't happen, but defensive)
-    const raw = { areas: { "Math": ["q1"] } };
-    const version = raw.updatedAt?.toMillis?.() ?? null;
-    assert.equal(version, null);
+  it("openQuestionsVersion state is initialized to null", () => {
+    assert.ok(
+      qdSource.includes("useState(null); // updatedAt millis (#215)"),
+      "openQuestionsVersion should be initialized to null"
+    );
   });
 
-  it("version mismatch is detected when updatedAt differs", () => {
-    const capturedVersion = 1751654400000;
-    const currentDocUpdatedAt = 1751740800000; // different generation
-    assert.notEqual(capturedVersion, currentDocUpdatedAt, "should detect mismatch");
+  it("injects version into oq object in handleConfirmRecord", () => {
+    // handleConfirmRecord should pass version: openQuestionsVersion to onAnswerQuestion
+    const confirmRecordMatch = qdSource.match(
+      /const handleConfirmRecord\s*=\s*useCallback\(\(\)\s*=>\s*\{([\s\S]*?)\n\s{2}\},/
+    );
+    assert.ok(confirmRecordMatch, "handleConfirmRecord callback should exist");
+    const body = confirmRecordMatch[1];
+    assert.ok(
+      body.includes("version: openQuestionsVersion"),
+      "handleConfirmRecord should inject version: openQuestionsVersion into onAnswerQuestion call"
+    );
   });
 
-  it("version match passes when updatedAt is the same", () => {
-    const capturedVersion = 1751654400000;
-    const currentDocUpdatedAt = 1751654400000; // same generation
-    assert.equal(capturedVersion, currentDocUpdatedAt, "should match");
+  it("injects version into oq object in handleAnswerQuestion", () => {
+    // handleAnswerQuestion should spread oq and add version: openQuestionsVersion
+    const answerMatch = qdSource.match(
+      /const handleAnswerQuestion\s*=\s*useCallback\(\(oq\)\s*=>\s*\{([\s\S]*?)\n\s{2}\},/
+    );
+    assert.ok(answerMatch, "handleAnswerQuestion callback should exist");
+    const body = answerMatch[1];
+    assert.ok(
+      body.includes("...oq, version: openQuestionsVersion"),
+      "handleAnswerQuestion should spread oq and add version: openQuestionsVersion"
+    );
+  });
+
+  it("markAnswered uses version check inside transaction", () => {
+    // The markAnswered callback should compare openQuestionsVersion against
+    // the current doc version inside a runTransaction
+    const markMatch = qdSource.match(
+      /const markAnswered\s*=\s*useCallback\(async\s*\(area,\s*index\)\s*=>\s*\{([\s\S]*?)\n\s{2}\},/
+    );
+    assert.ok(markMatch, "markAnswered callback should exist");
+    const body = markMatch[1];
+
+    assert.ok(
+      body.includes("runTransaction"),
+      "markAnswered should use a Firestore transaction"
+    );
+    assert.ok(
+      body.includes("currentVersion !== openQuestionsVersion"),
+      "markAnswered should compare currentVersion against openQuestionsVersion"
+    );
+    assert.ok(
+      body.includes("throw new Error('version-mismatch')"),
+      "markAnswered should throw version-mismatch on stale version"
+    );
+  });
+
+  it("handles version-mismatch error by refreshing data", () => {
+    // When markAnswered catches version-mismatch, it should show error and refetch
+    const markMatch = qdSource.match(
+      /const markAnswered\s*=\s*useCallback\(async\s*\(area,\s*index\)\s*=>\s*\{([\s\S]*?)\n\s{2}\},/
+    );
+    const body = markMatch[1];
+
+    assert.ok(
+      body.includes("err.message === 'version-mismatch'"),
+      "Should catch version-mismatch error"
+    );
+    assert.ok(
+      body.includes("fetchData()"),
+      "Should refetch data on version-mismatch"
+    );
+  });
+
+  it("sets openQuestionsVersion to null when doc does not exist", () => {
+    // When snap does not exist, version should be set to null
+    assert.ok(
+      qdSource.includes("setOpenQuestionsVersion(null)"),
+      "Should set openQuestionsVersion to null when doc does not exist"
+    );
   });
 });
