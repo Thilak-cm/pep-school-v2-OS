@@ -7,7 +7,6 @@ import {
   Card,
   CardContent,
   Button,
-  Skeleton,
 } from '@mui/material';
 import { Users as Group, StickyNote as Notes, ChevronDown as ExpandMore, Eye as Visibility, FileText as Description, RefreshCw } from '../icons';
 import { doc, getDoc } from 'firebase/firestore';
@@ -59,6 +58,7 @@ function ClassroomTimeline({ classroom, currentUser, userRole, manageableClassro
     loading,
     hasMore,
     loadMore,
+    isLoadingMore,
     refresh,
     refreshing,
     refreshTick,
@@ -81,6 +81,7 @@ function ClassroomTimeline({ classroom, currentUser, userRole, manageableClassro
 
   // Stats from statsCache (#221 Sprint 2)
   const {
+    notesOverall,
     notesPast7Days,
     studentCount: statsCacheStudentCount,
     studentStats,
@@ -651,7 +652,7 @@ function ClassroomTimeline({ classroom, currentUser, userRole, manageableClassro
           {/* Notes Count — from statsCache (#221 Sprint 2) */}
           <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', mb: 2 }}>
             <Typography variant="subtitle2" sx={{ fontWeight: 600 }}>
-              {notesPast7Days} notes in past 7 days
+              {notesPast7Days} notes in past 7 days, {notesOverall} overall
             </Typography>
             <Button
               size="small"
@@ -687,10 +688,11 @@ function ClassroomTimeline({ classroom, currentUser, userRole, manageableClassro
                   <Button
                     variant="outlined"
                     onClick={loadMore}
+                    disabled={isLoadingMore}
                     startIcon={<ExpandMore />}
                     sx={{ textTransform: 'none' }}
                   >
-                    Show More
+                    {isLoadingMore ? 'Loading...' : 'Show More'}
                   </Button>
                 </Box>
               )}

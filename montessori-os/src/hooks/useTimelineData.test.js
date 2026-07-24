@@ -11,73 +11,16 @@ const rootDir = resolve(__dirname, '..', '..', '..');
 const indexesPath = resolve(rootDir, 'firestore.indexes.json');
 const rulesPath = resolve(rootDir, 'firestore.rules');
 
-// Helper: create a fake Firestore-like timestamp
-const ts = (dateStr) => {
-  const d = new Date(dateStr);
-  return { seconds: Math.floor(d.getTime() / 1000), toDate: () => d };
-};
-
 // ──────────────────────────────────────────────
-// Pure logic: mergeAndDedupe, computePerStudentCounts
+// Pure logic: checkClassroomAccess
 // ──────────────────────────────────────────────
 
 import {
-  mergeAndDedupe,
   checkClassroomAccess,
 } from './timelineDataHelpers.js';
 
-describe('mergeAndDedupe', () => {
-  it('merges multiple arrays and removes duplicates by id', () => {
-    const obs = [
-      { id: 'obs1', type: 'voice', observedAt: ts('2026-06-20T10:00:00Z'), studentId: 's1' },
-      { id: 'obs2', type: 'text', observedAt: ts('2026-06-19T10:00:00Z'), studentId: 's2' },
-    ];
-    const media = [
-      { id: 'med1', type: 'media', observedAt: ts('2026-06-21T10:00:00Z'), studentId: 's1' },
-    ];
-    const reports = [
-      { id: 'report_1', type: 'report', observedAt: ts('2026-06-18T10:00:00Z'), studentId: 's1' },
-    ];
-
-    const result = mergeAndDedupe(obs, media, reports);
-    assert.equal(result.length, 4);
-    // Should be sorted newest first
-    assert.equal(result[0].id, 'med1');
-    assert.equal(result[3].id, 'report_1');
-  });
-
-  it('deduplicates by id when same doc appears in multiple arrays', () => {
-    const obs = [
-      { id: 'obs1', type: 'voice', observedAt: ts('2026-06-20T10:00:00Z'), studentId: 's1' },
-    ];
-    const duplicate = [
-      { id: 'obs1', type: 'voice', observedAt: ts('2026-06-20T10:00:00Z'), studentId: 's1' },
-    ];
-
-    const result = mergeAndDedupe(obs, duplicate, []);
-    assert.equal(result.length, 1);
-  });
-
-  it('returns empty array for empty inputs', () => {
-    const result = mergeAndDedupe([], [], []);
-    assert.deepStrictEqual(result, []);
-  });
-
-  it('handles items with Firestore Timestamp objects', () => {
-    const obs = [
-      { id: 'obs1', type: 'voice', observedAt: ts('2026-06-20T10:00:00Z'), studentId: 's1' },
-      { id: 'obs2', type: 'text', observedAt: ts('2026-06-22T10:00:00Z'), studentId: 's2' },
-    ];
-
-    const result = mergeAndDedupe(obs, [], []);
-    // Newest first
-    assert.equal(result[0].id, 'obs2');
-    assert.equal(result[1].id, 'obs1');
-  });
-});
-
-// computePerStudentCounts tests removed in #221 Sprint 2 — function deleted,
-// stats now come from statsCache via useTimelineStats.
+// mergeAndDedupe tests removed in #221 — function deleted, single observations collection.
+// computePerStudentCounts tests removed in #221 Sprint 2 — stats now from statsCache.
 
 describe('checkClassroomAccess', () => {
   it('grants access to superadmin for any classroom', () => {

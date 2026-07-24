@@ -71,6 +71,7 @@ function StudentTimeline({ student, currentUser, userRole, noteTypeFilter = null
     loading,
     hasMore,
     loadMore,
+    isLoadingMore,
     refresh,
     refreshing,
     refreshTick,
@@ -562,7 +563,7 @@ function StudentTimeline({ student, currentUser, userRole, noteTypeFilter = null
           continue;
         }
         const parentId = obs.parentStudentId || student.id || obs.studentId;
-        await deleteDoc(doc(db, 'students', parentId, 'media', obs.id));
+        await deleteDoc(doc(db, 'students', parentId, 'observations', obs.id));
         deleted += 1;
       }
       if (deleted > 0) {
@@ -605,8 +606,7 @@ function StudentTimeline({ student, currentUser, userRole, noteTypeFilter = null
       onFinalize: async () => {
         try {
           const parentId = obs.parentStudentId || student.id || obs.studentId;
-          const targetCollection = obs.type === 'media' ? 'media' : 'observations';
-          const docRef = doc(db, 'students', parentId, targetCollection, obs.id);
+          const docRef = doc(db, 'students', parentId, 'observations', obs.id);
 
           // Storage file cleanup is handled server-side by the mediaCleanup
           // Cloud Function trigger — no client-side deleteObject needed.
@@ -786,7 +786,7 @@ function StudentTimeline({ student, currentUser, userRole, noteTypeFilter = null
           {/* Summary — from statsCache (#221 Sprint 2) */}
           <Box sx={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', mt: 0.5 }}>
             <Typography variant="body2" color="text.secondary">
-              {notesPast7Days} notes in last 7 days
+              {notesOverall} notes overall | {notesPast7Days} notes in last 7 days
             </Typography>
             <Button
               size="small"
@@ -918,10 +918,11 @@ function StudentTimeline({ student, currentUser, userRole, noteTypeFilter = null
               <Button
                 variant="outlined"
                 onClick={loadMore}
+                disabled={isLoadingMore}
                 startIcon={<ExpandMore />}
                 sx={{ textTransform: 'none' }}
               >
-                Show More
+                {isLoadingMore ? 'Loading...' : 'Show More'}
               </Button>
             </Box>
           )}

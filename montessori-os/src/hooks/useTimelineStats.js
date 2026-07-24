@@ -10,6 +10,7 @@
 import { useState, useEffect } from 'react';
 import { doc, getDoc } from 'firebase/firestore';
 import { db } from '../firebase';
+import { reportCaughtError } from '../utils/reportCaughtError.js';
 import { sumLast7Days, findStudentStats } from './timelineStatsHelpers.js';
 
 // ── Hook ────────────────────────────────────────────────────
@@ -74,10 +75,13 @@ export default function useTimelineStats({ scope, classroomId, studentId, refres
           setNotesOverall(stats.totalMentions);
           setNotesPast7Days(stats.thisWeekMentions);
         }
-      } catch {
+      } catch (err) {
+        reportCaughtError(err, 'useTimelineStats', `${scope} fetch`);
         if (!cancelled) {
           setNotesOverall(0);
           setNotesPast7Days(0);
+          setStudentCount(0);
+          setStudentStats(new Map());
         }
       } finally {
         if (!cancelled) setLoading(false);

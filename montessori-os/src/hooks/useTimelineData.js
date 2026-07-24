@@ -79,7 +79,13 @@ export default function useTimelineData({ scope, id, classroom, userRole, manage
   const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
   const [hasMore, setHasMore] = useState(true);
-  const [cursor, setCursor] = useState(null); // raw observedAt value from last doc
+  const [isLoadingMore, setIsLoadingMore] = useState(false);
+  // Cursor stores raw observedAt value from last doc. Edge case: if two docs share
+  // the exact same observedAt timestamp at a page boundary, one may be skipped.
+  // A fully deterministic fix requires adding orderBy(documentId()) as a tiebreaker,
+  // which needs composite index changes for collectionGroup queries. Low probability
+  // in practice - users can refresh to see any skipped doc.
+  const [cursor, setCursor] = useState(null);
   const [refreshTick, setRefreshTick] = useState(0);
 
   // Access check (classroom scope only)
@@ -167,8 +173,9 @@ export default function useTimelineData({ scope, id, classroom, userRole, manage
 
   // Load more - fetch next page using cursor
   const loadMore = useCallback(async () => {
-    if (!id || !hasAccess || !cursor || !hasMore) return;
+    if (!id || !hasAccess || !cursor || !hasMore || isLoadingMore) return;
 
+    setIsLoadingMore(true);
     try {
       const page = scope === 'classroom'
         ? await fetchClassroomNotes(id, PAGE_SIZE, cursor)
@@ -179,11 +186,14 @@ export default function useTimelineData({ scope, id, classroom, userRole, manage
       setCursor(page.length > 0 ? page[page.length - 1].observedAt : null);
     } catch (err) {
       reportCaughtError(err, 'useTimelineData', `${scope} loadMore`);
+    } finally {
+      setIsLoadingMore(false);
     }
-  }, [scope, id, hasAccess, cursor, hasMore]);
+  }, [scope, id, hasAccess, cursor, hasMore, isLoadingMore]);
 
   // Refresh - reset to page 1
   const refresh = useCallback(() => {
+    setHasMore(true);
     setCursor(null);
     setRefreshTick(t => t + 1);
   }, []);
@@ -196,6 +206,7 @@ export default function useTimelineData({ scope, id, classroom, userRole, manage
     hasAccess,
     hasMore,
     loadMore,
+    isLoadingMore,
     refresh,
     refreshing,
     refreshTick, // exposed so useTimelineStats can piggyback on the same refresh

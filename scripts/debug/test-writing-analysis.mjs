@@ -58,7 +58,8 @@ async function loadConfig() {
 
 // --- Query ---
 async function fetchUnprocessedHandwriting(sid) {
-  const snap = await db.collection("students").doc(sid).collection("media")
+  const snap = await db.collection("students").doc(sid).collection("observations")
+    .where("type", "==", "media")
     .where("handwritten", "==", true)
     .where("status", "==", "ready")
     .orderBy("observedAt", "asc")
@@ -224,7 +225,7 @@ async function main() {
       .set(analysisDoc);
     const batch = db.batch();
     for (const doc of mediaDocs) {
-      batch.update(db.collection("students").doc(studentId).collection("media").doc(doc.id), {
+      batch.update(db.collection("students").doc(studentId).collection("observations").doc(doc.id), {
         batchAnalyzedAt: admin.firestore.FieldValue.serverTimestamp(),
       });
     }
