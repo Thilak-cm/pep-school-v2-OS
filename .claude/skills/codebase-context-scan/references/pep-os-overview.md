@@ -1,7 +1,7 @@
 # Pep OS Overview
 
-Generated: 2026-07-16T17:13:43.276Z
-App version: 12.0.0
+Generated: 2026-07-24T01:57:08.560Z
+App version: 12.1.0
 
 ## App Snapshot
 
@@ -115,7 +115,7 @@ App version: 12.0.0
 
 ## Firestore/Data Surface
 
-- Core collections/signals: `users`, `branches`, `programs`, `classrooms`, `students`, `observations`, `media`, `ai_summaries`, `config`, `feedback`, `placements`, `chats`, `messages`, `access`, `alerts`, `brain`, `digests`, `files`, `history`, `interviews`, `monthly_plan_feedback`, `runs`, `statsCache`, `testbench`
+- Core collections/signals: `users`, `branches`, `programs`, `classrooms`, `students`, `observations`, `ai_summaries`, `config`, `feedback`, `placements`, `chats`, `messages`, `access`, `alerts`, `brain`, `digests`, `files`, `history`, `interviews`, `monthly_plan_feedback`, `runs`, `statsCache`, `testbench`
 - Rule-declared paths:
 - `/{document=**}`
 - `/access/{uid}`
@@ -132,7 +132,6 @@ App version: 12.0.0
 - `/history/{historyId}`
 - `/history/{weekKey}`
 - `/interviews/{interviewId}`
-- `/media/{mediaId}`
 - `/messages/{messageId}`
 - `/monthly_plan_feedback/{feedbackId}`
 - `/observations/{observationId}`
@@ -144,12 +143,16 @@ App version: 12.0.0
 - `/testbench/settings`
 - `/users/{uid}`
 - `/{path=**}/ai_summaries/{summaryId}`
-- `/{path=**}/media/{mediaId}`
 - `/{path=**}/observations/{observationId}`
 - `/classrooms/_digest_all/digests/{digestId}`
 - `/classrooms/_digest_all/digests/{digestId}/history/{weekKey}`
 
 ## Recent Changes
+
+### 12.1.0 (2026-07-23)
+- Timeline pagination: classroom and student timelines now load 20 notes at a time with cursor-based "Show More" instead of fetching all notes at once (#221)
+- Timeline stats (notes overall, 7-day count, student count) now read from statsCache instead of being derived from loaded notes (#221)
+- Media observations merged into unified `observations` subcollection - single sorted stream replaces the previous two-collection k-way merge (#221)
 
 ### 12.0.0 (2026-07-15)
 - `brain/` knowledge base at repo root - single source of truth for all LLM pipeline context (knowledge, prompts, model config) across school-wide, primary, elementary, and adolescent programs with teacher-facing/parent-facing splits (#157)
@@ -165,9 +168,4 @@ App version: 12.0.0
 - `studentCount` now maintained by a self-healing Firestore trigger (`onStudentWrite`) instead of fragile client-side `increment()` calls - corrupted counts (e.g., Parijat's -7) auto-correct on next student write (#161)
 - Removed 24-hour localStorage cache for classrooms so `studentCount` is always fresh on login (#161)
 - ClassroomTimeline uses live student query count instead of stale denormalized `classroom.studentCount` (#161)
-
-### 11.3.3 (2026-07-05)
-- Baseball card pipeline now uses per-program config docs (`baseball_card_primary`, `baseball_card_toddler`, `baseball_card_elementary`, `baseball_card_adolescent`) with program-specific curriculum domains — elementary/adolescent students no longer get "Practical Life" or "Sensorial" as false coverage gaps (#132)
-- Frontend baseball card config reads use per-program doc matching the student's program instead of the deprecated single `config/baseball_card` doc (#132)
-- `regenerateBaseballCardForStudent` now propagates generation failures to the caller instead of returning false success (#132)
 
