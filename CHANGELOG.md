@@ -1,5 +1,26 @@
 # Changelog
 
+# 12.1.0 — 2026-07-23
+
+### Changed
+- Timeline pagination: classroom and student timelines now load 20 notes at a time with cursor-based "Show More" instead of fetching all notes at once (#221)
+- Timeline stats (notes overall, 7-day count, student count) now read from statsCache instead of being derived from loaded notes (#221)
+- Media observations merged into unified `observations` subcollection - single sorted stream replaces the previous two-collection k-way merge (#221)
+- All Cloud Functions, security rules, and storage rules updated to read/write media from `observations` with `type === 'media'` filter (#221)
+
+### Added
+- Refresh button on both classroom and student timelines - resets to page 1 and re-fetches latest notes and stats (#221)
+- Migration script `scripts/ops/migrate-media-to-observations.mjs` with dry-run and --yes modes (#221)
+- Verification script `scripts/ops/verify-media-migration.mjs` to confirm migration doc counts (#221)
+- Firestore composite indexes for observations pagination and type filtering (#221)
+
+### Removed
+- `injectNote` optimistic injection system - timelines use manual refresh instead of auto-inject after save (#221)
+- Reports (ai_summaries) no longer fetched or displayed on timeline (#221)
+- `onInjectReady`, `timelineInjectRef`, `onNotesChanged` props removed from App, ScreenRenderer, timelines, NoteBottomSheet, and GroupedNoteDialog (#221)
+- `mergeAndDedupe` helper removed from timelineDataHelpers - no longer needed with single collection (#221)
+- Firestore collection group rules for `media` subcollection - covered by `observations` rules (#221)
+
 # 12.0.0 — 2026-07-15
 
 ### Added
