@@ -66,7 +66,6 @@ export default function NoteBottomSheet({
   userRole,
   onNavigateToStudent,
   isClassroomContext = false,
-  onNotesChanged,
   // Media-specific props
   mediaUrl,
   carouselList,
@@ -273,9 +272,8 @@ export default function NoteBottomSheet({
       onFinalize: async () => {
         try {
           const parentId = obs.parentStudentId || obs.studentId;
-          const targetCollection = obs.type === 'media' ? 'media' : 'observations';
-          await deleteDoc(doc(db, 'students', parentId, targetCollection, obs.id));
-          if (typeof onNotesChanged === 'function') onNotesChanged();
+          // #221: all note types (including media) now in observations subcollection
+          await deleteDoc(doc(db, 'students', parentId, 'observations', obs.id));
           notify.success('Note deleted successfully', { id: notifId, duration: 2500 });
         } catch { notify.error('Error deleting note. Please try again.', { id: notifId, duration: 3500 }); }
       },
@@ -301,8 +299,8 @@ export default function NoteBottomSheet({
       setReassigning(true);
       const newStudentId = reassignSelectedStudents[0];
       const oldParentId = observation.parentStudentId || observation.studentId;
-      const targetCollection = observation.type === 'media' ? 'media' : 'observations';
-      const srcRef = doc(db, 'students', oldParentId, targetCollection, observation.id);
+      // #221: all note types (including media) now in observations subcollection
+      const srcRef = doc(db, 'students', oldParentId, 'observations', observation.id);
       const srcSnap = await getDoc(srcRef);
       if (!srcSnap.exists()) throw new Error('Source observation not found');
       const srcData = srcSnap.data() || {};
@@ -311,7 +309,7 @@ export default function NoteBottomSheet({
         const targetStuSnap = await getDoc(doc(db, 'students', newStudentId));
         targetClassroomId = targetStuSnap.data()?.classroomId || targetClassroomId;
       } catch (e) { reportCaughtError(e, 'NoteBottomSheet', 'reassign target classroom'); }
-      const destRef = doc(db, 'students', newStudentId, targetCollection, observation.id);
+      const destRef = doc(db, 'students', newStudentId, 'observations', observation.id);
       await setDoc(destRef, { ...srcData, studentId: newStudentId, classroomId: targetClassroomId, updatedAt: serverTimestamp(), lastEditedBy: currentUser.uid, lastEditedAt: serverTimestamp() });
       await deleteDoc(srcRef);
       setReassignConfirmOpen(false);

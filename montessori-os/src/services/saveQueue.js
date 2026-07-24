@@ -376,7 +376,8 @@ const deriveMediaPayload = async (payload, item) => {
   }
 
   const mediaId = payload.mediaId || `media_${item.id}`;
-  const mediaRef = doc(db, 'students', studentId, 'media', mediaId);
+  // #221: media docs now written to observations subcollection (storage path unchanged)
+  const mediaRef = doc(db, 'students', studentId, 'observations', mediaId);
   const storagePath = `students/${studentId}/media/${mediaId}/original.${payload.source.extension}`;
 
   await deleteDoc(mediaRef).catch(() => {});

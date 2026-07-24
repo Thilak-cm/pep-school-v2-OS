@@ -152,18 +152,20 @@ describe('#129 AC2-3: Note saved toast with View button', () => {
 // AC4 & AC5: Timeline refresh via injectNote wiring
 // ──────────────────────────────────────────────
 
-describe('#129 AC4-5: Timeline injectNote wiring', () => {
-  it('ClassroomTimeline destructures injectNote from useTimelineData', () => {
+// #221 Sprint 2: injectNote removed - teachers use the refresh button instead.
+// Original #129 AC4-5 tests removed since injectNote no longer exists.
+describe('#221: injectNote removed, refresh button replaces it', () => {
+  it('ClassroomTimeline does NOT destructure injectNote', () => {
     assert.ok(
-      classroomTimelineSrc.includes('injectNote'),
-      'ClassroomTimeline should destructure injectNote from useTimelineData'
+      !classroomTimelineSrc.includes('injectNote'),
+      'ClassroomTimeline should NOT reference injectNote (removed in #221)'
     );
   });
 
-  it('StudentTimeline destructures injectNote from useTimelineData', () => {
+  it('StudentTimeline does NOT destructure injectNote', () => {
     assert.ok(
-      studentTimelineSrc.includes('injectNote'),
-      'StudentTimeline should destructure injectNote from useTimelineData'
+      !studentTimelineSrc.includes('injectNote'),
+      'StudentTimeline should NOT reference injectNote (removed in #221)'
     );
   });
 

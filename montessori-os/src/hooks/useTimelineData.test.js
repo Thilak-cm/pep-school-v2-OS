@@ -11,114 +11,16 @@ const rootDir = resolve(__dirname, '..', '..', '..');
 const indexesPath = resolve(rootDir, 'firestore.indexes.json');
 const rulesPath = resolve(rootDir, 'firestore.rules');
 
-// Helper: create a fake Firestore-like timestamp
-const ts = (dateStr) => {
-  const d = new Date(dateStr);
-  return { seconds: Math.floor(d.getTime() / 1000), toDate: () => d };
-};
-
 // ──────────────────────────────────────────────
-// Pure logic: mergeAndDedupe, computePerStudentCounts
+// Pure logic: checkClassroomAccess
 // ──────────────────────────────────────────────
 
 import {
-  mergeAndDedupe,
-  computePerStudentCounts,
   checkClassroomAccess,
 } from './timelineDataHelpers.js';
 
-describe('mergeAndDedupe', () => {
-  it('merges multiple arrays and removes duplicates by id', () => {
-    const obs = [
-      { id: 'obs1', type: 'voice', observedAt: ts('2026-06-20T10:00:00Z'), studentId: 's1' },
-      { id: 'obs2', type: 'text', observedAt: ts('2026-06-19T10:00:00Z'), studentId: 's2' },
-    ];
-    const media = [
-      { id: 'med1', type: 'media', observedAt: ts('2026-06-21T10:00:00Z'), studentId: 's1' },
-    ];
-    const reports = [
-      { id: 'report_1', type: 'report', observedAt: ts('2026-06-18T10:00:00Z'), studentId: 's1' },
-    ];
-
-    const result = mergeAndDedupe(obs, media, reports);
-    assert.equal(result.length, 4);
-    // Should be sorted newest first
-    assert.equal(result[0].id, 'med1');
-    assert.equal(result[3].id, 'report_1');
-  });
-
-  it('deduplicates by id when same doc appears in multiple arrays', () => {
-    const obs = [
-      { id: 'obs1', type: 'voice', observedAt: ts('2026-06-20T10:00:00Z'), studentId: 's1' },
-    ];
-    const duplicate = [
-      { id: 'obs1', type: 'voice', observedAt: ts('2026-06-20T10:00:00Z'), studentId: 's1' },
-    ];
-
-    const result = mergeAndDedupe(obs, duplicate, []);
-    assert.equal(result.length, 1);
-  });
-
-  it('returns empty array for empty inputs', () => {
-    const result = mergeAndDedupe([], [], []);
-    assert.deepStrictEqual(result, []);
-  });
-
-  it('handles items with Firestore Timestamp objects', () => {
-    const obs = [
-      { id: 'obs1', type: 'voice', observedAt: ts('2026-06-20T10:00:00Z'), studentId: 's1' },
-      { id: 'obs2', type: 'text', observedAt: ts('2026-06-22T10:00:00Z'), studentId: 's2' },
-    ];
-
-    const result = mergeAndDedupe(obs, [], []);
-    // Newest first
-    assert.equal(result[0].id, 'obs2');
-    assert.equal(result[1].id, 'obs1');
-  });
-});
-
-describe('computePerStudentCounts', () => {
-  it('counts notes per student correctly', () => {
-    const notes = [
-      { id: 'n1', studentId: 's1', type: 'voice', observedAt: ts('2026-06-25T10:00:00Z') },
-      { id: 'n2', studentId: 's1', type: 'lesson', observedAt: ts('2026-06-24T10:00:00Z') },
-      { id: 'n3', studentId: 's2', type: 'text', observedAt: ts('2026-06-23T10:00:00Z') },
-      { id: 'n4', studentId: 's1', type: 'media', observedAt: ts('2026-06-10T10:00:00Z') },
-    ];
-
-    const counts = computePerStudentCounts(notes);
-    assert.equal(counts.get('s1').totalNotes, 3);
-    assert.equal(counts.get('s2').totalNotes, 1);
-  });
-
-  it('computes notesLast7Days based on observedAt', () => {
-    const now = new Date('2026-06-26T12:00:00Z');
-    const notes = [
-      { id: 'n1', studentId: 's1', type: 'voice', observedAt: ts('2026-06-25T10:00:00Z') }, // within 7d
-      { id: 'n2', studentId: 's1', type: 'text', observedAt: ts('2026-06-10T10:00:00Z') },  // outside 7d
-      { id: 'n3', studentId: 's1', type: 'lesson', observedAt: ts('2026-06-22T10:00:00Z') }, // within 7d
-    ];
-
-    const counts = computePerStudentCounts(notes, now);
-    assert.equal(counts.get('s1').totalNotes, 3);
-    assert.equal(counts.get('s1').notesLast7Days, 2);
-  });
-
-  it('returns empty map for empty notes array', () => {
-    const counts = computePerStudentCounts([]);
-    assert.equal(counts.size, 0);
-  });
-
-  it('excludes report type from note counts', () => {
-    const notes = [
-      { id: 'n1', studentId: 's1', type: 'voice', observedAt: ts('2026-06-25T10:00:00Z') },
-      { id: 'r1', studentId: 's1', type: 'report', observedAt: ts('2026-06-25T10:00:00Z') },
-    ];
-
-    const counts = computePerStudentCounts(notes);
-    assert.equal(counts.get('s1').totalNotes, 1, 'reports should not count toward totalNotes');
-  });
-});
+// mergeAndDedupe tests removed in #221 — function deleted, single observations collection.
+// computePerStudentCounts tests removed in #221 Sprint 2 — stats now from statsCache.
 
 describe('checkClassroomAccess', () => {
   it('grants access to superadmin for any classroom', () => {
@@ -162,24 +64,6 @@ describe('useTimelineData hook structure', () => {
     );
   });
 
-  it('imports pure helpers from timelineDataHelpers', async () => {
-    hookSource = hookSource || await readFile(hookPath, 'utf8');
-    assert.ok(
-      hookSource.includes("from './timelineDataHelpers.js'"),
-      'should import from timelineDataHelpers.js'
-    );
-  });
-
-  it('helpers file exports mergeAndDedupe', async () => {
-    const helpers = await readFile(helpersPath, 'utf8');
-    assert.ok(helpers.includes('export function mergeAndDedupe'), 'should export mergeAndDedupe');
-  });
-
-  it('helpers file exports computePerStudentCounts', async () => {
-    const helpers = await readFile(helpersPath, 'utf8');
-    assert.ok(helpers.includes('export function computePerStudentCounts'), 'should export computePerStudentCounts');
-  });
-
   it('helpers file exports checkClassroomAccess', async () => {
     const helpers = await readFile(helpersPath, 'utf8');
     assert.ok(helpers.includes('export function checkClassroomAccess'), 'should export checkClassroomAccess');
@@ -188,26 +72,56 @@ describe('useTimelineData hook structure', () => {
   it('uses getDocs not onSnapshot', async () => {
     hookSource = hookSource || await readFile(hookPath, 'utf8');
     assert.ok(hookSource.includes('getDocs'), 'should import getDocs');
-    // Check import line specifically — comments mentioning onSnapshot are fine
     const importLines = hookSource.split('\n').filter(l => l.includes('import') && l.includes('firebase/firestore'));
     const importsOnSnapshot = importLines.some(l => l.includes('onSnapshot'));
     assert.ok(!importsOnSnapshot, 'should NOT import onSnapshot from firebase/firestore');
   });
 
-  it('does not import or use limit for query-level pagination', async () => {
+  it('imports limit and startAfter for cursor-based pagination (#221)', async () => {
     hookSource = hookSource || await readFile(hookPath, 'utf8');
-    // Should not import limit from firebase (UI-only pagination via displayLimit)
-    const firebaseImportLine = hookSource.split('\n').find(l =>
-      l.includes('from \'firebase/firestore\'') || l.includes('from "firebase/firestore"')
-    );
-    if (firebaseImportLine) {
-      assert.ok(!firebaseImportLine.includes(' limit'), 'should not import limit from firebase/firestore');
-    }
+    // Multi-line import: find the full import block by extracting between 'import {' and 'firebase/firestore'
+    const importMatch = hookSource.match(/import\s*\{([^}]+)\}\s*from\s*['"]firebase\/firestore['"]/s);
+    assert.ok(importMatch, 'should have firebase/firestore import');
+    const importedSymbols = importMatch[1];
+    assert.ok(importedSymbols.includes('limit'), 'should import limit');
+    assert.ok(importedSymbols.includes('startAfter'), 'should import startAfter');
   });
 
-  it('exposes injectNote function for post-save insertion', async () => {
+  it('exposes loadMore and hasMore for cursor pagination (#221)', async () => {
     hookSource = hookSource || await readFile(hookPath, 'utf8');
-    assert.ok(hookSource.includes('injectNote'), 'should expose injectNote');
+    assert.ok(hookSource.includes('loadMore'), 'should expose loadMore');
+    assert.ok(hookSource.includes('hasMore'), 'should expose hasMore');
+  });
+
+  it('exposes refresh and refreshing (#221)', async () => {
+    hookSource = hookSource || await readFile(hookPath, 'utf8');
+    assert.ok(hookSource.includes('refresh'), 'should expose refresh');
+    assert.ok(hookSource.includes('refreshing'), 'should expose refreshing');
+  });
+
+  it('does not expose injectNote (#221 - removed)', async () => {
+    hookSource = hookSource || await readFile(hookPath, 'utf8');
+    assert.ok(!hookSource.includes('injectNote'), 'should not expose injectNote');
+  });
+
+  it('does not expose displayLimit or showMore (#221 - replaced by loadMore)', async () => {
+    hookSource = hookSource || await readFile(hookPath, 'utf8');
+    assert.ok(!hookSource.includes('displayLimit'), 'should not expose displayLimit');
+    assert.ok(!hookSource.includes('showMore'), 'should not expose showMore');
+  });
+
+  it('does not fetch ai_summaries (#221 - reports dropped from timeline)', async () => {
+    hookSource = hookSource || await readFile(hookPath, 'utf8');
+    // Check for actual code usage (collectionGroup/collection calls), not comments
+    const codeLines = hookSource.split('\n').filter(l => !l.trim().startsWith('*') && !l.trim().startsWith('//'));
+    const hasAiSummariesCode = codeLines.some(l => l.includes("'ai_summaries'") || l.includes('"ai_summaries"'));
+    assert.ok(!hasAiSummariesCode, 'should not fetch ai_summaries in code');
+    assert.ok(!hookSource.includes('normalizeReportDoc'), 'should not have normalizeReportDoc');
+  });
+
+  it('does not import computePerStudentCounts (#221 - stats from statsCache)', async () => {
+    hookSource = hookSource || await readFile(hookPath, 'utf8');
+    assert.ok(!hookSource.includes('computePerStudentCounts'), 'should not import computePerStudentCounts');
   });
 });
 
@@ -256,12 +170,11 @@ describe('Firestore collectionGroup rules for teacher access', () => {
     );
   });
 
-  it('media rule uses classroomId-based teacher path', async () => {
+  it('no separate media collection group rule (#221 - merged into observations)', async () => {
     rules = rules || await readFile(rulesPath, 'utf8');
-    const mediaSection = rules.split('match /{path=**}/media/{mediaId}')[1]?.split('match /')[0] || '';
     assert.ok(
-      mediaSection.includes("isTeacherInClassroom(resource.data.classroomId)"),
-      'media collectionGroup should have classroomId-based teacher path'
+      !rules.includes('match /{path=**}/media/{mediaId}'),
+      'media collection group rule should not exist - media docs covered by observations rule'
     );
   });
 });
@@ -280,21 +193,21 @@ describe('ClassroomTimeline student count display (#151)', () => {
     assert.ok(timelineSource.length > 0);
   });
 
-  it('uses live classroomStudents.length for count display, not cached classroom.studentCount (#161)', async () => {
+  it('uses statsCache for student count, with classroomStudents.length as fallback (#221)', async () => {
     timelineSource = timelineSource || await readFile(timelinePath, 'utf8');
+    // #221: Students tab header uses statsCacheStudentCount with classroomStudents.length fallback
+    assert.ok(
+      timelineSource.includes('statsCacheStudentCount'),
+      'should use statsCacheStudentCount from statsCache for student count display'
+    );
     assert.ok(
       timelineSource.includes('classroomStudents.length'),
-      'should use classroomStudents.length (live query) for the student count display'
+      'should fall back to classroomStudents.length when statsCache unavailable'
     );
-    // The stale pattern — classroom.studentCount from cached prop — should be gone
+    // The stale pattern - classroom.studentCount from cached prop - should be gone
     assert.ok(
       !timelineSource.includes('classroom.studentCount'),
       'should NOT use classroom.studentCount (stale cache) for count display'
-    );
-    // Notes tab search branch should use filteredStudents (includes transferred) not sortedFilteredStudents
-    assert.ok(
-      timelineSource.includes('filteredStudents.length'),
-      'Notes tab search branch should use filteredStudents.length (includes transferred students in count)'
     );
   });
 
@@ -305,5 +218,147 @@ describe('ClassroomTimeline student count display (#151)', () => {
       timelineSource.includes('isTransferred'),
       'should reference isTransferred to filter transferred students from the list'
     );
+  });
+});
+
+// ──────────────────────────────────────────────
+// #221: Media merged into observations — no separate media subcollection
+// ──────────────────────────────────────────────
+
+const noteBottomSheetPath = resolve(__dirname, '..', 'components', 'noteBottomSheet', 'NoteBottomSheet.jsx');
+const useMediaPreviewPath = resolve(__dirname, '..', 'components', 'noteBottomSheet', 'useMediaPreview.js');
+const addNoteModalPath = resolve(__dirname, '..', 'components', 'AddNoteModal.jsx');
+const saveQueuePath = resolve(__dirname, '..', 'services', 'saveQueue.js');
+const studentDashboardPath = resolve(__dirname, '..', 'components', 'StudentDashboard.jsx');
+const settingsPagePath = resolve(__dirname, '..', 'components', 'SettingsPage.jsx');
+const storageRulesPath = resolve(rootDir, 'storage.rules');
+
+describe('Media merged into observations (#221)', () => {
+  it('useTimelineData does not query the media subcollection', async () => {
+    const src = await readFile(hookPath, 'utf8');
+    assert.ok(
+      !src.includes("collectionGroup(db, 'media')"),
+      'should not have collectionGroup media query'
+    );
+    assert.ok(
+      !src.includes("'media'),"),
+      'should not reference media subcollection in collection() calls'
+    );
+  });
+
+  it('NoteBottomSheet does not branch on media subcollection for delete/reassign', async () => {
+    const src = await readFile(noteBottomSheetPath, 'utf8');
+    assert.ok(
+      !src.includes("? 'media' : 'observations'"),
+      'should not branch between media and observations subcollections'
+    );
+    assert.ok(
+      !src.includes("'media' : 'observations'"),
+      'should not have ternary picking media vs observations'
+    );
+  });
+
+  it('useMediaPreview writes to observations subcollection', async () => {
+    const src = await readFile(useMediaPreviewPath, 'utf8');
+    assert.ok(
+      !src.includes("'media', observation.id"),
+      'should not reference media subcollection for comment edits'
+    );
+  });
+
+  it('AddNoteModal writes media to observations subcollection', async () => {
+    const src = await readFile(addNoteModalPath, 'utf8');
+    // Check that media doc writes go to observations, not media subcollection
+    const lines = src.split('\n');
+    const mediaDocLines = lines.filter(l =>
+      l.includes("'media', mediaId") && l.includes('doc(')
+    );
+    assert.equal(
+      mediaDocLines.length, 0,
+      'should not write media docs to media subcollection (should use observations)'
+    );
+  });
+
+  it('saveQueue writes media to observations subcollection', async () => {
+    const src = await readFile(saveQueuePath, 'utf8');
+    const lines = src.split('\n');
+    const mediaDocLines = lines.filter(l =>
+      l.includes("'media', mediaId") && l.includes('doc(')
+    );
+    assert.equal(
+      mediaDocLines.length, 0,
+      'should not write media docs to media subcollection (should use observations)'
+    );
+  });
+
+  it('StudentDashboard reads media from observations subcollection', async () => {
+    const src = await readFile(studentDashboardPath, 'utf8');
+    assert.ok(
+      !src.includes("studentId, 'media'"),
+      'should not query media subcollection directly'
+    );
+  });
+
+  it('SettingsPage reads media from observations collection group', async () => {
+    const src = await readFile(settingsPagePath, 'utf8');
+    assert.ok(
+      !src.includes("collectionGroup(db, 'media')"),
+      'should not query media collection group'
+    );
+  });
+
+  it('NoteBottomSheet does not expose onNotesChanged prop', async () => {
+    const src = await readFile(noteBottomSheetPath, 'utf8');
+    assert.ok(
+      !src.includes('onNotesChanged'),
+      'onNotesChanged prop should be removed'
+    );
+  });
+
+  it('storage.rules mediaDoc() reads from observations subcollection', async () => {
+    const src = await readFile(storageRulesPath, 'utf8');
+    assert.ok(
+      src.includes('students/$(studentId)/observations/$(mediaId)'),
+      'mediaDoc() should read from observations subcollection'
+    );
+    assert.ok(
+      !src.includes('students/$(studentId)/media/$(mediaId)'),
+      'mediaDoc() should NOT read from media subcollection'
+    );
+  });
+});
+
+// ──────────────────────────────────────────────
+// #221 Sprint 2: Inject wiring fully removed
+// ──────────────────────────────────────────────
+
+const appPath = resolve(__dirname, '..', 'App.jsx');
+const screenRendererPath = resolve(__dirname, '..', 'ScreenRenderer.jsx');
+
+describe('Inject wiring removed (#221 Sprint 2)', () => {
+  it('App.jsx does not contain timelineInjectRef', async () => {
+    const src = await readFile(appPath, 'utf8');
+    assert.ok(!src.includes('timelineInjectRef'), 'timelineInjectRef should be removed from App.jsx');
+  });
+
+  it('App.jsx does not contain onTimelineInjectReady', async () => {
+    const src = await readFile(appPath, 'utf8');
+    assert.ok(!src.includes('onTimelineInjectReady'), 'onTimelineInjectReady should be removed from App.jsx');
+  });
+
+  it('ScreenRenderer does not forward onInjectReady', async () => {
+    const src = await readFile(screenRendererPath, 'utf8');
+    assert.ok(!src.includes('onInjectReady'), 'onInjectReady should be removed from ScreenRenderer.jsx');
+  });
+
+  it('ClassroomTimeline does not accept onInjectReady', async () => {
+    const src = await readFile(timelinePath, 'utf8');
+    assert.ok(!src.includes('onInjectReady'), 'onInjectReady should be removed from ClassroomTimeline');
+  });
+
+  it('StudentTimeline does not accept onInjectReady', async () => {
+    const studentTimelinePath = resolve(__dirname, '..', 'components', 'StudentTimeline.jsx');
+    const src = await readFile(studentTimelinePath, 'utf8');
+    assert.ok(!src.includes('onInjectReady'), 'onInjectReady should be removed from StudentTimeline');
   });
 });

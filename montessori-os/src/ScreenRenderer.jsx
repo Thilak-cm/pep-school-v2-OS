@@ -113,7 +113,6 @@ function renderScreen(screen, ctx) {
             ctx.setStudentDashboardNoteType("textVoice");
             ctx.setScreen("studentDashboard");
           }}
-          onInjectReady={ctx.onTimelineInjectReady}
         />
       );
 
@@ -191,7 +190,6 @@ function renderScreen(screen, ctx) {
           currentUser={ctx.user}
           userRole={ctx.role}
           noteTypeFilter={ctx.timelineFilter}
-          onInjectReady={ctx.onTimelineInjectReady}
         />
       );
 

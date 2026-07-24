@@ -5,9 +5,9 @@
  * via firebase-admin SDK. Defaults to dryRun mode.
  *
  * Usage:
- *   OPENAI_API_KEY=sk-... node scripts/admin/test-batch-writing.mjs <studentId>
- *   OPENAI_API_KEY=sk-... node scripts/admin/test-batch-writing.mjs 2025-GUL-030
- *   OPENAI_API_KEY=sk-... node scripts/admin/test-batch-writing.mjs 2025-GUL-030 --live
+ *   OPENAI_API_KEY=sk-... node scripts/debug/test-writing-analysis.mjs <studentId>
+ *   OPENAI_API_KEY=sk-... node scripts/debug/test-writing-analysis.mjs 2025-GUL-030
+ *   OPENAI_API_KEY=sk-... node scripts/debug/test-writing-analysis.mjs 2025-GUL-030 --live
  *
  * Requires: OPENAI_API_KEY environment variable
  */
@@ -29,7 +29,7 @@ const storage = admin.storage();
 const studentId = process.argv[2];
 const isLive = process.argv.includes("--live");
 if (!studentId) {
-  console.error("Usage: node scripts/admin/test-batch-writing.mjs <studentId> [--live]");
+  console.error("Usage: node scripts/debug/test-writing-analysis.mjs <studentId> [--live]");
   process.exit(1);
 }
 const openAiKey = process.env.OPENAI_API_KEY;
@@ -58,7 +58,8 @@ async function loadConfig() {
 
 // --- Query ---
 async function fetchUnprocessedHandwriting(sid) {
-  const snap = await db.collection("students").doc(sid).collection("media")
+  const snap = await db.collection("students").doc(sid).collection("observations")
+    .where("type", "==", "media")
     .where("handwritten", "==", true)
     .where("status", "==", "ready")
     .orderBy("observedAt", "asc")
@@ -224,7 +225,7 @@ async function main() {
       .set(analysisDoc);
     const batch = db.batch();
     for (const doc of mediaDocs) {
-      batch.update(db.collection("students").doc(studentId).collection("media").doc(doc.id), {
+      batch.update(db.collection("students").doc(studentId).collection("observations").doc(doc.id), {
         batchAnalyzedAt: admin.firestore.FieldValue.serverTimestamp(),
       });
     }

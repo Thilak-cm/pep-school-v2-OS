@@ -36,7 +36,7 @@ import {
   LESSON_RATING_COLORS,
 } from '../utils/lessonNoteConstraints';
 
-export default function GroupedNoteDialog({ open, onClose, groupedNote, classroomStudents, classroomTeachers = [], transferredStudents = new Map(), userRole, onNavigateToStudent, onNotesChanged }) {
+export default function GroupedNoteDialog({ open, onClose, groupedNote, classroomStudents, classroomTeachers = [], transferredStudents = new Map(), userRole, onNavigateToStudent }) {
   const notify = useNotify();
   const note = groupedNote?.representativeNote;
   const isLesson = note?.type === 'lesson';
@@ -134,8 +134,6 @@ export default function GroupedNoteDialog({ open, onClose, groupedNote, classroo
               reportCaughtError(_err, 'GroupedNoteDialog', 'swallow-only try/catch');
             }
           }
-
-          if (typeof onNotesChanged === 'function') onNotesChanged();
 
           notify.success(
             `Note deleted successfully for ${isAll ? 'all' : deleteCount} student${deleteCount > 1 ? 's' : ''}`,

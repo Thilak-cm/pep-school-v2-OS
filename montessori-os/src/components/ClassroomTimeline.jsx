@@ -8,7 +8,7 @@ import {
   CardContent,
   Button,
 } from '@mui/material';
-import { Users as Group, StickyNote as Notes, ChevronDown as ExpandMore, Eye as Visibility, FileText as Description } from '../icons';
+import { Users as Group, StickyNote as Notes, ChevronDown as ExpandMore, Eye as Visibility, FileText as Description, RefreshCw } from '../icons';
 import { doc, getDoc } from 'firebase/firestore';
 import { db, storage } from '../firebase';
 import { ref, getDownloadURL } from 'firebase/storage';
@@ -28,11 +28,12 @@ import useObservationFilters from '../hooks/useObservationFilters';
 import useNotify from '../notifications/useNotify.js';
 import useSwipeTabs from '../hooks/useSwipeTabs';
 import useTimelineData from '../hooks/useTimelineData';
+import useTimelineStats from '../hooks/useTimelineStats';
 import { toDate, groupByCalendarDay } from './classroomTimelineUtils.js';
 import { HFTabs, DayHeader, HFSearchInput, HFFilterChip } from './ui';
 import { trackEvent } from '../utils/analytics';
 
-function ClassroomTimeline({ classroom, currentUser, userRole, manageableClassrooms = [], onNavigateToStudent, onInjectReady }) {
+function ClassroomTimeline({ classroom, currentUser, userRole, manageableClassrooms = [], onNavigateToStudent }) {
   const notify = useNotify();
   const [activeTab, setActiveTab] = useState(0); // 0 = Notes, 1 = Students
   const [selectedNote, setSelectedNote] = useState(null); // for text/voice/lesson expansion
@@ -49,16 +50,18 @@ function ClassroomTimeline({ classroom, currentUser, userRole, manageableClassro
   const [tabHeights, setTabHeights] = useState({ notes: 'auto', students: 'auto' });
   const [classroomTeachers, setClassroomTeachers] = useState([]);
 
-  // Shared data hook — replaces onSnapshot + cursor pagination with getDocs + in-memory (#128)
+  // Shared data hook — cursor-based pagination (#221 Sprint 2)
   const {
     notes: classroomNotes,
     students: classroomStudents,
     teachers: hookTeachers,
     loading,
-    displayLimit,
-    showMore,
-    perStudentCounts,
-    injectNote,
+    hasMore,
+    loadMore,
+    isLoadingMore,
+    refresh,
+    refreshing,
+    refreshTick,
   } = useTimelineData({
     scope: 'classroom',
     id: classroom?.id,
@@ -67,11 +70,26 @@ function ClassroomTimeline({ classroom, currentUser, userRole, manageableClassro
     manageableClassrooms,
   });
 
-  // Expose injectNote to parent for post-save timeline refresh (#129)
+  // Toast when refresh completes
+  const prevRefreshingRef = useRef(false);
   useEffect(() => {
-    if (onInjectReady) onInjectReady(injectNote);
-    return () => { if (onInjectReady) onInjectReady(null); };
-  }, [injectNote, onInjectReady]);
+    if (prevRefreshingRef.current && !refreshing) {
+      notify.success('Latest notes loaded', { duration: 2000 });
+    }
+    prevRefreshingRef.current = refreshing;
+  }, [refreshing, notify]);
+
+  // Stats from statsCache (#221 Sprint 2)
+  const {
+    notesOverall,
+    notesPast7Days,
+    studentCount: statsCacheStudentCount,
+    studentStats,
+  } = useTimelineStats({
+    scope: 'classroom',
+    classroomId: classroom?.id,
+    refreshTick,
+  });
 
   // Sync hook teachers into local state so supplement useEffect can append extras
   useEffect(() => {
@@ -292,11 +310,8 @@ function ClassroomTimeline({ classroom, currentUser, userRole, manageableClassro
     return [...areas].sort();
   }, [classroomNotes]);
 
-  // Slice to display limit — show only `displayLimit` notes at a time
-  const displayedObservations = useMemo(() => {
-    if (!filteredObservations) return [];
-    return filteredObservations.slice(0, displayLimit);
-  }, [filteredObservations, displayLimit]);
+  // #221 Sprint 2: no more UI-only slicing — pagination is at the Firestore level
+  const displayedObservations = filteredObservations || [];
 
   // Group notes by groupId, then sort
   const groupedAndSortedObservations = useMemo(() => {
@@ -396,7 +411,7 @@ function ClassroomTimeline({ classroom, currentUser, userRole, manageableClassro
     measure();
     const t = setTimeout(measure, 100);
     return () => clearTimeout(t);
-  }, [activeTab, dayGroups, sortedFilteredStudents, displayLimit, loading]);
+  }, [activeTab, dayGroups, sortedFilteredStudents, loading]);
 
   const activeTabHeight = activeTab === 0 ? tabHeights.notes : tabHeights.students;
 
@@ -634,22 +649,32 @@ function ClassroomTimeline({ classroom, currentUser, userRole, manageableClassro
               minHeight: '200px'
             }}
           >
-          {/* Notes Count */}
+          {/* Notes Count — from statsCache (#221 Sprint 2) */}
           <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', mb: 2 }}>
             <Typography variant="subtitle2" sx={{ fontWeight: 600 }}>
-              {filteredObservations.length} item{filteredObservations.length !== 1 ? 's' : ''} among {searchQuery ? filteredStudents.length : classroomStudents.length} students
+              {notesPast7Days} notes in past 7 days, {notesOverall} overall
             </Typography>
+            <Button
+              size="small"
+              variant="outlined"
+              onClick={refresh}
+              disabled={refreshing}
+              startIcon={<RefreshCw size={14} sx={refreshing ? { animation: 'spin 1s linear infinite', '@keyframes spin': { '0%': { transform: 'rotate(0deg)' }, '100%': { transform: 'rotate(360deg)' } } } : {}} />}
+              sx={{ textTransform: 'none', minWidth: 0, px: 1.5, py: 0.5, fontSize: '0.75rem' }}
+            >
+              Refresh
+            </Button>
           </Box>
 
           {/* Notes Timeline — day-grouped */}
-          {filteredObservations.length === 0 ? (
+          {filteredObservations.length === 0 && !refreshing ? (
             <Box sx={{ textAlign: 'center', py: 4 }}>
               <Typography variant="body2" color="text.secondary">
                 {searchQuery ? `No students or observations found for "${searchQuery}"` : 'No activity here yet'}
               </Typography>
             </Box>
           ) : (
-            <Box sx={{ display: 'flex', flexDirection: 'column', gap: 2 }}>
+            <Box sx={{ display: 'flex', flexDirection: 'column', gap: 2, opacity: refreshing ? 0.4 : 1, transition: 'opacity 0.2s' }}>
               {dayGroups.map((day) => (
                 <React.Fragment key={day.dateKey}>
                   <DayHeader label={day.label} accent={day.label === 'Today'} />
@@ -657,23 +682,24 @@ function ClassroomTimeline({ classroom, currentUser, userRole, manageableClassro
                 </React.Fragment>
               ))}
 
-              {/* Show More Button — UI-only, no Firestore calls (#128) */}
-              {displayLimit < (filteredObservations?.length || 0) && (
+              {/* Show More Button — cursor-based pagination (#221 Sprint 2) */}
+              {hasMore && (
                 <Box sx={{ textAlign: 'center', pt: 2 }}>
                   <Button
                     variant="outlined"
-                    onClick={showMore}
+                    onClick={loadMore}
+                    disabled={isLoadingMore}
                     startIcon={<ExpandMore />}
                     sx={{ textTransform: 'none' }}
                   >
-                    Show More
+                    {isLoadingMore ? 'Loading...' : 'Show More'}
                   </Button>
                 </Box>
               )}
             </Box>
           )}
           </Box>
-          
+
           {/* Tab 1: Students */}
           <Box
             ref={studentsTabRef}
@@ -684,10 +710,10 @@ function ClassroomTimeline({ classroom, currentUser, userRole, manageableClassro
               minHeight: '200px'
             }}
           >
-          {/* Students Count */}
+          {/* Students Count — from statsCache (#221 Sprint 2) */}
           <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', mb: 2 }}>
             <Typography variant="subtitle2" sx={{ fontWeight: 600 }}>
-              {classroomStudents.length} students in {classroom.name}
+              {statsCacheStudentCount || classroomStudents.length} students
             </Typography>
           </Box>
 
@@ -704,8 +730,8 @@ function ClassroomTimeline({ classroom, currentUser, userRole, manageableClassro
                 <ClassroomStudentCard
                   key={student.id}
                   student={student}
-                  totalNotes={perStudentCounts.get(student.id)?.totalNotes}
-                  notesLast7Days={perStudentCounts.get(student.id)?.notesLast7Days}
+                  totalNotes={studentStats?.get(student.id)?.totalMentions}
+                  notesLast7Days={studentStats?.get(student.id)?.thisWeekMentions}
                   loading={loading}
                   onClick={() => handleStudentClick(student)}
                 />

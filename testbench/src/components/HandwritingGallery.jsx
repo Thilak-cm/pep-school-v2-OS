@@ -48,8 +48,8 @@ export default function HandwritingGallery({ studentId, onCountLoaded }) {
 
     (async () => {
       try {
-        const mediaRef = collection(db, `students/${studentId}/media`);
-        const q = query(mediaRef, where("handwritten", "==", true), orderBy("observedAt", "asc"));
+        const mediaRef = collection(db, `students/${studentId}/observations`);
+        const q = query(mediaRef, where("type", "==", "media"), where("handwritten", "==", true), orderBy("observedAt", "asc"));
         const snap = await getDocs(q);
         if (ignore) return;
 

@@ -12,9 +12,10 @@ service firebase.storage {
         : null;
     }
 
+    // #221: media docs migrated to observations subcollection
     function mediaDoc(studentId, mediaId) {
       return firestore.get(
-        /databases/(default)/documents/students/$(studentId)/media/$(mediaId)
+        /databases/(default)/documents/students/$(studentId)/observations/$(mediaId)
       );
     }
 

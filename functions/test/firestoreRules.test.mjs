@@ -108,25 +108,12 @@ describe("firestore.rules: teacher access contract", () => {
     );
   });
 
-  it("teachers can read media in their classrooms", () => {
+  it("no separate media scoped rule (#221 - media merged into observations)", () => {
     const block = extractMatchBlock(rules, "match /students/{studentId}");
     const mediaBlock = extractMatchBlock(block, "match /media/{mediaId}");
-    assert.ok(mediaBlock, "media match block must exist");
-    assert.match(
-      mediaBlock,
-      /allow read:.*isTeacherInClassroom/,
-      "media must grant read access to teachers in the classroom",
-    );
-  });
-
-  it("teachers can create media in their classrooms", () => {
-    const block = extractMatchBlock(rules, "match /students/{studentId}");
-    const mediaBlock = extractMatchBlock(block, "match /media/{mediaId}");
-    assert.ok(mediaBlock);
-    assert.match(
-      mediaBlock,
-      /allow create:.*isTeacherInClassroom/,
-      "media must grant create access to teachers in the classroom",
+    assert.equal(
+      mediaBlock, null,
+      "separate media match block should not exist - media docs live in observations",
     );
   });
 
@@ -416,13 +403,22 @@ describe("firestore.rules: collection group access", () => {
     );
   });
 
-  it("media collection group grants teacher read via classroomId", () => {
+  it("no separate media collection group rule (#221 - media merged into observations)", () => {
     const block = extractMatchBlock(rules, "match /{path=**}/media/{mediaId}");
-    assert.ok(block, "media collection group rule must exist");
+    assert.equal(
+      block, null,
+      "media collection group rule should not exist - media docs live in observations",
+    );
+  });
+
+  it("observations collection group covers media-type docs (#221)", () => {
+    const block = extractMatchBlock(rules, "match /{path=**}/observations/{observationId}");
+    assert.ok(block, "observations collection group rule must exist");
+    // The existing observations collection group rule handles all types including media
     assert.match(
       block,
-      /allow read:[\s\S]*?isTeacher\(\)/,
-      "media collection group must grant read to teachers",
+      /allow read:/,
+      "observations collection group must have read rule (covers media-type docs too)",
     );
   });
 

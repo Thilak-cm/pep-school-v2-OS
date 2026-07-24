@@ -2,10 +2,10 @@
  * Test soul generation for a single student (PEP-149).
  *
  * Usage:
- *   node scripts/admin/test-student-profile.mjs <studentId>
- *   node scripts/admin/test-student-profile.mjs 2025-ADO-001
- *   node scripts/admin/test-student-profile.mjs 2025-ADO-001 --window=90
- *   node scripts/admin/test-student-profile.mjs 2025-ADO-001 --write
+ *   node scripts/debug/test-soul-generation.mjs <studentId>
+ *   node scripts/debug/test-soul-generation.mjs 2025-ADO-001
+ *   node scripts/debug/test-soul-generation.mjs 2025-ADO-001 --window=90
+ *   node scripts/debug/test-soul-generation.mjs 2025-ADO-001 --write
  *
  * This bypasses the callable auth gate by directly invoking the same logic
  * the Cloud Function uses, via the admin SDK (which has full access).
@@ -86,7 +86,7 @@ const windowFlag = args.find((a) => a.startsWith("--window="));
 const windowDays = windowFlag ? parseInt(windowFlag.split("=")[1], 10) : 365;
 
 if (!studentId) {
-  console.error("Usage: node scripts/admin/test-student-profile.mjs <studentId> [--window=365] [--write]");
+  console.error("Usage: node scripts/debug/test-soul-generation.mjs <studentId> [--window=365] [--write]");
   process.exit(1);
 }
 
@@ -114,7 +114,7 @@ async function run() {
   // 2. Get soul template from config
   const templateSnap = await db.collection("config").doc(`soul_guidelines_${programId}`).get();
   if (!templateSnap.exists) {
-    console.error(`Soul guidelines not found: config/soul_guidelines_${programId}. Run seed-soul-templates.mjs --apply first.`);
+    console.error(`Soul guidelines not found: config/soul_guidelines_${programId}. Edit config/soul_guidelines_{program} in Firestore (seeder was removed).`);
     process.exit(1);
   }
   const templateMarkdown = templateSnap.data().markdown;
@@ -323,7 +323,7 @@ async function run() {
     console.log(`  Written ${openQuestions.length} open questions to students/${studentId}/ai_summaries/open_questions`);
   } else {
     console.log("\nDry run — soul NOT written to Firestore.");
-    console.log("Add --write to persist: node scripts/admin/test-student-profile.mjs " + studentId + " --write");
+    console.log("Add --write to persist: node scripts/debug/test-soul-generation.mjs " + studentId + " --write");
   }
 }
 

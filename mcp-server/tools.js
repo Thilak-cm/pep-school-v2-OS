@@ -842,7 +842,8 @@ export async function handleListMedia(db, params) {
   let query = db
     .collection("students")
     .doc(studentId)
-    .collection("media")
+    .collection("observations")
+    .where("type", "==", "media")
     .orderBy("createdAt", "desc");
 
   if (mediaKind) {
@@ -880,7 +881,8 @@ export async function handleGetMediaStats(db, params) {
     const mediaSnap = await db
       .collection("students")
       .doc(studentDoc.id)
-      .collection("media")
+      .collection("observations")
+      .where("type", "==", "media")
       .get();
 
     let studentTotal = 0;

@@ -3,8 +3,8 @@
  * helpers for the soul-based interview prototype.
  *
  * Imported by:
- * - scripts/admin/test-question-gen.mjs (interactive CLI)
- * - scripts/admin/test-question-gen.test.mjs (unit tests)
+ * - scripts/debug/test-question-gen.mjs (interactive CLI)
+ * - scripts/debug/test-question-gen.test.mjs (unit tests)
  */
 
 // ---------------------------------------------------------------------------

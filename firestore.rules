@@ -317,7 +317,7 @@ service cloud.firestore {
             ]) &&
             isMedia(data) &&
             validMediaKind(data.mediaKind) &&
-            data.status == 'pending_upload' && // observations path: only pending_upload (media path allows 'ready' too for reassignment)
+            data.status in ['pending_upload', 'ready'] && // #221: media merged into observations; allow 'ready' for reassignment
             (data.media is list) &&
             data.media.size() <= 1 &&
             (
@@ -370,7 +370,8 @@ service cloud.firestore {
               'groupDefaults',
               'ratings',
               'studentComment',
-              'lessonMode'
+              'lessonMode',
+              'teacherComment'
             ]) &&
             request.resource.data.type == resource.data.type &&
             request.resource.data.createdBy == resource.data.createdBy &&
@@ -401,110 +402,14 @@ service cloud.firestore {
         );
       }
 
-      // Media subcollection - dedicated media docs
-      match /media/{mediaId} {
-        function adminCanAccessMedia() {
-          return managesClassroom(studentClassroomId(studentId));
-        }
-
-        function isMedia(data) {
-          return data.type == 'media';
-        }
-
-        function validMediaKind(kind) {
-          return kind in ['photo', 'video', 'pdf'];
-        }
-
-        function expectedContentType(kind) {
-          return kind == 'photo'
-            ? 'image/webp'
-            : (kind == 'pdf' ? 'application/pdf' : 'video/mp4');
-        }
-
-        function validMediaEntry(entry, kind) {
-          return entry.storagePath is string &&
-            entry.storagePath.size() > 0 &&
-            entry.contentType is string &&
-            entry.contentType == expectedContentType(kind) &&
-            entry.sizeBytes is int &&
-            entry.sizeBytes >= 0 &&
-            (!('width' in entry) || entry.width is int) &&
-            (!('height' in entry) || entry.height is int);
-        }
-
-        function validMediaCreatePayload(data) {
-          return data.keys().hasAll([
-              'type',
-              'mediaKind',
-              'status',
-              'media',
-              'studentId',
-              'classroomId',
-              'createdAt',
-              'observedAt',
-              'createdBy'
-            ]) &&
-            isMedia(data) &&
-            validMediaKind(data.mediaKind) &&
-            data.status in ['pending_upload', 'ready'] &&
-            (data.media is list) &&
-            data.media.size() <= 1 &&
-            (
-              data.media.size() == 0 ||
-              validMediaEntry(data.media[0], data.mediaKind)
-            ) &&
-            data.studentId == studentId &&
-            data.classroomId == studentClassroomId(studentId) &&
-            data.createdBy == request.auth.uid &&
-            data.createdAt is timestamp &&
-            data.observedAt is timestamp;
-        }
-
-        function isAuthor() {
-          return resource.data.createdBy == request.auth.uid ||
-            resource.data.teacherId == request.auth.uid;
-        }
-
-        function withinAuthorActionWindow() {
-          return resource.data.createdAt is timestamp &&
-            request.time < resource.data.createdAt + duration.value(48, 'h');
-        }
-
-        function authorCanEditMedia() {
-          return isTeacher() &&
-            isAuthor() &&
-            withinAuthorActionWindow() &&
-            request.resource.data.diff(resource.data).changedKeys().hasOnly([
-              'teacherComment',
-              'updatedAt',
-              'lastEditedBy',
-              'lastEditedAt'
-            ]) &&
-            request.resource.data.type == resource.data.type &&
-            request.resource.data.mediaKind == resource.data.mediaKind &&
-            request.resource.data.media == resource.data.media &&
-            request.resource.data.studentId == resource.data.studentId &&
-            request.resource.data.classroomId == resource.data.classroomId &&
-            request.resource.data.createdBy == resource.data.createdBy &&
-            request.resource.data.createdAt == resource.data.createdAt;
-        }
-
-        allow read: if adminCanAccessMedia() || isTeacherInClassroom(studentClassroomId(studentId));
-        allow create: if (adminCanAccessMedia() || isTeacherInClassroom(studentClassroomId(studentId))) &&
-          validMediaCreatePayload(request.resource.data);
-        allow update: if adminCanAccessMedia() || authorCanEditMedia();
-        allow delete: if adminCanAccessMedia() || (
-          isTeacher() && isAuthor() && withinAuthorActionWindow()
-        );
-      }
+      // #221: Media subcollection merged into observations.
+      // Media docs (type: 'media') now live in observations/ and are covered
+      // by the observations rule above. The old /media/{mediaId} rule block
+      // has been removed. teacherComment was added to authorCanEditObservation
+      // and status allows 'ready' for media reassignment.
     }
 
-    // Collection group rule for media (needed for collectionGroup queries)
-    match /{path=**}/media/{mediaId} {
-      allow read: if isPrivilegedAdmin() ||
-        (isTeacher() && ('classroomId' in resource.data) && isTeacherInClassroom(resource.data.classroomId)) ||
-        (isSignedIn() && resource.data.createdBy == request.auth.uid);
-    }
+    // #221: media collection group rule removed - media docs now in observations.
 
     // Collection group rule for ai_summaries (needed for collectionGroup queries)
     match /{path=**}/ai_summaries/{summaryId} {
