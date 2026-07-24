@@ -140,19 +140,10 @@ function App() {
 
   const handleHome = () => { setSelectedStudent(null); setScreen('landingPage'); };
 
-  // Ref to the currently mounted timeline's injectNote function (#129)
-  const timelineInjectRef = useRef(null);
-  const onTimelineInjectReady = useCallback((fn) => {
-    timelineInjectRef.current = fn;
-  }, []);
+  // #221 Sprint 2: injectNote removed - teachers use the refresh button instead.
 
   const handleNoteSaved = useCallback((info) => {
     if (!info) return;
-    // Inject saved notes into the currently mounted timeline
-    if (!info.navigate && timelineInjectRef.current && info.notes) {
-      info.notes.forEach((note) => timelineInjectRef.current(note));
-    }
-
     // If an open question was answered, bump the reload key so QuestionDeck refreshes (#144)
     if (info.openQuestionAnswered) {
       setQuestionDeckReloadKey((k) => k + 1);
@@ -419,7 +410,6 @@ function App() {
     openFeedbackWithMessage, handleLessonNotesSaved, handleNoteSaved, handleNavigation, handleSignOut,
     getStudentDisplayName, broadcastDeepLink, setBroadcastDeepLink,
     pageTitle, backNavigation, showBackButton,
-    onTimelineInjectReady,
     setAddNoteOpenQuestion, setAddNoteInitialStep, setAddNoteOpen: setAddNoteOpen,
     questionDeckReloadKey,
   };

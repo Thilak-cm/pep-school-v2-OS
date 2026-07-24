@@ -103,20 +103,15 @@ function SettingsPage({ user, userRole, classrooms = [], onNavigate, onSignOut }
         sevenDaysAgo.setDate(sevenDaysAgo.getDate() - 7);
         const ts = Timestamp.fromDate(sevenDaysAgo);
 
-        const [obsSnap, mediaSnap] = await Promise.all([
-          getDocs(query(
-            collectionGroup(db, 'observations'),
-            where('createdBy', '==', user.uid),
-            where('observedAt', '>=', ts),
-          )),
-          getDocs(query(
-            collectionGroup(db, 'media'),
-            where('createdBy', '==', user.uid),
-            where('observedAt', '>=', ts),
-          )),
-        ]);
+        // #221: media docs merged into observations - single query covers all note types
+        const obsSnap = await getDocs(query(
+          collectionGroup(db, 'observations'),
+          where('createdBy', '==', user.uid),
+          where('observedAt', '>=', ts),
+        ));
         if (!cancelled) {
-          setNotesThisWeek(obsSnap.size + mediaSnap.size);
+          // observations query now includes media-type docs
+          setNotesThisWeek(obsSnap.size);
           setNotesLoading(false);
         }
       } catch (err) {

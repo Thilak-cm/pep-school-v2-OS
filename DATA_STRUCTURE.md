@@ -20,8 +20,8 @@
 - `users/{uid}`
 - `classrooms/{classroomId}`
 - `students/{studentId}`
-- `students/{studentId}/observations/{observationId}`  // collection group: `observations`
-- `students/{studentId}/media/{mediaId}`               // uploaded photos, videos, PDFs
+- `students/{studentId}/observations/{observationId}`  // collection group: `observations` (includes media docs with type: 'media' since #221)
+- `students/{studentId}/media/{mediaId}`               // DEPRECATED (#221) - retained for rollback, no longer read/written
 - `students/{studentId}/chats/{chatId}`                // AI chat conversations
 - `students/{studentId}/chats/{chatId}/messages/{messageId}` // chat messages
 - `students/{studentId}/ai_summaries/soul`             // AI-generated student soul narrative (PEP-149)
@@ -49,6 +49,8 @@
 - `testbench/settings`                                 // test bench feature registry, defaults, global config
 - `testbench/settings/access/{uid}`                    // per-teacher test bench feature grants (PEP-224)
 - `testbench/settings/runs/{runId}`                    // prompt test bench run history (PEP-163)
+- `brain/{program}`                                    // knowledge base parent docs: school-wide, primary, elementary, adolescent (#157)
+- `brain/{program}/files/{docId}`                      // knowledge/prompt/config file docs synced from repo brain/ folder (#157)
 
 Notes:
 - We intentionally defer tags, attendance, and assessments. Add later without breaking this core.
@@ -507,8 +509,8 @@ Notes
 
 ---
 
-## 📎 Media (`/students/{studentId}/media/{mediaId}`)
-Per-student uploaded files (photos, videos, PDFs). One media doc per file per student; multi-student uploads fan out like observations.
+## 📎 Media (merged into `/students/{studentId}/observations/{mediaId}` - #221)
+Per-student uploaded files (photos, videos, PDFs). One media doc per file per student; multi-student uploads fan out like observations. As of #221, media docs live in the `observations` subcollection with `type: 'media'`. The old `/students/{studentId}/media/` subcollection is retained for rollback safety but is no longer read or written by any code. Storage paths are unchanged (`students/{studentId}/media/{mediaId}/original.webp`).
 
 ```typescript
 interface MediaDoc {
@@ -856,6 +858,50 @@ Routing and gating (Coach)
 
 Admin UI
 - `AICoachEditor` lets super admins pick a program, toggle enable, edit per-program config, and select model/temperature.
+
+---
+
+## 🧠 Brain — Knowledge Base (`/brain/{program}`) (#157)
+Purpose: unified knowledge base for all LLM pipelines — knowledge, prompts, and model config per program. Source of truth is the repo's `brain/` folder; synced to Firestore via `npm run push-brain` (admin script, Admin SDK). Cloud Functions read it through `functions/shared/brain.js:readBrain()` with a per-program 5-min TTL cache. Long-term this collection supersedes the per-feature `config/*` docs (migration is a separate issue).
+
+Parent docs: `school-wide`, `primary`, `elementary`, `adolescent`. Note: there is no `toddler` doc — toddler is merged into `primary` (`readBrain` normalizes the programId).
+
+```typescript
+// /brain/{program}
+interface BrainProgramDoc {
+  name: string;                       // "Primary", "School-wide", ...
+  description: string;
+  includesPrograms: ProgramId[];      // primary: ['toddler', 'primary']
+  updatedAt: Timestamp;               // last sync
+  lastSyncedByName: string;           // from git config user.name
+  lastSyncedByEmail: string;          // from git config user.email (no auth uid exists under Admin SDK)
+  docCount: number;                   // files subcollection size
+  pipelineIds: string[];              // pipelines present, e.g. ['coach', 'weekly-snapshot', ...]
+}
+
+// /brain/{program}/files/{docId}
+// docId flattens the folder path: 'teacher-facing--coach--prompt', 'nomenclature'
+interface BrainFileDoc {
+  content: string;                    // raw file string (markdown or JSON)
+  config?: Record<string, any>;       // parsed JSON — only on type 'config'; must contain `model`
+  type: 'config' | 'prompt' | 'knowledge';
+  pipeline: string | null;            // null = program/audience-level knowledge
+  audience: 'teacher-facing' | 'parent-facing' | null;
+  filename: string;                   // 'prompt.md'
+  path: string;                       // 'primary/teacher-facing/coach/prompt.md'
+  updatedAt: Timestamp;
+  checksum: string;                   // SHA-256 of raw content — sync skips unchanged files
+}
+```
+
+Read pattern (four layers, assembled in memory from ONE subcollection fetch per program):
+1. school-wide knowledge → 2. program knowledge (`pipeline == null, audience == null`) → 3. audience knowledge (`pipeline == null, audience == X`) → 4. pipeline content (`pipeline == X`: config + prompt + knowledge). Exceptions: `text-summarizer` and `voice-transcriber` read school-wide only.
+
+Security
+- Reads: privileged admins only (`isPrivilegedAdmin()` — superadmin or classroomadmin).
+- Writes: blocked for all clients (`allow write: if false`) — only the `push-brain` admin script writes (Admin SDK bypasses rules).
+
+MCP tools: `list_brain`, `get_brain_file`.
 
 ---
 

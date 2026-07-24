@@ -1,142 +1,65 @@
 /**
- * useTimelineData — shared data hook for ClassroomTimeline and StudentTimeline (#128).
+ * useTimelineData - paginated timeline data hook (#221 Sprint 2).
  *
- * Replaces separate onSnapshot + cursor-pagination logic with a single getDocs fetch
- * of all notes into memory. UI-only pagination via displayLimit slicing.
+ * Cursor-based Firestore pagination (PAGE_SIZE per page) with refresh.
+ * Single observations collection (media merged in Sprint 1).
+ * Reports dropped from timeline - ai_summaries no longer fetched.
  *
  * Two scopes:
- *   - classroom: 3 collectionGroup queries (observations, media, ai_summaries) by classroomId
- *   - student:   3 direct subcollection queries under students/{studentId}
+ *   - classroom: collectionGroup query by classroomId
+ *   - student:   direct subcollection query under students/{studentId}
  */
 
-import { useState, useEffect, useMemo, useCallback } from 'react';
+import { useState, useEffect, useCallback } from 'react';
 import {
   collection, collectionGroup, query, where, orderBy,
-  getDocs, getDoc, doc,
+  getDocs, getDoc, doc, limit, startAfter,
 } from 'firebase/firestore';
 import { db } from '../firebase';
 import { reportCaughtError } from '../utils/reportCaughtError.js';
-import { toDate } from '../components/classroomTimelineUtils.js';
-import { mergeAndDedupe, computePerStudentCounts, checkClassroomAccess } from './timelineDataHelpers.js';
+import { checkClassroomAccess } from './timelineDataHelpers.js';
 
 const PAGE_SIZE = 20;
 
-// ── Report doc shape normalizer ──────────────────────────────
-
-function normalizeReportDoc(docSnap, studentId, studentName) {
-  const data = docSnap.data();
-  return {
-    id: docSnap.id,
-    type: 'report',
-    studentId,
-    studentName: studentName || 'Unknown Student',
-    observedAt: data.generatedAt || null,
-    createdBy: data.generatedBy || null,
-    generatedByName: data.generatedByName || null,
-    noteCount: data.noteCount || 0,
-    reportText: data.reportText || '',
-    missingInputFlags: data.missingInputFlags || [],
-    driveDocLink: data.driveDocLink || null,
-    status: data.status || 'ok',
-    reportType: data.reportType || 'term',
-    dateRangeStart: data.dateRangeStart || null,
-    dateRangeEnd: data.dateRangeEnd || null,
-    classroomId: data.classroomId || null,
-    kind: data.kind || null,
-  };
-}
-
 // ── Fetchers ─────────────────────────────────────────────────
 
-async function fetchClassroomData(classroomId, students) {
-  const obsQuery = query(
-    collectionGroup(db, 'observations'),
+async function fetchClassroomNotes(classroomId, pageSize, cursor) {
+  const constraints = [
     where('classroomId', '==', classroomId),
     orderBy('observedAt', 'desc'),
-  );
+    limit(pageSize),
+  ];
+  if (cursor) constraints.push(startAfter(cursor));
 
-  const mediaQuery = query(
-    collectionGroup(db, 'media'),
-    where('classroomId', '==', classroomId),
-    orderBy('observedAt', 'desc'),
-  );
+  const obsQuery = query(collectionGroup(db, 'observations'), ...constraints);
+  const snap = await getDocs(obsQuery);
 
-  const reportsQuery = query(
-    collectionGroup(db, 'ai_summaries'),
-    where('classroomId', '==', classroomId),
-    where('kind', '==', 'report'),
-    orderBy('generatedAt', 'desc'),
-  );
-
-  const [obsSnap, mediaSnap, reportsSnap] = await Promise.all([
-    getDocs(obsQuery),
-    getDocs(mediaQuery),
-    getDocs(reportsQuery).catch(() => ({ docs: [] })), // fallback if index not yet deployed
-  ]);
-
-  const observations = obsSnap.docs.map(d => ({
+  return snap.docs.map(d => ({
     id: d.id,
     parentStudentId: d.ref.parent?.parent?.id,
     docPath: d.ref.path,
     ...d.data(),
   }));
-
-  const media = mediaSnap.docs.map(d => ({
-    id: d.id,
-    parentStudentId: d.ref.parent?.parent?.id,
-    docPath: d.ref.path,
-    ...d.data(),
-  }));
-
-  // Build student name lookup for reports
-  const studentNameMap = new Map();
-  for (const s of (students || [])) {
-    studentNameMap.set(s.id, s.displayName || s.firstName || 'Unknown Student');
-  }
-
-  const reports = reportsSnap.docs
-    .filter(d => /^report_\d/.test(d.id) && (d.data().status || 'ok') === 'ok')
-    .map(d => normalizeReportDoc(d, d.ref.parent?.parent?.id, studentNameMap.get(d.ref.parent?.parent?.id)));
-
-  return { observations, media, reports };
 }
 
-async function fetchStudentData(studentId) {
+async function fetchStudentNotes(studentId, pageSize, cursor) {
+  const constraints = [
+    orderBy('observedAt', 'desc'),
+    limit(pageSize),
+  ];
+  if (cursor) constraints.push(startAfter(cursor));
+
   const obsQuery = query(
     collection(db, 'students', studentId, 'observations'),
-    orderBy('observedAt', 'desc'),
+    ...constraints,
   );
+  const snap = await getDocs(obsQuery);
 
-  const mediaQuery = query(
-    collection(db, 'students', studentId, 'media'),
-    orderBy('observedAt', 'desc'),
-  );
-
-  const reportsQuery = collection(db, 'students', studentId, 'ai_summaries');
-
-  const [obsSnap, mediaSnap, reportsSnap] = await Promise.all([
-    getDocs(obsQuery),
-    getDocs(mediaQuery),
-    getDocs(reportsQuery),
-  ]);
-
-  const observations = obsSnap.docs.map(d => ({
+  return snap.docs.map(d => ({
     id: d.id,
     studentId,
     ...d.data(),
   }));
-
-  const media = mediaSnap.docs.map(d => ({
-    id: d.id,
-    studentId,
-    ...d.data(),
-  }));
-
-  const reports = reportsSnap.docs
-    .filter(d => /^report_\d/.test(d.id) && (d.data().status || 'ok') === 'ok')
-    .map(d => normalizeReportDoc(d, studentId));
-
-  return { observations, media, reports };
 }
 
 // ── Main hook ────────────────────────────────────────────────
@@ -154,25 +77,40 @@ export default function useTimelineData({ scope, id, classroom, userRole, manage
   const [students, setStudents] = useState([]);
   const [teachers, setTeachers] = useState([]);
   const [loading, setLoading] = useState(true);
-  const [displayLimit, setDisplayLimit] = useState(PAGE_SIZE);
+  const [refreshing, setRefreshing] = useState(false);
+  const [hasMore, setHasMore] = useState(true);
+  const [isLoadingMore, setIsLoadingMore] = useState(false);
+  // Cursor stores raw observedAt value from last doc. Edge case: if two docs share
+  // the exact same observedAt timestamp at a page boundary, one may be skipped.
+  // A fully deterministic fix requires adding orderBy(documentId()) as a tiebreaker,
+  // which needs composite index changes for collectionGroup queries. Low probability
+  // in practice - users can refresh to see any skipped doc.
+  const [cursor, setCursor] = useState(null);
+  const [refreshTick, setRefreshTick] = useState(0);
+
   // Access check (classroom scope only)
   const hasAccess = scope === 'student' || !id
     ? true
     : checkClassroomAccess(userRole, manageableClassrooms, id);
 
+  // Initial fetch + refresh (triggered by refreshTick)
   useEffect(() => {
     if (!id || !hasAccess) {
       setNotes([]);
       setStudents([]);
       setTeachers([]);
-      setDisplayLimit(PAGE_SIZE);
       setLoading(false);
+      setHasMore(false);
       return;
     }
 
     let cancelled = false;
-    setLoading(true);
-    setDisplayLimit(PAGE_SIZE);
+    const isRefresh = refreshTick > 0;
+    if (isRefresh) {
+      setRefreshing(true);
+    } else {
+      setLoading(true);
+    }
 
     (async () => {
       try {
@@ -200,54 +138,64 @@ export default function useTimelineData({ scope, id, classroom, userRole, manage
             if (!cancelled) setTeachers(classroomTeachers);
           }
 
-          // Fetch all notes
-          const { observations, media, reports } = await fetchClassroomData(id, classroomStudents);
+          // Fetch first page of notes
+          const page = await fetchClassroomNotes(id, PAGE_SIZE, null);
           if (cancelled) return;
 
-          const merged = mergeAndDedupe(observations, media, reports);
-          setNotes(merged);
+          setNotes(page);
+          setHasMore(page.length >= PAGE_SIZE);
+          setCursor(page.length > 0 ? page[page.length - 1].observedAt : null);
         } else {
-          // Student scope
-          const { observations, media, reports } = await fetchStudentData(id);
+          // Student scope - first page
+          const page = await fetchStudentNotes(id, PAGE_SIZE, null);
           if (cancelled) return;
 
-          const merged = mergeAndDedupe(observations, media, reports);
-          setNotes(merged);
+          setNotes(page);
+          setHasMore(page.length >= PAGE_SIZE);
+          setCursor(page.length > 0 ? page[page.length - 1].observedAt : null);
         }
       } catch (err) {
         reportCaughtError(err, 'useTimelineData', `${scope} fetch`);
-        if (!cancelled) setNotes([]);
+        if (!cancelled) {
+          setNotes([]);
+          setHasMore(false);
+        }
       } finally {
-        if (!cancelled) setLoading(false);
+        if (!cancelled) {
+          setLoading(false);
+          setRefreshing(false);
+        }
       }
     })();
 
     return () => { cancelled = true; };
-  }, [scope, id, hasAccess, classroom?.teacherIds?.length]);
+  }, [scope, id, hasAccess, classroom?.teacherIds?.length, refreshTick]);
 
-  // Per-student counts derived from in-memory notes
-  const perStudentCounts = useMemo(
-    () => computePerStudentCounts(notes),
-    [notes],
-  );
+  // Load more - fetch next page using cursor
+  const loadMore = useCallback(async () => {
+    if (!id || !hasAccess || !cursor || !hasMore || isLoadingMore) return;
 
-  // UI-only pagination
-  const hasMore = displayLimit < notes.length;
-  const showMore = useCallback(() => {
-    setDisplayLimit(prev => prev + PAGE_SIZE);
-  }, []);
+    setIsLoadingMore(true);
+    try {
+      const page = scope === 'classroom'
+        ? await fetchClassroomNotes(id, PAGE_SIZE, cursor)
+        : await fetchStudentNotes(id, PAGE_SIZE, cursor);
 
-  // Inject a newly saved note into the in-memory array (for #129)
-  const injectNote = useCallback((noteData) => {
-    setNotes(prev => {
-      const updated = [noteData, ...prev.filter(n => n.id !== noteData.id)];
-      updated.sort((a, b) => {
-        const dateA = toDate(a.observedAt) || new Date(0);
-        const dateB = toDate(b.observedAt) || new Date(0);
-        return dateB - dateA;
-      });
-      return updated;
-    });
+      setNotes(prev => [...prev, ...page]);
+      setHasMore(page.length >= PAGE_SIZE);
+      setCursor(page.length > 0 ? page[page.length - 1].observedAt : null);
+    } catch (err) {
+      reportCaughtError(err, 'useTimelineData', `${scope} loadMore`);
+    } finally {
+      setIsLoadingMore(false);
+    }
+  }, [scope, id, hasAccess, cursor, hasMore, isLoadingMore]);
+
+  // Refresh - reset to page 1
+  const refresh = useCallback(() => {
+    setHasMore(true);
+    setCursor(null);
+    setRefreshTick(t => t + 1);
   }, []);
 
   return {
@@ -256,10 +204,11 @@ export default function useTimelineData({ scope, id, classroom, userRole, manage
     teachers,
     loading,
     hasAccess,
-    displayLimit,
     hasMore,
-    showMore,
-    injectNote,
-    perStudentCounts,
+    loadMore,
+    isLoadingMore,
+    refresh,
+    refreshing,
+    refreshTick, // exposed so useTimelineStats can piggyback on the same refresh
   };
 }

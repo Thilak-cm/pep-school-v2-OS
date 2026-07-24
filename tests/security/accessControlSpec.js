@@ -280,27 +280,11 @@ export const ACCESS_CONTROL_SPEC = [
   },
 
   {
-    name: 'Collection group media: teacher branch uses resource.data.classroomId',
-    description: 'Teacher read on collectionGroup media checks resource.data.classroomId directly (1 get instead of 2)',
-    file: 'firestore',
-    criticality: 'critical',
-    pattern: /match\s+\/\{path=\*\*\}\/media\/\{mediaId\}[\s\S]*?isTeacher\s*\(\s*\)[\s\S]*?\(\s*'classroomId'\s*in\s*resource\.data\s*\)[\s\S]*?isTeacherInClassroom\s*\(\s*resource\.data\.classroomId\s*\)/,
-  },
-
-  {
     name: 'Collection group observations: author can read own (PEP-255)',
     description: 'isSignedIn() && resource.data.createdBy == request.auth.uid clause on collectionGroup observations',
     file: 'firestore',
     criticality: 'critical',
     pattern: /match\s+\/\{path=\*\*\}\/observations\/\{observationId\}[\s\S]*?isSignedIn\s*\(\s*\)\s*&&\s*resource\.data\.createdBy\s*==\s*request\.auth\.uid/,
-  },
-
-  {
-    name: 'Collection group media: author can read own (PEP-255)',
-    description: 'isSignedIn() && resource.data.createdBy == request.auth.uid clause on collectionGroup media',
-    file: 'firestore',
-    criticality: 'critical',
-    pattern: /match\s+\/\{path=\*\*\}\/media\/\{mediaId\}[\s\S]*?isSignedIn\s*\(\s*\)\s*&&\s*resource\.data\.createdBy\s*==\s*request\.auth\.uid/,
   },
 
   // ============================================================================
@@ -405,5 +389,25 @@ export const ACCESS_CONTROL_SPEC = [
     file: 'storage',
     criticality: 'critical',
     pattern: /allow\s+delete:[\s\S]*?role\s*==\s*['\"]classroomadmin['\"]\s*&&[\s\S]*?manageableClassrooms[\s\S]*?hasAny/,
+  },
+
+  // ============================================================================
+  // BRAIN KNOWLEDGE BASE (Firestore) - Admin-only read, no client writes (#157)
+  // ============================================================================
+
+  {
+    name: 'Brain collection read restricted to privileged admins',
+    description: 'allow read: if isPrivilegedAdmin() on brain/{program} and brain/{program}/files/{fileId}',
+    file: 'firestore',
+    criticality: 'important',
+    pattern: /match\s+\/brain\/\{program\}[\s\S]*?allow\s+read:\s*if\s+isPrivilegedAdmin\s*\(\s*\)/,
+  },
+
+  {
+    name: 'Brain collection write denied for all clients',
+    description: 'allow write: if false on brain/{program} and files subcollection',
+    file: 'firestore',
+    criticality: 'important',
+    pattern: /match\s+\/brain\/\{program\}[\s\S]*?allow\s+write:\s*if\s+false/,
   },
 ];

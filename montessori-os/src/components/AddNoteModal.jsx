@@ -1645,7 +1645,8 @@ function AddNoteModal({
           }
 
           const mediaId = `media_${Date.now().toString(36)}_${Math.random().toString(36).slice(2, 6)}_${studentId.slice(0, 4)}`;
-          const mediaRef = doc(db, 'students', studentId, 'media', mediaId);
+          // #221: media docs now written to observations subcollection (storage path unchanged)
+          const mediaRef = doc(db, 'students', studentId, 'observations', mediaId);
           const storagePath = `students/${studentId}/media/${mediaId}/original.${item.source.extension}`;
 
           await deleteDoc(mediaRef).catch((e) => { reportCaughtError(e, 'AddNoteModal', 'pre-cleanup deleteDoc for media'); });

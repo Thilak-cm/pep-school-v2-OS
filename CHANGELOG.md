@@ -1,5 +1,40 @@
 # Changelog
 
+# 12.1.0 — 2026-07-23
+
+### Changed
+- Timeline pagination: classroom and student timelines now load 20 notes at a time with cursor-based "Show More" instead of fetching all notes at once (#221)
+- Timeline stats (notes overall, 7-day count, student count) now read from statsCache instead of being derived from loaded notes (#221)
+- Media observations merged into unified `observations` subcollection - single sorted stream replaces the previous two-collection k-way merge (#221)
+- All Cloud Functions, security rules, and storage rules updated to read/write media from `observations` with `type === 'media'` filter (#221)
+
+### Added
+- Refresh button on both classroom and student timelines - resets to page 1 and re-fetches latest notes and stats (#221)
+- Migration script `scripts/ops/migrate-media-to-observations.mjs` with dry-run and --yes modes (#221)
+- Verification script `scripts/ops/verify-media-migration.mjs` to confirm migration doc counts (#221)
+- Firestore composite indexes for observations pagination and type filtering (#221)
+
+### Removed
+- `injectNote` optimistic injection system - timelines use manual refresh instead of auto-inject after save (#221)
+- Reports (ai_summaries) no longer fetched or displayed on timeline (#221)
+- `onInjectReady`, `timelineInjectRef`, `onNotesChanged` props removed from App, ScreenRenderer, timelines, NoteBottomSheet, and GroupedNoteDialog (#221)
+- `mergeAndDedupe` helper removed from timelineDataHelpers - no longer needed with single collection (#221)
+- Firestore collection group rules for `media` subcollection - covered by `observations` rules (#221)
+
+# 12.0.0 — 2026-07-15
+
+### Added
+- `brain/` knowledge base at repo root - single source of truth for all LLM pipeline context (knowledge, prompts, model config) across school-wide, primary, elementary, and adolescent programs with teacher-facing/parent-facing splits (#157)
+- `npm run push-brain` sync script: validates the folder tree (pipeline folders need config.json + prompt.md, blank/duplicate/reserved-name and empty-folder checks), shows NEW/CHANGED/DELETED/UNCHANGED with full diffs, and pushes to the Firestore `brain/{program}/files/{docId}` subcollections with SHA-256 change detection and y/N confirmation (#157)
+- `readBrain()` Cloud Function utility - four-layer deterministic context assembly (school-wide, program, audience, pipeline) with 5-min per-program cache, toddler→primary normalization, and school-wide-only mode for text-summarizer/voice-transcriber (#157)
+- MCP server tools `list_brain` and `get_brain_file` for inspecting the live brain collection (#157)
+- Firestore rules for `brain`: reads restricted to privileged admins, client writes blocked (#157)
+- `BRAIN_RULES.md` maintenance guide for authoring and pushing brain content (#157)
+
+### Fixed
+- `.gitignore` `admin/` pattern anchored to root so `scripts/admin/` files are never accidentally ignored (#157)
+- MCP server baseball card test aligned with the `weekly_snapshot` doc id (#157)
+
 # 11.6.1 — 2026-07-23
 
 ### Added

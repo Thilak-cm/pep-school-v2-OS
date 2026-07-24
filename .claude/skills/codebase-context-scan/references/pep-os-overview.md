@@ -1,7 +1,7 @@
 # Pep OS Overview
 
-Generated: 2026-07-23T22:30:29.822Z
-App version: 11.6.1
+Generated: 2026-07-24T01:57:08.560Z
+App version: 12.1.0
 
 ## App Snapshot
 
@@ -31,8 +31,8 @@ App version: 11.6.1
 ## Existing Pages and Components
 
 ### Observation Capture (`observation-capture`)
-- Count: 14
-- Components: `AddNoteFab`, `AddNoteFab.test`, `AddNoteModal`, `AddNoteModal.photoUX.test`, `AddNoteModal.saveButton.test`, `AddNoteModal.syncSave.test`, `AddNoteModal.versionGate.test`, `ClassroomStudentPicker`, `LessonNoteConfigEditor`, `LessonNotes`, `LessonNotesPage`, `LessonNoteTagDialog`, `MentionTextArea`, `VoiceRecorder`
+- Count: 13
+- Components: `AddNoteFab`, `AddNoteFab.test`, `AddNoteModal`, `AddNoteModal.photoUX.test`, `AddNoteModal.saveButton.test`, `AddNoteModal.syncSave.test`, `ClassroomStudentPicker`, `LessonNoteConfigEditor`, `LessonNotes`, `LessonNotesPage`, `LessonNoteTagDialog`, `MentionTextArea`, `VoiceRecorder`
 - Representative paths:
 - `montessori-os/src/components/AddNoteFab.jsx`
 - `montessori-os/src/components/AddNoteFab.test.js`
@@ -40,8 +40,8 @@ App version: 11.6.1
 - `montessori-os/src/components/AddNoteModal.photoUX.test.js`
 - `montessori-os/src/components/AddNoteModal.saveButton.test.js`
 - `montessori-os/src/components/AddNoteModal.syncSave.test.js`
-- `montessori-os/src/components/AddNoteModal.versionGate.test.js`
 - `montessori-os/src/components/ClassroomStudentPicker.jsx`
+- `montessori-os/src/components/LessonNoteConfigEditor.jsx`
 
 ### Timelines and Media (`timelines-and-media`)
 - Count: 10
@@ -93,8 +93,8 @@ App version: 11.6.1
 - `montessori-os/src/components/UsersAccessPage.jsx`
 
 ### Settings, Feedback, and App Shell (`settings-feedback-shell`)
-- Count: 47
-- Components: `App`, `AppFooter`, `AppHeader`, `BroadcastComposer`, `BroadcastComposer.test`, `BulkUploadPage`, `BulkUploadPage.helpers`, `BulkUploadPage.test`, `ClassroomNoteCard`, `ClassroomStudentCard`, `CopyToClipboardButton`, `DynamicIslandPill`, `DynamicIslandPill.test`, `FeedbackPage`, `GroupedNoteCard`, `GroupedNoteDialog`, `InlineVoiceOverlay`, `InterviewsPage`, `InterviewsPage.helpers`, `InterviewsPage.test`, `LandingPage`, `LandingPage.test`, `MonthlyPlanTab`, `MonthlyPlanTab.test`, `NoteBottomSheet.structure.test`, `NotesOverTimeDrawer`, `PlanFeedbackDialog`, `PlanFeedbackDialog.test`, `ProfilePage`, `QuestionDeck`, `QuestionDeck.test`, `ReadinessCheckDialog`, `ReportGenerateDialog`, `ReportPreviewDialog`, `ReportsCard`, `ReportsPage`, `ReportsPage.test`, `ReportTypeLandingPage`, `ReportTypeLandingPage.test`, `ReviewClassroomNotes`, `SettingsPage`, `SettingsPage.test`, `SnapshotBody`, `SnapshotCard`, `VersionBadge`, `WritingAnalysisTab`, `WritingAnalysisTab.test`
+- Count: 45
+- Components: `App`, `AppFooter`, `AppHeader`, `BroadcastComposer`, `BroadcastComposer.test`, `BulkUploadPage`, `BulkUploadPage.helpers`, `BulkUploadPage.test`, `ClassroomNoteCard`, `ClassroomStudentCard`, `CopyToClipboardButton`, `DynamicIslandPill`, `DynamicIslandPill.test`, `FeedbackPage`, `GroupedNoteCard`, `GroupedNoteDialog`, `InlineVoiceOverlay`, `InterviewsPage`, `InterviewsPage.helpers`, `InterviewsPage.test`, `LandingPage`, `LandingPage.test`, `MonthlyPlanTab`, `MonthlyPlanTab.test`, `NoteBottomSheet.structure.test`, `NotesOverTimeDrawer`, `PlanFeedbackDialog`, `PlanFeedbackDialog.test`, `ProfilePage`, `ReadinessCheckDialog`, `ReportGenerateDialog`, `ReportPreviewDialog`, `ReportsCard`, `ReportsPage`, `ReportsPage.test`, `ReportTypeLandingPage`, `ReportTypeLandingPage.test`, `ReviewClassroomNotes`, `SettingsPage`, `SettingsPage.test`, `SnapshotBody`, `SnapshotCard`, `VersionBadge`, `WritingAnalysisTab`, `WritingAnalysisTab.test`
 - Representative paths:
 - `montessori-os/src/App.jsx`
 - `montessori-os/src/AppFooter.jsx`
@@ -115,22 +115,23 @@ App version: 11.6.1
 
 ## Firestore/Data Surface
 
-- Core collections/signals: `users`, `branches`, `programs`, `classrooms`, `students`, `observations`, `media`, `ai_summaries`, `config`, `feedback`, `placements`, `chats`, `messages`, `access`, `alerts`, `digests`, `history`, `interviews`, `monthly_plan_feedback`, `runs`, `statsCache`, `testbench`
+- Core collections/signals: `users`, `branches`, `programs`, `classrooms`, `students`, `observations`, `ai_summaries`, `config`, `feedback`, `placements`, `chats`, `messages`, `access`, `alerts`, `brain`, `digests`, `files`, `history`, `interviews`, `monthly_plan_feedback`, `runs`, `statsCache`, `testbench`
 - Rule-declared paths:
 - `/{document=**}`
 - `/access/{uid}`
 - `/ai_summaries/{summaryId}`
 - `/alerts/{alertId}`
+- `/brain/{program}`
 - `/branches/{branchId}`
 - `/chats/{chatId}`
 - `/classrooms/{classroomId}`
 - `/config/{docId}`
 - `/digests/{digestId}`
 - `/feedback/{feedbackId}`
+- `/files/{fileId}`
 - `/history/{historyId}`
 - `/history/{weekKey}`
 - `/interviews/{interviewId}`
-- `/media/{mediaId}`
 - `/messages/{messageId}`
 - `/monthly_plan_feedback/{feedbackId}`
 - `/observations/{observationId}`
@@ -142,30 +143,29 @@ App version: 11.6.1
 - `/testbench/settings`
 - `/users/{uid}`
 - `/{path=**}/ai_summaries/{summaryId}`
-- `/{path=**}/media/{mediaId}`
 - `/{path=**}/observations/{observationId}`
 - `/classrooms/_digest_all/digests/{digestId}`
 - `/classrooms/_digest_all/digests/{digestId}/history/{weekKey}`
 
 ## Recent Changes
 
-### 11.6.1 (2026-07-23)
-- Open questions archival: previous question set automatically snapshot to `history/` subcollection before each monthly regeneration overwrites the doc (#215)
-- Version-gated saves: teachers answering open questions from a stale doc get an error toast and auto-refresh instead of silently writing to the wrong generation (#215)
-- MCP tool support for querying open questions history via `get_ai_summary_history` (#215)
+### 12.1.0 (2026-07-23)
+- Timeline pagination: classroom and student timelines now load 20 notes at a time with cursor-based "Show More" instead of fetching all notes at once (#221)
+- Timeline stats (notes overall, 7-day count, student count) now read from statsCache instead of being derived from loaded notes (#221)
+- Media observations merged into unified `observations` subcollection - single sorted stream replaces the previous two-collection k-way merge (#221)
 
-### 11.6.0 (2026-07-23)
-- Multi-POV answers on Question Deck - all teachers can now answer the same open question, with per-teacher CTA states (pending, others-answered, self-answered) and collapsible answer list (#216)
-- Area accordion sorting by progress ratio (most answered first), then alphabetically (#216)
-- Month subtitle derived from doc's `updatedAt` on Question Deck header (#216)
+### 12.0.0 (2026-07-15)
+- `brain/` knowledge base at repo root - single source of truth for all LLM pipeline context (knowledge, prompts, model config) across school-wide, primary, elementary, and adolescent programs with teacher-facing/parent-facing splits (#157)
+- `npm run push-brain` sync script: validates the folder tree (pipeline folders need config.json + prompt.md, blank/duplicate/reserved-name and empty-folder checks), shows NEW/CHANGED/DELETED/UNCHANGED with full diffs, and pushes to the Firestore `brain/{program}/files/{docId}` subcollections with SHA-256 change detection and y/N confirmation (#157)
+- `readBrain()` Cloud Function utility - four-layer deterministic context assembly (school-wide, program, audience, pipeline) with 5-min per-program cache, toddler→primary normalization, and school-wide-only mode for text-summarizer/voice-transcriber (#157)
 
-### 11.5.0 (2026-07-22)
-- Soul generation refactored from single-CF `runWithConcurrency` to Pub/Sub dispatcher-worker fan-out - handles ~1,500 students without timeout (#203)
-- `regenerateSoulsMonthly` now dispatches to `soulWorker` via `soul-workers` Pub/Sub topic in waves of 25 batches (10 students each) with 90s jitter gap (#203)
-- Soul gen LLM calls migrated from OpenAI direct to OpenRouter (#203)
+### 11.3.5 (2026-07-08)
+- Note saves (text, voice, media, lesson) are now synchronous - modal waits for Firestore write to complete before dismissing, replacing async background queue (#129)
+- "Note saved" toast includes a "View" button that navigates to the note in the appropriate timeline (#129)
+- Classroom and student timelines instantly show new notes via inject-on-save without page reload (#129)
 
-### 11.4.0 (2026-07-16)
-- Question Deck screen accessible from student dashboard - shows AI-generated open questions organized by area with accordion layout, answer progress, and "Coach Pepper is curious about" subtitle (#144)
-- Voice answer flow: tap "Answer" to open AddNoteModal with locked student and question context, saves observation linked to the question (#144)
-- Manual "Mark as answered" with confirmation dialog (#144)
+### 11.3.4 (2026-07-08)
+- `studentCount` now maintained by a self-healing Firestore trigger (`onStudentWrite`) instead of fragile client-side `increment()` calls - corrupted counts (e.g., Parijat's -7) auto-correct on next student write (#161)
+- Removed 24-hour localStorage cache for classrooms so `studentCount` is always fresh on login (#161)
+- ClassroomTimeline uses live student query count instead of stale denormalized `classroom.studentCount` (#161)
 

@@ -19,7 +19,7 @@ import {
   TextField,
   Skeleton
 } from '@mui/material';
-import { Trash2 as Delete, Filter as FilterList, Download, Image as PhotoLibrary, Video as Movie, File as InsertDriveFile, Upload as CloudUpload, CircleAlert as ErrorOutline, ChevronDown as ExpandMore, FileText as Description, ChevronLeft, ChevronRight, Sparkles as AutoAwesome, User, MessageCircle } from '../icons';
+import { Trash2 as Delete, Filter as FilterList, Download, Image as PhotoLibrary, Video as Movie, File as InsertDriveFile, Upload as CloudUpload, CircleAlert as ErrorOutline, ChevronDown as ExpandMore, FileText as Description, ChevronLeft, ChevronRight, Sparkles as AutoAwesome, User, MessageCircle, RefreshCw } from '../icons';
 import { doc, getDoc, deleteDoc } from 'firebase/firestore';
 import { db, storage } from '../firebase';
 import useNotify from '../notifications/useNotify.js';
@@ -32,6 +32,7 @@ import { DayHeader } from './ui';
 import { groupByCalendarDay } from './classroomTimelineUtils.js';
 import useObservationFilters from '../hooks/useObservationFilters';
 import useTimelineData from '../hooks/useTimelineData';
+import useTimelineStats from '../hooks/useTimelineStats';
 import { formatTimestamp } from '../utils/observationUtils.jsx';
 import {
   executeExportJob,
@@ -53,7 +54,7 @@ import { ref, getDownloadURL } from 'firebase/storage';
 
 const MEDIA_URL_FETCH_CONCURRENCY = 6;
 
-function StudentTimeline({ student, currentUser, userRole, noteTypeFilter = null, onInjectReady }) {
+function StudentTimeline({ student, currentUser, userRole, noteTypeFilter = null }) {
   const notify = useNotify();
   const isSuperAdminUser = isSuperAdmin(userRole);
   const [reportPreviewData, setReportPreviewData] = useState(null);
@@ -64,23 +65,40 @@ function StudentTimeline({ student, currentUser, userRole, noteTypeFilter = null
   // Classroom teachers for creator filter
   const [classroomTeachers, setClassroomTeachers] = useState([]);
 
-  // Shared data hook — replaces onSnapshot + cursor pagination (#128)
+  // Shared data hook — cursor-based pagination (#221 Sprint 2)
   const {
     notes: observations,
     loading,
-    displayLimit,
-    showMore,
-    injectNote,
+    hasMore,
+    loadMore,
+    isLoadingMore,
+    refresh,
+    refreshing,
+    refreshTick,
   } = useTimelineData({
     scope: 'student',
     id: student?.id,
   });
 
-  // Expose injectNote to parent for post-save timeline refresh (#129)
+  // Stats from statsCache (#221 Sprint 2)
+  const {
+    notesOverall,
+    notesPast7Days,
+  } = useTimelineStats({
+    scope: 'student',
+    classroomId: student?.classroomId,
+    studentId: student?.id,
+    refreshTick,
+  });
+
+  // Toast when refresh completes
+  const prevRefreshingRef = useRef(false);
   useEffect(() => {
-    if (onInjectReady) onInjectReady(injectNote);
-    return () => { if (onInjectReady) onInjectReady(null); };
-  }, [injectNote, onInjectReady]);
+    if (prevRefreshingRef.current && !refreshing) {
+      notify.success('Latest notes loaded', { duration: 2000 });
+    }
+    prevRefreshingRef.current = refreshing;
+  }, [refreshing, notify]);
 
   // Export states
   const [exporting, setExporting] = useState(false);
@@ -196,24 +214,7 @@ function StudentTimeline({ student, currentUser, userRole, noteTypeFilter = null
     return 'Media upload failed. Please try again.';
   };
 
-  // Derived counts for header summary
-  const { totalNotes, notesLast7Days } = useMemo(() => {
-    const nonReportObs = (observations || []).filter((o) => o.type !== 'report');
-    const total = nonReportObs.length;
-    const sevenDaysAgo = new Date(Date.now() - 7 * 24 * 60 * 60 * 1000);
-    const toDate = (ts) => {
-      if (!ts) return null;
-      if (ts.toDate) return ts.toDate();
-      if (ts.seconds) return new Date(ts.seconds * 1000);
-      return null;
-    };
-    const recent = nonReportObs.filter((obs) => {
-      const ts = obs.observedAt || obs.timestamp;
-      const d = toDate(ts);
-      return d && d >= sevenDaysAgo;
-    }).length;
-    return { totalNotes: total, notesLast7Days: recent };
-  }, [observations]);
+  // #221 Sprint 2: stats from statsCache via useTimelineStats (see hook above)
 
   // Use the filter hook instead of local state
   const {
@@ -229,7 +230,8 @@ function StudentTimeline({ student, currentUser, userRole, noteTypeFilter = null
     applyFilters
   } = useObservationFilters(observations, null);
 
-  const visibleObservations = useMemo(() => (filteredObservations || []).slice(0, displayLimit), [filteredObservations, displayLimit]);
+  // #221 Sprint 2: no more UI-only slicing - pagination at Firestore level
+  const visibleObservations = filteredObservations || [];
 
   const combinedFiltersActive = hasActiveFilters;
 
@@ -561,7 +563,7 @@ function StudentTimeline({ student, currentUser, userRole, noteTypeFilter = null
           continue;
         }
         const parentId = obs.parentStudentId || student.id || obs.studentId;
-        await deleteDoc(doc(db, 'students', parentId, 'media', obs.id));
+        await deleteDoc(doc(db, 'students', parentId, 'observations', obs.id));
         deleted += 1;
       }
       if (deleted > 0) {
@@ -604,8 +606,7 @@ function StudentTimeline({ student, currentUser, userRole, noteTypeFilter = null
       onFinalize: async () => {
         try {
           const parentId = obs.parentStudentId || student.id || obs.studentId;
-          const targetCollection = obs.type === 'media' ? 'media' : 'observations';
-          const docRef = doc(db, 'students', parentId, targetCollection, obs.id);
+          const docRef = doc(db, 'students', parentId, 'observations', obs.id);
 
           // Storage file cleanup is handled server-side by the mediaCleanup
           // Cloud Function trigger — no client-side deleteObject needed.
@@ -655,7 +656,7 @@ function StudentTimeline({ student, currentUser, userRole, noteTypeFilter = null
     setExportWizardOpen(true);
   };
 
-  // handleLoadMore replaced by showMore from useTimelineData hook (#128)
+  // #221 Sprint 2: loadMore from useTimelineData handles cursor-based pagination
 
   const handleRunExport = async ({ noteKinds, format, dateRange }) => {
     try {
@@ -708,7 +709,7 @@ function StudentTimeline({ student, currentUser, userRole, noteTypeFilter = null
         <Box sx={{ display: 'flex', alignItems: 'center', gap: 1, flexWrap: 'wrap' }}>
           {combinedFiltersActive && (
             <Chip 
-              label={`Showing ${visibleObservations.length} of ${totalNotes} notes`}
+              label={`Showing ${visibleObservations.length} of ${notesOverall} notes`}
               size="small"
               color="primary"
               variant="outlined"
@@ -782,10 +783,22 @@ function StudentTimeline({ student, currentUser, userRole, noteTypeFilter = null
             availableCurriculumAreas={availableCurriculumAreas}
           />
 
-          {/* Summary */}
-          <Typography variant="body2" color="text.secondary" sx={{ mt: 0.5 }}>
-            {totalNotes} notes overall | {notesLast7Days} notes in last 7 days
-          </Typography>
+          {/* Summary — from statsCache (#221 Sprint 2) */}
+          <Box sx={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', mt: 0.5 }}>
+            <Typography variant="body2" color="text.secondary">
+              {notesOverall} notes overall | {notesPast7Days} notes in last 7 days
+            </Typography>
+            <Button
+              size="small"
+              variant="outlined"
+              onClick={refresh}
+              disabled={refreshing}
+              startIcon={<RefreshCw size={14} sx={refreshing ? { animation: 'spin 1s linear infinite', '@keyframes spin': { '0%': { transform: 'rotate(0deg)' }, '100%': { transform: 'rotate(360deg)' } } } : {}} />}
+              sx={{ textTransform: 'none', minWidth: 0, px: 1.5, py: 0.5, fontSize: '0.75rem' }}
+            >
+              Refresh
+            </Button>
+          </Box>
 
           {/* Day-grouped notes timeline */}
           {(() => {
@@ -889,7 +902,7 @@ function StudentTimeline({ student, currentUser, userRole, noteTypeFilter = null
             };
 
             return dayGroups.length > 0 ? (
-              <Box sx={{ display: 'flex', flexDirection: 'column', gap: 2 }}>
+              <Box sx={{ display: 'flex', flexDirection: 'column', gap: 2, opacity: refreshing ? 0.4 : 1, transition: 'opacity 0.2s' }}>
                 {dayGroups.map((day) => (
                   <React.Fragment key={day.dateKey}>
                     <DayHeader label={day.label} accent={day.label === 'Today'} />
@@ -899,16 +912,17 @@ function StudentTimeline({ student, currentUser, userRole, noteTypeFilter = null
               </Box>
             ) : null;
           })()}
-          {/* Show More Button — UI-only, no Firestore calls (#128) */}
-          {displayLimit < (filteredObservations?.length || 0) && (
+          {/* Show More Button — cursor-based pagination (#221 Sprint 2) */}
+          {hasMore && (
             <Box sx={{ textAlign: 'center', pt: 2 }}>
               <Button
                 variant="outlined"
-                onClick={showMore}
+                onClick={loadMore}
+                disabled={isLoadingMore}
                 startIcon={<ExpandMore />}
                 sx={{ textTransform: 'none' }}
               >
-                Show More
+                {isLoadingMore ? 'Loading...' : 'Show More'}
               </Button>
             </Box>
           )}

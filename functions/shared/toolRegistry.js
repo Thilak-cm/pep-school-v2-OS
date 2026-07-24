@@ -238,7 +238,8 @@ const TOOL_CATALOG = [
     },
     execute: async (args) => {
       const limit = Math.min(args.limit || 5, 15);
-      const snap = await db.collection(`students/${args.studentId}/media`).where("status", "==", "ready").orderBy("createdAt", "desc").limit(limit).get();
+      // #221: media docs migrated to observations subcollection
+      const snap = await db.collection(`students/${args.studentId}/observations`).where("type", "==", "media").where("status", "==", "ready").orderBy("createdAt", "desc").limit(limit).get();
       if (snap.empty) return { error: "No media found" };
       return snap.docs.map((d) => {
         const data = d.data();

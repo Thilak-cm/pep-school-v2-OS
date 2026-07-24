@@ -80,13 +80,12 @@ export const recomputeStats = functions
       studentsSnap,
       usersSnap,
       observationsSnap,
-      mediaSnap,
+      // #221: media docs now live in observations - no separate media fetch needed
     ] = await Promise.all([
       db.collection("classrooms").where("status", "==", "active").get(),
       db.collection("students").get(),
       db.collection("users").get(),
       db.collectionGroup("observations").get(),
-      db.collectionGroup("media").get(),
     ]);
 
     // Parse classrooms
@@ -131,26 +130,16 @@ export const recomputeStats = functions
       studentClassroomMap.set(s.id, s.classroomId);
     }
 
+    // #221: media docs now live in observations, so this single fetch covers all types
     const allObs = [];
     for (const doc of observationsSnap.docs) {
       const d = doc.data();
+      // Skip media docs that aren't ready (pending_upload, error, etc.)
+      if (d.type === "media" && d.status !== "ready") continue;
       const classroomId = d.classroomId ||
         studentClassroomMap.get(d.studentId);
       if (!classroomId) continue;
       allObs.push({...d, id: doc.id, _classroomId: classroomId});
-    }
-    for (const doc of mediaSnap.docs) {
-      const d = doc.data();
-      if (d.status !== "ready") continue; // filter in-memory instead of query
-      const classroomId = d.classroomId ||
-        studentClassroomMap.get(d.studentId);
-      if (!classroomId) continue;
-      allObs.push({
-        ...d,
-        id: doc.id,
-        type: "media",
-        _classroomId: classroomId,
-      });
     }
 
     // Index observations by classroomId and by createdBy (for cross-classroom)

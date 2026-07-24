@@ -183,12 +183,9 @@ async function generatePlanInternal(studentId, targetMonth, generatedBy, generat
 
   const studentRef = db.collection("students").doc(studentId);
 
-  const [obsSnap, mediaSnap, writingSnap, precedingPlanSnap] = await Promise.all([
+  // #221: media docs now in observations subcollection - single fetch covers both
+  const [obsSnap, writingSnap, precedingPlanSnap] = await Promise.all([
     studentRef.collection("observations")
-      .where("observedAt", ">=", fourMonthsAgo)
-      .orderBy("observedAt", "desc")
-      .get(),
-    studentRef.collection("media")
       .where("observedAt", ">=", fourMonthsAgo)
       .orderBy("observedAt", "desc")
       .get(),
@@ -196,8 +193,9 @@ async function generatePlanInternal(studentId, targetMonth, generatedBy, generat
     studentRef.collection("ai_summaries").doc("monthly_plan").get(),
   ]);
 
-  const observations = obsSnap.docs.map((d) => d.data());
-  const mediaDocs = mediaSnap.docs.map((d) => d.data());
+  const allDocs = obsSnap.docs.map((d) => d.data());
+  const observations = allDocs.filter((d) => d.type !== "media");
+  const mediaDocs = allDocs.filter((d) => d.type === "media" && d.status === "ready");
   const writingAnalysis = writingSnap.exists ? writingSnap.data() : null;
   const precedingPlan = precedingPlanSnap.exists ? precedingPlanSnap.data() : null;
 
