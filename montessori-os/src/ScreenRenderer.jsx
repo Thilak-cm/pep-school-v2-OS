@@ -9,7 +9,6 @@ import ChatCommandCentreEditor from "./components/ChatCommandCentreEditor.jsx";
 import ClassroomList from "./components/ClassroomList";
 import StudentTimeline from "./components/StudentTimeline";
 import StudentDashboard from "./components/StudentDashboard";
-import ChildChat from "./components/ChildChat";
 import ReportsPage from "./components/ReportsPage";
 import ReportTypeLandingPage from "./components/ReportTypeLandingPage";
 import LessonNotesPage from "./components/LessonNotesPage";
@@ -33,6 +32,7 @@ import BroadcastComposer from "./components/BroadcastComposer.jsx";
 import LessonNoteConfigEditor from "./components/LessonNoteConfigEditor.jsx";
 import WeeklyDigestConfigEditor from "./components/WeeklyDigestConfigEditor.jsx";
 import QuestionDeck from "./components/QuestionDeck.jsx";
+import ChatMaintenance from "./components/ChatMaintenance.jsx";
 
 /**
  * Renders the correct screen component based on the current `screen` value.
@@ -179,13 +179,7 @@ function renderScreen(screen, ctx) {
       );
 
     case "childChat":
-      return (
-        <ChildChat
-          student={ctx.selectedStudent}
-          startInLandingPage={true}
-          currentRole={ctx.role}
-        />
-      );
+      return <ChatMaintenance currentUser={ctx.user} />;
 
     case "alerts":
       return <NotificationsPage />;

@@ -25,10 +25,10 @@ const STATIC_TITLES = {
   graduateStudents: "Graduate Students",
   lessonNotes: "Adding Lesson Note",
   studentAliases: "My Student Groups",
+  childChat: "Chat with Coach Pepper",
   settings: "Settings",
   alerts: "Alerts",
   interviews: "Interviews",
-  childChat: "Chat with Coach Pepper",
   broadcastComposer: "Broadcasts",
 };
 
@@ -64,6 +64,7 @@ export function getPageTitle(screen, state) {
       return `${state.getStudentDisplayName?.() || "Student"}'s Questions`;
 
     case "timeline":
+    case "childChat":
       return state.timelineTitleAsDashboard
         ? `${state.getStudentDisplayName?.() || "Student"}'s Dashboard`
         : `${state.getStudentDisplayName?.() || "Student"}'s Timeline`;
