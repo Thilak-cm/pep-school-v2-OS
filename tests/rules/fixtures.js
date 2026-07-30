@@ -160,3 +160,58 @@ export function observationWriteFixture() {
     },
   };
 }
+
+export function transferLifecycleFixture() {
+  const createdAt = Timestamp.fromDate(new Date('2026-01-01T08:00:00.000Z'));
+  const observedAt = Timestamp.fromDate(new Date('2026-01-10T10:00:00.000Z'));
+
+  return {
+    'users/teacherAAuthor': { role: 'teacher' },
+    'users/teacherB': { role: 'teacher' },
+    'users/classroomAdminA': {
+      role: 'classroomadmin',
+      manageableClassrooms: ['classroomA'],
+    },
+    'users/classroomAdminB': {
+      role: 'classroomadmin',
+      manageableClassrooms: ['classroomB'],
+    },
+    'users/superAdmin': { role: 'superadmin' },
+    'classrooms/classroomA': {
+      name: 'Classroom A',
+      branchId: 'branchA',
+      teacherIds: ['teacherAAuthor'],
+      status: 'active',
+    },
+    'classrooms/classroomB': {
+      name: 'Classroom B',
+      branchId: 'branchB',
+      teacherIds: ['teacherB'],
+      status: 'active',
+    },
+    'students/studentA': {
+      classroomId: 'classroomA',
+      branchId: 'branchA',
+      firstName: 'Student',
+      lastName: 'A',
+      status: 'active',
+      createdAt,
+    },
+    'students/studentA/placements/2026-01-01__classroomA': {
+      classroomId: 'classroomA',
+      startDate: '2026-01-01',
+      endDate: null,
+      status: 'active',
+      createdAt,
+    },
+    'students/studentA/observations/observationA': {
+      type: 'text',
+      studentId: 'studentA',
+      classroomId: 'classroomA',
+      text: 'Observation logged before transfer',
+      createdBy: 'teacherAAuthor',
+      createdAt: observedAt,
+      observedAt,
+    },
+  };
+}
