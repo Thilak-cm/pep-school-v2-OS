@@ -169,6 +169,40 @@ test('author cannot edit or delete after the 48-hour boundary', async () => {
   }));
 });
 
+test('author edit and delete use the precise 48-hour boundary', async (t) => {
+  await t.test('48 hours minus 1 minute succeeds', async () => {
+    const { deleteObservation, updateObservationText } = operationsFor('teacherAAuthor');
+
+    await assertSucceeds(updateObservationText({
+      studentId: 'studentA',
+      observationId: 'inside48HourText',
+      text: 'Inside boundary edit',
+      editCount: 1,
+      editorUid: 'teacherAAuthor',
+    }));
+    await assertSucceeds(deleteObservation({
+      studentId: 'studentA',
+      observationId: 'inside48HourText',
+    }));
+  });
+
+  await t.test('48 hours plus 1 minute fails', async () => {
+    const { deleteObservation, updateObservationText } = operationsFor('teacherAAuthor');
+
+    await assertFails(updateObservationText({
+      studentId: 'studentA',
+      observationId: 'outside48HourText',
+      text: 'Outside boundary edit',
+      editCount: 1,
+      editorUid: 'teacherAAuthor',
+    }));
+    await assertFails(deleteObservation({
+      studentId: 'studentA',
+      observationId: 'outside48HourText',
+    }));
+  });
+});
+
 test('author can delete their recent observation', async () => {
   const { deleteObservation } = operationsFor('teacherAAuthor');
   await assertSucceeds(deleteObservation({

@@ -97,6 +97,8 @@ export function postTransferTimelineFixture() {
 export function observationWriteFixture() {
   const recent = Timestamp.fromMillis(Date.now() - (60 * 60 * 1000));
   const expired = Timestamp.fromMillis(Date.now() - (49 * 60 * 60 * 1000));
+  const justInside48Hours = Timestamp.fromMillis(Date.now() - ((48 * 60 - 1) * 60 * 1000));
+  const justOutside48Hours = Timestamp.fromMillis(Date.now() - ((48 * 60 + 1) * 60 * 1000));
 
   return {
     'users/teacherAAuthor': { role: 'teacher' },
@@ -111,6 +113,7 @@ export function observationWriteFixture() {
       manageableClassrooms: ['classroomB'],
     },
     'users/superAdmin': { role: 'superadmin' },
+    'users/unknownRoleUser': { role: 'unknown' },
     'classrooms/classroomA': {
       teacherIds: ['teacherAAuthor', 'teacherAPeer'],
       status: 'active',
@@ -148,6 +151,24 @@ export function observationWriteFixture() {
       createdBy: 'teacherAAuthor',
       createdAt: expired,
       observedAt: expired,
+    },
+    'students/studentA/observations/inside48HourText': {
+      type: 'text',
+      studentId: 'studentA',
+      classroomId: 'classroomA',
+      text: 'Observation just inside the author action window',
+      createdBy: 'teacherAAuthor',
+      createdAt: justInside48Hours,
+      observedAt: justInside48Hours,
+    },
+    'students/studentA/observations/outside48HourText': {
+      type: 'text',
+      studentId: 'studentA',
+      classroomId: 'classroomA',
+      text: 'Observation just outside the author action window',
+      createdBy: 'teacherAAuthor',
+      createdAt: justOutside48Hours,
+      observedAt: justOutside48Hours,
     },
     'students/studentA/observations/lessonA': {
       type: 'lesson',

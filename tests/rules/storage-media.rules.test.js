@@ -21,14 +21,16 @@ import {
   seedStorageObject,
 } from './harness.js';
 
-const recent = Timestamp.fromMillis(Date.now() - (60 * 60 * 1000));
-const expired = Timestamp.fromMillis(Date.now() - (49 * 60 * 60 * 1000));
-
 const mediaPath = (mediaId, extension = 'webp') => (
   `students/studentA/media/${mediaId}/original.${extension}`
 );
 
 function storageFixture() {
+  const recent = Timestamp.fromMillis(Date.now() - (60 * 60 * 1000));
+  const expired = Timestamp.fromMillis(Date.now() - (49 * 60 * 60 * 1000));
+  const justInside48Hours = Timestamp.fromMillis(Date.now() - ((48 * 60 - 1) * 60 * 1000));
+  const justOutside48Hours = Timestamp.fromMillis(Date.now() - ((48 * 60 + 1) * 60 * 1000));
+
   return {
     'users/teacherAAuthor': { role: 'teacher' },
     'users/teacherAPeer': { role: 'teacher' },
@@ -63,6 +65,28 @@ function storageFixture() {
       createdBy: 'teacherAAuthor',
       createdAt: expired,
       observedAt: expired,
+      media: [],
+    },
+    'students/studentA/observations/mediaInside48Hours': {
+      type: 'media',
+      mediaKind: 'photo',
+      status: 'pending_upload',
+      studentId: 'studentA',
+      classroomId: 'classroomA',
+      createdBy: 'teacherAAuthor',
+      createdAt: justInside48Hours,
+      observedAt: justInside48Hours,
+      media: [],
+    },
+    'students/studentA/observations/mediaOutside48Hours': {
+      type: 'media',
+      mediaKind: 'photo',
+      status: 'pending_upload',
+      studentId: 'studentA',
+      classroomId: 'classroomA',
+      createdBy: 'teacherAAuthor',
+      createdAt: justOutside48Hours,
+      observedAt: justOutside48Hours,
       media: [],
     },
     'students/studentA/observations/mediaPdf': {
@@ -225,6 +249,28 @@ test('peer teacher and expired author cannot delete media', async (t) => {
     );
     const storage = createAuthenticatedStorage('teacherAAuthor');
     await assertFails(deleteObject(ref(storage, mediaPath('mediaExpired'))));
+  });
+});
+
+test('author media delete uses the precise 48-hour boundary', async (t) => {
+  await t.test('48 hours minus 1 minute succeeds', async () => {
+    await seedStorageObject(
+      mediaPath('mediaInside48Hours'),
+      new Uint8Array([1]),
+      'image/webp',
+    );
+    const storage = createAuthenticatedStorage('teacherAAuthor');
+    await assertSucceeds(deleteObject(ref(storage, mediaPath('mediaInside48Hours'))));
+  });
+
+  await t.test('48 hours plus 1 minute fails', async () => {
+    await seedStorageObject(
+      mediaPath('mediaOutside48Hours'),
+      new Uint8Array([1]),
+      'image/webp',
+    );
+    const storage = createAuthenticatedStorage('teacherAAuthor');
+    await assertFails(deleteObject(ref(storage, mediaPath('mediaOutside48Hours'))));
   });
 });
 

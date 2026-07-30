@@ -30,6 +30,11 @@ export function createAuthenticatedDb(uid) {
   return testEnvironment.authenticatedContext(uid).firestore();
 }
 
+export function createUnauthenticatedDb() {
+  if (!testEnvironment) throw new Error('Rules test environment is not initialized');
+  return testEnvironment.unauthenticatedContext().firestore();
+}
+
 export function createAuthenticatedStorage(uid) {
   if (!testEnvironment) throw new Error('Rules test environment is not initialized');
   return testEnvironment
