@@ -14,7 +14,7 @@ const TYPE_LABELS = {
 
 const TYPE_ICONS = { Eye, Mic, BookOpen, Image };
 
-export default function SharedHeader({ observation, student, teacherName, isFormerTeacher, onClose }) {
+export default function SharedHeader({ observation, student, teacherName, isFormerTeacher, onClose, isEditing = false }) {
   if (!observation) return null;
   const chipConfig = getTypeChipConfig(observation.type);
   const label = TYPE_LABELS[observation.type] || 'OBSERVATION';
@@ -31,21 +31,37 @@ export default function SharedHeader({ observation, student, teacherName, isForm
     <Box sx={{ px: 2.5, pt: 1.5 }}>
       {/* Row 1: Type chip + Close X */}
       <Box sx={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', mb: 1.5 }}>
-        <Chip
-          icon={<IconComp size={14} style={{ color: chipColors.color }} />}
-          label={label}
-          size="small"
-          sx={{
-            bgcolor: chipColors.bg,
-            color: chipColors.color,
-            border: `1px solid ${chipColors.border}`,
-            fontWeight: 700,
-            fontSize: '0.68rem',
-            letterSpacing: '0.04em',
-            height: 28,
-            '& .MuiChip-icon': { ml: 0.75, mr: -0.25 },
-          }}
-        />
+        <Box sx={{ display: 'flex', alignItems: 'center', gap: 0.75 }}>
+          <Chip
+            icon={<IconComp size={14} style={{ color: chipColors.color }} />}
+            label={label}
+            size="small"
+            sx={{
+              bgcolor: chipColors.bg,
+              color: chipColors.color,
+              border: `1px solid ${chipColors.border}`,
+              fontWeight: 700,
+              fontSize: '0.68rem',
+              letterSpacing: '0.04em',
+              height: 28,
+              '& .MuiChip-icon': { ml: 0.75, mr: -0.25 },
+            }}
+          />
+          {isEditing && (
+            <Chip
+              label="Editing Mode"
+              size="small"
+              sx={{
+                bgcolor: 'var(--color-amber-bg)',
+                color: 'var(--color-amber-text)',
+                border: '1px solid var(--color-amber-gold)',
+                fontWeight: 700,
+                fontSize: '0.68rem',
+                height: 28,
+              }}
+            />
+          )}
+        </Box>
         <IconButton
           aria-label="Close"
           onClick={onClose}

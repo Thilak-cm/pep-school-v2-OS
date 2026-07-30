@@ -423,6 +423,7 @@ export default function NoteBottomSheet({
           teacherName={teacherName}
           isFormerTeacher={teacher?.status === 'inactive'}
           onClose={handleClose}
+          isEditing={editing || media.mediaEditMode}
         />
 
         {/* Scrollable content */}
@@ -474,9 +475,6 @@ export default function NoteBottomSheet({
               mediaEditComment={media.mediaEditComment}
               onEditCommentChange={media.setMediaEditComment}
               mediaEditSaving={media.mediaEditSaving}
-              onCancelEdit={media.cancelEditing}
-              onSaveComment={media.saveComment}
-              canEdit={canEditCurrent}
             />
           ) : (
             <TextContent
