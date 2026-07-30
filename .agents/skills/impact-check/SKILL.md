@@ -33,7 +33,7 @@ Also capture:
 1. **Infer the GitHub issue** from the branch name (e.g., `thilak/gh-296-alert-bus` → `#296`)
    - If found, run `gh issue view 296 --repo Thilak-cm/pep-school-v2-OS --json title,body,labels,assignees,milestone`
    - If not found, proceed without it (impact analysis doesn't strictly require issue context, but it helps distinguish intended from unintended effects)
-2. **Read the codebase overview** at `.claude/skills/codebase-context-scan/references/pep-os-overview.md`
+2. **Read the codebase overview** at `.agents/skills/codebase-context-scan/references/pep-os-overview.md`
 
 ### Step 3: Launch Impact Checker Agent
 

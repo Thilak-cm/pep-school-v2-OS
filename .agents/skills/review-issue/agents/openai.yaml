@@ -1,4 +1,3 @@
-apiVersion: claude.ai/v1
 kind: Agent
 metadata:
   name: review-issue-orchestrator
@@ -77,9 +76,6 @@ spec:
       - add
       - commit
       - push
-    github:
-      - pr_create
-      - pr_view
     orchestration:
       - task_spawn
       - ask_question

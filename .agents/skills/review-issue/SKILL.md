@@ -70,7 +70,7 @@ Gather everything the audit agent will need. The orchestrator does this directly
    - `git log --oneline dev..HEAD` — commits on the branch
 
 3. **Load the high-level overview**
-   - Read `.claude/skills/codebase-context-scan/references/pep-os-overview.md`
+   - Read `.agents/skills/codebase-context-scan/references/pep-os-overview.md`
    - This gives the audit agent enough orientation for most issues
 
 4. **Assess whether an Explore agent is needed**
@@ -183,7 +183,7 @@ The orchestrator reads the merged audit report (now including impact findings) a
    - If all clean → proceed to Phase 6 (Version Bump)
    - If findings exist → spawn fixers from the merged findings, respecting file overlap. Then proceed to Phase 5 (Re-audit).
 
-4. **Produce the human-review risk assessment** after the final diff is known. Do not use line count as the primary signal. Assess changed surfaces and downstream reach:
+4. **Read `references/review-risk-contract.md` and produce the human-review risk assessment** after the final diff is known. Do not use line count as the primary signal. Assess changed surfaces and downstream reach:
    - **Low:** isolated UI, copy, styling, or localized refactor
    - **Medium:** feature behavior, several related files, or local data-flow changes
    - **High:** security rules, roles, shared infrastructure, Firestore schema, Cloud Functions, AI model/prompt behavior, migrations, or broad cross-area changes

@@ -37,7 +37,7 @@ This skill covers:
 - Prefer the current branch's open PR via `gh pr list --head <branch>`
 - If multiple PRs or unclear, ask the user which PR to merge
 
-2. Read the PR's human-review risk assessment. If it is High or Critical, explicitly call out the required oversight and review focus. If it is Critical, require explicit human approval before merge.
+2. Read the PR's human-review risk assessment using `review-issue/references/review-risk-contract.md`. If it is High or Critical, explicitly call out the required oversight and review focus. Require evidence of the named human review before merge; Critical also requires explicit approval from the designated approver.
 
 3. Confirm the PR target branch is the intended merge target (`dev` by default).
 
@@ -63,10 +63,11 @@ This skill covers:
 ### Phase 3: Resolve Merge Conflicts (When Needed)
 
 1. If GitHub reports that the branch is behind `dev` or has conflicts, stop and explain the conflict state.
-2. Update the feature branch from `dev` using the repository's agreed strategy.
+2. Fetch the target branch and merge it into the feature branch: `git fetch origin dev` followed by `git merge origin/dev`. Do not rebase or force-push by default.
 3. Resolve conflicts deliberately, preserving the issue's intended behavior and documenting non-obvious choices.
 4. Run relevant tests, lint, and build locally.
-5. Push the conflict-resolution commit and return to Phase 2. CI and review checks must run again after conflict resolution.
+5. Commit the conflict resolution and push normally. Return to Phase 2; CI and review checks must run again.
+6. If rebase or force-push would materially simplify resolution, stop and ask for explicit user approval first.
 
 ### Phase 4: Merge PR (High Risk — Approval Gate)
 
@@ -114,9 +115,11 @@ This skill covers:
   - PR URL
   - version number (if version was bumped in the PR)
 
-3. Move issue state
-- Move the issue to `Done`
-- Do not change assignee unless the user asks
+3. Complete the GitHub work item
+- Close the GitHub Issue after confirming the PR merged, for example with `gh issue close <issue-number> --repo Thilak-cm/pep-school-v2-OS`.
+- If the issue belongs to a GitHub Project, locate its project item and status option, then update the Status field to `Done` with `gh project item-edit`. The issue being closed does not automatically prove that the Project Status field changed.
+- If no project is configured or the status field cannot be updated, report that limitation rather than claiming the project state changed.
+- Do not change assignee unless the user asks.
 
 ### Phase 7: Cleanup Artifacts
 
@@ -135,6 +138,7 @@ Ask for explicit approval at these points:
 1. Before fixing CI failures or actionable review comments when the fix changes behavior or scope
 2. Before merging the PR (Phase 4) — always confirm, this changes shared history
 3. Before deleting local branch if there are uncommitted stashes or local-only commits not in the PR
+4. Before rebasing or force-pushing during conflict resolution
 
 ## Guardrails
 
@@ -144,7 +148,9 @@ Ask for explicit approval at these points:
 - Do not delete branches (local or remote) until merge + pull are confirmed successful
 - Do not update the wrong GitHub issue
 - Do not move to `Done` if merge actually failed
+- Do not claim a GitHub Project status changed unless the project item update succeeded
 - Do not force-delete branches (`-D`) — use safe delete (`-d`) only
+- Do not force-push during conflict resolution without explicit approval
 
 ## Success Criteria
 

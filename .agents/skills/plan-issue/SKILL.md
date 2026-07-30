@@ -58,7 +58,7 @@ Select which GitHub issue to plan. This phase is streamlined when the issue was 
 Auto-load high-level overview, check for staleness, and spawn Explore subagent when deeper context is needed.
 
 **Steps:**
-1. Read `.claude/skills/codebase-context-scan/references/pep-os-overview.md`
+1. Read `.agents/skills/codebase-context-scan/references/pep-os-overview.md`
    - Extract Area Map for reference
 
 2. **Check overview staleness**

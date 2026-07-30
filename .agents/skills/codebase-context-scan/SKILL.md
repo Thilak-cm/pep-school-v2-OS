@@ -19,9 +19,9 @@ Produce a deterministic, compact codebase overview that other skills can read wi
 ## Workflow
 
 1. Generate the overview artifact.
-   - Run: `node .claude/skills/codebase-context-scan/scripts/generate-overview.mjs`
+   - Run: `node .agents/skills/codebase-context-scan/scripts/generate-overview.mjs`
 2. Validate required sections exist.
-   - Run: `rg "^## " .claude/skills/codebase-context-scan/references/pep-os-overview.md`
+   - Run: `rg "^## " .agents/skills/codebase-context-scan/references/pep-os-overview.md`
 3. Review for obvious drift (roles, area tags, key paths, recent changes).
 4. Keep this artifact committed so other agents can reuse the same context.
 
@@ -29,7 +29,7 @@ Produce a deterministic, compact codebase overview that other skills can read wi
 
 The generated file must be:
 
-- Path: `.claude/skills/codebase-context-scan/references/pep-os-overview.md`
+- Path: `.agents/skills/codebase-context-scan/references/pep-os-overview.md`
 - Deterministic section order
 - Optimized for issue drafting context (not implementation roadmaps)
 - The source of truth for `area_tag` values used by other skills

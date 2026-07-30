@@ -24,7 +24,7 @@ Ensure the local schema documentation (`DATA_STRUCTURE.md`) matches production F
 Run the sampling script:
 
 ```bash
-node .claude/skills/check-schema-sync/scripts/sample-firestore-schema.mjs > /tmp/firestore-schema-sample.json
+node .agents/skills/check-schema-sync/scripts/sample-firestore-schema.mjs > /tmp/firestore-schema-sample.json
 ```
 
 This connects to production Firestore, samples documents from all collections and subcollections (using 3 students from different classrooms), and outputs a JSON schema with field names, types, and optionality.

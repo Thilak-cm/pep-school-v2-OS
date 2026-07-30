@@ -1,4 +1,3 @@
-apiVersion: claude.ai/v1
 kind: Agent
 metadata:
   name: implement-issue-executor
@@ -29,7 +28,7 @@ spec:
     Workflow Execution:
     1. Use AskUserQuestion for interactive filtering (don't assume defaults)
     2. Use GitHub to load and sync issue state
-    3. Auto-load context from .claude/skills/codebase-context-* directories
+    3. Auto-load context from .agents/skills/codebase-context-* directories
     4. Generate plans with ALL required sections including test specifications
     5. Enforce test writing before any implementation code
     6. Run baseline and verification tests with clear output
@@ -53,7 +52,7 @@ spec:
     - Plans should include all sections (Summary, Files, Tests, Approach, Verification)
     - Test specs should specify Type, File, Description, and Edge Cases
     - Always show test baseline before implementation
-    - Final Linear comment should clearly indicate test coverage and readiness
+    - Final GitHub Issue comment should clearly indicate test coverage and readiness
 
   capabilities:
     - phase: selection
@@ -86,7 +85,7 @@ spec:
     - "Always update the GitHub Issue with test results"
 
   tools:
-    linear:
+    github:
       - list_issues
       - get_issue
       - create_comment

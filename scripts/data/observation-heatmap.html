@@ -1,0 +1,334 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Observation Logging Heatmap - Pep OS</title>
+  <style>
+    * { box-sizing: border-box; margin: 0; padding: 0; }
+    body {
+      font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', system-ui, sans-serif;
+      background: #0f1117;
+      color: #e0e0e0;
+      padding: 24px;
+      max-width: 1200px;
+      margin: 0 auto;
+    }
+    h1 { font-size: 24px; margin-bottom: 4px; color: #fff; }
+    .subtitle { color: #888; font-size: 14px; margin-bottom: 32px; }
+    .stats-row {
+      display: flex;
+      gap: 16px;
+      margin-bottom: 32px;
+      flex-wrap: wrap;
+    }
+    .stat-card {
+      background: #1a1d27;
+      border: 1px solid #2a2d3a;
+      border-radius: 12px;
+      padding: 20px 24px;
+      flex: 1;
+      min-width: 180px;
+    }
+    .stat-card .label { color: #888; font-size: 12px; text-transform: uppercase; letter-spacing: 0.5px; }
+    .stat-card .value { font-size: 32px; font-weight: 700; margin-top: 4px; }
+    .stat-card .value.green { color: #4ade80; }
+    .stat-card .value.amber { color: #fbbf24; }
+    .stat-card .value.blue { color: #60a5fa; }
+
+    .section { margin-bottom: 40px; }
+    .section h2 { font-size: 18px; margin-bottom: 16px; color: #fff; }
+
+    /* Heatmap */
+    .heatmap-container { overflow-x: auto; }
+    .heatmap {
+      display: grid;
+      grid-template-columns: 80px repeat(24, 1fr);
+      gap: 2px;
+      min-width: 700px;
+    }
+    .heatmap .day-label {
+      font-size: 13px;
+      display: flex;
+      align-items: center;
+      padding-right: 8px;
+      color: #aaa;
+    }
+    .heatmap .hour-label {
+      font-size: 11px;
+      text-align: center;
+      color: #666;
+      padding-bottom: 4px;
+    }
+    .heatmap .cell {
+      aspect-ratio: 1;
+      min-height: 28px;
+      border-radius: 4px;
+      position: relative;
+      cursor: pointer;
+      transition: transform 0.1s;
+    }
+    .heatmap .cell:hover {
+      transform: scale(1.2);
+      z-index: 10;
+    }
+    .heatmap .cell .tooltip {
+      display: none;
+      position: absolute;
+      bottom: 110%;
+      left: 50%;
+      transform: translateX(-50%);
+      background: #333;
+      color: #fff;
+      padding: 4px 8px;
+      border-radius: 4px;
+      font-size: 11px;
+      white-space: nowrap;
+      z-index: 20;
+    }
+    .heatmap .cell:hover .tooltip { display: block; }
+    .heatmap .work-marker {
+      border: 1px solid rgba(74, 222, 128, 0.3);
+    }
+
+    .legend {
+      display: flex;
+      align-items: center;
+      gap: 4px;
+      margin-top: 12px;
+      font-size: 12px;
+      color: #888;
+    }
+    .legend-cell {
+      width: 16px;
+      height: 16px;
+      border-radius: 3px;
+    }
+
+    /* Daily volume chart */
+    .daily-chart {
+      display: flex;
+      align-items: flex-end;
+      gap: 2px;
+      height: 200px;
+      padding: 0 0 24px 0;
+      position: relative;
+    }
+    .daily-bar-wrap {
+      flex: 1;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      height: 100%;
+      justify-content: flex-end;
+      position: relative;
+    }
+    .daily-bar {
+      width: 100%;
+      max-width: 20px;
+      border-radius: 3px 3px 0 0;
+      position: relative;
+      cursor: pointer;
+    }
+    .daily-bar:hover::after {
+      content: attr(data-tip);
+      position: absolute;
+      bottom: 110%;
+      left: 50%;
+      transform: translateX(-50%);
+      background: #333;
+      color: #fff;
+      padding: 3px 6px;
+      border-radius: 4px;
+      font-size: 11px;
+      white-space: nowrap;
+      z-index: 10;
+    }
+    .daily-label {
+      font-size: 9px;
+      color: #555;
+      writing-mode: vertical-rl;
+      transform: rotate(180deg);
+      position: absolute;
+      bottom: -60px;
+      max-height: 50px;
+      overflow: hidden;
+    }
+
+    /* Anomaly table */
+    .anomaly-table {
+      width: 100%;
+      border-collapse: collapse;
+      font-size: 13px;
+    }
+    .anomaly-table th {
+      text-align: left;
+      padding: 8px 12px;
+      border-bottom: 1px solid #2a2d3a;
+      color: #888;
+      font-weight: 500;
+    }
+    .anomaly-table td {
+      padding: 8px 12px;
+      border-bottom: 1px solid #1a1d27;
+    }
+    .anomaly-table tr:hover td { background: #1a1d27; }
+    .badge {
+      display: inline-block;
+      padding: 2px 8px;
+      border-radius: 12px;
+      font-size: 11px;
+      font-weight: 500;
+    }
+    .badge.early { background: #312e81; color: #a5b4fc; }
+    .badge.late { background: #78350f; color: #fcd34d; }
+
+    .work-window-note {
+      display: inline-flex;
+      align-items: center;
+      gap: 6px;
+      background: rgba(74, 222, 128, 0.1);
+      border: 1px solid rgba(74, 222, 128, 0.2);
+      border-radius: 6px;
+      padding: 4px 10px;
+      font-size: 12px;
+      color: #4ade80;
+      margin-bottom: 12px;
+    }
+  </style>
+</head>
+<body>
+  <h1>Observation Logging Heatmap</h1>
+  <p class="subtitle">Pep OS - 33,369 observations from 2026-06-01 to 2026-07-25 · logging time from createdAt · all times IST · cached snapshot</p>
+
+  <div class="stats-row">
+    <div class="stat-card">
+      <div class="label">Total observations</div>
+      <div class="value blue">33,369</div>
+    </div>
+    <div class="stat-card">
+      <div class="label">In work window (weekdays, 8am-4pm)</div>
+      <div class="value green">10,107 <span style="font-size:16px;color:#888">(30.3%)</span></div>
+    </div>
+    <div class="stat-card">
+      <div class="label">Outside work window</div>
+      <div class="value amber">23,262 <span style="font-size:16px;color:#888">(69.7%)</span></div>
+      <div style="font-size:11px;color:#777;margin-top:5px">1,299 early · 18,656 late · 3,307 weekend</div>
+    </div>
+    <div class="stat-card">
+      <div class="label">Avg per calendar day</div>
+      <div class="value blue">607</div>
+    </div>
+  </div>
+
+  <div class="section">
+    <h2>Day of Week x Hour Heatmap</h2>
+    <div class="work-window-note">&#9632; Green border = Monday-Friday, 8am-4pm work window</div>
+    <div class="heatmap-container">
+      <div class="heatmap" id="heatmap"></div>
+    </div>
+    <div class="legend">
+      <span>Less</span>
+      <div class="legend-cell" style="background: #161b22"></div>
+      <div class="legend-cell" style="background: #0e4429"></div>
+      <div class="legend-cell" style="background: #006d32"></div>
+      <div class="legend-cell" style="background: #26a641"></div>
+      <div class="legend-cell" style="background: #39d353"></div>
+      <span>More</span>
+    </div>
+  </div>
+
+  <div class="section">
+    <h2>Daily Volume</h2>
+    <div class="daily-chart" id="dailyChart"></div>
+  </div>
+
+  <div class="section">
+    <h2>Off-Hours Logging by Teacher</h2>
+    <p style="color:#888;font-size:13px;margin-bottom:12px">Teachers logging observations outside Monday-Friday, 8am-4pm IST</p>
+    <table class="anomaly-table">
+      <thead><tr><th>Teacher</th><th>Off-hours</th><th>Total</th><th>% off-hours</th></tr></thead>
+      <tbody id="anomalyTeachers"></tbody>
+    </table>
+  </div>
+
+  <script>
+    const heatmapData = [{"day":0,"hour":0,"count":45},{"day":0,"hour":1,"count":42},{"day":0,"hour":2,"count":9},{"day":0,"hour":3,"count":0},{"day":0,"hour":4,"count":0},{"day":0,"hour":5,"count":12},{"day":0,"hour":6,"count":9},{"day":0,"hour":7,"count":20},{"day":0,"hour":8,"count":25},{"day":0,"hour":9,"count":33},{"day":0,"hour":10,"count":15},{"day":0,"hour":11,"count":32},{"day":0,"hour":12,"count":36},{"day":0,"hour":13,"count":101},{"day":0,"hour":14,"count":69},{"day":0,"hour":15,"count":107},{"day":0,"hour":16,"count":107},{"day":0,"hour":17,"count":139},{"day":0,"hour":18,"count":148},{"day":0,"hour":19,"count":142},{"day":0,"hour":20,"count":193},{"day":0,"hour":21,"count":243},{"day":0,"hour":22,"count":125},{"day":0,"hour":23,"count":127},{"day":1,"hour":0,"count":14},{"day":1,"hour":1,"count":0},{"day":1,"hour":2,"count":0},{"day":1,"hour":3,"count":0},{"day":1,"hour":4,"count":10},{"day":1,"hour":5,"count":21},{"day":1,"hour":6,"count":29},{"day":1,"hour":7,"count":9},{"day":1,"hour":8,"count":11},{"day":1,"hour":9,"count":80},{"day":1,"hour":10,"count":86},{"day":1,"hour":11,"count":230},{"day":1,"hour":12,"count":287},{"day":1,"hour":13,"count":338},{"day":1,"hour":14,"count":270},{"day":1,"hour":15,"count":226},{"day":1,"hour":16,"count":324},{"day":1,"hour":17,"count":272},{"day":1,"hour":18,"count":436},{"day":1,"hour":19,"count":490},{"day":1,"hour":20,"count":577},{"day":1,"hour":21,"count":770},{"day":1,"hour":22,"count":936},{"day":1,"hour":23,"count":423},{"day":2,"hour":0,"count":40},{"day":2,"hour":1,"count":0},{"day":2,"hour":2,"count":0},{"day":2,"hour":3,"count":0},{"day":2,"hour":4,"count":0},{"day":2,"hour":5,"count":44},{"day":2,"hour":6,"count":59},{"day":2,"hour":7,"count":46},{"day":2,"hour":8,"count":38},{"day":2,"hour":9,"count":76},{"day":2,"hour":10,"count":186},{"day":2,"hour":11,"count":297},{"day":2,"hour":12,"count":317},{"day":2,"hour":13,"count":506},{"day":2,"hour":14,"count":366},{"day":2,"hour":15,"count":506},{"day":2,"hour":16,"count":365},{"day":2,"hour":17,"count":413},{"day":2,"hour":18,"count":622},{"day":2,"hour":19,"count":589},{"day":2,"hour":20,"count":436},{"day":2,"hour":21,"count":860},{"day":2,"hour":22,"count":778},{"day":2,"hour":23,"count":452},{"day":3,"hour":0,"count":137},{"day":3,"hour":1,"count":34},{"day":3,"hour":2,"count":0},{"day":3,"hour":3,"count":0},{"day":3,"hour":4,"count":0},{"day":3,"hour":5,"count":47},{"day":3,"hour":6,"count":96},{"day":3,"hour":7,"count":34},{"day":3,"hour":8,"count":75},{"day":3,"hour":9,"count":121},{"day":3,"hour":10,"count":113},{"day":3,"hour":11,"count":114},{"day":3,"hour":12,"count":283},{"day":3,"hour":13,"count":755},{"day":3,"hour":14,"count":545},{"day":3,"hour":15,"count":437},{"day":3,"hour":16,"count":280},{"day":3,"hour":17,"count":423},{"day":3,"hour":18,"count":424},{"day":3,"hour":19,"count":553},{"day":3,"hour":20,"count":457},{"day":3,"hour":21,"count":689},{"day":3,"hour":22,"count":752},{"day":3,"hour":23,"count":447},{"day":4,"hour":0,"count":116},{"day":4,"hour":1,"count":14},{"day":4,"hour":2,"count":0},{"day":4,"hour":3,"count":0},{"day":4,"hour":4,"count":15},{"day":4,"hour":5,"count":68},{"day":4,"hour":6,"count":76},{"day":4,"hour":7,"count":63},{"day":4,"hour":8,"count":76},{"day":4,"hour":9,"count":164},{"day":4,"hour":10,"count":198},{"day":4,"hour":11,"count":279},{"day":4,"hour":12,"count":279},{"day":4,"hour":13,"count":259},{"day":4,"hour":14,"count":441},{"day":4,"hour":15,"count":401},{"day":4,"hour":16,"count":330},{"day":4,"hour":17,"count":414},{"day":4,"hour":18,"count":369},{"day":4,"hour":19,"count":453},{"day":4,"hour":20,"count":412},{"day":4,"hour":21,"count":636},{"day":4,"hour":22,"count":747},{"day":4,"hour":23,"count":387},{"day":5,"hour":0,"count":63},{"day":5,"hour":1,"count":27},{"day":5,"hour":2,"count":12},{"day":5,"hour":3,"count":0},{"day":5,"hour":4,"count":18},{"day":5,"hour":5,"count":56},{"day":5,"hour":6,"count":89},{"day":5,"hour":7,"count":62},{"day":5,"hour":8,"count":81},{"day":5,"hour":9,"count":100},{"day":5,"hour":10,"count":160},{"day":5,"hour":11,"count":258},{"day":5,"hour":12,"count":246},{"day":5,"hour":13,"count":338},{"day":5,"hour":14,"count":258},{"day":5,"hour":15,"count":306},{"day":5,"hour":16,"count":220},{"day":5,"hour":17,"count":178},{"day":5,"hour":18,"count":290},{"day":5,"hour":19,"count":317},{"day":5,"hour":20,"count":373},{"day":5,"hour":21,"count":374},{"day":5,"hour":22,"count":249},{"day":5,"hour":23,"count":139},{"day":6,"hour":0,"count":65},{"day":6,"hour":1,"count":9},{"day":6,"hour":2,"count":0},{"day":6,"hour":3,"count":0},{"day":6,"hour":4,"count":0},{"day":6,"hour":5,"count":0},{"day":6,"hour":6,"count":10},{"day":6,"hour":7,"count":37},{"day":6,"hour":8,"count":86},{"day":6,"hour":9,"count":46},{"day":6,"hour":10,"count":82},{"day":6,"hour":11,"count":62},{"day":6,"hour":12,"count":61},{"day":6,"hour":13,"count":115},{"day":6,"hour":14,"count":55},{"day":6,"hour":15,"count":126},{"day":6,"hour":16,"count":74},{"day":6,"hour":17,"count":158},{"day":6,"hour":18,"count":123},{"day":6,"hour":19,"count":105},{"day":6,"hour":20,"count":91},{"day":6,"hour":21,"count":39},{"day":6,"hour":22,"count":134},{"day":6,"hour":23,"count":50}];
+    const dailyData = [["2026-06-01",260],["2026-06-02",371],["2026-06-03",333],["2026-06-04",428],["2026-06-05",291],["2026-06-06",92],["2026-06-07",117],["2026-06-08",569],["2026-06-09",768],["2026-06-10",669],["2026-06-11",716],["2026-06-12",467],["2026-06-13",192],["2026-06-14",181],["2026-06-15",583],["2026-06-16",282],["2026-06-17",890],["2026-06-18",613],["2026-06-19",438],["2026-06-20",155],["2026-06-21",187],["2026-06-22",626],["2026-06-23",937],["2026-06-24",730],["2026-06-25",724],["2026-06-26",473],["2026-06-27",232],["2026-06-28",502],["2026-06-29",1160],["2026-06-30",1392],["2026-07-01",1055],["2026-07-02",1032],["2026-07-03",737],["2026-07-04",153],["2026-07-05",231],["2026-07-06",934],["2026-07-07",1326],["2026-07-08",1093],["2026-07-09",981],["2026-07-10",613],["2026-07-11",268],["2026-07-12",272],["2026-07-13",760],["2026-07-14",987],["2026-07-15",997],["2026-07-16",793],["2026-07-17",471],["2026-07-18",434],["2026-07-19",289],["2026-07-20",947],["2026-07-21",933],["2026-07-22",1049],["2026-07-23",910],["2026-07-24",724],["2026-07-25",2]];
+    const anomalyTeachers = [{"teacher":"Hemapriya TS","count":997,"total":1085,"percent":91.9},{"teacher":"Geetha Aravind","count":969,"total":1115,"percent":86.9},{"teacher":"Archana Nair","count":964,"total":993,"percent":97.1},{"teacher":"Ramya Vijayachandran","count":962,"total":1210,"percent":79.5},{"teacher":"Sajitha Kandathil","count":863,"total":969,"percent":89.1},{"teacher":"Amrita Maitra","count":844,"total":909,"percent":92.8},{"teacher":"Ranjeta GA","count":823,"total":999,"percent":82.4},{"teacher":"Vidhya Santhosh","count":809,"total":858,"percent":94.3},{"teacher":"Sreeshyla Subash","count":671,"total":756,"percent":88.8},{"teacher":"Dewanshi Rawat","count":657,"total":858,"percent":76.6},{"teacher":"Padmaja Nanduri","count":632,"total":670,"percent":94.3},{"teacher":"Lakshmi Prabhu","count":631,"total":803,"percent":78.6},{"teacher":"Indumathy Thirunavukkarasu","count":618,"total":845,"percent":73.1},{"teacher":"Sabeena Ibrahim","count":595,"total":718,"percent":82.9},{"teacher":"Tharani Ranganathan","count":589,"total":774,"percent":76.1}];
+    const dayNames = ["Sunday","Monday","Tuesday","Wednesday","Thursday","Friday","Saturday"];
+
+    // Max value for color scale
+    const maxCount = Math.max(...heatmapData.map(d => d.count));
+
+    function getColor(count) {
+      if (count === 0) return '#161b22';
+      const ratio = count / maxCount;
+      if (ratio < 0.15) return '#0e4429';
+      if (ratio < 0.35) return '#006d32';
+      if (ratio < 0.6) return '#26a641';
+      return '#39d353';
+    }
+
+    // Build heatmap grid
+    const grid = document.getElementById('heatmap');
+
+    // Header row - corner cell + 24 hour labels
+    grid.appendChild(Object.assign(document.createElement('div'), { className: 'day-label' }));
+    for (let h = 0; h < 24; h++) {
+      const label = document.createElement('div');
+      label.className = 'hour-label';
+      label.textContent = h.toString().padStart(2, '0');
+      grid.appendChild(label);
+    }
+
+    // Data rows
+    // Render Mon-Sun order (1,2,3,4,5,6,0)
+    const dayOrder = [1, 2, 3, 4, 5, 6, 0];
+    for (const day of dayOrder) {
+      const dayLabel = document.createElement('div');
+      dayLabel.className = 'day-label';
+      dayLabel.textContent = dayNames[day];
+      grid.appendChild(dayLabel);
+
+      for (let hour = 0; hour < 24; hour++) {
+        const point = heatmapData.find(d => d.day === day && d.hour === hour);
+        const count = point ? point.count : 0;
+        const cell = document.createElement('div');
+        cell.className = 'cell' + (day >= 1 && day <= 5 && hour >= 8 && hour < 16 ? ' work-marker' : '');
+        cell.style.backgroundColor = getColor(count);
+        cell.innerHTML = '<span class="tooltip">' + dayNames[day] + ' ' + hour.toString().padStart(2, '0') + ':00 - ' + count + ' obs</span>';
+        grid.appendChild(cell);
+      }
+    }
+
+    // Daily volume chart
+    const chart = document.getElementById('dailyChart');
+    const maxDaily = Math.max(...dailyData.map(d => d[1]));
+    for (const [date, count] of dailyData) {
+      const wrap = document.createElement('div');
+      wrap.className = 'daily-bar-wrap';
+      const bar = document.createElement('div');
+      bar.className = 'daily-bar';
+      const heightPct = (count / maxDaily) * 100;
+      bar.style.height = heightPct + '%';
+
+      // Weekend coloring
+      const dow = new Date(date + 'T00:00:00+05:30').getDay();
+      bar.style.backgroundColor = (dow === 0 || dow === 6) ? '#fbbf24' : '#60a5fa';
+      bar.setAttribute('data-tip', date + ': ' + count);
+      wrap.appendChild(bar);
+      chart.appendChild(wrap);
+    }
+
+    // Anomaly teachers table
+    const tbody = document.getElementById('anomalyTeachers');
+    for (const item of anomalyTeachers) {
+      const row = document.createElement('tr');
+      row.innerHTML = '<td>' + item.teacher + '</td><td>' + item.count.toLocaleString() +
+        '</td><td>' + item.total.toLocaleString() + '</td><td>' + item.percent.toFixed(1) + '%</td>';
+      tbody.appendChild(row);
+    }
+  </script>
+</body>
+</html>

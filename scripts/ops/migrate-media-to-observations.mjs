@@ -13,6 +13,7 @@
  * Two modes:
  *   node scripts/ops/migrate-media-to-observations.mjs          # dry-run (default)
  *   node scripts/ops/migrate-media-to-observations.mjs --yes    # execute
+ *   node scripts/ops/migrate-media-to-observations.mjs --yes --student-id 2026-ADO-009
  *
  * Does NOT delete source media docs (kept for rollback safety).
  */
@@ -32,26 +33,39 @@ const BATCH_LIMIT = 450; // Firestore batch limit is 500, leave headroom
 const { values: flags } = parseArgs({
   options: {
     yes: { type: "boolean", default: false },
+    "student-id": { type: "string" },
   },
   strict: true,
 });
 
 const dryRun = !flags.yes;
+const selectedStudentId = flags["student-id"] || null;
 
 async function run() {
   console.log(`\n=== Media -> Observations Migration ===`);
   console.log(`Mode: ${dryRun ? "DRY RUN (pass --yes to execute)" : "LIVE"}\n`);
 
-  // Fetch all students
-  const studentsSnap = await db.collection("students").get();
-  console.log(`Found ${studentsSnap.size} student docs\n`);
+  // Fetch all students, or one explicitly selected student for targeted recovery.
+  let studentDocs;
+  if (selectedStudentId) {
+    const studentSnap = await db.collection("students").doc(selectedStudentId).get();
+    if (!studentSnap.exists) {
+      throw new Error(`Student document not found: students/${selectedStudentId}`);
+    }
+    studentDocs = [studentSnap];
+    console.log(`Scope: ${selectedStudentId}\n`);
+  } else {
+    const studentsSnap = await db.collection("students").get();
+    studentDocs = studentsSnap.docs;
+    console.log(`Found ${studentsSnap.size} student docs\n`);
+  }
 
   let totalMediaDocs = 0;
   let totalCopied = 0;
   let totalSkipped = 0;
   let totalErrors = 0;
 
-  for (const studentDoc of studentsSnap.docs) {
+  for (const studentDoc of studentDocs) {
     const studentId = studentDoc.id;
     const mediaSnap = await db
       .collection("students")
@@ -113,10 +127,9 @@ async function run() {
   // Verification: count media-type docs in observations
   if (!dryRun) {
     console.log(`\n--- Verification ---`);
-    const obsMediaSnap = await db
-      .collectionGroup("observations")
-      .where("type", "==", "media")
-      .get();
+    const obsMediaSnap = selectedStudentId
+      ? await db.collection("students").doc(selectedStudentId).collection("observations").where("type", "==", "media").get()
+      : await db.collectionGroup("observations").where("type", "==", "media").get();
     console.log(`  media docs in observations: ${obsMediaSnap.size}`);
     console.log(`  media docs in source:       ${totalMediaDocs}`);
     if (obsMediaSnap.size >= totalMediaDocs) {

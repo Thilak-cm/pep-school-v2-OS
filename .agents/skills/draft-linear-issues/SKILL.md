@@ -1,6 +1,6 @@
 ---
 name: draft-github-issues
-description: Parse meeting notes and batch-create lightweight GitHub Issues in Backlog status. Use when the user pastes meeting notes, action items, or says "/draft-linear-issues".
+description: Parse meeting transcripts and batch-create lightweight GitHub Issues in Backlog status. Use when the user pastes meeting notes, action items, or says "/draft-github-issues". The directory name is retained temporarily as a compatibility alias.
 user_invocable: true
 ---
 
@@ -25,7 +25,7 @@ Batch-triage meeting transcripts into lightweight Backlog issues, optionally gro
 
 ## Context Loading
 
-Silently read `.claude/skills/codebase-context-scan/references/pep-os-overview.md` for Area Map inference.
+Silently read `.agents/skills/codebase-context-scan/references/pep-os-overview.md` for Area Map inference.
 
 ## Workflow
 
