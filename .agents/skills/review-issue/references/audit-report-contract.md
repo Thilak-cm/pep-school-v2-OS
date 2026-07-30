@@ -9,7 +9,8 @@ The orchestrator may run multiple auditors in parallel, each with a different sc
 | Scope | Checks | Context needed |
 |-------|--------|---------------|
 | **quick** | Dead code, debug artifacts, unused imports/variables, missing error handling on obvious async, commented-out code, console.logs | Diff only |
-| **deep** | Scope alignment, correctness/logic, security, pattern consistency, test coverage | Diff + Linear issue + overview + explore |
+| **deep** | Scope alignment, correctness/logic, security, pattern consistency, test coverage | Diff + GitHub Issue + overview + explore |
+| **divergence** | Production access-operation vs policy/rules/emulator/frontend/E2E test alignment; stale or mirrored query/write shapes; missing security-context coverage | Diff + issue + overview + explore |
 | **full** | Everything | Everything |
 
 Each auditor produces its own report in the format below. The orchestrator merges reports by concatenating findings sections. The `Scope Alignment` section only appears in `deep` or `full` reports.
@@ -24,7 +25,7 @@ The audit agent MUST output a report in exactly this structure:
 ## Metadata
 - **Issue:** PEP-{id} — {title}
 - **Branch:** {branch-name}
-- **Audit scope:** quick | deep | full
+- **Audit scope:** quick | deep | divergence | full
 - **Diff scope:** {N} files changed, {+additions} / {-deletions}
 - **Audit verdict:** CLEAN | HAS_FINDINGS
 - **Blocker count:** {N}
@@ -35,7 +36,7 @@ The audit agent MUST output a report in exactly this structure:
 ## Scope Alignment
 
 ### Covered
-{For each acceptance criterion from the Linear issue that IS addressed by the diff:}
+{For each acceptance criterion from the GitHub Issue that IS addressed by the diff:}
 - [AC-1] "{criterion text}" — addressed in `{file}:{line-range}`
 
 ### Missing (Under-delivery)
@@ -166,7 +167,7 @@ The orchestrator uses the verdict to decide whether to loop:
 
 The orchestrator provides the audit agent with:
 
-1. **Linear issue** — full title, description, acceptance criteria (the source of truth)
+1. **GitHub Issue** — full title, description, acceptance criteria (the source of truth)
 2. **Diff** — output of `git diff dev...HEAD` (or `git diff` for uncommitted changes)
 3. **High-level overview** — the codebase overview file for orientation
 4. **Explore summary** — (only if the orchestrator spawned an Explore agent) contextual summary of areas touched by the diff
@@ -176,7 +177,7 @@ The orchestrator provides the audit agent with:
 The orchestrator provides the fix agent with:
 
 1. **Audit report** — the full report in the format above
-2. **Linear issue** — title, description, acceptance criteria (so it understands the goal)
+2. **GitHub Issue** — title, description, acceptance criteria (so it understands the goal)
 3. **Instructions** — fix all blockers and warnings. Ignore nits. Do not resolve user-decision items. Run tests after fixing.
 
 The fix agent:

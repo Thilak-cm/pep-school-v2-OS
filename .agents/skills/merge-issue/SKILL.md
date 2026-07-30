@@ -1,60 +1,74 @@
 ---
 name: merge-issue
-description: "Merge a reviewed PR into dev via gh pr merge, clean up local and remote branches, move GitHub issue to Done, and prompt for codebase overview refresh. Use after CI passes on a PR opened by /review-issue."
+description: "Drive a reviewed GitHub PR through CI, automated review feedback, conflict resolution, merge into dev, cleanup, and GitHub Issue completion. Use after /review-issue opens the PR."
 ---
 
 # Merge Issue
 
 ## Goal
 
-Land a reviewed PR into `dev`, clean up branches, close out the GitHub issue, and keep the codebase overview fresh. This is the final step after `/review-issue` opens a PR and CI passes.
+Drive a reviewed PR from open to safely merged. This skill owns the remote PR lifecycle: CI monitoring and fixes, automated review feedback, merge-conflict resolution, final human approval, merge into `dev`, branch cleanup, GitHub Issue completion, and codebase overview refresh.
 
 This skill covers:
 
-1. Pre-merge checks (CI status, unresolved comments)
-2. Merge the PR via `gh pr merge`
-3. Local branch cleanup (checkout dev, pull, delete feature branch)
-4. Update the GitHub issue and move it to `Done`
-5. Prompt to refresh the codebase overview
+1. PR readiness and risk checks
+2. Remote CI and automated review loops
+3. Merge-conflict resolution and re-verification
+4. Merge approval and merge into `dev`
+5. Branch cleanup and GitHub Issue completion
+6. Codebase overview refresh
 
 ## When to Use
 
-- A PR opened by `/review-issue` has passed CI
+- A PR opened by `/review-issue` exists
 - You want to land the change into `dev` with proper cleanup
 - You want GitHub to reflect the completed state
 
 ## Prerequisites
 
 - An open PR exists for the current feature branch targeting `dev`
-- CI checks have passed (this skill enforces this)
 - You know which GitHub issue this work belongs to (from session context, branch name, or PR description)
 
 ## Workflow
 
-### Phase 1: Pre-Merge Checks (Required)
+### Phase 1: Identify PR and Readiness (Required)
 
 1. Identify the PR to merge
 - Prefer the current branch's open PR via `gh pr list --head <branch>`
 - If multiple PRs or unclear, ask the user which PR to merge
 
-2. **Check CI status via `gh pr checks`**
-- **Block** if any checks are **failing** — report which checks failed and stop
-- **Block** if any checks are **pending** — report and ask user whether to wait or proceed
-- Only proceed when all checks are passing
+2. Read the PR's human-review risk assessment. If it is High or Critical, explicitly call out the required oversight and review focus. If it is Critical, require explicit human approval before merge.
 
-3. Check for unresolved review comments via `gh pr view`
-- **Block** if there are unresolved review comments — report them and stop
+3. Confirm the PR target branch is the intended merge target (`dev` by default).
 
 4. Report full status to user before proceeding:
    ```
    PR #42: feat: add report generation (#60)
-   CI: ✅ all checks passing
-   Comments: ✅ none unresolved
+   Risk: High — close human review required
+   CI: ⏳ being checked
+   Comments: ⏳ being checked
    Target: dev
-   Ready to merge.
+   Ready for merge checks.
    ```
 
-### Phase 2: Merge PR (High Risk — Approval Gate)
+### Phase 2: Remote CI and Automated Review (Required)
+
+1. Check CI status via `gh pr checks`.
+2. If checks are pending, report them and monitor until completion. Do not merge while required checks are pending.
+3. If checks fail, fetch failure logs, diagnose the failure, apply the smallest safe fix, run local verification, commit, push, and re-monitor. Limit automated CI fix attempts to three before escalating.
+4. Check automated and human PR reviews via `gh pr view`, `gh pr reviews`, and inline comments.
+5. Block on unresolved actionable review comments. Show them to the user, get approval to fix, then fix, test, commit, push, and repeat the CI/review checks.
+6. Do not silently dismiss review findings. Record accepted non-blocking findings in the final merge summary.
+
+### Phase 3: Resolve Merge Conflicts (When Needed)
+
+1. If GitHub reports that the branch is behind `dev` or has conflicts, stop and explain the conflict state.
+2. Update the feature branch from `dev` using the repository's agreed strategy.
+3. Resolve conflicts deliberately, preserving the issue's intended behavior and documenting non-obvious choices.
+4. Run relevant tests, lint, and build locally.
+5. Push the conflict-resolution commit and return to Phase 2. CI and review checks must run again after conflict resolution.
+
+### Phase 4: Merge PR (High Risk — Approval Gate)
 
 1. Confirm merge target
 - Verify the PR targets `dev`
@@ -67,7 +81,7 @@ This skill covers:
 3. Post-merge check
 - Confirm the merge succeeded via `gh pr view` (should show merged state)
 
-### Phase 3: Local Cleanup (Required)
+### Phase 5: Local Cleanup (Required)
 
 1. Switch to dev
 - `git checkout dev`
@@ -86,7 +100,7 @@ This skill covers:
 - `git branch` should not show the feature branch
 - `git branch -r` should not show the remote feature branch
 
-### Phase 4: GitHub Sync + Move to `Done` (Required)
+### Phase 6: GitHub Sync + Move to `Done` (Required)
 
 1. Resolve the GitHub issue
 - Prefer the issue from session context or branch name
@@ -104,13 +118,13 @@ This skill covers:
 - Move the issue to `Done`
 - Do not change assignee unless the user asks
 
-### Phase 5: Cleanup Artifacts
+### Phase 7: Cleanup Artifacts
 
 Remove ephemeral artifacts that accumulate during development and testing:
 
 1. Delete `.playwright-mcp/` directory if it exists — `rm -rf .playwright-mcp/`
 
-### Phase 6: Codebase Overview Refresh (Automatic)
+### Phase 8: Codebase Overview Refresh (Automatic)
 
 The codebase just changed. Automatically invoke the `codebase-context-scan` skill to keep the overview fresh. No user prompt needed.
 
@@ -118,13 +132,15 @@ The codebase just changed. Automatically invoke the `codebase-context-scan` skil
 
 Ask for explicit approval at these points:
 
-1. Before merging the PR (Phase 2) — always confirm, this changes shared history
-2. Before deleting local branch if there are uncommitted stashes or local-only commits not in the PR
+1. Before fixing CI failures or actionable review comments when the fix changes behavior or scope
+2. Before merging the PR (Phase 4) — always confirm, this changes shared history
+3. Before deleting local branch if there are uncommitted stashes or local-only commits not in the PR
 
 ## Guardrails
 
-- **Do not merge if CI checks are failing or pending** — this is the primary safety gate
-- Do not merge if PR has unresolved review comments
+- **Do not merge if required CI checks are failing or pending** — this is the primary safety gate
+- Do not merge if actionable review comments remain unresolved
+- Re-run CI and review checks after conflict resolution or any post-review push
 - Do not delete branches (local or remote) until merge + pull are confirmed successful
 - Do not update the wrong GitHub issue
 - Do not move to `Done` if merge actually failed
@@ -133,9 +149,11 @@ Ask for explicit approval at these points:
 ## Success Criteria
 
 1. CI checks confirmed passing before merge
-2. PR was merged into `dev` via `gh pr merge`
-3. Local dev branch is up to date with the merged changes
-4. Feature branch was deleted (local + remote)
-5. GitHub issue was commented and moved to `Done`
-6. `.playwright-mcp/` cleaned up if present
-7. Codebase overview refreshed automatically
+2. Automated and human review comments resolved or explicitly accepted
+3. Merge conflicts resolved and re-verified if any occurred
+4. PR was merged into `dev` via `gh pr merge`
+5. Local dev branch is up to date with the merged changes
+6. Feature branch was deleted (local + remote)
+7. GitHub Issue was commented and moved to `Done`
+8. `.playwright-mcp/` cleaned up if present
+9. Codebase overview refreshed automatically

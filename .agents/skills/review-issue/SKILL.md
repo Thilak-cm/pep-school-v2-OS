@@ -1,20 +1,20 @@
 ---
 name: review-issue
-description: "Independent code review in a fresh session: audit diff against GitHub issue, fix-loop until clean, version bump, commit, push, open PR against dev, and update GitHub issue status. Use after /implement-issue completes, in a NEW Claude session."
+description: "Independent code review in a fresh session: audit a GitHub Issue diff, assess human-review risk, fix-loop until clean, prepare and open a PR against dev, and update the GitHub Issue. Use after /implement-issue completes, in a fresh session."
 ---
 
 # Review Issue
 
 ## Goal
 
-Provide an independent quality gate between implementation and production. This skill runs in a **fresh Claude session** (not the one that wrote the code) and orchestrates subagents to audit the diff, fix issues, and re-audit in a loop until the code is clean — then ships it.
+Provide an independent quality gate between implementation and a mergeable PR. This skill runs in a **fresh session** (not the one that wrote the code) and orchestrates subagents to audit the diff, assess the required human oversight, fix issues, and re-audit in a loop until the code is clean — then prepares and opens the PR. It does not monitor remote CI, resolve PR review feedback, or merge.
 
 The orchestrator itself stays thin. Heavy work (reading diffs, auditing code, making fixes) is delegated to subagents so the main context is protected and the audit loop can run as many times as needed without degradation.
 
 ## When to Use
 
 - After `/plan-issue` + `/implement-issue` completes in a separate session
-- You are in a **new Claude session** (fresh context, no implementation bias)
+- You are in a **new session** (fresh context, no implementation bias)
 - The feature branch has committed or uncommitted changes ready for review
 - You want the only quality gate before prod to be rigorous
 
@@ -31,19 +31,13 @@ Orchestrator (this skill — thin, stays in main context)
     │
     ├── Explore subagent (Task/Explore)                — only if diff is complex
     │
-    ├── PARALLEL AUDIT ────────────────────────────────
-    │   ├── Quick auditor (.claude/agents/code-auditor, scope=quick)  — fast mechanical checks
-    │   └── Deep auditor  (.claude/agents/code-auditor, scope=deep)   — reasoning-heavy checks
-    │
-    ├── IMPACT CHECK ──────────────────────────────────
+    ├── PARALLEL ANALYSIS ─────────────────────────────
+    │   ├── Quick auditor (.claude/agents/code-auditor, scope=quick) — mechanical checks
+    │   ├── Deep auditor  (.claude/agents/code-auditor, scope=deep)  — reasoning-heavy checks
+    │   ├── Divergence checker (.claude/agents/access-control-divergence-checker)
+    │   │   → production access operations ↔ policy/rules/tests
     │   └── Impact checker (.claude/agents/impact-checker)
-    │       → transitive consumer tracing (not just 1-hop)
-    │       → cross-boundary contracts (frontend ↔ functions ↔ rules)
-    │       → security rule cascade analysis
-    │       → navigation graph integrity
-    │       → config/flag dependency check
-    │       → data shape ripple check
-    │       → behavioral side effect detection
+    │       → transitive consumers and cross-boundary blast radius
     │
     ├── OVERLAPPED FIX ────────────────────────────────
     │   ├── Fixer-A (.claude/agents/code-fixer)  — fixes quick findings (starts as soon as quick audit returns)
@@ -54,7 +48,7 @@ Orchestrator (this skill — thin, stays in main context)
         └── Fixer (.claude/agents/code-fixer)                       — single fixer for remaining findings
 ```
 
-The audit report contract at `references/audit-report-contract.md` defines the exact format the audit agent outputs and the fix agent consumes. Both quick and deep auditors produce reports in the same format — the orchestrator merges them before displaying to the user.
+The audit report contract at `references/audit-report-contract.md` defines the exact format every analysis agent outputs and the fix agent consumes. The orchestrator merges quick, deep, divergence, and impact reports before displaying them to the user.
 
 ## Workflow
 
@@ -104,56 +98,49 @@ Only if Phase 1 determined exploration is needed.
 
 **Output:** A structured exploration summary to pass to the audit agent alongside the overview.
 
-### Phase 2: Parallel Audit
+### Phase 2: Parallel Analysis
 
-The audit is split into two parallel agents with different scopes to enable overlapped fixing.
+After context loading, launch four read-only analysis agents with different scopes. This
+keeps mechanical auditing, reasoning-heavy auditing, downstream impact analysis, and
+production/test divergence analysis independent.
 
-**2a. Spawn both auditors in parallel (same moment):**
+**2a. Spawn all analysis agents in parallel (same moment):**
 
 | Agent | Scope | Input | Why |
 |-------|-------|-------|-----|
 | **Quick auditor** (Sonnet) | `quick` | Diff only | Fast mechanical checks — dead code, debug artifacts, unused imports, obvious async errors |
 | **Deep auditor** (Sonnet) | `deep` | Diff + GitHub issue + overview + explore summary | Reasoning-heavy checks — scope alignment, correctness, security, patterns, test coverage |
+| **Divergence checker** (Sonnet) | `divergence` | Diff + GitHub issue + overview + explore summary | Production access operations versus policy, rules, emulator tests, frontend tests, and E2E coverage |
+| **Impact checker** (Sonnet) | impact analysis | Diff + GitHub issue + overview | Transitive consumers and cross-boundary blast radius |
 
-Both agents output structured reports in the audit report contract format. The quick auditor omits the `Scope Alignment` section.
+All four agents output structured reports in the audit report contract format. The quick
+auditor omits the `Scope Alignment` section.
 
-**2b. As each auditor returns, act immediately:**
+**2b. Collect reports and determine fixes:**
 
 ```
-spawn quick-audit + deep-audit in parallel
-
-when quick-audit returns:
-    quick_report = result
-    quick_files = set of file paths from quick findings
-    if quick_report has findings:
-        spawn fixer-A in background with quick_report findings
-
-when deep-audit returns:
-    deep_report = result
-    deep_files = set of file paths from deep findings
-    if deep_report has findings:
-        overlap = quick_files ∩ deep_files
-        if overlap is empty OR fixer-A is already done:
-            spawn fixer-B immediately
-        else:
-            wait for fixer-A to finish, then spawn fixer-B
-
-wait for all fixers to complete
+spawn quick-audit + deep-audit + divergence-check + impact-check in parallel
+wait for all four reports
+merge reports and compute finding-file overlap
+spawn fixers from the merged findings
 ```
 
-The orchestrator determines file overlap by extracting the `File:` field from each finding. If fixer-A and fixer-B would touch different files, they can run concurrently. If they share any file, serialize them to avoid conflicts.
+The orchestrator determines file overlap by extracting the `File:` field from every finding.
+Fixers may run concurrently only when their finding file sets are disjoint. Findings from
+the divergence checker participate in the same overlap calculation.
 
 **2c. Merge reports for display:**
 
-Concatenate both reports into a single merged report for the user. Use the deep report's Scope Alignment section. Combine findings from both reports under the standard Blockers/Warnings/Nits/User Decision sections. Deduplicate any findings that appear in both (same file + same line range = duplicate; keep the higher-severity version).
+Concatenate all four reports into a single merged report for the user. Use the deep report's
+Scope Alignment section and combine findings from all agents under the standard
+Blockers/Warnings/Nits/User Decision sections. Deduplicate findings that share the same file
+and line range, keeping the higher-severity version.
 
-### Phase 3: Impact Check
+### Phase 3: Impact Analysis Details
 
 **Purpose:** Trace the full blast radius of the diff — every downstream effect, intended or not. The spec audit checks "is the diff correct?" The impact check asks "does the diff break or change anything beyond its immediate scope?" This catches the things that slip through code review: security rule cascades that gate unrelated features, shared utility behavior changes that ripple through 12 consumers, config keys that three features depend on.
 
-**3a. Launch impact checker**
-
-Spawn the **`impact-checker` agent** (`.claude/agents/impact-checker.md`) with:
+The impact checker is launched in Phase 2 alongside the other analysis agents. It receives:
 - **Diff:** The full diff from Phase 1 (`git diff dev...HEAD` + any uncommitted changes)
 - **Diff stat:** The file-level summary from Phase 1
 - **GitHub issue context:** Title + acceptance criteria (so it can distinguish intended from unintended effects)
@@ -181,7 +168,7 @@ Handle the verdict:
 
 Impact findings are added to the merged audit report under the same Blockers/Warnings/Nits structure with category `impact`. They flow into the fix loop alongside audit findings. The orchestrator does NOT need to re-classify severity — the impact checker already applies the severity rules from the audit report contract.
 
-### Phase 4: Process Results (Orchestrator)
+### Phase 4: Process Results and Assess Human Review Risk (Orchestrator)
 
 The orchestrator reads the merged audit report (now including impact findings) and decides next steps.
 
@@ -194,11 +181,19 @@ The orchestrator reads the merged audit report (now including impact findings) a
 
 3. **Check the merged verdict**
    - If all clean → proceed to Phase 6 (Version Bump)
-   - If findings exist → the fixers already started in Phase 2b for audit findings. For impact findings, spawn a fixer now. Then proceed to Phase 5 (Re-audit).
+   - If findings exist → spawn fixers from the merged findings, respecting file overlap. Then proceed to Phase 5 (Re-audit).
+
+4. **Produce the human-review risk assessment** after the final diff is known. Do not use line count as the primary signal. Assess changed surfaces and downstream reach:
+   - **Low:** isolated UI, copy, styling, or localized refactor
+   - **Medium:** feature behavior, several related files, or local data-flow changes
+   - **High:** security rules, roles, shared infrastructure, Firestore schema, Cloud Functions, AI model/prompt behavior, migrations, or broad cross-area changes
+   - **Critical:** authentication/authorization, destructive data operations, production migrations, secrets, billing, or changes with difficult rollback
+
+   Record the level, required oversight, confidence, drivers, and the specific files/flows a human should inspect first. High and Critical assessments require explicit human review before merge; Critical also requires explicit approval to merge.
 
 ### Phase 5: Re-audit Loop
 
-After the initial parallel fix pass from Phase 2b, a fresh re-audit validates the fixes.
+After the initial fix pass from the merged analysis reports, a fresh re-audit validates the fixes.
 
 **5a. Re-Audit (full scope)**
 
@@ -320,7 +315,7 @@ Check whether the diff involves Firestore schema changes. Run this check automat
    - Write clear commit messages:
      - Implementation: `feat: {description} (#<issue-number>)` or `fix: {description} (#<issue-number>)`
      - Version bump (if separate): `chore: bump version to v{X.Y.Z}`
-   - Include `Co-Authored-By: Claude` signoff
+   - Include `Co-Authored-By: Automated Assistant` signoff
    - Show commit hashes and subjects
 
 2. **Push feature branch**
@@ -354,58 +349,11 @@ Check whether the diff involves Firestore schema changes. Run this check automat
      - Issue: #<issue-number>
      - Branch: `{branch-name}`
 
-     🤖 Generated with [Claude Code](https://claude.com/claude-code)
+     🤖 Generated with an AI coding assistant
      ```
    - Report PR URL to user
 
-### Phase 8: GitHub Claude CI Review Loop (Orchestrator)
-
-After the PR is opened, the GitHub Claude CI reviewer (`claude-code-action` with `code-review` plugin) will automatically review it. This phase waits for that review and fixes any findings before proceeding.
-
-**7a. Wait for the CI review**
-- Poll for the review using `gh pr checks <pr_number>` — look for the `claude-review` check
-- Also check `gh pr reviews <pr_number> --json author,state,body` for review comments
-- If no review yet, inform the user and ask whether to:
-  - Wait and check again (re-poll)
-  - Skip the CI review and proceed to Phase 9 (GitHub issue sync)
-- Do NOT auto-poll in a loop — always ask the user before re-checking
-
-**7b. Parse the CI reviewer's findings**
-- If the review state is `APPROVED` → all green, proceed to Phase 9
-- If the review state is `CHANGES_REQUESTED` or `COMMENTED`:
-  - Fetch review comments via `gh api repos/Thilak-cm/pep-school-v2-OS/pulls/{pr_number}/comments`
-  - Also fetch general review body from the review itself
-  - Display the CI reviewer's findings to the user in a clear summary
-
-**7c. Fix the CI reviewer's findings**
-- Ask user for confirmation before fixing (Human Approval Gate)
-- Spawn the **`code-fixer` agent** (`.claude/agents/code-fixer.md`) with:
-  - The CI reviewer's comments (formatted as findings)
-  - GitHub issue context
-- After fixes are applied, commit and push to the same branch:
-  - `git add` changed files
-  - `git commit -m "fix: address CI review feedback (#<issue-number>)"`
-  - `git push origin {branch}`
-- The new push will trigger the CI reviewer to re-review the PR
-
-**7d. Re-check loop**
-- After pushing fixes, return to step 7a (wait for new CI review)
-- Loop control:
-  ```
-  max_ci_review_iterations = 3
-
-  for i in 1..max_ci_review_iterations:
-      wait for CI review
-      if APPROVED:
-          break → proceed to Phase 9
-      if i == max_ci_review_iterations:
-          STOP — surface remaining CI review findings to user
-          ask: "3 rounds of CI review fixes haven't resolved all issues. Proceed anyway or review manually?"
-      else:
-          fix findings → push → continue loop
-  ```
-
-### Phase 9: GitHub Issue Sync (Orchestrator)
+### Phase 8: GitHub Issue Sync (Orchestrator)
 
 1. **Add a comment on the GitHub issue:**
    ```bash
@@ -415,6 +363,10 @@ After the PR is opened, the GitHub Claude CI reviewer (`claude-code-action` with
    **PR:** {pr_url}
    **Version:** {version or \"no bump\"}
    
+   **Human Review Risk:** {Low | Medium | High | Critical}
+   **Required Oversight:** {normal | focused | close human review | explicit approval}
+   **Review Focus:** {files and flows a human should inspect first}
+
    **Audit Summary:**
    - {N} findings found, {N} fixed across {N} iterations
    - Impact check: {verdict} — {N} downstream effects traced, {N} findings fixed
@@ -425,7 +377,7 @@ After the PR is opened, the GitHub Claude CI reviewer (`claude-code-action` with
    - {pass/fail counts}
    - {lint results}
    
-   **Ready for CI → merge**"
+   **Ready for PR CI and merge review**"
    ```
 
 2. **The issue will be closed automatically** when the PR merges (via the `Closes #<issue-number>` link in the PR body). No manual state change needed.
@@ -435,8 +387,6 @@ After the PR is opened, the GitHub Claude CI reviewer (`claude-code-action` with
 1. **Before fixing** — after showing the audit report, confirm user wants to proceed with fixes (or review manually)
 2. **After 3 failed fix loops** — surface remaining findings, ask user to intervene
 3. **All version bumps** — present recommendation with reasoning, wait for user to confirm bump type (patch/minor/major)
-4. **Before fixing CI reviewer's findings** — show the CI review summary, confirm user wants auto-fix (or handle manually)
-5. **After 3 failed CI review loops** — surface remaining findings, ask user whether to proceed or review manually
 
 ## Guardrails
 
@@ -445,7 +395,7 @@ After the PR is opened, the GitHub Claude CI reviewer (`claude-code-action` with
 - **Each audit is fresh:** Re-audits spawn a new audit agent. No memory of previous audits. This prevents the audit from becoming lenient after seeing fixes.
 - **Impact check always runs:** The impact checker runs on every diff. It conditionally skips internal phases (e.g., rule cascade analysis only runs if rules changed), but Phase 1 (change classification) and Phase 2 (transitive consumer tracing) always execute. If Phase 1 finds NO external-facing changes, the agent returns NO_IMPACT quickly.
 - **Max 3 fix iterations:** If 3 rounds of fix+audit don't resolve everything, stop and escalate to the user. Don't loop forever.
-- **Do not merge:** This skill opens a PR. It does NOT merge into `dev`. That's `/merge-issue`'s job.
+- **Do not own remote PR CI/review:** `/merge-issue` monitors CI, handles automated review feedback and conflicts, and merges into `dev`.
 - **Do not invent test results:** Report actual test output. If tests weren't run, say so.
 - **Do not push if tests fail:** Unless user explicitly accepts the risk.
 - **Do not update the wrong GitHub issue:** Confirm issue number before updating.
@@ -461,9 +411,9 @@ After the PR is opened, the GitHub Claude CI reviewer (`claude-code-action` with
 7. Clean commit(s) created with issue references
 8. Feature branch pushed to origin
 9. PR opened against `dev` with audit + integration summary in body, and `Closes #<issue-number>` for auto-linking
-10. GitHub Claude CI review is APPROVED (or user chose to skip/proceed)
+10. PR contains the human-review risk assessment and review focus
 11. GitHub issue commented with review summary (auto-closed on PR merge)
 
 ## Next Step
 
-> After CI passes on the PR, run `/merge-issue` to land the change.
+> After the PR is open, run `/merge-issue` to monitor CI, handle remote review feedback and conflicts, and land the change.
