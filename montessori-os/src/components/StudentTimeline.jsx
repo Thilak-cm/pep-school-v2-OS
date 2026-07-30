@@ -51,8 +51,13 @@ import {
 import ExportWizard from './ExportWizard';
 import ReportPreviewDialog from './ReportPreviewDialog';
 import { ref, getDownloadURL } from 'firebase/storage';
+import { createObservationOperations } from '../../../shared/firebase/observationOperations.js';
 
 const MEDIA_URL_FETCH_CONCURRENCY = 6;
+const observationOperations = createObservationOperations({
+  db,
+  firestore: { deleteDoc, doc },
+});
 
 function StudentTimeline({ student, currentUser, userRole, noteTypeFilter = null }) {
   const notify = useNotify();
@@ -563,7 +568,10 @@ function StudentTimeline({ student, currentUser, userRole, noteTypeFilter = null
           continue;
         }
         const parentId = obs.parentStudentId || student.id || obs.studentId;
-        await deleteDoc(doc(db, 'students', parentId, 'observations', obs.id));
+        await observationOperations.deleteObservation({
+          studentId: parentId,
+          observationId: obs.id,
+        });
         deleted += 1;
       }
       if (deleted > 0) {
@@ -606,12 +614,13 @@ function StudentTimeline({ student, currentUser, userRole, noteTypeFilter = null
       onFinalize: async () => {
         try {
           const parentId = obs.parentStudentId || student.id || obs.studentId;
-          const docRef = doc(db, 'students', parentId, 'observations', obs.id);
-
           // Storage file cleanup is handled server-side by the mediaCleanup
           // Cloud Function trigger — no client-side deleteObject needed.
 
-          const deleteResult = await deleteDoc(docRef)
+          const deleteResult = await observationOperations.deleteObservation({
+            studentId: parentId,
+            observationId: obs.id,
+          })
             .then(() => ({ ok: true }))
             .catch((err) => ({ ok: false, err }));
 

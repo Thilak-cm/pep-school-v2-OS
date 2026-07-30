@@ -23,7 +23,7 @@ import InlineVoiceOverlay from './InlineVoiceOverlay';
 import { cleanUpText } from '../textCleanup';
 import { trackEvent, lengthBucket } from '../utils/analytics';
 import ClassroomStudentPicker from './ClassroomStudentPicker';
-import { collection, getDoc, doc, query, where, limit, getDocs, setDoc, deleteDoc, serverTimestamp, updateDoc, arrayUnion, Timestamp, runTransaction } from 'firebase/firestore';
+import { collection, getDoc, doc, query, where, limit, getDocs, setDoc, deleteDoc, serverTimestamp, updateDoc, arrayUnion, arrayRemove, Timestamp, runTransaction } from 'firebase/firestore';
 import { deleteObject, ref, uploadBytesResumable } from 'firebase/storage';
 import { db, cloudFunctions, storage } from '../firebase';
 import { buildMediaDocData } from '../utils/mediaDocBuilder';
@@ -39,6 +39,7 @@ import useTranscriptStudentSuggestions from '../hooks/useTranscriptStudentSugges
 import LessonNoteTagDialog from './LessonNoteTagDialog';
 import { reportCaughtError } from '../utils/reportCaughtError.js';
 import { mapVLMResultsToMediaItems } from '../utils/photoAnalysis.js';
+import { createObservationOperations } from '../../../shared/firebase/observationOperations.js';
 
 // Confetti Animation Component
 const confettiFall = keyframes`
@@ -54,6 +55,18 @@ const confettiFall = keyframes`
 
 const confettiColors = ['var(--color-primary)', 'var(--color-secondary)', 'var(--color-warning)', 'var(--color-pink-dark)', 'var(--color-info)', 'var(--color-violet)'];
 const MAX_PHOTO_BYTES = 2 * 1024 * 1024;
+const observationOperations = createObservationOperations({
+  db,
+  firestore: {
+    arrayRemove,
+    arrayUnion,
+    deleteDoc,
+    doc,
+    serverTimestamp,
+    setDoc,
+    updateDoc,
+  },
+});
 const IMAGE_FILE_EXTENSION_RE = /\.(heic|heif|jpg|jpeg|png|webp|gif|bmp)$/i;
 const HEIF_FILE_EXTENSION_RE = /\.(heic|heif)$/i;
 const HEIF_MIME_RE = /^image\/hei(f|c)$/i;
@@ -1646,10 +1659,8 @@ function AddNoteModal({
 
           const mediaId = `media_${Date.now().toString(36)}_${Math.random().toString(36).slice(2, 6)}_${studentId.slice(0, 4)}`;
           // #221: media docs now written to observations subcollection (storage path unchanged)
-          const mediaRef = doc(db, 'students', studentId, 'observations', mediaId);
           const storagePath = `students/${studentId}/media/${mediaId}/original.${item.source.extension}`;
 
-          await deleteDoc(mediaRef).catch((e) => { reportCaughtError(e, 'AddNoteModal', 'pre-cleanup deleteDoc for media'); });
           await deleteObject(ref(storage, storagePath)).catch((e) => { reportCaughtError(e, 'AddNoteModal', 'pre-cleanup deleteObject for media storage'); });
 
           const payload = {
@@ -1681,20 +1692,29 @@ function AddNoteModal({
             updatedAt: serverTimestamp(),
           };
 
-          await setDoc(mediaRef, docData);
+          await observationOperations.saveMediaObservation({
+            studentId,
+            observationId: mediaId,
+            data: docData,
+            replaceExisting: true,
+            onCleanupError: (error) => {
+              reportCaughtError(error, 'AddNoteModal', 'pre-cleanup deleteDoc for media');
+            },
+          });
           await new Promise((r) => setTimeout(r, 350)); // allow Firestore doc to propagate before upload triggers mediaFinalize CF
 
           // Write backlinks to tagged lesson observations
           if (canTagMediaLesson && mediaTaggedLessonIds.length > 0) {
-            await Promise.allSettled(
-              mediaTaggedLessonIds.map(async (lessonId) => {
-                if (!lessonId) return;
-                const lessonRef = doc(db, 'students', studentId, 'observations', lessonId);
-                await updateDoc(lessonRef, {
-                  linkedObservations: arrayUnion(mediaId),
-                });
-              })
-            );
+            await observationOperations.updateLessonLinks({
+              studentId,
+              observationId: mediaId,
+              currentLessonIds: [],
+              desiredLessonIds: mediaTaggedLessonIds,
+              updateForwardLink: false,
+              onBacklinkError: (error) => {
+                reportCaughtError(error, 'AddNoteModal', 'add media lesson backlink');
+              },
+            });
           }
 
           // Upload file to Storage
@@ -1845,7 +1865,6 @@ function AddNoteModal({
         }
 
         const observationId = `obs_${Date.now().toString(36)}_${Math.random().toString(36).slice(2, 6)}_${studentId.slice(0, 4)}`;
-        const observationRef = doc(db, 'students', studentId, 'observations', observationId);
         const observationData = {
           studentId,
           classroomId,
@@ -1875,20 +1894,28 @@ function AddNoteModal({
         const cleaned = Object.fromEntries(
           Object.entries(observationData).filter(([, value]) => value !== undefined)
         );
-        await deleteDoc(observationRef).catch((e) => { reportCaughtError(e, 'AddNoteModal', 'pre-cleanup deleteDoc for observation'); });
-        await setDoc(observationRef, cleaned);
+        await observationOperations.saveObservation({
+          studentId,
+          observationId,
+          data: cleaned,
+          replaceExisting: true,
+          onCleanupError: (error) => {
+            reportCaughtError(error, 'AddNoteModal', 'pre-cleanup deleteDoc for observation');
+          },
+        });
 
         // Write backlinks to tagged lesson observations
         if (canTagLesson && taggedLessonIds.length > 0) {
-          await Promise.allSettled(
-            taggedLessonIds.map(async (lessonId) => {
-              if (!lessonId) return;
-              const lessonRef = doc(db, 'students', studentId, 'observations', lessonId);
-              await updateDoc(lessonRef, {
-                linkedObservations: arrayUnion(observationId),
-              });
-            })
-          );
+          await observationOperations.updateLessonLinks({
+            studentId,
+            observationId,
+            currentLessonIds: [],
+            desiredLessonIds: taggedLessonIds,
+            updateForwardLink: false,
+            onBacklinkError: (error) => {
+              reportCaughtError(error, 'AddNoteModal', 'add lesson backlink');
+            },
+          });
         }
 
         savedNotes.push({

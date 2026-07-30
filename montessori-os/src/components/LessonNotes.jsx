@@ -46,6 +46,7 @@ import InlineVoiceOverlay from './InlineVoiceOverlay';
 import { reportCaughtError } from '../utils/reportCaughtError.js';
 import { cleanUpText } from '../textCleanup';
 import { trackEvent, lengthBucket } from '../utils/analytics';
+import { createObservationOperations } from '../../../shared/firebase/observationOperations.js';
 import {
   LESSON_PROGRAM_DIMENSIONS,
   LESSON_RATING_OPTIONS,
@@ -54,6 +55,17 @@ import {
   deriveDimensionKeyFromProgram,
   normalizeClassroomId
 } from '../utils/lessonNoteConstraints';
+
+const observationOperations = createObservationOperations({
+  db,
+  firestore: {
+    deleteDoc,
+    doc,
+    serverTimestamp,
+    setDoc,
+    updateDoc,
+  },
+});
 
 const SECTION_IDS = {
   setup: 'setup',
@@ -898,7 +910,6 @@ function LessonNoteWizard({
         const studentId = selectedStudents[0];
         const obsId = editObservation?.id;
         if (!studentId || !obsId) throw new Error('Missing lesson note to edit.');
-        const ref = doc(db, 'students', studentId, 'observations', obsId);
         const payload = {
           classroomId: context.classroomId,
           lessonTitle: context.lessonTitle.trim(),
@@ -914,7 +925,11 @@ function LessonNoteWizard({
           lastEditedBy: currentUser?.uid || null,
           lastEditedAt: serverTimestamp(),
         };
-        await updateDoc(ref, payload);
+        await observationOperations.updateObservationFields({
+          studentId,
+          observationId: obsId,
+          fields: payload,
+        });
         notify.success('Lesson note updated.');
         setIsDirty(false);
         onSaved?.({ observationId: obsId, studentId });
@@ -932,7 +947,6 @@ function LessonNoteWizard({
           });
 
           const observationId = `lesson_${Date.now().toString(36)}_${Math.random().toString(36).slice(2, 6)}_${studentId.slice(0, 4)}`;
-          const observationRef = doc(db, 'students', studentId, 'observations', observationId);
           const lessonData = {
             studentId,
             classroomId: context.classroomId,
@@ -959,8 +973,15 @@ function LessonNoteWizard({
           const cleaned = Object.fromEntries(
             Object.entries(lessonData).filter(([, value]) => value !== undefined && value !== null)
           );
-          await deleteDoc(observationRef).catch((e) => { reportCaughtError(e, 'LessonNotes', 'pre-cleanup deleteDoc for lesson observation'); });
-          await setDoc(observationRef, cleaned);
+          await observationOperations.saveObservation({
+            studentId,
+            observationId,
+            data: cleaned,
+            replaceExisting: true,
+            onCleanupError: (error) => {
+              reportCaughtError(error, 'LessonNotes', 'pre-cleanup deleteDoc for lesson observation');
+            },
+          });
 
           savedNotes.push({
             id: observationId,
