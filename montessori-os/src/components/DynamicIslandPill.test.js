@@ -26,6 +26,31 @@ describe('DynamicIslandPill component (PEP-213 + PEP-296)', () => {
     });
   });
 
+  describe('Loading state', () => {
+    it('renders a fixed-height animated pill skeleton', () => {
+      const loadingStateStart = source.indexOf('if (loading)');
+      const emptyStateStart = source.indexOf('// ── Empty state', loadingStateStart);
+      const loadingState = source.slice(loadingStateStart, emptyStateStart);
+
+      assert.ok(loadingStateStart >= 0, 'Should have a loading branch');
+      assert.ok(
+        loadingState.includes('<Skeleton') &&
+          loadingState.includes('variant="rounded"') &&
+          loadingState.includes('animation="wave"'),
+        'Loading state should render an animated rounded skeleton'
+      );
+      assert.ok(
+        loadingState.includes('height={PILL_HEIGHT}') &&
+          loadingState.includes("borderRadius: '22px'"),
+        'Loading skeleton should reserve the final pill dimensions'
+      );
+      assert.ok(
+        !loadingState.includes('Coach Pepper is scanning for alerts'),
+        'Loading state should not fall back to a text placeholder'
+      );
+    });
+  });
+
   // --- Rotation behavior ---
   describe('Rotation and animation', () => {
     it('uses a timer for rotation (setInterval or setTimeout)', () => {
@@ -118,6 +143,14 @@ describe('DynamicIslandPill component (PEP-213 + PEP-296)', () => {
       );
     });
 
+    it('passes classroom readiness into useAlertBus', () => {
+      assert.ok(
+        source.includes('classroomsLoaded = false') &&
+          source.includes('useAlertBus(classrooms, { classroomsLoaded })'),
+        'Should keep the alert skeleton visible until classroom targeting scope is ready'
+      );
+    });
+
     it('does NOT contain DEV_MOCK_ALERTS', () => {
       assert.ok(
         !source.includes('DEV_MOCK_ALERTS'),
@@ -170,6 +203,24 @@ describe('DynamicIslandPill component (PEP-213 + PEP-296)', () => {
       assert.ok(
         source.includes('Quick alerts'),
         'Should show "Quick alerts" section header'
+      );
+    });
+
+    it('keeps the fixed-height pill shell when no alerts exist', () => {
+      const emptyStateStart = source.indexOf('if (alerts.length === 0)');
+      const carouselStart = source.indexOf('// ── Clamped carousel', emptyStateStart);
+      const emptyState = source.slice(emptyStateStart, carouselStart);
+
+      assert.ok(emptyStateStart >= 0, 'Should have an empty-alert branch');
+      assert.ok(
+        emptyState.includes('height: PILL_HEIGHT'),
+        'Empty state should reserve the same fixed pill height'
+      );
+      assert.ok(
+        emptyState.includes("background: 'var(--color-surface") &&
+          emptyState.includes("border: '1px solid var(--color-border") &&
+          emptyState.includes("borderRadius: '22px'"),
+        'Empty state should render inside the standard bordered pill shell'
       );
     });
   });

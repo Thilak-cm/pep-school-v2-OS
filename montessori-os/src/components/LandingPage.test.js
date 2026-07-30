@@ -108,6 +108,25 @@ describe('LandingPage component (PEP-190)', () => {
 
   // --- AC5: Quick jump pills with role-based visibility ---
   describe('Quick jump pills', () => {
+    it('renders a visible Quick jumps section header', () => {
+      assert.ok(
+        source.includes('>Quick jumps<') || source.includes('>\n            Quick jumps\n'),
+        'Should render a visible "Quick jumps" section header'
+      );
+    });
+
+    it('renders quick jumps before the classrooms section', () => {
+      const quickJumpSection = source.indexOf('── Quick jump');
+      const classroomsSection = source.indexOf('── Classrooms section');
+
+      assert.ok(quickJumpSection >= 0, 'Should render the Quick jump section');
+      assert.ok(classroomsSection >= 0, 'Should render the Classrooms section');
+      assert.ok(
+        quickJumpSection < classroomsSection,
+        'Quick jump section should render before the Classrooms section'
+      );
+    });
+
     it('renders Stats pill for all roles', () => {
       assert.ok(source.includes('Stats'), 'Should render Stats pill');
     });
@@ -146,18 +165,35 @@ describe('LandingPage component (PEP-190)', () => {
 
   // --- Loading state ---
   describe('Loading and empty states', () => {
-    it('shows loading indicator when classroomsLoaded is false', () => {
+    it('renders four classroom card skeletons while loading', () => {
       assert.ok(
         source.includes('classroomsLoaded'),
         'Should use classroomsLoaded flag to distinguish loading from empty'
       );
       assert.ok(
-        source.includes('CircularProgress'),
-        'Should show a loading spinner'
+        source.includes('CLASSROOM_SKELETON_COUNT = 4') &&
+          source.includes('Array.from({ length: CLASSROOM_SKELETON_COUNT }'),
+        'Should reserve a two-by-two grid of four classroom placeholders'
       );
       assert.ok(
-        source.includes('fetching'),
-        'Should show a fetching message while loading'
+        source.includes('<Skeleton') && source.includes('animation="wave"'),
+        'Classroom placeholders should use animated skeleton content'
+      );
+      assert.ok(
+        !source.includes('CircularProgress') && !source.includes('Coach Pepper is fetching your classrooms'),
+        'Classroom loading state should not use the old spinner and text treatment'
+      );
+    });
+
+    it('propagates classroom readiness to the quick-alert pill', () => {
+      const pillStart = source.indexOf('<DynamicIslandPill');
+      const pillEnd = source.indexOf('/>', pillStart);
+      const pillSource = source.slice(pillStart, pillEnd);
+
+      assert.ok(pillStart >= 0, 'Should render DynamicIslandPill');
+      assert.ok(
+        pillSource.includes('classroomsLoaded={classroomsLoaded}'),
+        'Quick alerts should share the authoritative classroom loading state'
       );
     });
 
