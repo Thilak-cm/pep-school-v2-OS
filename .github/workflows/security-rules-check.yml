@@ -9,7 +9,12 @@ on:
     paths:
       - 'firestore.rules'
       - 'storage.rules'
+      - 'firebase.json'
       - 'tests/security/**'
+      - 'tests/rules/**'
+      - 'shared/firebase/**'
+      - 'package.json'
+      - 'package-lock.json'
       - '.github/workflows/security-rules-check.yml'
   pull_request:
     branches:
@@ -19,12 +24,19 @@ on:
     paths:
       - 'firestore.rules'
       - 'storage.rules'
+      - 'firebase.json'
       - 'tests/security/**'
+      - 'tests/rules/**'
+      - 'shared/firebase/**'
+      - 'package.json'
+      - 'package-lock.json'
+      - '.github/workflows/security-rules-check.yml'
 
 jobs:
   security_tests:
     name: Verify Security Rules Integrity
     runs-on: ubuntu-latest
+    timeout-minutes: 10
 
     steps:
       - name: Checkout code
@@ -34,24 +46,26 @@ jobs:
         uses: actions/setup-node@v4
         with:
           node-version: '20'
+          cache: npm
+
+      - name: Setup Java for Firebase emulators
+        uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: '21'
 
       - name: Install dependencies
-        run: npm install
+        run: npm ci
 
-      - name: Run security rules tests
+      - name: Run static security rules tests
         run: npm run test:security
+
+      - name: Run Firestore and Storage emulator tests
+        run: npm run test:rules
 
       - name: Report test results
         if: always()
         run: |
           echo "## Security Rules Test Results" >> $GITHUB_STEP_SUMMARY
-          echo "✅ All security rules validation tests passed" >> $GITHUB_STEP_SUMMARY
-          echo "" >> $GITHUB_STEP_SUMMARY
-          echo "Verified:" >> $GITHUB_STEP_SUMMARY
-          echo "- Authentication gates" >> $GITHUB_STEP_SUMMARY
-          echo "- Role hierarchy (superadmin, classroomadmin, teacher)" >> $GITHUB_STEP_SUMMARY
-          echo "- Classroom scoping for admins" >> $GITHUB_STEP_SUMMARY
-          echo "- Access control per collection" >> $GITHUB_STEP_SUMMARY
-          echo "- Storage rules budget (2 firestore.get() calls max)" >> $GITHUB_STEP_SUMMARY
-          echo "- Media upload validation" >> $GITHUB_STEP_SUMMARY
-          echo "- 48-hour edit/delete windows" >> $GITHUB_STEP_SUMMARY
+          echo "Static rule-shape checks and production-faithful emulator tests ran as required steps." >> $GITHUB_STEP_SUMMARY
+          echo "See the individual steps above for pass/fail details." >> $GITHUB_STEP_SUMMARY

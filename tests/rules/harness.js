@@ -3,6 +3,7 @@ import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 
 import { doc, setDoc } from 'firebase/firestore';
+import { ref, uploadBytes } from 'firebase/storage';
 import { initializeTestEnvironment } from '@firebase/rules-unit-testing';
 
 const rootDir = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '../..');
@@ -16,12 +17,31 @@ export async function initializeRulesTestEnvironment() {
       port: 8080,
       rules: fs.readFileSync(path.join(rootDir, 'firestore.rules'), 'utf8'),
     },
+    storage: {
+      host: '127.0.0.1',
+      port: 9199,
+      rules: fs.readFileSync(path.join(rootDir, 'storage.rules'), 'utf8'),
+    },
   });
 }
 
 export function createAuthenticatedDb(uid) {
   if (!testEnvironment) throw new Error('Rules test environment is not initialized');
   return testEnvironment.authenticatedContext(uid).firestore();
+}
+
+export function createAuthenticatedStorage(uid) {
+  if (!testEnvironment) throw new Error('Rules test environment is not initialized');
+  return testEnvironment
+    .authenticatedContext(uid)
+    .storage('gs://pep-os.appspot.com');
+}
+
+export function createUnauthenticatedStorage() {
+  if (!testEnvironment) throw new Error('Rules test environment is not initialized');
+  return testEnvironment
+    .unauthenticatedContext()
+    .storage('gs://pep-os.appspot.com');
 }
 
 export async function seedFirestore(fixture) {
@@ -35,6 +55,17 @@ export async function seedFirestore(fixture) {
 
 export async function clearTestData() {
   await testEnvironment.clearFirestore();
+}
+
+export async function clearStorageData() {
+  await testEnvironment.clearStorage();
+}
+
+export async function seedStorageObject(pathname, data, contentType) {
+  await testEnvironment.withSecurityRulesDisabled(async (context) => {
+    const storage = context.storage('gs://pep-os.appspot.com');
+    await uploadBytes(ref(storage, pathname), data, { contentType });
+  });
 }
 
 export async function closeTestEnvironment() {
