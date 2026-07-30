@@ -25,6 +25,7 @@ See [Pep OS Access-Control Policy](docs/security/access-control-policy.md).
 - `students/{studentId}/media/{mediaId}`               // DEPRECATED (#221) - retained for rollback, no longer read/written
 - `students/{studentId}/chats/{chatId}`                // AI chat conversations
 - `students/{studentId}/chats/{chatId}/messages/{messageId}` // chat messages
+- `students/{studentId}/chats/{chatId}/turns/{turnId}` // chat execution lifecycle state
 - `students/{studentId}/ai_summaries/soul`             // AI-generated student soul narrative (PEP-149)
 - `students/{studentId}/ai_summaries/soul/history/{timestamp}` // weekly soul snapshots
 - `students/{studentId}/ai_summaries/guidelines`       // per-student evaluation guide (PEP-149)
@@ -448,13 +449,19 @@ interface InterviewExchange {
 ---
 
 ## 💬 Chats (`/students/{studentId}/chats/{chatId}`)
-AI-powered chat conversations between teachers and a student's context. Each chat is a thread; messages are stored in a subcollection. Soft-deleted chats are cleaned up by a scheduled Cloud Function after 31 days.
+AI-powered chat conversations between teachers and a student's context. Each chat is a thread. The browser may optimistically render new chats/messages, but `childChatStream` is the source of truth for creating transcript messages and turn lifecycle docs. Soft-deleted chats are cleaned up by a scheduled Cloud Function after 31 days.
 
 ```typescript
 interface ChatDoc {
+  studentId: string;                 // equals parent {studentId}
+  classroomId: string | null;        // denorm for trace/debug context
+  createdBy: string;                 // uid that created the chat
+  visibility: 'classroom';           // shared by authorized teachers in the student's classroom
   name: string;                     // auto-generated from first message, default "New Chat"
   messageCount: number;             // count of messages in the chat
   lastMessagePreview: string;       // first 100 chars of the latest assistant response
+  activeTurnId?: string | null;      // running turn marker, cleared on terminal states
+  langfuseTraceId?: string;          // latest trace id; each turn uses runId as trace id
 
   // Soft delete
   deleted: boolean;                 // false by default; set true on user delete
@@ -467,33 +474,63 @@ interface ChatDoc {
 ```
 
 Notes
-- Chat name is AI-generated from the first user message via `generateChatName()`.
+- Chat creation and transcript writes happen in `childChatStream` via Admin SDK after auth and student access checks. Clients do not create chat, message, or turn docs directly.
+- Chat rename and soft delete are the only client-side chat doc mutations. They are allowed only for the chat creator or a privileged admin.
 - Soft delete: frontend sets `deleted: true` + `deletedAt`; `cleanupDeletedChats` (monthly scheduled function) hard-deletes chats where `deletedAt` > 31 days ago.
 - Listing: queries filter `deleted == false`, ordered by `createdAt` desc.
 
 ### Messages (`/students/{studentId}/chats/{chatId}/messages/{messageId}`)
-Individual messages within a chat thread.
+Individual transcript messages within a chat thread. Message docs are append-only and written by `childChatStream`.
 
 ```typescript
 interface MessageDoc {
   role: 'user' | 'assistant';
   content: string;                  // message text (trimmed)
-  timestamp: Timestamp;             // when message was created
+  createdAt: Timestamp;             // when message was created
+  turnId: string;                   // associated turn lifecycle doc
+  status: 'complete' | 'interrupted' | 'failed';
 
   // Assistant messages only
+  runId?: string;                   // Langfuse trace id for this assistant run
   model?: string;                   // LLM model used (e.g., "gpt-4o-mini")
+  finishReason?: 'stop' | 'client_disconnect' | 'error' | string;
 
   // User messages only
   authorId?: string;                // uid of the teacher
   authorName?: string;              // display name of the teacher
-  cancelledResponseAt?: Timestamp;  // set when user presses Stop — CF skips assistant write
 }
 ```
 
 Notes
-- Messages are append-only except for `cancelledResponseAt`, which may be set on a user message after creation (stop button). No other updates or deletes allowed.
-- `messageCount` on the parent chat doc is incremented by 2 per exchange (user + assistant).
+- Server writes the user message before calling the LLM. The assistant response streams directly to the browser and is written once at completion or interruption using the server-accumulated text.
+- Individual model tokens are not written to Firestore.
+- If a user stops streaming or navigates away, the assistant message is saved with `status: 'interrupted'` and `finishReason: 'client_disconnect'`.
+- `messageCount` on the parent chat doc is incremented by completed server writes.
 - When the parent chat is hard-deleted by `cleanupDeletedChats`, all messages are recursively deleted.
+
+### Turns (`/students/{studentId}/chats/{chatId}/turns/{turnId}`)
+Execution state for one user-message-to-assistant-response run. These docs are written only by `childChatStream`; clients may read them for status/debug UI.
+
+```typescript
+interface TurnDoc {
+  runId: string;                    // Langfuse trace id
+  userMessageId: string;
+  assistantMessageId?: string;
+  idempotencyKey: string;           // `${chatId}:${userMessageId}`
+  status: 'persisting' | 'running' | 'completed' | 'interrupted' | 'failed';
+  createdAt: Timestamp;
+  updatedAt: Timestamp;
+  startedAt?: Timestamp;
+  completedAt?: Timestamp;
+  finishReason?: string;
+  errorCode?: string;
+}
+```
+
+Tool and trace notes
+- Chat tools are read-only and student-scoped. The model does not receive `studentId` or `chatId` in tool schemas; the backend injects those values after generation so hallucinated IDs cannot redirect tool reads.
+- If the model emits multiple tool calls in the same assistant turn, the Cloud Function executes them concurrently and appends results back to the model in original tool-call order.
+- Detailed tool-call observability belongs in Langfuse. Firestore keeps only transcript, turn state, and a trace id link.
 
 ---
 

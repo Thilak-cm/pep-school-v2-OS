@@ -5,6 +5,7 @@ import { db, auth } from "../shared/firebase.js";
 import { OPENROUTER_API_KEY, getOpenRouterKey, OPENROUTER_ENDPOINT } from "../shared/openrouter.js";
 import { createLangfuse } from "../shared/langfuse.js";
 import { CHAT_MODEL_INFO, CHAT_SYSTEM_PROMPT } from "../config/chatConstants.js";
+import { createToolExecutor, getToolDefinitions, getTools } from "../shared/toolRegistry.js";
 import {
   ensureChat,
   ensureUserMessage,
@@ -15,10 +16,24 @@ import {
 } from "./chatRepository.js";
 import { parseChatRequest } from "./chatRequest.js";
 import { encodeSseEvent } from "./streamProtocol.js";
-import { streamOpenRouterResponse } from "./openrouterStream.js";
+import { runStreamingAgentLoop } from "./openrouterStream.js";
+import { buildChatMessages } from "./chatContext.js";
 
 const LANGFUSE_SECRET_KEY = defineSecret("LANGFUSE_SECRET_KEY");
 const LANGFUSE_PUBLIC_KEY = defineSecret("LANGFUSE_PUBLIC_KEY");
+const DEFAULT_CHAT_TOOL_IDS = [
+  "fetch_weekly_snapshot",
+  "fetch_snapshot_history",
+  "fetch_monthly_plan",
+  "fetch_writing_analysis",
+  "fetch_interviews",
+  "fetch_observations",
+  "fetch_media",
+  "fetch_term_reports",
+  "fetch_baseline_reports",
+  "fetch_placements",
+  "fetch_chat_history",
+];
 
 function corsOrigin(req) {
   return process.env.CHAT_ALLOWED_ORIGIN || req.headers.origin || "*";
@@ -74,6 +89,9 @@ async function loadChatConfig(programId) {
     temperature: Number.isFinite(data.temperature) ? data.temperature : CHAT_MODEL_INFO.temperature,
     maxTokens: Number.isFinite(data.max_tokens) ? data.max_tokens : 4096,
     systemPrompt: typeof data.systemPrompt === "string" ? data.systemPrompt : CHAT_SYSTEM_PROMPT,
+    historyLimit: Number.isFinite(data.chatMessageLimit) ? data.chatMessageLimit : 12,
+    allowedTools: Array.isArray(data.allowedTools) ? data.allowedTools : DEFAULT_CHAT_TOOL_IDS,
+    allowedToolScopes: Array.isArray(data.allowedToolScopes) ? data.allowedToolScopes : ["student"],
   };
 }
 
@@ -134,7 +152,7 @@ export const childChatStream = functions
         createdBy: decoded.uid,
         classroomId: context.classroomId,
       });
-      await ensureUserMessage({
+      const userMessageResult = await ensureUserMessage({
         db,
         studentId: request.studentId,
         chatId: request.chatId,
@@ -178,27 +196,44 @@ export const childChatStream = functions
       }
 
       sendEvent(res, "started", { chatId: request.chatId, turnId: request.turnId, runId: request.runId });
-      const content = await streamOpenRouterResponse({
+      const selectedTools = getTools(chatConfig.allowedTools, chatConfig.allowedToolScopes);
+      const boundArgs = { studentId: request.studentId, chatId: request.chatId };
+      const toolDefinitions = getToolDefinitions(selectedTools, { boundArgs });
+      const toolExecutor = createToolExecutor(selectedTools, { boundArgs });
+      const messages = await buildChatMessages({
+        db,
+        studentId: request.studentId,
+        chatId: request.chatId,
+        currentMessage: request.message,
+        userMessageId: request.userMessageId,
+        basePrompt: chatConfig.systemPrompt,
+        historyLimit: chatConfig.historyLimit,
+      });
+
+      const agentResult = await runStreamingAgentLoop({
         apiKey,
         endpoint: OPENROUTER_ENDPOINT,
         signal: abortController.signal,
         model: chatConfig.model,
         temperature: chatConfig.temperature,
         maxTokens: chatConfig.maxTokens,
-        messages: [
-          { role: "system", content: chatConfig.systemPrompt },
-          { role: "user", content: request.message },
-        ],
+        messages,
+        tools: toolDefinitions,
+        toolExecutor,
         onChunk: (text) => {
           streamedContent += text;
           sendEvent(res, "token", { text });
         },
+        onToolCalls: (names) => {
+          sendEvent(res, "tool_calls", { names });
+        },
       });
+      const content = agentResult.content;
 
       const interrupted = abortController.signal.aborted;
       const status = interrupted ? "interrupted" : "complete";
-      const finishReason = interrupted ? "client_disconnect" : "stop";
-      await finalizeAssistantMessage({
+      const finishReason = interrupted ? "client_disconnect" : agentResult.finishReason;
+      const assistantMessageResult = await finalizeAssistantMessage({
         db,
         studentId: request.studentId,
         chatId: request.chatId,
@@ -222,7 +257,12 @@ export const childChatStream = functions
         db,
         studentId: request.studentId,
         chatId: request.chatId,
-        metadata: { lastMessagePreview: content.slice(0, 100), activeTurnId: null },
+        metadata: {
+          lastMessagePreview: content.slice(0, 100),
+          activeTurnId: null,
+          langfuseTraceId: request.runId,
+        },
+        messageCountDelta: Number(userMessageResult.created) + Number(assistantMessageResult.created),
       });
 
       sendEvent(res, "complete", { messageId: assistantMessageId, status });
@@ -261,7 +301,7 @@ export const childChatStream = functions
       finished = true;
       res.end();
     } finally {
-      if (trace) trace.update?.({ output: { completed: true } });
+      if (trace) trace.update?.({ output: { completed: true, streamedChars: streamedContent.length } });
       await langfuseClient?.flushAsync?.();
     }
   });

@@ -1,7 +1,7 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
 
-import { createChatIds, parseSseEvents, streamChatTurn } from './chatStreamService.js';
+import { createChatIds, createChatTurnPayload, parseSseEvents, streamChatTurn } from './chatStreamService.js';
 
 test('createChatIds returns stable identifiers for a turn', () => {
   const ids = createChatIds(() => 'id-1');
@@ -11,6 +11,25 @@ test('createChatIds returns stable identifiers for a turn', () => {
     runId: 'id-1',
     userMessageId: 'id-1',
   });
+});
+
+test('createChatTurnPayload keeps selected chat id over generated chat id', () => {
+  const payload = createChatTurnPayload({
+    studentId: 'student-1',
+    chatId: 'selected-chat',
+    ids: {
+      chatId: 'fresh-chat',
+      turnId: 'turn-1',
+      runId: 'run-1',
+      userMessageId: 'message-1',
+    },
+    message: 'hello',
+  });
+
+  assert.equal(payload.chatId, 'selected-chat');
+  assert.equal(payload.turnId, 'turn-1');
+  assert.equal(payload.runId, 'run-1');
+  assert.equal(payload.userMessageId, 'message-1');
 });
 
 test('parseSseEvents handles complete and partial event blocks', () => {

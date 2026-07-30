@@ -1039,7 +1039,7 @@ export async function handleGetChatMessages(db, params) {
     .collection("chats")
     .doc(chatId)
     .collection("messages")
-    .orderBy("timestamp", "asc")
+    .orderBy("createdAt", "asc")
     .limit(maxResults)
     .get();
 

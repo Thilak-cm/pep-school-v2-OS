@@ -136,9 +136,39 @@ describe("firestore.rules: teacher access contract", () => {
     assert.ok(msgBlock, "messages match block must exist");
     assert.match(
       msgBlock,
-      /allow read:.*isTeacherInClassroom/,
+      /allow read:.*canReadChat/,
       "messages must grant read access to teachers in the classroom",
     );
+  });
+
+  it("teachers can read chat turns in their classrooms", () => {
+    const block = extractMatchBlock(rules, "match /students/{studentId}");
+    const chatBlock = extractMatchBlock(block, "match /chats/{chatId}");
+    assert.ok(chatBlock);
+    const turnBlock = extractMatchBlock(chatBlock, "match /turns/{turnId}");
+    assert.ok(turnBlock, "turns match block must exist");
+    assert.match(
+      turnBlock,
+      /allow read:.*canReadChat/,
+      "turns must grant read access to teachers in the classroom",
+    );
+  });
+
+  it("chat message and turn writes are server-owned", () => {
+    const block = extractMatchBlock(rules, "match /students/{studentId}");
+    const chatBlock = extractMatchBlock(block, "match /chats/{chatId}");
+    assert.ok(chatBlock);
+    const msgBlock = extractMatchBlock(chatBlock, "match /messages/{messageId}");
+    const turnBlock = extractMatchBlock(chatBlock, "match /turns/{turnId}");
+    assert.match(msgBlock, /allow create,\s*update,\s*delete:\s*if false/);
+    assert.match(turnBlock, /allow create,\s*update,\s*delete:\s*if false/);
+  });
+
+  it("chat docs cannot be created by clients after the streaming rebuild", () => {
+    const block = extractMatchBlock(rules, "match /students/{studentId}");
+    const chatBlock = extractMatchBlock(block, "match /chats/{chatId}");
+    assert.ok(chatBlock);
+    assert.match(chatBlock, /allow create:\s*if false/);
   });
 
   it("teachers can read AI summaries in their classrooms", () => {

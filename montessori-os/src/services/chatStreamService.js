@@ -11,6 +11,15 @@ export function createChatIds(idFactory = undefined) {
   };
 }
 
+export function createChatTurnPayload({ studentId, chatId, ids, message }) {
+  return {
+    studentId,
+    ...ids,
+    chatId,
+    message,
+  };
+}
+
 export function parseSseEvents(buffer, chunk) {
   const source = `${buffer || ''}${chunk || ''}`;
   const events = [];

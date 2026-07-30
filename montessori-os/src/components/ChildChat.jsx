@@ -21,7 +21,7 @@ import { ChevronDown as ArrowDropDown, Pencil as Edit, Plus as Add, Send, Square
 import { collection, doc, getDocs, onSnapshot, query, serverTimestamp, updateDoc, where } from 'firebase/firestore';
 import { auth, db } from '../firebase';
 import { CHAT_MAINTENANCE_ALLOWED_UID, default as ChatMaintenance } from './ChatMaintenance.jsx';
-import { createChatIds, streamChatTurn } from '../services/chatStreamService.js';
+import { createChatIds, createChatTurnPayload, streamChatTurn } from '../services/chatStreamService.js';
 import useInlineVoice from '../hooks/useInlineVoice';
 
 const projectId = import.meta.env.VITE_FIREBASE_PROJECT_ID || 'pep-os';
@@ -148,7 +148,7 @@ export default function ChildChat({ student, currentUser }) {
         url: import.meta.env.VITE_CHAT_STREAM_URL || defaultStreamUrl,
         token,
         signal: controller.signal,
-        payload: { studentId: student.id, chatId, ...ids, message },
+        payload: createChatTurnPayload({ studentId: student.id, chatId, ids, message }),
         onEvent: (event) => {
           if (event.event !== 'token' || typeof event.data?.text !== 'string') return;
           setMessages((previous) => previous.map((item) => item.id === `${ids.runId}-assistant`
@@ -173,30 +173,32 @@ export default function ChildChat({ student, currentUser }) {
   return (
     <Box sx={{ display: 'flex', flexDirection: 'column', height: 'calc(100vh - 80px)', p: 1, gap: 1 }}>
       <ClickAwayListener onClickAway={() => setChatDropdownOpen(false)}>
-        <Box sx={{ position: 'relative', zIndex: 2 }}>
-          <Paper sx={{ display: 'flex', alignItems: 'center', borderRadius: 7, overflow: 'hidden' }}>
-            <Button fullWidth onClick={() => setChatDropdownOpen((open) => !open)} sx={{ justifyContent: 'space-between', px: 2, py: 1.25, textTransform: 'none' }}>
-              <Typography noWrap color={selectedChatId ? 'text.primary' : 'text.secondary'}>
-                {selectedChatId ? chats.find((chat) => chat.id === selectedChatId)?.name || 'New Chat' : 'Load past conversations here'}
-              </Typography>
-              <ArrowDropDown size={20} style={{ transform: chatDropdownOpen ? 'rotate(180deg)' : undefined }} />
-            </Button>
-            <IconButton onClick={handleNewChat} aria-label="New chat"><Add /></IconButton>
-          </Paper>
-          {chatDropdownOpen && (
-            <Paper elevation={4} sx={{ position: 'absolute', top: 'calc(100% + 8px)', left: 0, right: 0, maxHeight: 280, overflowY: 'auto', borderRadius: 3 }}>
-              <List dense>
-                {chats.length === 0 && <ListItemText sx={{ px: 2, py: 1 }} primary="No past conversations" />}
-                {chats.map((chat) => (
-                  <ListItemButton key={chat.id} selected={chat.id === selectedChatId} onClick={() => { setSelectedChatId(chat.id); setChatDropdownOpen(false); }}>
-                    <ListItemText primary={chat.name || 'New Chat'} />
-                    <IconButton size="small" aria-label="Edit chat name" onClick={(event) => { event.stopPropagation(); setEditingChat(chat); setEditingChatName(chat.name || ''); }}><Edit size={16} /></IconButton>
-                    <IconButton size="small" aria-label="Delete chat" onClick={(event) => { event.stopPropagation(); setDeletingChat(chat); }}><Delete size={16} /></IconButton>
-                  </ListItemButton>
-                ))}
-              </List>
+        <Box sx={{ flexShrink: 0, position: 'relative', zIndex: 20, bgcolor: 'background.default' }}>
+          <Box sx={{ position: 'relative' }}>
+            <Paper sx={{ display: 'flex', alignItems: 'center', borderRadius: 7, overflow: 'hidden' }}>
+              <Button fullWidth onClick={() => setChatDropdownOpen((open) => !open)} sx={{ justifyContent: 'space-between', px: 2, py: 1.25, textTransform: 'none' }}>
+                <Typography noWrap color={selectedChatId ? 'text.primary' : 'text.secondary'}>
+                  {selectedChatId ? chats.find((chat) => chat.id === selectedChatId)?.name || 'New Chat' : 'Load past conversations here'}
+                </Typography>
+                <ArrowDropDown size={20} style={{ transform: chatDropdownOpen ? 'rotate(180deg)' : undefined }} />
+              </Button>
+              <IconButton onClick={handleNewChat} aria-label="New chat"><Add /></IconButton>
             </Paper>
-          )}
+            {chatDropdownOpen && (
+              <Paper elevation={4} sx={{ position: 'absolute', top: 'calc(100% + 8px)', left: 0, right: 0, maxHeight: 280, overflowY: 'auto', borderRadius: 3 }}>
+                <List dense>
+                  {chats.length === 0 && <ListItemText sx={{ px: 2, py: 1 }} primary="No past conversations" />}
+                  {chats.map((chat) => (
+                    <ListItemButton key={chat.id} selected={chat.id === selectedChatId} onClick={() => { setSelectedChatId(chat.id); setChatDropdownOpen(false); }}>
+                      <ListItemText primary={chat.name || 'New Chat'} />
+                      <IconButton size="small" aria-label="Edit chat name" onClick={(event) => { event.stopPropagation(); setEditingChat(chat); setEditingChatName(chat.name || ''); }}><Edit size={16} /></IconButton>
+                      <IconButton size="small" aria-label="Delete chat" onClick={(event) => { event.stopPropagation(); setDeletingChat(chat); }}><Delete size={16} /></IconButton>
+                    </ListItemButton>
+                  ))}
+                </List>
+              </Paper>
+            )}
+          </Box>
         </Box>
       </ClickAwayListener>
       <Box sx={{ flex: 1, minHeight: 0, display: 'flex', flexDirection: 'column', gap: 1 }}>

@@ -7,6 +7,7 @@ import {
   createTurn,
   updateTurnStatus,
   finalizeAssistantMessage,
+  updateChatMetadata,
 } from "./chatRepository.js";
 
 function fakeDb() {
@@ -56,6 +57,26 @@ test("ensureChat creates one metadata document and is idempotent", async () => {
   assert.equal(db._docs.get("students/s1/chats/c1").studentId, "s1");
 });
 
+test("ensureChat backfills legacy metadata when touching an existing chat", async () => {
+  const db = fakeDb();
+  db._docs.set("students/s1/chats/c1", { name: "Legacy Chat", deleted: false });
+
+  const result = await ensureChat({
+    db,
+    studentId: "s1",
+    chatId: "c1",
+    createdBy: "u1",
+    classroomId: "class1",
+  });
+
+  const doc = db._docs.get("students/s1/chats/c1");
+  assert.equal(result.created, false);
+  assert.equal(doc.createdBy, "u1");
+  assert.equal(doc.classroomId, "class1");
+  assert.equal(doc.visibility, "classroom");
+  assert.equal(doc.studentId, "s1");
+});
+
 test("ensureUserMessage does not duplicate a retry with the same ID", async () => {
   const db = fakeDb();
   const input = { db, studentId: "s1", chatId: "c1", messageId: "m1", turnId: "t1", content: "Hello", authorId: "u1" };
@@ -98,4 +119,21 @@ test("updateTurnStatus enforces lifecycle transitions and persists metadata", as
   assert.equal(updated.status, "running");
   assert.equal(updated.startedAt, 10);
   assert.equal(db._docs.get("students/s1/chats/c1/turns/t1").status, "running");
+});
+
+test("updateChatMetadata increments messageCount idempotently from caller delta", async () => {
+  const db = fakeDb();
+  await ensureChat({ db, studentId: "s1", chatId: "c1", createdBy: "u1", classroomId: "class1" });
+
+  await updateChatMetadata({
+    db,
+    studentId: "s1",
+    chatId: "c1",
+    metadata: { lastMessagePreview: "hello" },
+    messageCountDelta: 2,
+  });
+
+  const chat = db._docs.get("students/s1/chats/c1");
+  assert.equal(chat.messageCount, 2);
+  assert.equal(chat.lastMessagePreview, "hello");
 });

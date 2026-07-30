@@ -254,25 +254,33 @@ service cloud.firestore {
 
       // Chats subcollection — scoped by role
       match /chats/{chatId} {
+        function canReadChat() {
+          return isPrivilegedAdmin() || isTeacherInClassroom(studentClassroomId(studentId));
+        }
+
+        function canManageChatDoc() {
+          return canReadChat() &&
+            (isPrivilegedAdmin() || resource.data.createdBy == request.auth.uid);
+        }
+
         allow read: if isPrivilegedAdmin() || isTeacherInClassroom(studentClassroomId(studentId));
-        allow create: if (isPrivilegedAdmin() || isTeacherInClassroom(studentClassroomId(studentId))) &&
-          request.resource.data.createdBy == request.auth.uid;
-        allow update: if (isPrivilegedAdmin() || isTeacherInClassroom(studentClassroomId(studentId))) &&
+        allow create: if false;
+        allow update: if canManageChatDoc() &&
           request.resource.data.diff(resource.data).affectedKeys().hasOnly([
-            'name', 'updatedAt', 'lastMessagePreview', 'messageCount', 'deleted'
+            'name', 'updatedAt', 'deleted', 'deletedAt'
           ]);
-        allow delete: if isPrivilegedAdmin();
+        allow delete: if false;
 
         // Messages subcollection within chats
         match /messages/{messageId} {
-          allow read: if isPrivilegedAdmin() || isTeacherInClassroom(studentClassroomId(studentId));
-          allow create: if (isPrivilegedAdmin() || isTeacherInClassroom(studentClassroomId(studentId))) &&
-            request.resource.data.role is string &&
-            request.resource.data.content is string;
-          // Messages are immutable except for cancelledResponseAt (stop button)
-          allow update: if (isPrivilegedAdmin() || isTeacherInClassroom(studentClassroomId(studentId)))
-            && request.resource.data.diff(resource.data).affectedKeys().hasOnly(['cancelledResponseAt']);
-          allow delete: if false;
+          allow read: if canReadChat();
+          allow create, update, delete: if false;
+        }
+
+        // Turn lifecycle docs are written only by childChatStream via admin SDK.
+        match /turns/{turnId} {
+          allow read: if canReadChat();
+          allow create, update, delete: if false;
         }
       }
 

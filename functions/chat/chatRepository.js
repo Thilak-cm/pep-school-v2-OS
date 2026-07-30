@@ -6,12 +6,17 @@ function chatRef(db, studentId, chatId) {
   return db.collection("students").doc(studentId).collection("chats").doc(chatId);
 }
 
-export async function updateChatMetadata({ db, studentId, chatId, metadata }) {
+export async function updateChatMetadata({ db, studentId, chatId, metadata, messageCountDelta = 0 }) {
   const ref = chatRef(db, studentId, chatId);
   await db.runTransaction(async (tx) => {
     const snapshot = await tx.get(ref);
     if (!snapshot.exists) throw new Error("Chat not found");
-    tx.update(ref, { ...metadata, updatedAt: now() });
+    const current = snapshot.data() || {};
+    tx.update(ref, {
+      ...metadata,
+      ...(messageCountDelta ? { messageCount: (current.messageCount || 0) + messageCountDelta } : {}),
+      updatedAt: now(),
+    });
   });
 }
 
@@ -32,6 +37,16 @@ export async function ensureChat({ db, studentId, chatId, createdBy, classroomId
     const snapshot = await tx.get(ref);
     if (snapshot.exists) {
       data = snapshot.data();
+      const patch = {};
+      if (!data.studentId) patch.studentId = studentId;
+      if (!data.classroomId) patch.classroomId = classroomId;
+      if (!data.createdBy) patch.createdBy = createdBy;
+      if (!data.visibility) patch.visibility = "classroom";
+      if (Object.keys(patch).length) {
+        patch.updatedAt = now();
+        tx.update(ref, patch);
+        data = { ...data, ...patch };
+      }
       return;
     }
 
