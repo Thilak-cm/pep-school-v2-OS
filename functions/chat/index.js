@@ -100,8 +100,16 @@ export const childChatStream = functions
     configureSse(req, res);
     let finished = false;
     const abortController = new AbortController();
-    req.on("close", () => {
+    const abortOnDisconnect = () => {
       if (!finished) abortController.abort(new Error("client_disconnect"));
+    };
+    // `req.close` also fires after a normal POST body has been fully read, while
+    // the SSE response is still open. Treating that as a disconnect aborts every
+    // generation immediately. `aborted` is the request-side failure signal;
+    // response `close` catches the browser leaving during the streamed reply.
+    req.on("aborted", abortOnDisconnect);
+    res.on("close", () => {
+      if (!finished && !res.writableEnded) abortOnDisconnect();
     });
 
     let trace;

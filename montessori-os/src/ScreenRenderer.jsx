@@ -32,7 +32,7 @@ import BroadcastComposer from "./components/BroadcastComposer.jsx";
 import LessonNoteConfigEditor from "./components/LessonNoteConfigEditor.jsx";
 import WeeklyDigestConfigEditor from "./components/WeeklyDigestConfigEditor.jsx";
 import QuestionDeck from "./components/QuestionDeck.jsx";
-import ChatMaintenance from "./components/ChatMaintenance.jsx";
+import ChildChat from "./components/ChildChat.jsx";
 
 /**
  * Renders the correct screen component based on the current `screen` value.
@@ -179,7 +179,7 @@ function renderScreen(screen, ctx) {
       );
 
     case "childChat":
-      return <ChatMaintenance currentUser={ctx.user} />;
+      return <ChildChat student={ctx.selectedStudent} currentUser={ctx.user} />;
 
     case "alerts":
       return <NotificationsPage />;
