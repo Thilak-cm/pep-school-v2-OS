@@ -93,3 +93,70 @@ export function postTransferTimelineFixture() {
     },
   };
 }
+
+export function observationWriteFixture() {
+  const recent = Timestamp.fromMillis(Date.now() - (60 * 60 * 1000));
+  const expired = Timestamp.fromMillis(Date.now() - (49 * 60 * 60 * 1000));
+
+  return {
+    'users/teacherAAuthor': { role: 'teacher' },
+    'users/teacherAPeer': { role: 'teacher' },
+    'users/teacherB': { role: 'teacher' },
+    'users/classroomAdminA': {
+      role: 'classroomadmin',
+      manageableClassrooms: ['classroomA'],
+    },
+    'users/classroomAdminB': {
+      role: 'classroomadmin',
+      manageableClassrooms: ['classroomB'],
+    },
+    'users/superAdmin': { role: 'superadmin' },
+    'classrooms/classroomA': {
+      teacherIds: ['teacherAAuthor', 'teacherAPeer'],
+      status: 'active',
+    },
+    'classrooms/classroomB': {
+      teacherIds: ['teacherB'],
+      status: 'active',
+    },
+    'students/studentA': {
+      classroomId: 'classroomA',
+      firstName: 'Student',
+      lastName: 'A',
+      status: 'active',
+    },
+    'students/studentB': {
+      classroomId: 'classroomB',
+      firstName: 'Student',
+      lastName: 'B',
+      status: 'active',
+    },
+    'students/studentA/observations/recentText': {
+      type: 'text',
+      studentId: 'studentA',
+      classroomId: 'classroomA',
+      text: 'Recent observation',
+      createdBy: 'teacherAAuthor',
+      createdAt: recent,
+      observedAt: recent,
+    },
+    'students/studentA/observations/expiredText': {
+      type: 'text',
+      studentId: 'studentA',
+      classroomId: 'classroomA',
+      text: 'Expired observation',
+      createdBy: 'teacherAAuthor',
+      createdAt: expired,
+      observedAt: expired,
+    },
+    'students/studentA/observations/lessonA': {
+      type: 'lesson',
+      studentId: 'studentA',
+      classroomId: 'classroomA',
+      lessonTitle: 'Lesson A',
+      createdBy: 'teacherAAuthor',
+      createdAt: recent,
+      observedAt: recent,
+    },
+  };
+}
