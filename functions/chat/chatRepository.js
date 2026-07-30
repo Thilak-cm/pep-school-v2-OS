@@ -6,6 +6,15 @@ function chatRef(db, studentId, chatId) {
   return db.collection("students").doc(studentId).collection("chats").doc(chatId);
 }
 
+export async function updateChatMetadata({ db, studentId, chatId, metadata }) {
+  const ref = chatRef(db, studentId, chatId);
+  await db.runTransaction(async (tx) => {
+    const snapshot = await tx.get(ref);
+    if (!snapshot.exists) throw new Error("Chat not found");
+    tx.update(ref, { ...metadata, updatedAt: now() });
+  });
+}
+
 function messageRef(db, studentId, chatId, messageId) {
   return chatRef(db, studentId, chatId).collection("messages").doc(messageId);
 }
