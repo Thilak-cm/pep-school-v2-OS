@@ -61,7 +61,6 @@ describe("getPageTitle", () => {
     assert.equal(getPageTitle("settings", {}), "Settings");
     assert.equal(getPageTitle("alerts", {}), "Alerts");
     assert.equal(getPageTitle("interviews", {}), "Interviews");
-    assert.equal(getPageTitle("childChat", {}), "Chat with Coach Pepper");
     assert.equal(getPageTitle("broadcastComposer", {}), "Broadcasts");
   });
 
@@ -207,7 +206,7 @@ describe("FAB_HIDDEN_SCREENS", () => {
     const expected = [
       "profile", "stats", "feedback", "feedbackTimeline",
       "accessDenied", "classroomNotesReview", "graduateStudents", "lessonNotes",
-      "studentAliases", "settings", "addUser", "childChat", "config",
+      "studentAliases", "settings", "addUser", "config",
       "configLessonNotes", "configAiTools", "chatCommandCentre",
       "reportGenConfig", "bulkUpload", "alerts", "interviews", "broadcastComposer",
     ];
@@ -238,7 +237,7 @@ describe("NO_HEADER_SCREENS", () => {
   });
 
   it("does not contain screens that need a header", () => {
-    const headerScreens = ["classroomTimeline", "studentDashboard", "timeline", "settings", "childChat"];
+    const headerScreens = ["classroomTimeline", "studentDashboard", "timeline", "settings"];
     for (const s of headerScreens) {
       assert.ok(!NO_HEADER_SCREENS.has(s), `NO_HEADER_SCREENS should NOT contain "${s}"`);
     }

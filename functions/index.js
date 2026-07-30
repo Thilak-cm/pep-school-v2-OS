@@ -41,13 +41,6 @@ export {
 // AI — Writing Analysis (PEP-263: per-program config + weekly scheduled)
 export { batchAnalyzeWriting, generateWritingAnalysis } from "./ai/handwriting.js";
 
-// Chat
-export {
-  childChat,
-  childChatStream,
-  cleanupDeletedChats,
-} from "./chat/index.js";
-
 // Reports
 export {
   generateStudentReport,
