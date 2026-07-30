@@ -91,3 +91,50 @@ test("runStreamingAgentLoop executes same-turn tool calls concurrently and prese
   assert.equal(result.messages.at(-2).tool_call_id, "tc_a");
   assert.equal(result.messages.at(-1).tool_call_id, "tc_b");
 });
+
+test("runStreamingAgentLoop records Langfuse generations and tool spans", async () => {
+  const fetchResponses = [
+    responseFromChunks([
+      'data: {"choices":[{"delta":{"tool_calls":[{"index":0,"id":"tc_a","type":"function","function":{"name":"fetch_observations","arguments":"{}"}}]},"finish_reason":"tool_calls"}]}\n\n',
+      "data: [DONE]\n\n",
+    ]),
+    responseFromChunks([
+      'data: {"choices":[{"delta":{"content":"Done"}}]}\n\n',
+      "data: [DONE]\n\n",
+    ]),
+  ];
+  const generations = [];
+  const spans = [];
+  const trace = {
+    generation: (input) => {
+      const generation = { input, endCalls: [] };
+      generations.push(generation);
+      return { end: (output) => generation.endCalls.push(output) };
+    },
+    span: (input) => {
+      const span = { input, endCalls: [] };
+      spans.push(span);
+      return { end: (output) => span.endCalls.push(output) };
+    },
+  };
+
+  await runStreamingAgentLoop({
+    fetchImpl: async () => fetchResponses.shift(),
+    apiKey: "secret",
+    endpoint: "https://example.test",
+    messages: [{ role: "user", content: "question" }],
+    model: "test-model",
+    tools: [{ type: "function", function: { name: "fetch_observations" } }],
+    toolExecutor: async () => ({ observations: 2 }),
+    trace,
+    onChunk: () => {},
+  });
+
+  assert.equal(generations.length, 2);
+  assert.equal(generations[0].input.name, "chat-stream-iteration-1");
+  assert.deepEqual(generations[0].endCalls[0].output, { toolCalls: ["fetch_observations"] });
+  assert.equal(generations[1].endCalls[0].output, "Done");
+  assert.equal(spans.length, 1);
+  assert.equal(spans[0].input.name, "tool-fetch_observations");
+  assert.deepEqual(spans[0].endCalls[0].output, { observations: 2 });
+});

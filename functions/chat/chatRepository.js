@@ -115,6 +115,8 @@ export async function createTurn({
   userMessageId,
   assistantMessageId = null,
   idempotencyKey,
+  model = null,
+  langfuseTraceId = null,
 }) {
   const ref = turnRef(db, studentId, chatId, turnId);
   let data;
@@ -131,6 +133,8 @@ export async function createTurn({
       userMessageId,
       ...(assistantMessageId ? { assistantMessageId } : {}),
       idempotencyKey,
+      ...(model ? { model } : {}),
+      ...(langfuseTraceId ? { langfuseTraceId } : {}),
       status: "persisting",
       createdAt: now(),
       updatedAt: now(),

@@ -147,6 +147,14 @@ function parseToolArgs(rawArgs) {
   }
 }
 
+function safeJsonSize(value) {
+  try {
+    return JSON.stringify(value).length;
+  } catch {
+    return 0;
+  }
+}
+
 export async function runStreamingAgentLoop({
   fetchImpl = fetch,
   apiKey,
@@ -160,6 +168,7 @@ export async function runStreamingAgentLoop({
   signal,
   onChunk = () => {},
   onToolCalls = () => {},
+  trace,
   maxIterations = 8,
 }) {
   let content = "";
@@ -168,6 +177,12 @@ export async function runStreamingAgentLoop({
 
   while (iterations < maxIterations) {
     iterations += 1;
+    const generation = trace?.generation({
+      name: `chat-stream-iteration-${iterations}`,
+      model,
+      input: messages[messages.length - 1],
+      metadata: { toolCount: tools.length, stream: true },
+    });
     const turn = await streamOpenRouterTurn({
       fetchImpl,
       apiKey,
@@ -185,6 +200,13 @@ export async function runStreamingAgentLoop({
     });
 
     if (!turn.toolCalls.length) {
+      generation?.end({
+        output: content,
+        metadata: {
+          finishReason: turn.finishReason || "stop",
+          streamedChars: content.length,
+        },
+      });
       return { content, messages, toolCallLog, iterations, finishReason: turn.finishReason || "stop" };
     }
 
@@ -195,14 +217,28 @@ export async function runStreamingAgentLoop({
     };
     messages.push(assistantMessage);
     onToolCalls(turn.toolCalls.map((tc) => tc.function.name));
+    generation?.end({
+      output: { toolCalls: turn.toolCalls.map((tc) => tc.function.name) },
+      metadata: { finishReason: turn.finishReason || "tool_calls" },
+    });
 
     const results = await Promise.all(turn.toolCalls.map(async (tc) => {
       const args = parseToolArgs(tc.function.arguments);
+      const toolSpan = trace?.span({
+        name: `tool-${tc.function.name}`,
+        input: args,
+      });
       try {
         const result = await toolExecutor(tc.function.name, args);
+        toolSpan?.end({
+          output: result,
+          metadata: { resultSizeBytes: safeJsonSize(result) },
+        });
         return { tc, args, result };
       } catch (error) {
-        return { tc, args, result: { error: error.message || "Tool call failed" } };
+        const result = { error: error.message || "Tool call failed" };
+        toolSpan?.end({ output: result, level: "ERROR" });
+        return { tc, args, result };
       }
     }));
 
@@ -216,5 +252,7 @@ export async function runStreamingAgentLoop({
     }
   }
 
-  throw new Error(`Chat agent loop exceeded max iterations (${maxIterations})`);
+  const error = new Error(`Chat agent loop exceeded max iterations (${maxIterations})`);
+  trace?.span?.({ name: "chat-stream-loop-error" })?.end?.({ output: error.message, level: "ERROR" });
+  throw error;
 }

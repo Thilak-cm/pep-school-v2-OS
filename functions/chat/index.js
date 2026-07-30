@@ -171,6 +171,8 @@ export const childChatStream = functions
         userMessageId: request.userMessageId,
         assistantMessageId,
         idempotencyKey: `${request.chatId}:${request.userMessageId}`,
+        model: chatConfig.model,
+        langfuseTraceId: request.runId,
       });
       await updateTurnStatus({
         db,
@@ -178,7 +180,7 @@ export const childChatStream = functions
         chatId: request.chatId,
         turnId: request.turnId,
         status: "running",
-        metadata: { startedAt: new Date() },
+        metadata: { startedAt: new Date(), model: chatConfig.model, langfuseTraceId: request.runId },
       });
 
       if (process.env.LANGFUSE_SECRET_KEY && process.env.LANGFUSE_PUBLIC_KEY) {
@@ -220,6 +222,7 @@ export const childChatStream = functions
         messages,
         tools: toolDefinitions,
         toolExecutor,
+        trace,
         onChunk: (text) => {
           streamedContent += text;
           sendEvent(res, "token", { text });

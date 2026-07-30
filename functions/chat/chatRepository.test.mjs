@@ -91,9 +91,21 @@ test("ensureUserMessage does not duplicate a retry with the same ID", async () =
 
 test("createTurn stores execution state separately from transcript messages", async () => {
   const db = fakeDb();
-  const turn = await createTurn({ db, studentId: "s1", chatId: "c1", turnId: "t1", runId: "r1", userMessageId: "m1", idempotencyKey: "k1" });
+  const turn = await createTurn({
+    db,
+    studentId: "s1",
+    chatId: "c1",
+    turnId: "t1",
+    runId: "r1",
+    userMessageId: "m1",
+    idempotencyKey: "k1",
+    model: "test-model",
+    langfuseTraceId: "trace-1",
+  });
 
   assert.equal(turn.status, "persisting");
+  assert.equal(turn.model, "test-model");
+  assert.equal(turn.langfuseTraceId, "trace-1");
   assert.equal(db._docs.get("students/s1/chats/c1/turns/t1").runId, "r1");
   assert.equal(db._docs.has("students/s1/chats/c1/messages/m1"), false);
 });
