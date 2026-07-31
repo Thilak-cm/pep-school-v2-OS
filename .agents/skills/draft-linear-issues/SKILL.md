@@ -14,6 +14,7 @@ Batch-triage meeting transcripts into lightweight Backlog issues, optionally gro
 
 - Speed over depth — this is triage, not refinement
 - **Mine the transcript deeply** — the full transcript contains far more context than a summary. Pull in reasoning, constraints, edge cases, and decisions discussed. Issue descriptions should reflect this richness.
+- **Archive the source meeting before issue walkthrough** — every run creates a durable source record in `meeting-notes/` with frontmatter metadata and the full lightly-redacted transcript before the one-at-a-time Create/Skip/Edit walk. This prevents losing meeting context if the issue triage session is interrupted.
 - **Very high recall** — extract every possible actionable item, even tiny ones mentioned in passing, side comments, or verbal agreements buried in tangents. Missing an item is worse than creating one that gets skipped. When in doubt, extract it — the user can always Skip during the walk-through. Scan for: UI tweaks, number corrections, format changes, label renames, layout adjustments, data fixes, new pages, new graphs, new fields, pipeline changes, scheduled jobs, prompt updates, folder/architecture decisions, investigation tasks, and verification/testing tasks.
 - **Smart aggregation** — after extracting with high recall, intelligently group small items that don't deserve their own issue. Multiple tiny UI tweaks (label changes, spacing, layout adjustments) should be bundled into a single issue even if seemingly unrelated — the point is they can all be done at once. Don't create ten small issues for ten small things. Present aggregated items as a single issue with a checklist body. Larger items that are clearly sub-tasks of a parent feature should be merged into that parent issue rather than standing alone.
 - **Duplicate detection before presenting** — before presenting extracted items to the user, check GitHub issues (`gh issue list --repo Thilak-cm/pep-school-v2-OS --search "<key terms>" --json number,title,state`) for existing issues that overlap. If a match is found, suggest augmenting the existing issue (adding context/checklist items) instead of creating a new one. Present this as: `"Found existing #123: {title} — suggest augmenting instead of creating new."`
@@ -39,8 +40,22 @@ Pull from the transcript (best-effort):
 - **Meeting title** (heading, subject line, or first prominent phrase)
 - **Date** (any date found in the text)
 - **Participants** (speaker names from the transcript)
+- **Source** (Granola or other transcript tool, if apparent)
 
 Fallback: `"Untitled Meeting — {today's date}"`.
+
+Prepare required archive metadata:
+- `type: meeting_record`
+- `title`
+- `date` as `YYYY-MM-DD`
+- `participants`
+- `areas` inferred from the overview Area Map; this is a controlled field and must use only known Pep OS area tags
+- `topics` as freeform kebab-case tags inferred from the meeting
+- `status: drafting`
+- `issue_refs: []`
+- `source`
+
+The first 10-15 lines of each archive file are the retrieval surface for future agents. Keep this frontmatter compact and complete enough for relevance skimming before reading the full transcript.
 
 ### Phase 3 — Extract Action Items
 
@@ -65,7 +80,64 @@ For each item, infer:
 
 Deduplicate similar items. Mark ambiguous items with `[?]`.
 
-### Phase 4 — Assign to Projects (Selective)
+### Phase 4 — Seed Meeting Archive
+
+Before the one-at-a-time issue walkthrough, create a meeting archive file under:
+
+```text
+meeting-notes/{YYYY}/{YYYY-MM-DD}-{slug}.md
+```
+
+Slug rules:
+- Use the meeting title when available; otherwise use `untitled-meeting`.
+- Lowercase, kebab-case, ASCII where practical.
+- If the path already exists, append a short disambiguator such as `-2`.
+
+Do a light redaction pass before writing:
+- Redact obvious high-risk secrets: API keys, passwords, private tokens, credentials, phone numbers, email addresses, and anything explicitly marked off-record.
+- Do not redact normal student names, classroom names, product names, or Pep OS context unless the user asks; those details are often needed for future issue archaeology.
+
+File template:
+
+```markdown
+---
+type: meeting_record
+title: "{meeting_title}"
+date: "{YYYY-MM-DD}"
+participants: ["{participant}"]
+areas: ["{area_tag}"]
+topics: ["{topic-tag}"]
+status: "drafting"
+issue_refs: []
+source: "{source}"
+---
+
+## Meeting Notes / MOM
+{cleaned meeting notes or "Not provided."}
+
+## Decisions
+{notable decisions inferred from the transcript, or "None captured yet."}
+
+## Drafted Issues
+### Created
+None yet.
+
+### Augmented
+None yet.
+
+### Skipped
+None yet.
+
+## Open Questions
+{open questions from the transcript, or "None captured yet."}
+
+## Raw Transcript
+{full lightly-redacted transcript}
+```
+
+Treat the raw transcript as the original source record. Later updates should be additive under `Post-Meeting Additions`, `Clarifications`, or metadata edits rather than rewriting the transcript.
+
+### Phase 5 — Assign to Projects (Selective)
 
 **Default: all issues go into the "Pep OS" project (project #3).** Do NOT create new projects unless there is clear, sustained future scope.
 
@@ -83,7 +155,7 @@ For the rare case a new project is warranted, infer:
 
 Most meetings will result in 0 new projects — all items go into the main "Pep OS" project. This is expected and correct.
 
-### Phase 5 — Summary Preview
+### Phase 6 — Summary Preview
 
 Present items grouped by project:
 
@@ -112,7 +184,7 @@ Handle edge cases:
 - **Non-meeting text detected** (no actionable signals found): Flag it and suggest the user paste actual meeting notes.
 - **All items in one project:** That's fine — don't force artificial splits.
 
-### Phase 6 — One-at-a-Time Walk
+### Phase 7 — One-at-a-Time Walk
 
 Walk through items **grouped by project**. Before the first item in each project group, show a project header. For each item, present:
 
@@ -134,16 +206,16 @@ User picks one of:
 - **Skip** — move to the next item
 - **Edit** — adjust title, type, priority, area, project, or context (max 3 edit rounds per item, then force Create or Skip)
 
-### Phase 7 — Create Project (if needed) & Create GitHub Issue
+### Phase 8 — Create Project (if needed) & Create GitHub Issue
 
-**7a — Ensure project exists.** Before creating the first issue in a NEW project group:
+**8a — Ensure project exists.** Before creating the first issue in a NEW project group:
 
 1. Run `gh project create --owner Thilak-cm --title "{project_name}" --format json` to create the project.
 2. Store the returned project number for use when adding issues to this project.
 
-For EXISTING projects, just use the project number found during Phase 4.
+For EXISTING projects, just use the project number found during Phase 5.
 
-**7b — Create issue.** For each approved item:
+**8b — Create issue.** For each approved item:
 
 1. **Duplicate check:** Run `gh issue list --repo Thilak-cm/pep-school-v2-OS --search "<key terms from title>" --json number,title` and scan recent results. If a likely duplicate exists, warn the user and let them decide to proceed or skip.
 
@@ -189,7 +261,17 @@ For EXISTING projects, just use the project number found during Phase 4.
 
 5. Confirm creation and show the issue number (e.g., `#42`).
 
-### Phase 8 — Final Summary
+### Phase 9 — Update Meeting Archive
+
+After the issue walk, update only useful metadata and the `## Drafted Issues` section:
+- Change `status` from `drafting` to `issues-drafted` when at least one item was created or augmented; otherwise use `archived`.
+- Add created or augmented issue numbers to `issue_refs`.
+- Fill `### Created`, `### Augmented`, and `### Skipped` with concise bullets.
+- Add any useful clarifications that came up during the walkthrough under `## Post-Meeting Additions` or `## Clarifications`.
+
+Do not rewrite the raw transcript during this final update.
+
+### Phase 10 — Final Summary
 
 After all items are processed, show a summary table grouped by project:
 
@@ -217,5 +299,7 @@ Tip: Run /spec-issue on any of these to add full detail.
 - Always walk through items one-at-a-time — no batch-create.
 - Always use Backlog status on the project board — never Todo (these are unrefined).
 - Max 30 items per session. If more are extracted, warn and truncate.
+- Seed `meeting-notes/{YYYY}/{YYYY-MM-DD}-{slug}.md` with frontmatter and the full lightly-redacted transcript before the issue walkthrough.
+- Update the meeting archive after the walkthrough with issue refs, Created/Augmented/Skipped lists, final status, and useful clarifications.
 - Preserve the `Source: Meeting Transcript — ...` marker in every description for downstream detection by `/spec-issue`.
 - When refining an existing draft-sourced issue, direct the user to `/spec-issue` instead.
