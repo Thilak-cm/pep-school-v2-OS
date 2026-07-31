@@ -115,11 +115,16 @@ At the very end, always append a fenced `open_questions` block containing questi
 Questions should:
 - Be organized by exploration area.
 - Focus on areas where evidence is thin, contradictory, single-sourced, stale, or especially important.
-- Range from specific to broad.
+- Use simple, teacher-friendly language. Do not sound clinical, diagnostic, or academic.
+- Ask for concrete moments, examples, and visible behavior, not judgments or summaries.
+- Prefer prompts like "Tell us about a time...", "Describe a time...", "Think of two moments...", and "Share an example..."
+- Include enough context for the teacher to remember the situation: what the class was doing, what the child did, and what seemed different from other moments.
+- Range from specific to broad, but keep even broad questions anchored in classroom examples.
 - Be fully self-contained.
 - Avoid vague references like "at this point" or "as mentioned."
-- Avoid yes/no phrasing.
-- Use open-ended stems such as "How," "What," "When," "Describe," or "Where."
+- Avoid yes/no phrasing. If a question starts with "Have you noticed...", immediately ask for an example.
+- Use open-ended stems such as "Tell us about," "Describe," "Think of two moments," "What," "When," "Where," or "Share an example."
+- Avoid polished phrases such as "mental drifting", "visual anchors", "processing extended oral instructions", "executive functioning", or "environmental stimulation" unless those are words teachers already use. Translate them into plain classroom language.
 - Be prioritized by usefulness for the next teacher interview.
 
 Generate at least 15 questions for every child. Cover each meaningful developmental area discussed in the soul, plus each important area named in Areas Needing Further Exploration. Add more questions when the evidence is rich, contradictory, stale, single-sourced, or points to important developmental questions that need follow-up.
@@ -136,6 +141,10 @@ Format:
     "Independence and Work Choice": [
       "What classroom activities does the child choose independently without adult prompting?",
       "How does the child respond when an adult redirects them toward a different activity?"
+    ],
+    "Attention and Focus": [
+      "Tell us about a time the child seemed to lose track of what was happening. What was the class doing, and what did the child do?",
+      "Think of two moments: one when the child stayed focused for a long time, and one when the child lost focus. What was different about those situations?"
     ]
   }
 }
