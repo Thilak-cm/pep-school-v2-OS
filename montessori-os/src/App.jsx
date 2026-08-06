@@ -19,7 +19,7 @@ import { clearNotificationsCache } from './components/NotificationsPage.jsx';
 import { initSaveQueue } from './services/saveQueue';
 import { CoachmarkProvider } from './coachmark/CoachmarkProvider';
 import { getPageTitle, getBackNavigation, FAB_HIDDEN_SCREENS, FOOTER_TAB_SCREENS, NO_BACK_BUTTON_SCREENS, NO_HEADER_SCREENS } from './screenConfig.js';
-import AppHeader, { HEADER_HEIGHT } from './AppHeader.jsx';
+import AppHeader, { HEADER_BOTTOM_PADDING, HEADER_HEIGHT } from './AppHeader.jsx';
 import ScreenRenderer from './ScreenRenderer.jsx';
 import { useNavigationState } from './hooks/useNavigationState.js';
 
@@ -460,7 +460,7 @@ function App() {
                 <Box ref={scrollRef} sx={{
                   flex: 1, minHeight: 0, overflowY: isChildChat ? 'hidden' : 'auto', overflowX: 'hidden', display: 'flex', flexDirection: 'column',
                 }}>
-                  <Box sx={{ px: isChildChat ? 0 : { xs: 2, sm: 3 }, display: 'flex', flexDirection: 'column', minHeight: 0, pt: isChildChat ? 0 : (showHeader ? `calc(${HEADER_HEIGHT}px + env(safe-area-inset-top, 0px) + 16px)` : { xs: 2, sm: 3 }), pb: isChildChat ? 0 : (showFooter ? { xs: 12, sm: 12 } : 0), width: '100%', maxWidth: '100%', overflowX: 'hidden', boxSizing: 'border-box' }}>
+                  <Box sx={{ px: isChildChat ? 0 : { xs: 2, sm: 3 }, display: 'flex', flexDirection: 'column', minHeight: 0, pt: isChildChat ? 0 : (showHeader ? `calc(${HEADER_HEIGHT}px + env(safe-area-inset-top, 0px) + ${HEADER_BOTTOM_PADDING}px)` : { xs: 2, sm: 3 }), pb: isChildChat ? 0 : (showFooter ? { xs: 12, sm: 12 } : 0), width: '100%', maxWidth: '100%', overflowX: 'hidden', boxSizing: 'border-box' }}>
                     <ScreenRenderer screen={screen} ctx={ctx} />
                   </Box>
                 </Box>

@@ -6,6 +6,7 @@ import {
   appendOptimisticTurn,
   applyChatStreamEvent,
   buildRetryRequest,
+  getOptimisticEntryMessageIds,
   reconcileMessagesWithTurns,
 } from './chat/childChatState.js';
 
@@ -75,6 +76,16 @@ test('ChildChat retry action reuses logical IDs and changes only the run ID', ()
   });
   assert.equal(optimisticRetry.filter((message) => message.role === 'user').length, 1);
   assert.equal(optimisticRetry.at(-1).id, 'run-2-assistant');
+});
+
+test('ChildChat retry animates only the new assistant attempt', () => {
+  assert.deepEqual(getOptimisticEntryMessageIds(ids), [
+    'user-1',
+    'run-1-assistant',
+  ]);
+  assert.deepEqual(getOptimisticEntryMessageIds({ ...ids, runId: 'run-2' }, true), [
+    'run-2-assistant',
+  ]);
 });
 
 test('ChildChat reload derives failed pre-token retry from the turn without an assistant message', () => {

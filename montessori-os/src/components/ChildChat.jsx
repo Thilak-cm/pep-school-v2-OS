@@ -25,7 +25,7 @@ import {
   Trash2 as Delete,
 } from '../icons';
 import { collection, doc, getDocs, onSnapshot, query, serverTimestamp, updateDoc, where } from 'firebase/firestore';
-import { HEADER_HEIGHT } from '../AppHeader.jsx';
+import { HEADER_BOTTOM_PADDING, HEADER_HEIGHT } from '../AppHeader.jsx';
 import { FOOTER_HEIGHT } from '../AppFooter.jsx';
 import { auth, db } from '../firebase';
 import { createChatIds } from '../services/chatStreamService.js';
@@ -41,7 +41,12 @@ import {
   appendOptimisticTurn,
   applyChatStreamEvent,
   buildRetryRequest,
+  createMessageAnimationState,
+  registerAssistantAttemptAnimation,
+  registerOptimisticEntryAnimations,
   reconcileMessagesWithTurns,
+  resetMessageAnimationState,
+  shouldAnimateMessage,
 } from './chat/childChatState.js';
 import {
   abortActiveChatRequest,
@@ -49,9 +54,19 @@ import {
   runAuthenticatedChatTurn,
 } from './chat/chatTurnController.js';
 import {
+  beginProgrammaticScroll,
+  CHAT_SHELL_WIDTH_SX,
+  CONVERSATION_SELECTOR_LAYER_SX,
   FOLLOW_THRESHOLD_PX,
+  consumeFollowModeGrowth,
+  createFollowModeState,
+  enableFollowMode,
+  getChatShellGeometry,
   getComposerState,
-  isNearBottom,
+  interruptProgrammaticScroll,
+  resetFollowMode,
+  TRANSCRIPT_LAYER_SX,
+  updateFollowModeFromScroll,
 } from './chat/chatPresentation.js';
 
 const projectId = import.meta.env.VITE_FIREBASE_PROJECT_ID || 'pep-os';
@@ -98,9 +113,8 @@ export default function ChildChat({ student, currentUser, userRole, manageableCl
   const hasManuallySelectedChatRef = useRef(false);
   const persistedMessageIdsRef = useRef(new Set());
   const turnDocsRef = useRef([]);
-  const followModeRef = useRef(true);
-  const initialScrollPendingRef = useRef(false);
-  const entryMessageIdsRef = useRef(new Set());
+  const followModeStateRef = useRef(createFollowModeState());
+  const messageAnimationStateRef = useRef(createMessageAnimationState());
 
   currentStudentIdRef.current = student?.id;
   selectedChatIdRef.current = selectedChatId;
@@ -159,6 +173,7 @@ export default function ChildChat({ student, currentUser, userRole, manageableCl
     activeTurnRef.current = null;
     persistedMessageIdsRef.current = new Set();
     turnDocsRef.current = [];
+    resetMessageAnimationState(messageAnimationStateRef.current);
     setSelectedChatId(null);
     setMessages([]);
     setInput('');
@@ -195,8 +210,7 @@ export default function ChildChat({ student, currentUser, userRole, manageableCl
 
     const studentId = student.id;
     const chatId = selectedChatId;
-    followModeRef.current = true;
-    initialScrollPendingRef.current = true;
+    resetFollowMode(followModeStateRef.current, { initialScrollPending: true });
     setMessagesLoading(true);
     const messagesRef = collection(db, 'students', studentId, 'chats', chatId, 'messages');
     const turnsRef = collection(db, 'students', studentId, 'chats', chatId, 'turns');
@@ -277,8 +291,7 @@ export default function ChildChat({ student, currentUser, userRole, manageableCl
 
   useLayoutEffect(() => {
     if (!messages.length) return;
-    if (initialScrollPendingRef.current || followModeRef.current) {
-      initialScrollPendingRef.current = false;
+    if (consumeFollowModeGrowth(followModeStateRef.current)) {
       scrollToBottom('auto');
     }
   }, [messages, scrollToBottom]);
@@ -312,9 +325,8 @@ export default function ChildChat({ student, currentUser, userRole, manageableCl
   const handleNewChat = () => {
     leaveActiveChat();
     hasManuallySelectedChatRef.current = true;
-    followModeRef.current = true;
-    initialScrollPendingRef.current = false;
-    entryMessageIdsRef.current = new Set();
+    resetFollowMode(followModeStateRef.current);
+    resetMessageAnimationState(messageAnimationStateRef.current);
     setSelectedChatId(null);
     setMessages([]);
     setInput('');
@@ -325,9 +337,8 @@ export default function ChildChat({ student, currentUser, userRole, manageableCl
   const handleSelectChat = (chatId) => {
     if (chatId !== selectedChatId) leaveActiveChat();
     hasManuallySelectedChatRef.current = true;
-    followModeRef.current = true;
-    initialScrollPendingRef.current = true;
-    entryMessageIdsRef.current = new Set();
+    resetFollowMode(followModeStateRef.current, { initialScrollPending: true });
+    resetMessageAnimationState(messageAnimationStateRef.current);
     setSelectedChatId(chatId);
     setChatDropdownOpen(false);
     setError('');
@@ -376,6 +387,10 @@ export default function ChildChat({ student, currentUser, userRole, manageableCl
       if (selectedChatId === deletingChat.id) {
         leaveActiveChat();
         hasManuallySelectedChatRef.current = true;
+        resetFollowMode(followModeStateRef.current, {
+          initialScrollPending: Boolean(remaining[0]?.id),
+        });
+        resetMessageAnimationState(messageAnimationStateRef.current);
         setSelectedChatId(remaining[0]?.id || null);
         setMessages([]);
       }
@@ -421,7 +436,7 @@ export default function ChildChat({ student, currentUser, userRole, manageableCl
     };
 
     hasManuallySelectedChatRef.current = true;
-    followModeRef.current = true;
+    enableFollowMode(followModeStateRef.current);
     setSelectedChatId(chatId);
     setInput('');
     setError('');
@@ -434,8 +449,7 @@ export default function ChildChat({ student, currentUser, userRole, manageableCl
       createdAt,
       isRetry: canRetry,
     }));
-    entryMessageIdsRef.current.add(ids.userMessageId);
-    entryMessageIdsRef.current.add(assistantMessageId);
+    registerOptimisticEntryAnimations(messageAnimationStateRef.current, ids, canRetry);
     requestAnimationFrame(() => inputRef.current?.focus());
 
     const isCurrentRequest = () => mountedRef.current
@@ -455,7 +469,7 @@ export default function ChildChat({ student, currentUser, userRole, manageableCl
           if (!isCurrentRequest()) return;
           const previousAssistantId = activeTurnRef.current?.assistantMessageId;
           const nextAssistantId = `${retryIds.runId}-assistant`;
-          entryMessageIdsRef.current.add(nextAssistantId);
+          registerAssistantAttemptAnimation(messageAnimationStateRef.current, nextAssistantId);
           activeTurnRef.current = {
             ...activeTurnRef.current,
             runId: retryIds.runId,
@@ -520,8 +534,22 @@ export default function ChildChat({ student, currentUser, userRole, manageableCl
   const handleMessagesScroll = () => {
     const element = messagesContainerRef.current;
     if (!element) return;
-    const nearBottom = isNearBottom(element, FOLLOW_THRESHOLD_PX);
-    followModeRef.current = nearBottom;
+    const nearBottom = updateFollowModeFromScroll(
+      followModeStateRef.current,
+      element,
+      FOLLOW_THRESHOLD_PX,
+    );
+    setShowScrollButton(!nearBottom);
+  };
+
+  const handleTranscriptUserGesture = () => {
+    const element = messagesContainerRef.current;
+    if (!element || !followModeStateRef.current.programmaticScrollPending) return;
+    const nearBottom = interruptProgrammaticScroll(
+      followModeStateRef.current,
+      element,
+      FOLLOW_THRESHOLD_PX,
+    );
     setShowScrollButton(!nearBottom);
   };
 
@@ -529,9 +557,15 @@ export default function ChildChat({ student, currentUser, userRole, manageableCl
   if (!student?.id) return <Alert severity="error" sx={{ m: 2 }}>Student information is required to start a chat.</Alert>;
 
   const isLanding = selectedChatId === null;
-  const shellBottom = isKeyboardOpen
-    ? `${keyboardBottomOffset}px`
-    : `calc(${FOOTER_HEIGHT}px + env(safe-area-inset-bottom, 0px))`;
+  const shellGeometry = getChatShellGeometry({
+    headerHeight: HEADER_HEIGHT,
+    headerBottomPadding: HEADER_BOTTOM_PADDING,
+    footerHeight: FOOTER_HEIGHT,
+    safeAreaTop: 'env(safe-area-inset-top, 0px)',
+    safeAreaBottom: 'env(safe-area-inset-bottom, 0px)',
+    keyboardOpen: isKeyboardOpen,
+    keyboardBottomOffset,
+  });
   const composerState = getComposerState({ loading, input });
   const activeAssistant = activeTurnRef.current
     ? messages.find((message) => message.id === activeTurnRef.current.assistantMessageId)
@@ -539,11 +573,24 @@ export default function ChildChat({ student, currentUser, userRole, manageableCl
   const showTypingIndicator = loading && !activeAssistant?.content;
 
   return (
-    <Box sx={{ position: 'fixed', top: `calc(${HEADER_HEIGHT}px + env(safe-area-inset-top, 0px))`, bottom: shellBottom, left: '50%', transform: 'translateX(-50%)', width: '100%', maxWidth: { xs: '100%', sm: '420px' }, display: 'flex', flexDirection: 'column', minHeight: 0, overflow: 'hidden', bgcolor: 'background.default', boxSizing: 'border-box' }}>
-      <Box sx={{ flexShrink: 0, px: 2, pt: 1, pb: 1, boxSizing: 'border-box' }}>
+    <Box sx={{ position: 'fixed', top: shellGeometry.topInset, bottom: shellGeometry.bottomInset, left: '50%', transform: 'translateX(-50%)', ...CHAT_SHELL_WIDTH_SX, display: 'flex', flexDirection: 'column', minHeight: 0, overflow: 'hidden', bgcolor: 'background.default', boxSizing: 'border-box' }}>
+      <Box sx={{ ...CONVERSATION_SELECTOR_LAYER_SX, flexShrink: 0, px: 2, pt: 1, pb: 1, boxSizing: 'border-box' }}>
         <ClickAwayListener onClickAway={() => setChatDropdownOpen(false)}>
-          <Box sx={{ position: 'relative' }}>
-            <Paper elevation={2} sx={{ display: 'flex', alignItems: 'center', borderRadius: '28px', overflow: 'hidden', bgcolor: 'background.paper', border: '1px solid', borderColor: 'rgba(0,0,0,.08)', boxShadow: '0 2px 8px rgba(0,0,0,.06)' }}>
+          <Box sx={{ position: 'relative', filter: chatDropdownOpen ? 'drop-shadow(0 4px 8px rgba(0,0,0,.12))' : 'none' }}>
+            <Paper
+              elevation={0}
+              sx={{
+                display: 'flex',
+                alignItems: 'center',
+                borderRadius: chatDropdownOpen ? '28px 28px 0 0' : '28px',
+                overflow: 'hidden',
+                bgcolor: 'background.paper',
+                border: '1px solid',
+                borderColor: 'rgba(0,0,0,.08)',
+                borderBottomWidth: chatDropdownOpen ? 0 : '1px',
+                boxShadow: chatDropdownOpen ? 'none' : '0 2px 8px rgba(0,0,0,.06)',
+              }}
+            >
               <Button fullWidth onClick={() => setChatDropdownOpen((open) => !open)} sx={{ justifyContent: 'space-between', px: 2.5, py: 1.25, textTransform: 'none', minWidth: 0 }}>
                 <Typography noWrap color={selectedChatId ? 'text.primary' : 'text.secondary'} sx={{ fontWeight: selectedChatId ? 500 : 400 }}>
                   {selectedChatId ? chatTitle : 'Load past conversations here'}
@@ -554,7 +601,23 @@ export default function ChildChat({ student, currentUser, userRole, manageableCl
               <IconButton onClick={handleNewChat} disabled={isLanding} aria-label="New chat" sx={{ width: 48, height: 48, color: 'primary.main' }}><Add /></IconButton>
             </Paper>
             {chatDropdownOpen && (
-              <Paper elevation={4} sx={{ position: 'absolute', top: 'calc(100% + 8px)', left: 0, right: 0, maxHeight: 280, overflowY: 'auto', borderRadius: '20px' }}>
+              <Paper
+                elevation={0}
+                sx={{
+                  position: 'absolute',
+                  top: '100%',
+                  left: 0,
+                  right: 0,
+                  maxHeight: 280,
+                  overflowY: 'auto',
+                  borderRadius: '0 0 20px 20px',
+                  bgcolor: 'background.paper',
+                  border: '1px solid',
+                  borderColor: 'rgba(0,0,0,.08)',
+                  borderTopWidth: 0,
+                  boxShadow: 'none',
+                }}
+              >
                 {chatsLoading ? (
                   <Box sx={{ display: 'flex', justifyContent: 'center', p: 2 }}><CircularProgress size={20} /></Box>
                 ) : (
@@ -588,8 +651,15 @@ export default function ChildChat({ student, currentUser, userRole, manageableCl
         </ClickAwayListener>
       </Box>
 
-      <Box sx={{ position: 'relative', flex: 1, minHeight: 0, overflow: 'hidden' }}>
-        <Box ref={messagesContainerRef} onScroll={handleMessagesScroll} sx={{ height: '100%', overflowY: isLanding ? 'hidden' : 'auto', overflowX: 'hidden', px: 2, py: 1, boxSizing: 'border-box', display: 'flex', flexDirection: 'column', gap: 1.5 }}>
+      <Box sx={{ ...TRANSCRIPT_LAYER_SX, flex: 1, minHeight: 0, overflow: 'hidden' }}>
+        <Box
+          ref={messagesContainerRef}
+          onScroll={handleMessagesScroll}
+          onWheel={handleTranscriptUserGesture}
+          onTouchStart={handleTranscriptUserGesture}
+          onPointerDown={handleTranscriptUserGesture}
+          sx={{ height: '100%', overflowY: isLanding ? 'hidden' : 'auto', overflowX: 'hidden', px: 2, py: 1, boxSizing: 'border-box', display: 'flex', flexDirection: 'column', gap: 1.5 }}
+        >
           {messagesLoading && messages.length === 0 ? (
             <Box sx={{ flex: 1, display: 'grid', placeItems: 'center' }}><CircularProgress /></Box>
           ) : isLanding ? (
@@ -608,7 +678,7 @@ export default function ChildChat({ student, currentUser, userRole, manageableCl
             <>
               {messages.map((message) => {
                 if (message.role === 'assistant' && !message.content && message.status === 'streaming') return null;
-                const animate = entryMessageIdsRef.current.has(message.id);
+                const animate = shouldAnimateMessage(messageAnimationStateRef.current, message.id);
                 return (
                   <Box key={message.id} sx={{ display: 'flex', flexDirection: 'column', alignItems: message.role === 'user' ? 'flex-end' : 'flex-start', width: '100%' }}>
                     {message.role === 'user'
@@ -627,7 +697,7 @@ export default function ChildChat({ student, currentUser, userRole, manageableCl
             </>
           )}
         </Box>
-        {!isLanding && <ScrollToBottomFab visible={showScrollButton} onClick={() => { followModeRef.current = true; scrollToBottom('smooth'); }} />}
+        {!isLanding && <ScrollToBottomFab visible={showScrollButton} onClick={() => { beginProgrammaticScroll(followModeStateRef.current); scrollToBottom('smooth'); }} />}
       </Box>
 
       <Box sx={{ flexShrink: 0, px: 2, pt: 1, pb: 1, boxSizing: 'border-box' }}>

@@ -5,6 +5,7 @@ import Avatar from './components/ui/Avatar.jsx';
 import { calculateAgeFromDob } from './utils/dateFormat';
 
 export const HEADER_HEIGHT = 60;
+export const HEADER_BOTTOM_PADDING = 16;
 
 function getHeaderActions(screen, ctx) {
   switch (screen) {
@@ -52,9 +53,9 @@ export default function AppHeader({ screen, ctx, onTitleClick }) {
         backgroundColor: 'color-mix(in srgb, var(--color-bg) 80%, transparent)',
         backdropFilter: 'blur(12px)',
         WebkitBackdropFilter: 'blur(12px)',
-        pb: '16px',
-        maskImage: 'linear-gradient(to bottom, black calc(100% - 16px), transparent 100%)',
-        WebkitMaskImage: 'linear-gradient(to bottom, black calc(100% - 16px), transparent 100%)',
+        pb: `${HEADER_BOTTOM_PADDING}px`,
+        maskImage: `linear-gradient(to bottom, black calc(100% - ${HEADER_BOTTOM_PADDING}px), transparent 100%)`,
+        WebkitMaskImage: `linear-gradient(to bottom, black calc(100% - ${HEADER_BOTTOM_PADDING}px), transparent 100%)`,
         px: { xs: 2, sm: 3 },
         boxSizing: 'border-box',
         '@media (max-width: 599px)': {
