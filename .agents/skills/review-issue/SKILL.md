@@ -320,7 +320,6 @@ Check whether the diff involves Firestore schema changes. Run this check automat
    - Write clear commit messages:
      - Implementation: `feat: {description} (#<issue-number>)` or `fix: {description} (#<issue-number>)`
      - Version bump (if separate): `chore: bump version to v{X.Y.Z}`
-   - Include `Co-Authored-By: Claude` signoff
    - Show commit hashes and subjects
 
 2. **Push feature branch**

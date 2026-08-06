@@ -84,7 +84,6 @@ Execute the approved plan using Test-Driven Development.
 7. Create commits (only after manual verification passes):
    - Commit tests separately: `test: add tests for [feature/fix] (#123)`
    - Commit implementation: `feat/fix: [description] (#123)`
-   - Co-authored-by: Claude
 
 **TDD Cycle Summary:**
 ```
