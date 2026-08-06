@@ -3,14 +3,15 @@
 ## 🎯 Goals
 - Minimize friction for teachers to add notes to assigned students
 - Scale to many classrooms/students with fast timelines and analytics
-- Keep rules simple, safe, and performant in Firestore
+- Document the Firestore schema, relationships, and data invariants
 
 ---
 
-## 👥 Roles & access tiers
-- **Super admins** – current global admins. Full CRUD everywhere (users/programs/branches/AI prompts/classrooms/students/placements/observations/feedback). They can promote/demote other admins, edit `manageableClassrooms`, and use any cross-program tooling.
-- **Classroom admins** – classroom-scoped operators. They read `classrooms`, `branches`, and `feedback`, and can write student-facing data only within the classrooms in their `manageableClassrooms` list: CRUD students, placements, observations, and teacher/student user docs. They cannot touch AI prompts nor promote other admins.
-- **Teachers** – unchanged. Classroom-scoped contributors who create observations for assigned classrooms and manage their own profiles.
+## Access control and screen behavior
+
+Access patterns, role permissions, and the functional definitions of access-controlled screens intentionally live outside this schema document.
+
+See [Pep OS Access-Control Policy](docs/security/access-control-policy.md).
 
 ---
 
@@ -24,6 +25,7 @@
 - `students/{studentId}/media/{mediaId}`               // DEPRECATED (#221) - retained for rollback, no longer read/written
 - `students/{studentId}/chats/{chatId}`                // AI chat conversations
 - `students/{studentId}/chats/{chatId}/messages/{messageId}` // chat messages
+- `students/{studentId}/chats/{chatId}/turns/{turnId}` // chat execution lifecycle state
 - `students/{studentId}/ai_summaries/soul`             // AI-generated student soul narrative (PEP-149)
 - `students/{studentId}/ai_summaries/soul/history/{timestamp}` // weekly soul snapshots
 - `students/{studentId}/ai_summaries/guidelines`       // per-student evaluation guide (PEP-149)
@@ -59,7 +61,6 @@ Notes:
 Branch model overview
 - Add a first-class `branchId` dimension to core docs (users, classrooms, students, observations) to isolate data per campus/center.
 - `branches` is a lightweight metadata collection; you created four empty docs already: `hsr`, `whitefield`, `varthur`, `kokapet`.
-- Admins are global; teachers/staff are scoped to one or more branches via `branchIds`.
 - Programs are global at `/programs/{programId}`.
 
 ```typescript
@@ -110,12 +111,12 @@ interface User {
   email: string;
   photoURL?: string;
 
-  // Access
-  role: 'superadmin' | 'classroomadmin' | 'teacher'; // superadmin is global, classroomadmin is classroom-scoped
-  manageableClassrooms?: ClassroomId[];       // required (non-empty) when role == 'classroomadmin'; contains classroom doc IDs (e.g. "allstars", "periwinkle")
+  // Authorization data
+  role: 'superadmin' | 'classroomadmin' | 'teacher';
+  manageableClassrooms?: ClassroomId[];       // classroom document IDs; required and non-empty for classroomadmin
   
   // Branch scope
-  branchIds?: BranchId[];        // branches this user can access (teachers/coaches can have multiple)
+  branchIds?: BranchId[];
   homeBranchId?: BranchId;       // preferred/default branch for UI selection
   status: 'active' | 'inactive' | 'suspended';
   inactivatedAt?: Timestamp;     // set when status changes to 'inactive' via UI removal (PEP-250)
@@ -140,10 +141,7 @@ interface User {
 ```
 Guidance
 - Use document ID as the Auth UID; do not duplicate as a field.
-- Roles live here and are read by rules; no custom claims required.
-- Super admins ignore `manageableClassrooms`/`branchIds` for access control but can edit any admin’s `manageableClassrooms` list.
-- Classroom admins MUST have `manageableClassrooms` populated with at least one classroom ID (e.g. `"allstars"`, `"periwinkle"`); UI should block save otherwise. These admins can act on students/placements/observations within those classrooms and invite teachers/students across branches.
-- Classroom admins may create/update `users` docs only when `role == 'teacher'`. Attempts to write `role: 'classroomadmin' | 'superadmin'` are rejected unless performed by a super admin.
+- Classroom admins MUST have `manageableClassrooms` populated with at least one classroom ID (e.g. `"allstars"`, `"periwinkle"`).
 - Coaches/specialists: can be represented as `role: 'teacher'` with multiple `branchIds` until finer-grained roles are introduced.
 - `studentAliases` is optional and only loaded for teachers that create personal student groups for faster lesson-note selection (see below).
 
@@ -153,7 +151,7 @@ interface StudentAlias {
   id: string;                    // convenience copy of the key from studentAliases.{id}
   name: string;                  // unique per user; shown in search
   description?: string;          // optional helper text
-  studentIds: string[];          // UIDs of students across any classroom the teacher can access
+  studentIds: string[];          // student document IDs
   createdAt: Timestamp;          // server time
   updatedAt: Timestamp;          // server time
 }
@@ -161,9 +159,8 @@ interface StudentAlias {
 Guidance
 - Store aliases directly on each user doc under `studentAliases.{aliasId}` so reads stay on the same document as the profile; expect <25 aliases per teacher.
 - Alias IDs follow `alias_<slug>`; enforce uniqueness per user (UI lowercases + slugs names before writes). The `name` must be unique to keep search results deterministic.
-- Teachers can include students from multiple classrooms they have access to. When logging a lesson tied to a single classroom, show all alias members but disable checkboxes for students outside the selected classroom so teachers understand the mismatch.
 - Alias search results should list matching students first and then any alias chips containing those students. Selecting an alias expands to the familiar `ClassroomStudentPicker` list; all students start selected/present, and teachers uncheck out-of-scope students.
-- CRUD is entirely user-scoped: no sharing yet. Security rules only allow owners (or admins editing on their behalf) to manage their own aliases.
+- Aliases are stored per user and are not shared.
 
 ---
 
@@ -193,7 +190,6 @@ interface Classroom {
 }
 ```
 Guidance
-- `teacherIds` is the source of truth for teacher access in rules.
 - Maintain `studentCount` via backend trigger on student create/delete/move.
 - Classroom IDs must be globally unique across branches if kept at the collection root. If you plan to reuse names/IDs per branch, generate unique IDs (e.g., prefix with branch slug) and store human-friendly names separately.
 
@@ -237,9 +233,7 @@ History archive: `/classrooms/{classroomId}/digests/weekly_email/history/{weekKe
 Special paths:
 - `classrooms/_digest_all/digests/weekly_email` — superadmin consolidated digest (synthetic classroom ID)
 
-Security:
-- Reads: classroomadmins who manage the classroom, or superadmins. `_digest_all` is superadmin-only.
-- Writes: CF-only via admin SDK (`allow write: if false` in rules).
+Access policy: See [Pep OS Access-Control Policy](docs/security/access-control-policy.md).
 
 ---
 
@@ -291,21 +285,21 @@ Subcollections
 - `observations/{observationId}` – per-student notes (text/voice/lesson). Shape: `{ type: 'text' | 'voice' | 'lesson', text: string, studentId: string, classroomId: string, createdBy: string (uid), createdByName: string, createdByEmail: string, observedAt: Timestamp, createdAt: Timestamp, updatedAt: Timestamp, groupId?: string, durationSec?: number, coach?: { status: string, reason: string, nudgesShown: Array, selections?: Record<string, string> }, lessonTitle?: string }`. The `classroomId` field is denormalized from the student's classroom at write time; enables direct collection group queries by classroom. The `groupId` field links fan-out docs from a single multi-student observation.
 - `media/{mediaId}` – uploaded photo/video/PDF files attached to observations (see below).
 - `ai_summaries/weekly_snapshot` – unified weekly student snapshot combining baseball card content, behaviour flag signals, and missing domains (PEP-229). Overwritten each weekly batch run; previous snapshot archived to `history/{weekKey}` subcollection before overwrite. On-demand regeneration snapshots the previous state into an `edits` array before overwriting, providing a within-week audit trail. Shape: `{ summary: string, bullets: string[], redFlag: { severity: string | null, reason: string | null }, coverageGaps: string[], severity: 'clear' | 'low' | 'medium' | 'high', severityScore: number, prevSeverity: string, prevSeverityScore: number, weekKey: string, weekBaselineSeverity: string, weekBaselineSeverityScore: number, escalatedThisWeek: boolean, improvedThisWeek: boolean, noteCount: number, evidenceCount: number, windowDays: number, timezone: string, model: string, temperature: number, generatedAt: Timestamp, lastUpdatedAt: Timestamp, status: 'ok' | 'no_notes', sourceNoteIds: string[], rawContent?: string, migratedAt?: Timestamp, regeneratedBy: { uid: string, displayName: string | null, role: string } | null, edits: Array<{ severity: string | null, severityScore: number | null, summary: string, redFlag: { severity: string | null, reason: string | null }, coverageGaps: string[], regeneratedBy: { uid: string, displayName: string | null, role: string } | null, generatedAt: Timestamp | null, replacedAt: Timestamp }> }`. `regeneratedBy` is set on manual regens (null for batch runs). `edits` accumulates previous states within the week — each entry captures the snapshot that was replaced. The batch run archives the full doc (including `edits`) to `history/{weekKey}` and resets `edits` to `[]`. Architecture decision: hardcoded doc name (`weekly_snapshot`) over computable weekKey path — every consumer reads at a stable path with zero client-side weekKey computation. Week identity is a field, not the path.
-- `ai_summaries/weekly_snapshot/history/{weekKey}` – archived weekly snapshots. Full copy of the previous `weekly_snapshot` doc plus `archivedAt: Timestamp`. Created only by the scheduled Monday batch (`generateBaseballCards`), never by on-demand regeneration. History retained indefinitely; one doc per week per student (no 1MB limit concern). Architecture decision: subcollection over sibling docs — current snapshot reads (every baseball card view) are frequent, history queries (longitudinal analysis by agents/superadmins) are rare. Subcollection keeps these cleanly separated.
+- `ai_summaries/weekly_snapshot/history/{weekKey}` – archived weekly snapshots. Full copy of the previous `weekly_snapshot` doc plus `archivedAt: Timestamp`. Created only by the scheduled Monday batch (`generateBaseballCards`), never by on-demand regeneration. History retained indefinitely; one doc per week per student (no 1MB limit concern). Architecture decision: subcollection over sibling docs — current snapshot reads are frequent while longitudinal history queries are rare. Subcollection keeps these cleanly separated.
 - `ai_summaries/{reportDocId}` – AI-generated parent progress reports. Doc ID format: `report_{timestamp}` (term) or `baseline_report_{month}_{year}_{hash}` (baseline). Shape: `{ reportText: string, status: 'ok' | 'no_notes', noteCount: number, reportType: 'term' | 'baseline', programId: ProgramId, classroomId: string | null, studentId: string, kind: 'report', sourceNoteIds: string[], dateRangeStart: Timestamp, dateRangeEnd: Timestamp, generatedAt: Timestamp, generatedBy: string, generatedByName?: string, model: string, temperature: number, timezone: string, driveDocId?: string, driveDocLink?: string, reportEval?: { sentimentScore: number | null, sentimentLabel: string | null, areaBalanceScore: number | null, areaBalanceLabel: string | null, missingInputFlags: string[], scoreRationale: { sentiment: string, areaBalance: string } } }`. The `reportType` field was added in PEP-325; `'monthly'` was renamed to `'baseline'` in #152 — legacy docs with `'monthly'` are normalized to `'baseline'` at read time. The `reportEval` nested object is set on baseline reports by the independent judge at export time (#152); term reports get scores via the readiness checker instead. The `driveDocId` and `driveDocLink` fields are set when the report is exported to Google Drive.
 - `ai_summaries/{type}_report_readiness` – on-demand observation quality check, fanned out per report type: `term_report_readiness` or `baseline_report_readiness` (PEP-68, #152). Shape: `{ status: 'ok' | 'no_notes', sentimentScore: number | null, areaBalanceScore: number | null, missingInputFlags: string[], noteCount: number, noteCountAtCheck: number, checkedAt: Timestamp, dateRangeStart: Timestamp, dateRangeEnd: Timestamp, programId: string, model: string, generatedBy: string (userId), generatedByName: string | null }`. Cached per student per report type; staleness tracked via `noteCountAtCheck` vs current observation count. On each recheck, the previous doc (if `status: "ok"`) is archived to `{type}_report_readiness/history/{timestamp}` before overwrite (PEP-233). Legacy docs at `report_readiness` (pre-#152) should be migrated to `term_report_readiness` via `scripts/admin/migrate-readiness-docs.mjs`.
 - `ai_summaries/{type}_report_readiness/history/{timestamp}` – archived readiness check snapshots (PEP-233). Shape: full copy of the previous readiness doc contents plus `{ archivedAt: Timestamp, reason: string }`. Only `status: "ok"` docs are archived; `"no_notes"` results are not archived. Created automatically before each recheck overwrites the primary doc.
 - `ai_summaries/writing_analysis` – per-program writing analysis (PEP-132, PEP-263). Config resolved via `config/writing_analysis_{programId}`. Overwritten each cycle; previous doc archived to `history/` subcollection on weekly scheduled runs only (not on-demand callable). Shape: `{ narrative: string, improvements: string[], concerns: string[], recommendations: Array<{ area: string, action: string, montessoriApproach: string, rationale: string, priority: number }> | string[], dimensionRatings: Record<string, { score: number, trend: "improving"|"stable"|"declining", evidence: string }>, sampleCount: number, copiedCount: number, studentAge: { years: number, months: number } | null, generatedAt: Timestamp, sourceMediaIds: string[], model: string, programId: string | null, status: "completed", ...programSpecificFields }`. Program-specific fields (e.g., `stageSummary`, `motorHandwritingAnalysis`, `languageCompositionAnalysis`, `confidence`) are preserved via spread from the VLM response. Consumed by the weekly plan generator (PEP-128).
 - `ai_summaries/writing_analysis/history/{isoTimestamp}` – archived writing analysis snapshots (PEP-263). Shape: full copy of previous `writing_analysis` doc plus `{ archivedAt: Timestamp }`. Created automatically before each weekly scheduled regeneration — on-demand callable does NOT archive.
-- `ai_summaries/monthly_plan` – AI-generated monthly plan for toddler and primary students (PEP-260). Generated on-demand by superadmins via `generateMonthlyPlan` callable. Overwritten each generation; previous plan archived to `history/` subcollection before overwrite. Config resolved via `config/monthly_plan`. Shape: `{ studentId: string, studentName: string, age: string, month: string (YYYY-MM), planningMode: "observationBased" | "coldStart", dataSufficiency: { meaningfulObservationCount: number, summary: string }, dataWindow: { from: string, to: string, observationCount: number }, affinities: string[], sections: Array<{ name: string, position: number, monthlyAim: string, items: Array<{ work: string, basis: "observed" | "ageBenchmark" | "diagnostic" | "conditional", why: string, hook: string, offer: string, next: string, watch: string }> }>, generatedAt: string (ISO), generatedBy: string (uid) | 'system:batchCron', generatedByName: string, model: string, totalTokens: number, status: 'generated', driveDocId?: string, driveDocLink?: string, driveChecklistId?: string, driveChecklistLink?: string, driveExportedAt?: string (ISO), driveExportedBy?: string (uid) | 'system:batchCron' }`. `planningMode` and `dataSufficiency` added in PEP-280 for cold-start classification — the LLM classifies based on observation count and joining date. `basis` field expanded to include `ageBenchmark` for age-appropriate recommendations (PEP-280). Drive fields are populated by `exportMonthlyPlanToDrive` or the batch cron (PEP-279).
-- `ai_summaries/monthly_plan/monthly_plan_feedback/{autoId}` – admin feedback on monthly plans (PEP-282). Append-only — each submission creates a new doc. Classroom admins scoped to manageable classrooms; superadmins have full access. Shape: `{ difficulty?: "too_easy" | "about_right" | "too_tough", pace?: "too_slow" | "good_pace" | "too_fast", section: "General" | "Language" | "Sensorial" | "Math" | "Practical Life" | "Grace & Courtesy", text?: string, planMonth: string (YYYY-MM) | null, createdBy: string (uid), createdByName: string, createdAt: Timestamp (serverTimestamp) }`. At least one of `difficulty`, `pace`, or `text` is present (validated client-side). Not yet consumed by plan generation CF — future integration planned.
+- `ai_summaries/monthly_plan` – AI-generated monthly plan for toddler and primary students (PEP-260). Generated on demand via the `generateMonthlyPlan` callable. Overwritten each generation; previous plan archived to `history/` subcollection before overwrite. Config resolved via `config/monthly_plan`. Shape: `{ studentId: string, studentName: string, age: string, month: string (YYYY-MM), planningMode: "observationBased" | "coldStart", dataSufficiency: { meaningfulObservationCount: number, summary: string }, dataWindow: { from: string, to: string, observationCount: number }, affinities: string[], sections: Array<{ name: string, position: number, monthlyAim: string, items: Array<{ work: string, basis: "observed" | "ageBenchmark" | "diagnostic" | "conditional", why: string, hook: string, offer: string, next: string, watch: string }> }>, generatedAt: string (ISO), generatedBy: string (uid) | 'system:batchCron', generatedByName: string, model: string, totalTokens: number, status: 'generated', driveDocId?: string, driveDocLink?: string, driveChecklistId?: string, driveChecklistLink?: string, driveExportedAt?: string (ISO), driveExportedBy?: string (uid) | 'system:batchCron' }`. `planningMode` and `dataSufficiency` added in PEP-280 for cold-start classification — the LLM classifies based on observation count and joining date. `basis` field expanded to include `ageBenchmark` for age-appropriate recommendations (PEP-280). Drive fields are populated by `exportMonthlyPlanToDrive` or the batch cron (PEP-279).
+- `ai_summaries/monthly_plan/monthly_plan_feedback/{autoId}` – admin feedback on monthly plans (PEP-282). Append-only — each submission creates a new doc. Shape: `{ difficulty?: "too_easy" | "about_right" | "too_tough", pace?: "too_slow" | "good_pace" | "too_fast", section: "General" | "Language" | "Sensorial" | "Math" | "Practical Life" | "Grace & Courtesy", text?: string, planMonth: string (YYYY-MM) | null, createdBy: string (uid), createdByName: string, createdAt: Timestamp (serverTimestamp) }`. At least one of `difficulty`, `pace`, or `text` is present (validated client-side). Not yet consumed by plan generation CF — future integration planned.
 - `ai_summaries/monthly_plan/history/{YYYY-MM}_{timestamp}` – archived monthly plan snapshots (PEP-260). Shape: full copy of the previous `monthly_plan` doc plus `{ archivedAt: string (ISO), archivedReason: string }`. History key includes both the plan month and a timestamp to avoid collisions on same-month regeneration.
 - `ai_summaries/signals` – **DEPRECATED (PEP-229)**: merged into `weekly_snapshot`. Docs may still exist in Firestore until cleanup script runs.
 - `ai_summaries/soul` – AI-generated student soul narrative (PEP-149). A free-form markdown document representing the AI's understanding of who this child is. Regenerated weekly from ALL observations and interviews. Shape: `{ content: string (markdown narrative with ## section headers), programId: ProgramId, hasEmergentObservations: boolean, guidelinesSuggestions: Array<{ area: string, discipline: string, rationale: string }> | null, sourceStats: { observationCount: number, interviewCount: number, lastGeneratedAt: Timestamp, lastObservationAt: Timestamp | null, lastInterviewAt: Timestamp | null }, createdAt: Timestamp, updatedAt: Timestamp, updatedBy: string }`. The `guidelinesSuggestions` array contains AI-proposed new skill areas extracted from the soul generation response — consumed by the guideline approval flow (PEP-151). Section headers are informed by the student's guidelines doc, not hardcoded. The `hasEmergentObservations` flag is true when the soul contains non-empty content under `## Emergent Observations` — signals that don't fit existing guidelines categories. Note: the `hasInformationGaps` field was removed in PEP-207 — exploration gaps are now tracked via the `open_questions` doc's `areas` keys.
 - `ai_summaries/soul/history/{timestamp}` – Weekly soul snapshots. Shape: `{ content: string, updatedAt: Timestamp, updatedBy: string, reason: string }`. Created automatically before each weekly regeneration — the previous soul is snapshotted before overwrite.
 - `ai_summaries/guidelines` – Per-student evaluation guide (PEP-149). Seeded from `config/soul_guidelines_{program}` on first soul generation, then evolves independently per student. The AI agent reads this to know what developmental areas to explore and what benchmarks to look for. Shape: `{ content: string (markdown with ## Discipline, ### Skill Area, - Benchmark structure), programId: ProgramId, seededFrom: string (e.g., "config/soul_guidelines_adolescent"), createdAt: Timestamp, updatedAt: Timestamp, updatedBy: string }`.
 - `ai_summaries/guidelines/history/{timestamp}` – Guideline evolution audit trail. Shape: `{ content: string, updatedAt: Timestamp, updatedBy: string, reason: string }`. Tracks agent-proposed or admin edits to the per-student guidelines.
-- `ai_summaries/open_questions` – AI-generated bank of open questions for teacher interviews, organized by exploration area (PEP-173, restructured PEP-207, multi-POV #216). Generated alongside the soul during monthly regeneration - old doc archived to `history/` subcollection before overwrite (#215). `updatedAt` millis serves as the version token for stale-write detection. Shape: `{ areas: Record<string, Array<{ question: string, answers: Array<{ answeredAt: Timestamp, method: "voice" | "text" | "manual", observationId: string | null, answeredBy: { uid: string, name: string } }> }>>, programId: ProgramId, classroomId: string, updatedBy: string, updatedAt: Timestamp }`. Each question has an `answers` array supporting multiple teacher perspectives (#216). The CF writes all questions with `answers: []`; teachers append answers via the Question Deck or AddNoteModal (Firestore rules allow classroom-scoped teacher updates to `areas`). Answered status derived from `answers.length > 0`. Legacy docs from #144 may still have flat fields (`status`, `answeredAt`, `method`, `observationId`, `answeredBy`) - the frontend normalizes these to the `answers` array shape at read time. Area names are LLM-generated and unique per student (6-11 areas, 8-10 questions each). Monthly regeneration replaces the entire doc - no cross-version answer carry-forward. Consumed by the Question Deck UI and the AI interview agent (PEP-172/PEP-176/PEP-208).
+- `ai_summaries/open_questions` – AI-generated bank of open questions for teacher interviews, organized by exploration area (PEP-173, restructured PEP-207, multi-POV #216). Generated alongside the soul during monthly regeneration - old doc archived to `history/` subcollection before overwrite (#215). `updatedAt` millis serves as the version token for stale-write detection. Shape: `{ areas: Record<string, Array<{ question: string, answers: Array<{ answeredAt: Timestamp, method: "voice" | "text" | "manual", observationId: string | null, answeredBy: { uid: string, name: string } }> }>>, programId: ProgramId, classroomId: string, updatedBy: string, updatedAt: Timestamp }`. Each question has an `answers` array supporting multiple teacher perspectives (#216). The CF writes all questions with `answers: []`; teachers append answers via the Question Deck or AddNoteModal. Answered status derived from `answers.length > 0`. Legacy docs from #144 may still have flat fields (`status`, `answeredAt`, `method`, `observationId`, `answeredBy`) - the frontend normalizes these to the `answers` array shape at read time. Area names are LLM-generated and unique per student (6-11 areas, 8-10 questions each). Monthly regeneration replaces the entire doc - no cross-version answer carry-forward. Consumed by the Question Deck UI and the AI interview agent (PEP-172/PEP-176/PEP-208).
 - `ai_summaries/open_questions/history/{updatedAt_millis}` – archived open questions snapshots (#215). Shape: full copy of the previous `open_questions` doc plus `{ archivedAt: Timestamp, archivedBy: "cloud-function:soul-generate" }`. Created automatically before each monthly regeneration overwrites the primary doc. History doc ID is the `updatedAt` millis of the archived doc. Observation docs reference this version via `openQuestion.version` (string of millis).
 - `interviews/{interviewId}` – Immutable interview transcripts (see below).
 - `chats/{chatId}` – AI chat conversations per student (see below).
@@ -315,8 +309,6 @@ ID uniqueness note
 - If the same classroom slug exists in multiple branches, the `XXX` code may collide across branches. To avoid global ID conflicts in the top-level `students` collection, either:
   - Include a branch code in the ID (e.g., `YYYY-BBB-XXX-NNN` where `BBB` is the branch slug), or
   - Ensure classroom IDs are globally unique across branches and keep the current `YYYY-XXX-NNN` format.
-- Access: classroom admins can only create/update/delete students whose `classroomId` is contained in their `manageableClassrooms`. Super admins bypass this check.
-
 ---
 
 ## 📦 Placements (history) (`/students/{studentId}/placements/{placementId}`)
@@ -335,7 +327,7 @@ interface PlacementDoc {
   endDate: string | null;     // 'YYYY-MM-DD' (IST), inclusive; null = ongoing
   note?: string;              // optional free-text reason/comment
 
-  // Optional convenience (not required by rules; keep if helpful)
+  // Optional convenience fields
   status?: 'active' | 'ended';
   createdAt?: Timestamp;      // server time (if set by scripts)
   createdByUid?: string;      // uid who created the doc
@@ -368,8 +360,6 @@ Invariants (client-enforced)
 Query notes
 - Current classroom: read from `students/{id}.classroomId`.
 - History UI: list `/students/{id}/placements` ordered by `startDate` descending.
-- Access: classroom admins may edit placements only when the underlying student’s classroom belongs to one of their `manageableClassrooms`. Super admins can edit any placement.
-
 Indexes (optional, future)
 - Collection group `placements`: composite on `classroomId ASC, startDate DESC` for classroom history.
 - If needed: `classroomId ASC, endDate ASC` to find students active on a given day.
@@ -450,8 +440,7 @@ interface InterviewExchange {
 - **Latency targets:** Q1 cold-start ~3-5s (behind "Preparing..." screen), Q2+ <3.5s with streaming
 
 ### Guidance
-- **Append-only:** Firestore rules deny all client-side create/update/delete. Only Cloud Functions (admin SDK) can write.
-- **Read access:** `isPrivilegedAdmin() || isTeacher()` — same pattern as `ai_summaries`.
+- **Append-only:** Interview transcripts are not changed after creation.
 - **Time-window queries:** Use `conductedAt` with a range filter. Composite index defined in `firestore.indexes.json`.
 - **Soul rebuild integration:** `generateStudentProfile` fetches completed interviews within the observation window and includes them as a separate context block in the soul LLM prompt.
 - **Cross-interview dedup:** The interview agent reads recent transcripts (this week, all teachers) at cold start and avoids re-asking already-covered areas. No pre-generated question lists needed.
@@ -460,13 +449,21 @@ interface InterviewExchange {
 ---
 
 ## 💬 Chats (`/students/{studentId}/chats/{chatId}`)
-AI-powered chat conversations between teachers and a student's context. Each chat is a thread; messages are stored in a subcollection. Soft-deleted chats are cleaned up by a scheduled Cloud Function after 31 days.
+AI-powered chat conversations between teachers and a student's context. Each chat is a thread. The browser may optimistically render new chats/messages, but `childChatStream` is the source of truth for creating transcript messages and turn lifecycle docs. Soft-deleted chats are cleaned up by a scheduled Cloud Function after 31 days.
 
 ```typescript
 interface ChatDoc {
-  name: string;                     // auto-generated from first message, default "New Chat"
+  studentId: string;                 // equals parent {studentId}
+  classroomId: string | null;        // denorm for trace/debug context
+  createdBy: string;                 // uid that created the chat
+  visibility: 'classroom';           // shared by authorized teachers in the student's classroom
+  name: string;                     // sanitized first user message, truncated to 60 characters
   messageCount: number;             // count of messages in the chat
   lastMessagePreview: string;       // first 100 chars of the latest assistant response
+  activeTurnId?: string | null;      // running turn marker, cleared on terminal states
+  lastTurnStatus?: 'persisting' | 'running' | 'completed' | 'interrupted' | 'failed';
+  lastErrorCode?: string;             // latest failed turn's stable server error code
+  langfuseTraceId?: string;          // latest trace id; each turn uses runId as trace id
 
   // Soft delete
   deleted: boolean;                 // false by default; set true on user delete
@@ -479,33 +476,88 @@ interface ChatDoc {
 ```
 
 Notes
-- Chat name is AI-generated from the first user message via `generateChatName()`.
+- Chat creation and transcript writes happen in `childChatStream` via Admin SDK after auth and student access checks. Clients do not create chat, message, or turn docs directly.
+- Chat rename and soft delete are the only client-side chat doc mutations. They are allowed only for the chat creator or a privileged admin.
 - Soft delete: frontend sets `deleted: true` + `deletedAt`; `cleanupDeletedChats` (monthly scheduled function) hard-deletes chats where `deletedAt` > 31 days ago.
 - Listing: queries filter `deleted == false`, ordered by `createdAt` desc.
 
 ### Messages (`/students/{studentId}/chats/{chatId}/messages/{messageId}`)
-Individual messages within a chat thread.
+Individual transcript messages within a chat thread. Message docs are append-only and written by `childChatStream`.
 
 ```typescript
 interface MessageDoc {
   role: 'user' | 'assistant';
   content: string;                  // message text (trimmed)
-  timestamp: Timestamp;             // when message was created
+  createdAt: Timestamp;             // when message was created
+  timestamp?: Timestamp;            // legacy creation field; readers support either timestamp field
+  turnId: string;                   // associated turn lifecycle doc
+  status: 'complete' | 'interrupted' | 'failed';
 
   // Assistant messages only
+  runId?: string;                   // Langfuse trace id for this assistant run
   model?: string;                   // LLM model used (e.g., "gpt-4o-mini")
+  finishReason?: 'stop' | 'client_disconnect' | 'error' | string;
+  retry?: {                         // failed/interrupted response retry identity
+    chatId: string;
+    turnId: string;
+    userMessageId: string;
+  };
 
   // User messages only
   authorId?: string;                // uid of the teacher
   authorName?: string;              // display name of the teacher
-  cancelledResponseAt?: Timestamp;  // set when user presses Stop — CF skips assistant write
 }
 ```
 
 Notes
-- Messages are append-only except for `cancelledResponseAt`, which may be set on a user message after creation (stop button). No other updates or deletes allowed.
-- `messageCount` on the parent chat doc is incremented by 2 per exchange (user + assistant).
+- Server atomically writes the chat, user message, and `persisting` turn before resolving model config, provider credentials, or Langfuse. Provider/config failures therefore remain durable terminal turn records.
+- Legacy messages containing only `timestamp` remain readable; no destructive timestamp migration is required.
+- Individual model tokens are not written to Firestore.
+- If a user stops streaming or navigates away, the assistant message is saved with `status: 'interrupted'` and `finishReason: 'client_disconnect'`.
+- A `failed` attempt that produced no model content, or an `interrupted` attempt with no prefix, is recorded only in its turn doc; no empty assistant message is created. Readers listen to turns and attach the durable retry action to the matching user message. Completed responses and non-empty interrupted prefixes remain assistant message docs.
+- `messageCount` on the parent chat doc is incremented by completed server writes.
 - When the parent chat is hard-deleted by `cleanupDeletedChats`, all messages are recursively deleted.
+
+### Turns (`/students/{studentId}/chats/{chatId}/turns/{turnId}`)
+Execution state for one user-message-to-assistant-response run. These docs are written only by `childChatStream`; clients may read them for status/debug UI.
+
+```typescript
+interface TurnDoc {
+  runId: string;                    // Langfuse trace id
+  userMessageId: string;
+  assistantMessageId?: string;
+  idempotencyKey: string;           // `${chatId}:${userMessageId}` logical user-message identity
+  status: 'persisting' | 'running' | 'completed' | 'interrupted' | 'failed';
+  createdAt: Timestamp;
+  updatedAt: Timestamp;
+  startedAt?: Timestamp;
+  completedAt?: Timestamp;
+  finishReason?: string;
+  errorCode?: string;
+  model?: string;                   // latest attempt's model (compatibility projection)
+  langfuseTraceId?: string;         // latest attempt's trace (compatibility projection)
+  attempts: Array<{
+    runId: string;
+    assistantMessageId: string;
+    status: 'persisting' | 'running' | 'completed' | 'interrupted' | 'failed';
+    createdAt: Timestamp;
+    updatedAt: Timestamp;
+    startedAt?: Timestamp | null;
+    completedAt?: Timestamp | null;
+    finishReason?: string | null;
+    errorCode?: string | null;
+    model?: string | null;
+    langfuseTraceId?: string | null;
+  }>;                               // append-only execution history across retries
+}
+```
+
+Tool and trace notes
+- Chat tools are read-only and student-scoped. The model does not receive `studentId` or `chatId` in tool schemas; the backend injects those values after generation so hallucinated IDs cannot redirect tool reads.
+- Reusing a turn ID with different logical message identity is rejected. An exact active or terminal replay reads existing state without rewriting it; a retry reuses `chatId`, `turnId`, and `userMessageId`, creates only a new `runId`, and appends an attempt without duplicating the user message or overwriting prior execution/trace history.
+- Every OpenRouter model execution requires a Langfuse trace. Trace close/flush failures are isolated from Firestore terminalization.
+- If the model emits multiple tool calls in the same assistant turn, the Cloud Function executes them concurrently and appends results back to the model in original tool-call order.
+- Detailed tool-call observability belongs in Langfuse. Firestore keeps only transcript, turn state, and a trace id link.
 
 ---
 
@@ -570,8 +622,8 @@ Collection group name: `observations`
 interface Observation {
   // Identity
   studentId: string;             // must equal parent {studentId}
-  classroomId: string;           // denorm for queries/rules; must equal student's classroomId
-  branchId: BranchId;            // denorm for rules and analytics; equals the student's branch at time of creation
+  classroomId: string;           // denorm for queries; equals student's classroomId at creation
+  branchId: BranchId;            // denorm for analytics; equals student's branch at creation
   groupId?: string;              // shared id across fan-out docs for a multi-student note
                                    // Format: `group_${Date.now().toString(36)}_${Math.random().toString(36).slice(2, 6)}`
                                    // Set when creating notes for multiple students (text/voice/lesson notes)
@@ -642,7 +694,7 @@ interface Observation {
 Why fan-out per student?
 - Student timeline = 1 query
 - Classroom, teacher, and admin analytics = collection group queries
-- No need for `array-contains` tricks or cross-doc joins in rules
+- No need for `array-contains` workarounds or cross-document joins
 
 Group notes (groupId)
 - When creating a note for multiple students, generate a single `groupId` and include it in all observation documents created for that note
@@ -654,7 +706,8 @@ Group notes (groupId)
 
 Branch transfer behavior
 - Existing observations retain their original `branchId` when a student transfers to another branch. New observations pick up the student's current branch.
-- Access: classroom admins can create/update/delete observations for students when `classroomId ∈ manageableClassrooms`. Teachers retain current create/read rights scoped by classroom membership; super admins remain unrestricted.
+
+Access policy: See [Pep OS Access-Control Policy](docs/security/access-control-policy.md).
 
 ---
 
@@ -666,7 +719,7 @@ interface Feedback {
   userEmail: string;             // cached for admin review
   userRole: 'superadmin' | 'admin' | 'teacher';
   userDisplayName: string;       // cached for admin review
-  userClassrooms: string[];      // classroom IDs user has access to
+  userClassrooms: string[];      // classroom IDs captured when feedback was submitted
   
   // Content
   message: string;               // required feedback text
@@ -686,11 +739,10 @@ interface Feedback {
 }
 ```
 Guidance
-- All users can create feedback; super admins manage status + notes, while classroom admins have read-only access to all feedback.
-- `userId` must match `request.auth.uid` for security
 - Status workflow: new → reviewed → implemented/declined
-- Admin notes are private and only visible to admins (read) and super admins (write)
 - Keep feedback global (not branch-scoped) per product decision.
+
+Access policy: See [Pep OS Access-Control Policy](docs/security/access-control-policy.md).
 
 ---
 
@@ -716,14 +768,14 @@ Notes
 ---
 
 ## ⚙️ Config (`/config/{docId}`)
-Central config documents for app-wide settings and AI feature configuration edited by super admins. Since PEP-139, all AI prompts, model settings, and operational params live here — one doc per feature with a 5-minute TTL cache on the client.
+Central config documents for app-wide settings and AI feature configuration. Since PEP-139, all AI prompts, model settings, and operational params live here — one doc per feature with a 5-minute TTL cache on the client.
 
 Current documents
 - `lessonNote` — config for lesson notes UI
 - `text_summarizer` — prompts + model config for the Text Cleanup feature
 - `voice_transcriber` — context string for Whisper speech-to-text
 - `coach_{program}` — per-program Coach nudge configuration (program ∈ toddler | primary | elementary | adolescent)
-- `chat_{program}` — per-program AI chat configuration
+- `chat_{program}` — per-program AI chat configuration. Shape: `{ systemPrompt: string, model: string, temperature: number, max_tokens: number, chatMessageLimit: number, observationLimit: number | 'all', allowedTools?: string[] }`. `observationLimit` controls how many recent observations are included in server-built chat context.
 - `report_{program}` — per-program parent progress report prompts + model config
 - `soul_guidelines_{program}` — per-program developmental guidelines markdown (areas, skill areas, benchmarks from report cards). Shape: `{ markdown: string, programId: ProgramId, benchmarkCount: number, updatedBy: string, updatedAt: Timestamp }`.
 - `soul_generation` — soul generation instruction prompt + model config (PEP-163). Shape: `{ systemPrompt: string, model: string, temperature: number, max_tokens: number }`. Fallback defaults in `functions/utils/soulHelpers.js:SOUL_DEFAULTS`. Note: this doc may not exist in Firestore — CFs fall back to hardcoded defaults when missing.
@@ -759,9 +811,7 @@ Notes
 - Titles: used as suggestion lists for new lesson notes. Currently only `toddler` and `primary` use suggestions; elementary/adolescent titles are reserved for future use.
 - Dimensions: define the rating rows shown when creating new lesson notes; existing observations keep their original `dimensionOrder` and `ratings`.
 
-Security
-- Reads: any authenticated user (`isSignedIn()`).
-- Writes: super admins only (`isSuperAdmin()`), with rules enforcing non-empty dimension arrays when present on `config/lessonNote`.
+Access policy: See [Pep OS Access-Control Policy](docs/security/access-control-policy.md).
 
 `config/report_{program}`
 ```typescript
@@ -857,7 +907,7 @@ Routing and gating (Coach)
   - Only calls the model when enabled and properly configured.
 
 Admin UI
-- `AICoachEditor` lets super admins pick a program, toggle enable, edit per-program config, and select model/temperature.
+- `AICoachEditor` provides the UI for selecting a program, toggling enablement, editing per-program config, and selecting model/temperature.
 
 ---
 
@@ -897,24 +947,9 @@ interface BrainFileDoc {
 Read pattern (four layers, assembled in memory from ONE subcollection fetch per program):
 1. school-wide knowledge → 2. program knowledge (`pipeline == null, audience == null`) → 3. audience knowledge (`pipeline == null, audience == X`) → 4. pipeline content (`pipeline == X`: config + prompt + knowledge). Exceptions: `text-summarizer` and `voice-transcriber` read school-wide only.
 
-Security
-- Reads: privileged admins only (`isPrivilegedAdmin()` — superadmin or classroomadmin).
-- Writes: blocked for all clients (`allow write: if false`) — only the `push-brain` admin script writes (Admin SDK bypasses rules).
+Access policy: See [Pep OS Access-Control Policy](docs/security/access-control-policy.md).
 
 MCP tools: `list_brain`, `get_brain_file`.
-
----
-
-## 🔎 Core Query Patterns
-- Branch listing (for UI): list `branches` (all docs)
-- Teacher’s classrooms (by branch): `classrooms` where `branchId == B` AND `teacherIds` array-contains `uid`
-- Students in a classroom: `students` where `branchId == B` AND `classroomId == X` AND `status == 'active'`
-- Student timeline: `students/{studentId}/observations` order by `observedAt` desc
-- Classroom timeline: collection group `observations` where `branchId == B` AND `classroomId == X` order by `observedAt` desc
-- Teacher’s notes: collection group `observations` where `branchId == B` AND `createdBy == uid` order by `observedAt` desc
-- Admin analytics: collection group `observations` filter by `branchId`, `classroomId`, `createdBy`, and `observedAt` range
-- User feedback: `feedback` where `userId == uid` order by `timestamp` desc
-- Admin feedback management: `feedback` order by `timestamp` desc (all feedback)
 
 ---
 
@@ -935,78 +970,9 @@ MCP tools: `list_brain`, `get_brain_file`.
 
 ---
 
-## 🔒 Security Rules – Hooks
-Helper checks (pseudocode names):
-- `isSuperAdmin(uid)`: `get(/users/uid).role == 'superadmin'`
-- `isClassroomAdmin(uid)`: `get(/users/uid).role == 'classroomadmin'`
-- `isPrivilegedAdmin(uid)`: `isSuperAdmin(uid) || isClassroomAdmin(uid)`
-- `isTeacher(uid)`: `get(/users/uid).role == 'teacher'`
-- `managesClassroom(uid, classroomId)`: `isSuperAdmin(uid)` OR (`isClassroomAdmin(uid)` AND `classroomId` in `get(/users/uid).manageableClassrooms`)
-- `classroomProgramId(classroomId)`: `get(/classrooms/classroomId).programId`
-- `studentClassroomId(studentId)`: `get(/students/studentId).classroomId`
-- `studentProgramId(studentId)`: `classroomProgramId(studentClassroomId(studentId))`
-- `classroomHasTeacher(classroomId, uid)`: `get(/classrooms/classroomId).teacherIds` contains `uid`
-// Branch helpers
-- `userBranches(uid)`: `get(/users/uid).branchIds` or `[get(/users/uid).homeBranchId]`
-- `userInBranch(uid, branchId)`: `branchId` in `userBranches(uid)` OR `isSuperAdmin(uid)` OR `isClassroomAdmin(uid)`
+## Access patterns and security policy
 
-Branch invariants
-- `students/{id}.branchId == classrooms/{classroomId}.branchId`
-- `observations/{id}.branchId == students/{studentId}.branchId` at creation time
-
-Reads
-- `users`: self-read always; privileged admins can read/query all user docs to manage staffing.
-- `classrooms`: super admins and classroom admins can read all classrooms; teachers can read classrooms where `classroomHasTeacher` + `userInBranch`.
-- `students`: super admins can read all; classroom admins can read when `managesProgram(classroomProgramId(student.classroomId))`; teachers may read active students when assigned to the classroom + branch.
-- `students/{studentId}/placements`: same gating as `students`.
-- `observations` (collection group): super admins can read all; classroom admins can read when `managesProgram(classroomProgramId(observation.classroomId))`; teachers follow existing classroom/branch scoping.
-- `config`: any authenticated user can read (client fetches AI config + lesson note config); writes restricted to super admins.
-- `branches`: any authenticated user can read (UI picker); writes restricted to super admins.
-- `programs`: signed-in read for grouping; super admins write.
-- `feedback`: user reads own; both admin tiers read all for triage.
-
-Writes – users
-- Super admins can create/update/delete any user and assign roles, including editing another admin’s `manageableClassrooms`.
-- Classroom admins can create/update `role: 'teacher'` docs (including setting branchIds) but cannot write `role: 'classroomadmin' | 'superadmin'`.
-
-Writes – classrooms/programs/branches/config
-- Only super admins (or maintenance scripts running as them) may create/update/delete `classrooms`, `programs`, `branches`, and `config` documents.
-
-Writes – students
-- Super admins can CRUD any student.
-- Classroom admins can CRUD students when `managesProgram(classroomProgramId(request.resource.data.classroomId))` (and matching existing docs on update/delete).
-- Teachers do not write students.
-
-Writes – placements
-- Same gating as students: super admins always; classroom admins when `managesProgram(studentProgramId(studentId))`.
-
-Creates – observations
-- Teachers: allowed when (existing constraints) `createdBy == request.auth.uid`, path `studentId` matches payload, `classroomId` equals the student’s classroom, `branchId` matches the student, and timestamps follow the contract.
-- Privileged admins: super admins bypass program checks; classroom admins must satisfy `managesProgram(studentProgramId(studentId))` for the student being written.
-
-Updates/Deletes – observations
-- Super admins: unrestricted.
-- Classroom admins: allowed when `managesProgram(studentProgramId(studentId))`.
-- Teachers: may update limited metadata (as in rules) or delete their own notes when `createdBy == request.auth.uid` (or legacy `teacherId`).
-
-Field immutability (on update)
-- `studentId`, `classroomId`, `branchId`, `createdBy`, `createdAt`, `observedAt` unchanged
-
----
-
-## 🔒 Security Rules – Feedback
-Reads
-- `feedback`: user reads own; program + super admins read all
-
-Creates
-- Allow if authenticated AND `userId == request.auth.uid`
-
-Updates/Deletes
-- Super admins only (status management and admin notes)
-
-Field immutability (on update)
-- `userId`, `userEmail`, `userRole`, `userDisplayName`, `userClassrooms`, `message`, `category`, `timestamp`, `appVersion`, `userAgent` unchanged
-- Only `status`, `adminNotes`, `updatedAt`, `lastReviewedBy`, `lastReviewedAt` can be modified
+See [Pep OS Access-Control Policy](docs/security/access-control-policy.md).
 
 ---
 
@@ -1022,13 +988,13 @@ Field immutability (on update)
 
 Migration/backfill (branches)
 - Add `branchId: 'hsr'` to all existing `classrooms`, `students`, and `observations`.
-- For `users` with role `teacher`, set `branchIds` based on assigned classrooms; for admins (super + program), optionally set `homeBranchId`.
-- Validate invariants and fix mismatches before enabling rules.
+- For `users` with role `teacher`, set `branchIds` based on assigned classrooms; optionally set `homeBranchId` for other roles.
+- Validate schema invariants and fix mismatches after backfill.
 
 ---
 
 ## 🔔 Alerts (`/alerts/{alertId}`)
-Purpose: Universal alert bus for the Dynamic Island Pill (DIP) and Alerts page (PEP-296). Any system — Cloud Functions, frontend (superadmin broadcasts), or future agents — can create alert docs. The DIP subscribes in realtime to docs with `dip: true`; the Alerts page reads the full collection.
+Purpose: Universal alert bus for the Dynamic Island Pill (DIP) and Alerts page (PEP-296). Alert docs may originate from Cloud Functions, the frontend, or future agents. The DIP subscribes in realtime to docs with `dip: true`; the Alerts page reads the full collection.
 
 Doc IDs: Deterministic for CF-produced alerts to prevent duplicates on retries (e.g., `cf:interviewCap:teacherUid:2026-W23`). Auto-generated for frontend-created alerts (broadcasts).
 
@@ -1078,17 +1044,14 @@ Type-specific payloads:
 
 Display contract: NOT stored in Firestore. The DIP component transforms `type` + `payload` into display fields (`label`, `title`, `subtitle`, `ctaLabel`, etc.) at read time via `transformForDisplay()`. This allows display changes via frontend deploy without data migration.
 
-Security rules:
-- **Read**: any authenticated user (`isSignedIn()`)
-- **Create**: superadmins only (`isSuperAdmin()`); CFs use admin SDK (bypasses rules)
-- **Update**: superadmins can update broadcast-type alerts (`isSuperAdmin() && type == 'broadcast'`); any authenticated user can update `dismissedBy` only (ack) or `dismissedBy` + `responses` atomically (poll vote, one-shot — rejects if `responses.{uid}` already exists)
-- **Delete**: superadmins only (`isSuperAdmin()`)
-- **Auto-expiry**: `autoExpireBroadcast` Firestore onUpdate trigger sets `expiresAt: now()` when `dismissedBy` count reaches `reach`, and creates a `broadcast-complete:` system alert for superadmins (30-day TTL)
+Access policy: See [Pep OS Access-Control Policy](docs/security/access-control-policy.md).
+
+Lifecycle: `autoExpireBroadcast` sets `expiresAt: now()` when `dismissedBy` count reaches `reach`, then creates a `broadcast-complete:` system alert with a 30-day TTL.
 
 ---
 
 ## 📊 Stats Cache (`/statsCache/{docId}`)
-Purpose: Pre-computed per-classroom stats and heatmap cache written by Cloud Functions (`recomputeStats` PEP-285, `writeHeatmapCache` PEP-303). The client reads these docs directly — Firestore rules enforce role-scoped access via `classroomId` field. Doc ID conventions: `classroom_{id}` for stats, `heatmap_{id}` for heatmap cache, `_meta` / `heatmap_meta` for freshness sentinels.
+Purpose: Pre-computed per-classroom stats and heatmap cache written by Cloud Functions (`recomputeStats` PEP-285, `writeHeatmapCache` PEP-303). Doc ID conventions: `classroom_{id}` for stats, `heatmap_{id}` for heatmap cache, `_meta` / `heatmap_meta` for freshness sentinels.
 
 ### Meta doc (`/statsCache/_meta`)
 ```typescript
@@ -1203,20 +1166,17 @@ interface HeatmapMetaDoc {
   weekKey: string;
 }
 ```
-Note: `heatmap_meta` is only readable by superadmins (no `classroomId` field). Not read by any client code — exists for operational diagnostics.
+Note: `heatmap_meta` is not read by client code and exists for operational diagnostics.
 
-### Security rules
-- **Read**: superadmin reads all; classroomadmin reads docs where `classroomId` is in `manageableClassrooms`; teacher reads docs where they are in `classroom.teacherIds`; `_meta` readable by all signed-in users. `heatmap_meta` has no explicit rule arm — readable only by superadmins via the `isSuperAdmin()` catch-all.
-- **Write**: `false` — only Cloud Functions write via admin SDK
+Access policy: See [Pep OS Access-Control Policy](docs/security/access-control-policy.md).
 
 ---
 
 ## ✅ Rationale
 - Fan-out per student + collection group queries balances write cost (bounded by class size) with extremely fast reads
-- Single source of truth for access (`classrooms.teacherIds`) keeps rules simple and auditable
-- Denormalized `classroomId` and `branchId` on observations avoids extra reads in queries and security rules
+- Denormalized `classroomId` and `branchId` on observations support efficient queries
 - Cached creator name/email prevents n+1 user lookups in UI and reports
-- Feedback system provides user input channel while maintaining security through user ownership and super-admin-only moderation
+- Feedback is stored as a global user-input channel
 
 ---
 
@@ -1237,13 +1197,12 @@ interface TestBenchSettings {
 }
 ```
 
-Security
-- Read/Write: superadmins only (`isSuperAdmin()`)
+Access policy: See [Pep OS Access-Control Policy](docs/security/access-control-policy.md).
 
 ---
 
 ### 🔑 Test Bench Access (`/testbench/settings/access/{uid}`)
-Purpose: Per-teacher feature grants for the test bench — superadmins grant specific teachers access to specific test bench features (PEP-224).
+Purpose: Per-user feature grants for specific test bench features (PEP-224).
 
 ```typescript
 interface TestBenchAccess {
@@ -1255,10 +1214,7 @@ interface TestBenchAccess {
 }
 ```
 
-Security
-- Read: superadmins (full) + teachers can read their own doc (`request.auth.uid == uid`)
-- Create/Update: superadmins only (`isSuperAdmin()`)
-- Delete: superadmins only (revoking access deletes the doc)
+Access policy: See [Pep OS Access-Control Policy](docs/security/access-control-policy.md).
 
 ---
 
@@ -1302,7 +1258,4 @@ interface TestBenchRun {
 }
 ```
 
-Security
-- Read + Create: superadmins (full) + teachers/classroomadmins with matching feature in `testbench/settings/access/{uid}.allowedFeatures` (PEP-224)
-- Update: superadmins + granted teachers/classroomadmins, restricted to `sessionName` field (PEP-211, PEP-224)
-- Delete: denied
+Access policy: See [Pep OS Access-Control Policy](docs/security/access-control-policy.md).

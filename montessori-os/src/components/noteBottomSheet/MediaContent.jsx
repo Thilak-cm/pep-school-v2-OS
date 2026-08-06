@@ -1,4 +1,4 @@
-import { Box, Typography, Chip, Skeleton, IconButton, TextField, Button, CircularProgress } from '@mui/material';
+import { Box, Typography, Chip, Skeleton, IconButton, TextField } from '@mui/material';
 import { ChevronLeft, ChevronRight, Sparkles as AutoAwesome, MessageCircle } from '../../icons';
 
 export default function MediaContent({
@@ -15,9 +15,6 @@ export default function MediaContent({
   mediaEditComment,
   onEditCommentChange,
   mediaEditSaving,
-  onCancelEdit,
-  onSaveComment,
-  canEdit,
 }) {
   if (!observation) return null;
 
@@ -26,10 +23,9 @@ export default function MediaContent({
   const isVideo = mediaKind === 'video';
   const hasCarousel = Array.isArray(carouselList) && carouselList.length > 1;
 
-  // Extract filename + resolution from media metadata
+  // Extract filename from media metadata
   const media0 = observation.media?.[0] || {};
   const fileName = media0.originalName || media0.fileName || '';
-  const resolution = media0.width && media0.height ? `${media0.width}×${media0.height}` : '';
 
   return (
     <Box sx={{ display: 'flex', flexDirection: 'column', gap: 1.5 }}>
@@ -109,10 +105,10 @@ export default function MediaContent({
         )}
       </Box>
 
-      {/* Filename + resolution metadata */}
-      {(fileName || resolution) && (
+      {/* Filename metadata */}
+      {fileName && (
         <Typography variant="caption" sx={{ color: 'var(--color-text-faint)', fontSize: '0.72rem', textAlign: 'right' }}>
-          {[fileName, resolution].filter(Boolean).join('  ·  ')}
+          {fileName}
         </Typography>
       )}
 
@@ -201,20 +197,6 @@ export default function MediaContent({
             fullWidth
             disabled={mediaEditSaving}
           />
-          <Box sx={{ display: 'flex', gap: 1 }}>
-            <Button
-              variant="contained"
-              size="small"
-              onClick={onSaveComment}
-              disabled={mediaEditSaving || !canEdit}
-              startIcon={mediaEditSaving ? <CircularProgress size={14} /> : null}
-            >
-              {mediaEditSaving ? 'Saving...' : 'Save'}
-            </Button>
-            <Button variant="outlined" size="small" onClick={onCancelEdit} disabled={mediaEditSaving}>
-              Cancel
-            </Button>
-          </Box>
         </Box>
       ) : (
         observation.teacherComment && (

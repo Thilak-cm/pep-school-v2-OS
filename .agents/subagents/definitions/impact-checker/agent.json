@@ -1,0 +1,15 @@
+{
+  "name": "impact-checker",
+  "description": "Read-only blast-radius analysis covering transitive consumers, cross-boundary contracts, security-rule cascades, navigation, configuration, and data-shape propagation.",
+  "claude": {
+    "model": "sonnet",
+    "tools": "Bash, Glob, Grep, Read",
+    "color": "orange",
+    "memory": "project"
+  },
+  "codex": {
+    "model": "gpt-5.6-sol",
+    "modelReasoningEffort": "high",
+    "sandboxMode": "read-only"
+  }
+}

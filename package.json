@@ -12,6 +12,8 @@
     "test:security": "node --test tests/security/*.test.js",
     "test:security:firestore": "node --test tests/security/firestore.rules.test.js",
     "test:security:storage": "node --test tests/security/storage.rules.test.js",
+    "agents:generate": "node .agents/subagents/generate-adapters.mjs",
+    "agents:check": "node .agents/subagents/generate-adapters.mjs --check",
     "push-brain": "node scripts/ops/push-brain.mjs"
   },
   "dependencies": {

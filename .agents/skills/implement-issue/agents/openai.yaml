@@ -1,0 +1,4 @@
+interface:
+  display_name: "Implement Issue"
+  short_description: "Execute an approved issue plan through TDD and CI"
+  default_prompt: "Execute the approved plan from plan-issue using TDD, push the feature branch, verify CI, sync the GitHub issue, and guide manual verification."

@@ -1,0 +1,14 @@
+{
+  "name": "code-auditor",
+  "description": "Independent, read-only review of a code diff against a GitHub issue. Audits correctness, security, scope alignment, error handling, dead code, pattern consistency, and test coverage, then returns a structured report.",
+  "claude": {
+    "model": "sonnet",
+    "tools": "Bash, Glob, Grep, Read, WebFetch, WebSearch",
+    "color": "pink"
+  },
+  "codex": {
+    "model": "gpt-5.6-sol",
+    "modelReasoningEffort": "high",
+    "sandboxMode": "read-only"
+  }
+}

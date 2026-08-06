@@ -15,6 +15,31 @@
 
 import { db } from "./firebase.js";
 
+function messageTimeValue(message) {
+  const value = message.createdAt || message.timestamp || 0;
+  if (typeof value?.toMillis === "function") return value.toMillis();
+  if (value instanceof Date) return value.getTime();
+  if (typeof value === "number") return value;
+  return String(value);
+}
+
+async function queryChatMessages(ref, field, limit) {
+  const snap = await ref.orderBy(field, "desc").limit(limit).get();
+  return snap.docs.map((doc) => ({ id: doc.id, ...doc.data() }));
+}
+
+export function mergeChronologicalChatMessages(messageGroups, limit) {
+  const byId = new Map();
+  for (const message of messageGroups.flat()) byId.set(message.id, message);
+  return [...byId.values()]
+    .sort((a, b) => {
+      const left = messageTimeValue(a);
+      const right = messageTimeValue(b);
+      return left < right ? -1 : left > right ? 1 : 0;
+    })
+    .slice(-limit);
+}
+
 // ── Tool Catalog ──────────────────────────────────────────────────────
 
 const TOOL_CATALOG = [
@@ -247,6 +272,169 @@ const TOOL_CATALOG = [
       });
     },
   },
+  {
+    id: "fetch_term_reports",
+    scope: "student",
+    label: "Term Reports",
+    description: "Generated parent-facing term progress reports",
+    prerequisites: [],
+    definition: {
+      type: "function",
+      function: {
+        name: "fetch_term_reports",
+        description: "Fetch generated parent-facing term progress reports for the student. Use when the teacher asks about report language, older formal progress summaries, or how the child's progress has been communicated to parents.",
+        parameters: {
+          type: "object",
+          properties: {
+            studentId: { type: "string", description: "The student document ID" },
+            limit: { type: "number", description: "Number of reports to fetch (default 3, max 10)" },
+          },
+          required: ["studentId"],
+        },
+      },
+    },
+    execute: async (args) => {
+      const limit = Math.min(args.limit || 3, 10);
+      const snap = await db.collection(`students/${args.studentId}/ai_summaries`).get();
+      const reports = [];
+      snap.forEach((doc) => {
+        const id = doc.id;
+        if (!id.startsWith("report_") || id.endsWith("_readiness")) return;
+        const data = doc.data() || {};
+        const reportType = data.reportType === "monthly" ? "baseline" : (data.reportType || "term");
+        if (reportType !== "term") return;
+        reports.push({
+          id,
+          reportType,
+          generatedAt: data.generatedAt,
+          dateRangeStart: data.dateRangeStart,
+          dateRangeEnd: data.dateRangeEnd,
+          noteCount: data.noteCount ?? null,
+          status: data.status || null,
+          reportText: (data.reportText || "").slice(0, 4000),
+        });
+      });
+      reports.sort((a, b) => String(b.generatedAt || "").localeCompare(String(a.generatedAt || "")));
+      return reports.slice(0, limit);
+    },
+  },
+  {
+    id: "fetch_baseline_reports",
+    scope: "student",
+    label: "Baseline Reports",
+    description: "Generated parent-facing baseline reports",
+    prerequisites: [],
+    definition: {
+      type: "function",
+      function: {
+        name: "fetch_baseline_reports",
+        description: "Fetch generated parent-facing baseline reports for the student. Use when the teacher asks about baseline assessment, starting-point narratives, or initial development summaries.",
+        parameters: {
+          type: "object",
+          properties: {
+            studentId: { type: "string", description: "The student document ID" },
+            limit: { type: "number", description: "Number of reports to fetch (default 3, max 10)" },
+          },
+          required: ["studentId"],
+        },
+      },
+    },
+    execute: async (args) => {
+      const limit = Math.min(args.limit || 3, 10);
+      const snap = await db.collection(`students/${args.studentId}/ai_summaries`).get();
+      const reports = [];
+      snap.forEach((doc) => {
+        const id = doc.id;
+        if (!id.startsWith("baseline_report_") || id.endsWith("_readiness")) return;
+        const data = doc.data() || {};
+        reports.push({
+          id,
+          reportType: data.reportType === "monthly" ? "baseline" : (data.reportType || "baseline"),
+          generatedAt: data.generatedAt,
+          dateRangeStart: data.dateRangeStart,
+          dateRangeEnd: data.dateRangeEnd,
+          noteCount: data.noteCount ?? null,
+          status: data.status || null,
+          reportEval: data.reportEval || null,
+          reportText: (data.reportText || "").slice(0, 4000),
+        });
+      });
+      reports.sort((a, b) => String(b.generatedAt || "").localeCompare(String(a.generatedAt || "")));
+      return reports.slice(0, limit);
+    },
+  },
+  {
+    id: "fetch_placements",
+    scope: "student",
+    label: "Placement History",
+    description: "Classroom placement history for the student",
+    prerequisites: [],
+    definition: {
+      type: "function",
+      function: {
+        name: "fetch_placements",
+        description: "Fetch classroom placement history for the student. Use when classroom transitions, current classroom, or historical enrollment context matters.",
+        parameters: {
+          type: "object",
+          properties: {
+            studentId: { type: "string", description: "The student document ID" },
+            limit: { type: "number", description: "Number of placements to fetch (default 10, max 25)" },
+          },
+          required: ["studentId"],
+        },
+      },
+    },
+    execute: async (args) => {
+      const limit = Math.min(args.limit || 10, 25);
+      const snap = await db
+        .collection(`students/${args.studentId}/placements`)
+        .orderBy("startDate", "desc")
+        .limit(limit)
+        .get();
+      if (snap.empty) return { error: "No placement history found" };
+      return snap.docs.map((d) => ({ id: d.id, ...d.data() }));
+    },
+  },
+  {
+    id: "fetch_chat_history",
+    scope: "student",
+    label: "Chat History",
+    description: "Older messages from the current chat thread",
+    prerequisites: [],
+    definition: {
+      type: "function",
+      function: {
+        name: "fetch_chat_history",
+        description: "Fetch older messages from this same chat thread. Use when the teacher refers to earlier parts of the conversation that are not visible in your immediate context.",
+        parameters: {
+          type: "object",
+          properties: {
+            studentId: { type: "string", description: "The student document ID" },
+            chatId: { type: "string", description: "The chat document ID" },
+            limit: { type: "number", description: "Number of recent messages to fetch (default 20, max 80)" },
+          },
+          required: ["studentId", "chatId"],
+        },
+      },
+    },
+    execute: async (args) => {
+      const limit = Math.min(args.limit || 20, 80);
+      const messagesRef = db.collection(
+        `students/${args.studentId}/chats/${args.chatId}/messages`,
+      );
+      const messages = mergeChronologicalChatMessages(await Promise.all([
+        queryChatMessages(messagesRef, "createdAt", limit),
+        queryChatMessages(messagesRef, "timestamp", limit),
+      ]), limit);
+      if (!messages.length) return { error: "No chat history found" };
+      return messages.map((message) => ({
+        id: message.id,
+        role: message.role,
+        content: message.content,
+        createdAt: message.createdAt || message.timestamp || null,
+      }));
+    },
+  },
 ];
 
 // ── Public API ─────────────────────────────────────────────────────────
@@ -275,11 +463,34 @@ export function getTools(toolIds, allowedScopes = null) {
   });
 }
 
+function cloneDefinition(definition) {
+  return JSON.parse(JSON.stringify(definition));
+}
+
+function omitBoundParameters(definition, boundArgs = {}) {
+  const cloned = cloneDefinition(definition);
+  const params = cloned.function?.parameters;
+  if (!params?.properties) return cloned;
+
+  for (const key of Object.keys(boundArgs)) {
+    delete params.properties[key];
+  }
+  if (Array.isArray(params.required)) {
+    params.required = params.required.filter((key) => !(key in boundArgs));
+  }
+  return cloned;
+}
+
 /**
  * Build the OpenAI tools array from selected tool entries.
+ *
+ * @param {Object[]} tools - Tool entries from getTools()
+ * @param {Object} [opts] - Options
+ * @param {Object} [opts.boundArgs] - Args injected server-side and hidden from
+ *   the model schema. Chat uses this to keep studentId/chatId authoritative.
  */
-export function getToolDefinitions(tools) {
-  return tools.map((t) => t.definition);
+export function getToolDefinitions(tools, opts = {}) {
+  return tools.map((t) => omitBoundParameters(t.definition, opts.boundArgs));
 }
 
 /**
@@ -292,29 +503,33 @@ export function getToolDefinitions(tools) {
  * @param {Map<string, boolean>} [opts.preloadedPrereqs] - Pre-seeded prerequisite
  *   fulfillments, keyed as "toolId:studentId". Use when data is pre-loaded into the
  *   prompt (e.g., weekly snapshots) so downstream tools aren't blocked.
+ * @param {Object} [opts.boundArgs] - Args injected after model generation, before
+ *   prerequisite checks and execution. Bound args override model-supplied values.
  * @returns {Function} async (name, args) => result
  */
 export function createToolExecutor(tools, opts = {}) {
   const toolMap = new Map(tools.map((t) => [t.id, t]));
   // Track prerequisite state (e.g., snapshot fetched per student)
   const fulfilled = new Map(opts.preloadedPrereqs || []);
+  const boundArgs = opts.boundArgs || {};
 
   return async (name, args) => {
     const tool = toolMap.get(name);
     if (!tool) return { error: `Unknown or disabled tool: ${name}` };
+    const effectiveArgs = { ...(args || {}), ...boundArgs };
 
     // Check prerequisites
     for (const prereq of tool.prerequisites) {
-      const key = `${prereq}:${args.studentId || ""}`;
+      const key = `${prereq}:${effectiveArgs.studentId || ""}`;
       if (!fulfilled.get(key)) {
         return { error: `Must call ${prereq} for this student first before using ${name}.` };
       }
     }
 
-    const result = await tool.execute(args);
+    const result = await tool.execute(effectiveArgs);
 
     // Record fulfillment for downstream prerequisites
-    const fulfillKey = `${name}:${args.studentId || ""}`;
+    const fulfillKey = `${name}:${effectiveArgs.studentId || ""}`;
     fulfilled.set(fulfillKey, true);
 
     return result;

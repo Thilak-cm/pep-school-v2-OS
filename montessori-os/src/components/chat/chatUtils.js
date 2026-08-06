@@ -1,35 +1,15 @@
-/**
- * Pure utility functions for the ChildChat feature.
- * Extracted for testability (no JSX dependencies).
- */
-
-export const stripQuotes = (text) => {
-  if (!text) return text;
-  return text.replace(/^["']|["']$/g, '');
-};
-
-/**
- * Defensive timeout duration (ms) for the assistant "thinking" indicator.
- * After this period, assistantPending is cleared and a fallback message shown.
- */
-export const ASSISTANT_TIMEOUT_MS = 30_000;
-
 const INLINE_PATTERNS = [
   { regex: /\*\*([^*]+)\*\*/g, type: 'bold' },
   { regex: /\*([^*]+)\*/g, type: 'italic' },
   { regex: /`([^`]+)`/g, type: 'code' },
 ];
 
-/**
- * Collect inline markdown matches (bold, italic, code) from text.
- * Returns sorted, non-overlapping match descriptors.
- */
+export const stripQuotes = (text) => text ? text.replace(/^["']|["']$/g, '') : text;
+
 export const collectInlineMatches = (text) => {
   if (!text) return [];
-
   const matches = [];
   INLINE_PATTERNS.forEach((pattern) => {
-    // Reset lastIndex since regexes are reused with /g flag
     pattern.regex.lastIndex = 0;
     let match;
     while ((match = pattern.regex.exec(text)) !== null) {
@@ -41,36 +21,10 @@ export const collectInlineMatches = (text) => {
       });
     }
   });
-
   matches.sort((a, b) => a.start - b.start);
-
-  const filtered = [];
-  matches.forEach((match) => {
-    const overlaps = filtered.some(
-      (m) => match.start < m.end && match.end > m.start
-    );
-    if (!overlaps) {
-      filtered.push(match);
-    }
-  });
-
-  return filtered;
-};
-
-/**
- * Classify a line of text for block-level markdown rendering.
- * Returns { type, content } where type is 'h1'|'h2'|'h3'|'ul'|'ol'|'blank'|'paragraph'.
- */
-/**
- * Filter incoming messages after the user pressed Stop.
- * Keeps messages already known (by id) and any non-assistant messages.
- * Suppresses new assistant messages that arrive after cancellation.
- */
-export const filterMessagesAfterStop = (prevMessages, incomingMessages) => {
-  const prevIds = new Set(prevMessages.map((m) => m.id));
-  return incomingMessages.filter(
-    (m) => prevIds.has(m.id) || m.role !== 'assistant'
-  );
+  return matches.filter((match, index, all) => !all.slice(0, index).some(
+    (previous) => match.start < previous.end && match.end > previous.start,
+  ));
 };
 
 export const classifyLine = (line) => {
@@ -79,7 +33,88 @@ export const classifyLine = (line) => {
   if (trimmed.startsWith('### ')) return { type: 'h3', content: trimmed.replace(/^###\s+/, '') };
   if (trimmed.startsWith('## ')) return { type: 'h2', content: trimmed.replace(/^##\s+/, '') };
   if (trimmed.startsWith('# ')) return { type: 'h1', content: trimmed.replace(/^#\s+/, '') };
-  if (trimmed.match(/^[-*]\s+/)) return { type: 'ul', content: trimmed.replace(/^[-*]\s+/, '') };
-  if (trimmed.match(/^\d+\.\s+/)) return { type: 'ol', content: trimmed.replace(/^\d+\.\s+/, '') };
+  if (/^[-*]\s+/.test(trimmed)) return { type: 'ul', content: trimmed.replace(/^[-*]\s+/, '') };
+  if (/^\d+\.\s+/.test(trimmed)) return { type: 'ol', content: trimmed.replace(/^\d+\.\s+/, '') };
   return { type: 'paragraph', content: trimmed };
 };
+
+function messageTime(message) {
+  const value = message?.createdAt || message?.timestamp || 0;
+  if (typeof value?.toMillis === 'function') return value.toMillis();
+  if (typeof value?.seconds === 'number') return value.seconds * 1000;
+  if (value instanceof Date) return value.getTime();
+  const parsed = new Date(value || 0).getTime();
+  return Number.isFinite(parsed) ? parsed : 0;
+}
+
+/**
+ * Keep each assistant attempt after the user message that created its logical
+ * turn, even while optimistic and Firestore timestamps temporarily disagree.
+ * Attempts whose timestamps are already later keep their natural position, so
+ * an interrupted attempt and a much-later retry are not forced into one block.
+ */
+export function sortMessagesForDisplay(messages) {
+  const userByTurn = new Map();
+
+  messages.forEach((message) => {
+    if (!message?.turnId || message.role !== 'user') return;
+    const current = userByTurn.get(message.turnId);
+    if (!current) {
+      userByTurn.set(message.turnId, message);
+      return;
+    }
+    const delta = messageTime(message) - messageTime(current);
+    if (delta < 0 || (delta === 0 && String(message.id).localeCompare(String(current.id)) < 0)) {
+      userByTurn.set(message.turnId, message);
+    }
+  });
+
+  return messages.map((message, index) => {
+    const time = messageTime(message);
+    const turnUser = message.role === 'assistant' && message.turnId
+      ? userByTurn.get(message.turnId)
+      : null;
+    const userTime = turnUser ? messageTime(turnUser) : 0;
+    const pinnedToUser = Boolean(turnUser) && time <= userTime;
+
+    return {
+      message,
+      time,
+      effectiveTime: pinnedToUser ? userTime : time,
+      // Sharing the user's tie key makes the role precedence transitive even
+      // when unrelated messages have the same timestamp.
+      tieKey: pinnedToUser ? String(turnUser.id) : String(message.id),
+      turnPrecedence: pinnedToUser ? 1 : 0,
+      index,
+    };
+  }).sort((left, right) => {
+    const timeDelta = left.effectiveTime - right.effectiveTime;
+    if (timeDelta) return timeDelta;
+    const keyDelta = left.tieKey.localeCompare(right.tieKey);
+    if (keyDelta) return keyDelta;
+    const precedenceDelta = left.turnPrecedence - right.turnPrecedence;
+    if (precedenceDelta) return precedenceDelta;
+    const originalTimeDelta = left.time - right.time;
+    if (originalTimeDelta) return originalTimeDelta;
+    if (left.turnPrecedence && right.turnPrecedence) return left.index - right.index;
+    return String(left.message.id).localeCompare(String(right.message.id));
+  }).map(({ message }) => message);
+}
+
+/**
+ * Firestore snapshots do not contain the local streaming placeholder until the
+ * server persists the assistant message. Merge by ID so snapshot refreshes do
+ * not erase progressively rendered tokens. The authoritative document wins as
+ * soon as it appears.
+ */
+export function mergeMessageSnapshot(previous, incoming, retainedIds = new Set()) {
+  const incomingIds = new Set(incoming.map((message) => message.id));
+  const merged = new Map();
+
+  previous.forEach((message) => {
+    if (incomingIds.has(message.id) || retainedIds.has(message.id)) merged.set(message.id, message);
+  });
+  incoming.forEach((message) => merged.set(message.id, { ...(merged.get(message.id) || {}), ...message }));
+
+  return sortMessagesForDisplay([...merged.values()]);
+}

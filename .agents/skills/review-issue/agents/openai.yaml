@@ -1,0 +1,4 @@
+interface:
+  display_name: "Review Issue"
+  short_description: "Audit, fix, re-audit, and open a reviewed PR"
+  default_prompt: "Run the review-issue workflow with native custom subagents, fix-loop until clean, then prepare the reviewed pull request."

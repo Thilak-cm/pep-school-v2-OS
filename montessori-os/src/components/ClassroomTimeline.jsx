@@ -81,7 +81,6 @@ function ClassroomTimeline({ classroom, currentUser, userRole, manageableClassro
 
   // Stats from statsCache (#221 Sprint 2)
   const {
-    notesOverall,
     notesPast7Days,
     studentCount: statsCacheStudentCount,
     studentStats,
@@ -652,7 +651,7 @@ function ClassroomTimeline({ classroom, currentUser, userRole, manageableClassro
           {/* Notes Count — from statsCache (#221 Sprint 2) */}
           <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', mb: 2 }}>
             <Typography variant="subtitle2" sx={{ fontWeight: 600 }}>
-              {notesPast7Days} notes in past 7 days, {notesOverall} overall
+              {notesPast7Days} notes in past 7 days
             </Typography>
             <Button
               size="small"

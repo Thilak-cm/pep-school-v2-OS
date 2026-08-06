@@ -1,0 +1,14 @@
+{
+  "name": "code-fixer",
+  "description": "Apply approved blocker and warning fixes from a structured code-audit report, preserve unrelated work, and run focused verification before returning a fix report.",
+  "claude": {
+    "model": "opus",
+    "tools": "Bash, Glob, Grep, Read, Edit, Write, NotebookEdit, WebFetch, WebSearch, Skill",
+    "color": "purple"
+  },
+  "codex": {
+    "model": "gpt-5.6-sol",
+    "modelReasoningEffort": "high",
+    "sandboxMode": "workspace-write"
+  }
+}
