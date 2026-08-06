@@ -35,7 +35,7 @@
   "author": "Montessori OS Team",
   "license": "MIT",
   "devDependencies": {
-    "@firebase/rules-unit-testing": "^3.0.4",
+    "@firebase/rules-unit-testing": "^4.0.1",
     "firebase": "^11.10.0",
     "firebase-tools": "^14.25.0"
   }
