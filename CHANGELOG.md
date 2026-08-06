@@ -1,5 +1,14 @@
 # Changelog
 
+# 12.2.1 — 2026-08-06
+
+### Changed
+- Coach Pepper chat now uses a bounded phone-sized conversation viewport with a connected session selector, safe Markdown rendering, reliable follow-mode scrolling, and composer behavior that stays editable during streaming (#217).
+- User timestamps and copy actions, plus completed assistant copy and Helpful actions, remain permanently visible without hover or touch reveal (#217).
+
+### Fixed
+- Conversation controls, messages, errors, and the composer remain correctly separated across safe-area, virtual-keyboard, dropdown, retry, and streaming-scroll states (#217).
+
 # 12.2.0 — 2026-08-06
 
 ### Added
