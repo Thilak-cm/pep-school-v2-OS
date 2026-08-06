@@ -1,29 +1,57 @@
-import React, { useState } from 'react';
-import { Box, Typography } from '@mui/material';
+import React from 'react';
+import { Box, IconButton, Typography } from '@mui/material';
+import { ThumbsUp } from '../../icons';
 import CopyToClipboardButton from '../CopyToClipboardButton';
-import { formatMessage, messageContentSx } from './formatMessage';
+import MarkdownMessage from './MarkdownMessage.jsx';
+import { formatChatTimestamp, shouldShowAssistantActions } from './chatPresentation.js';
 
-function MetaRow({ message, formatTimestamp, user }) {
-  const [visible, setVisible] = useState(false);
+const bubbleAnimationSx = (animate) => ({
+  animation: animate ? 'chatBubbleEnter 180ms ease-out both' : 'none',
+  '@keyframes chatBubbleEnter': {
+    from: { opacity: 0, transform: 'translateY(6px)' },
+    to: { opacity: 1, transform: 'translateY(0)' },
+  },
+  '@media (prefers-reduced-motion: reduce)': {
+    animation: 'none',
+  },
+});
+
+function UserMetaRow({ message }) {
   return (
-    <Box onTouchStart={() => setVisible((value) => !value)} onMouseEnter={() => setVisible(true)} onMouseLeave={() => setVisible(false)} sx={{ display: 'flex', alignItems: 'center', gap: 0.5, mt: 0.5, minHeight: 24, opacity: visible ? 1 : 0, transition: 'opacity .2s' }}>
-      {(message.createdAt || message.timestamp) && <Typography variant="caption" sx={{ opacity: 0.7, fontSize: '0.7rem', color: user ? 'white' : 'text.secondary' }}>{formatTimestamp(message.createdAt || message.timestamp)}</Typography>}
-      <CopyToClipboardButton text={message.content} ariaLabel="Copy message" sx={{ color: user ? 'white' : 'text.secondary', opacity: 0.7 }} />
+    <Box sx={{ display: 'flex', alignItems: 'center', gap: 0.5, mt: 0.5, minHeight: 24 }}>
+      {(message.createdAt || message.timestamp) && (
+        <Typography variant="caption" sx={{ opacity: 0.82, fontSize: '0.7rem', color: 'white' }}>
+          {formatChatTimestamp(message.createdAt || message.timestamp)}
+        </Typography>
+      )}
+      <CopyToClipboardButton text={message.content} ariaLabel="Copy message" sx={{ color: 'white', opacity: 0.82 }} />
     </Box>
   );
 }
 
-export const UserBubble = ({ message, formatTimestamp }) => (
-  <Box sx={{ maxWidth: '85%', p: 2, bgcolor: 'primary.main', color: 'white', borderRadius: '16px 16px 4px 16px' }}>
-    {message.authorName && <Typography variant="caption" sx={{ opacity: 0.8, display: 'block', mb: 0.5 }}>{message.authorName}</Typography>}
-    <Box component="div" sx={{ ...messageContentSx, fontSize: '0.925rem', lineHeight: 1.55 }}>{formatMessage(message.content)}</Box>
-    <MetaRow message={message} formatTimestamp={formatTimestamp} user />
+function AssistantMetaRow({ message }) {
+  if (!shouldShowAssistantActions(message)) return null;
+  return (
+    <Box sx={{ display: 'flex', alignItems: 'center', gap: 0.5, mt: 0.5, minHeight: 24 }}>
+      <CopyToClipboardButton text={message.content} ariaLabel="Copy message" sx={{ color: 'text.secondary', opacity: 0.82 }} />
+      <IconButton aria-label="Helpful" size="small" sx={{ color: 'text.secondary', p: 0.5 }}>
+        <ThumbsUp size={17} />
+      </IconButton>
+    </Box>
+  );
+}
+
+export const UserBubble = ({ message, animate = false }) => (
+  <Box sx={{ maxWidth: '85%', p: 2, bgcolor: 'primary.main', color: 'white', borderRadius: '16px 16px 4px 16px', ...bubbleAnimationSx(animate) }}>
+    {message.authorName && <Typography variant="caption" sx={{ opacity: 0.88, display: 'block', mb: 0.5 }}>{message.authorName}</Typography>}
+    <MarkdownMessage sx={{ fontSize: '0.925rem', lineHeight: 1.55 }}>{message.content}</MarkdownMessage>
+    <UserMetaRow message={message} />
   </Box>
 );
 
-export const AssistantBubble = ({ message, formatTimestamp }) => (
-  <Box sx={{ maxWidth: '92%', p: 2, bgcolor: 'var(--color-neutral-bg)', borderRadius: '16px 16px 16px 4px' }}>
-    <Box component="div" sx={{ ...messageContentSx, color: 'text.primary', fontSize: '0.925rem', lineHeight: 1.6 }}>{formatMessage(message.content)}</Box>
-    <MetaRow message={message} formatTimestamp={formatTimestamp} />
+export const AssistantBubble = ({ message, animate = false }) => (
+  <Box sx={{ maxWidth: '92%', p: 2, bgcolor: 'var(--color-neutral-bg)', borderRadius: '16px 16px 16px 4px', ...bubbleAnimationSx(animate) }}>
+    <MarkdownMessage sx={{ color: 'text.primary', fontSize: '0.925rem', lineHeight: 1.6 }}>{message.content}</MarkdownMessage>
+    <AssistantMetaRow message={message} />
   </Box>
 );
