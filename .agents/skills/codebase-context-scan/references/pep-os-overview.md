@@ -1,6 +1,6 @@
 # Pep OS Overview
 
-Generated: 2026-08-06T03:13:58.113Z
+Generated: 2026-08-06T08:02:24.280Z
 App version: 12.2.0
 
 ## App Snapshot
@@ -69,15 +69,17 @@ App version: 12.2.0
 - `montessori-os/src/components/UpdateNotification.jsx`
 
 ### AI Tools and Chat (`ai-tools-and-chat`)
-- Count: 6
-- Components: `AICoachEditor`, `AIHomePage`, `AITextCleanupEditor`, `AIVoiceTranscriberEditor`, `ChatCommandCentreEditor`, `ChildChat`
+- Count: 10
+- Components: `AICoachEditor`, `AIHomePage`, `AITextCleanupEditor`, `AIVoiceTranscriberEditor`, `ChatCommandCentreEditor`, `ChatCommandCentreEditor.test`, `chatCommandCentreTools`, `chatCommandCentreTools.test`, `ChildChat`, `ChildChat.test`
 - Representative paths:
 - `montessori-os/src/components/AICoachEditor.jsx`
 - `montessori-os/src/components/AIHomePage.jsx`
 - `montessori-os/src/components/AITextCleanupEditor.jsx`
 - `montessori-os/src/components/AIVoiceTranscriberEditor.jsx`
 - `montessori-os/src/components/ChatCommandCentreEditor.jsx`
-- `montessori-os/src/components/ChildChat.jsx`
+- `montessori-os/src/components/ChatCommandCentreEditor.test.js`
+- `montessori-os/src/components/chatCommandCentreTools.js`
+- `montessori-os/src/components/chatCommandCentreTools.test.js`
 
 ### Admin and Access (`admin-and-access`)
 - Count: 11
@@ -93,8 +95,8 @@ App version: 12.2.0
 - `montessori-os/src/components/UsersAccessPage.jsx`
 
 ### Settings, Feedback, and App Shell (`settings-feedback-shell`)
-- Count: 47
-- Components: `App`, `AppFooter`, `AppHeader`, `BroadcastComposer`, `BroadcastComposer.test`, `BulkUploadPage`, `BulkUploadPage.helpers`, `BulkUploadPage.test`, `ClassroomNoteCard`, `ClassroomStudentCard`, `CopyToClipboardButton`, `DynamicIslandPill`, `DynamicIslandPill.test`, `FeedbackPage`, `GroupedNoteCard`, `GroupedNoteDialog`, `InlineVoiceOverlay`, `InterviewsPage`, `InterviewsPage.helpers`, `InterviewsPage.test`, `LandingPage`, `LandingPage.test`, `MonthlyPlanTab`, `MonthlyPlanTab.test`, `NoteBottomSheet.structure.test`, `NotesOverTimeDrawer`, `PlanFeedbackDialog`, `PlanFeedbackDialog.test`, `ProfilePage`, `QuestionDeck`, `QuestionDeck.test`, `ReadinessCheckDialog`, `ReportGenerateDialog`, `ReportPreviewDialog`, `ReportsCard`, `ReportsPage`, `ReportsPage.test`, `ReportTypeLandingPage`, `ReportTypeLandingPage.test`, `ReviewClassroomNotes`, `SettingsPage`, `SettingsPage.test`, `SnapshotBody`, `SnapshotCard`, `VersionBadge`, `WritingAnalysisTab`, `WritingAnalysisTab.test`
+- Count: 49
+- Components: `App`, `AppFooter`, `AppHeader`, `BroadcastComposer`, `BroadcastComposer.test`, `BulkUploadPage`, `BulkUploadPage.helpers`, `BulkUploadPage.test`, `ChatMaintenance`, `ChatMaintenance.test`, `ClassroomNoteCard`, `ClassroomStudentCard`, `CopyToClipboardButton`, `DynamicIslandPill`, `DynamicIslandPill.test`, `FeedbackPage`, `GroupedNoteCard`, `GroupedNoteDialog`, `InlineVoiceOverlay`, `InterviewsPage`, `InterviewsPage.helpers`, `InterviewsPage.test`, `LandingPage`, `LandingPage.test`, `MonthlyPlanTab`, `MonthlyPlanTab.test`, `NoteBottomSheet.structure.test`, `NotesOverTimeDrawer`, `PlanFeedbackDialog`, `PlanFeedbackDialog.test`, `ProfilePage`, `QuestionDeck`, `QuestionDeck.test`, `ReadinessCheckDialog`, `ReportGenerateDialog`, `ReportPreviewDialog`, `ReportsCard`, `ReportsPage`, `ReportsPage.test`, `ReportTypeLandingPage`, `ReportTypeLandingPage.test`, `ReviewClassroomNotes`, `SettingsPage`, `SettingsPage.test`, `SnapshotBody`, `SnapshotCard`, `VersionBadge`, `WritingAnalysisTab`, `WritingAnalysisTab.test`
 - Representative paths:
 - `montessori-os/src/App.jsx`
 - `montessori-os/src/AppFooter.jsx`
@@ -115,7 +117,7 @@ App version: 12.2.0
 
 ## Firestore/Data Surface
 
-- Core collections/signals: `users`, `branches`, `programs`, `classrooms`, `students`, `observations`, `ai_summaries`, `config`, `feedback`, `placements`, `chats`, `messages`, `access`, `alerts`, `brain`, `digests`, `files`, `history`, `interviews`, `monthly_plan_feedback`, `runs`, `statsCache`, `testbench`
+- Core collections/signals: `users`, `branches`, `programs`, `classrooms`, `students`, `observations`, `ai_summaries`, `config`, `feedback`, `placements`, `chats`, `messages`, `access`, `alerts`, `brain`, `digests`, `files`, `history`, `interviews`, `monthly_plan_feedback`, `runs`, `statsCache`, `testbench`, `turns`
 - Rule-declared paths:
 - `/{document=**}`
 - `/access/{uid}`
@@ -141,6 +143,7 @@ App version: 12.2.0
 - `/statsCache/{docId}`
 - `/students/{studentId}`
 - `/testbench/settings`
+- `/turns/{turnId}`
 - `/users/{uid}`
 - `/{path=**}/ai_summaries/{summaryId}`
 - `/{path=**}/observations/{observationId}`
@@ -149,10 +152,10 @@ App version: 12.2.0
 
 ## Recent Changes
 
-### 12.2.0 (2026-07-30)
-- Emulator-based Firestore and Storage rules suite with canonical fixtures, shared production operation helpers, transfer lifecycle coverage, media Storage boundaries, and CI gating for security-rule regressions (#207)
-- Classroom directory, Firestore auth-boundary, and precise 48-hour edit/delete boundary coverage in the rules emulator suite (#207)
-- Storage static security spec now matches the current media read contract and keeps `pending_upload` enforcement scoped to media create/update checks (#207)
+### 12.2.0 (2026-08-06)
+- Emulator-based Firestore and Storage rules suite with canonical fixtures, shared production operation helpers, transfer lifecycle coverage, media Storage boundaries, and CI gating for security-rule regressions (#207).
+- Classroom directory, Firestore auth-boundary, and precise 48-hour edit/delete boundary coverage in the rules emulator suite (#207).
+- Coach Pepper now streams responses progressively through a durable, server-orchestrated chat session (#220).
 
 ### 12.1.0 (2026-07-23)
 - Timeline pagination: classroom and student timelines now load 20 notes at a time with cursor-based "Show More" instead of fetching all notes at once (#221)

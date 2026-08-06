@@ -25,6 +25,7 @@ See [Pep OS Access-Control Policy](docs/security/access-control-policy.md).
 - `students/{studentId}/media/{mediaId}`               // DEPRECATED (#221) - retained for rollback, no longer read/written
 - `students/{studentId}/chats/{chatId}`                // AI chat conversations
 - `students/{studentId}/chats/{chatId}/messages/{messageId}` // chat messages
+- `students/{studentId}/chats/{chatId}/turns/{turnId}` // chat execution lifecycle state
 - `students/{studentId}/ai_summaries/soul`             // AI-generated student soul narrative (PEP-149)
 - `students/{studentId}/ai_summaries/soul/history/{timestamp}` // weekly soul snapshots
 - `students/{studentId}/ai_summaries/guidelines`       // per-student evaluation guide (PEP-149)
@@ -448,13 +449,21 @@ interface InterviewExchange {
 ---
 
 ## 💬 Chats (`/students/{studentId}/chats/{chatId}`)
-AI-powered chat conversations between teachers and a student's context. Each chat is a thread; messages are stored in a subcollection. Soft-deleted chats are cleaned up by a scheduled Cloud Function after 31 days.
+AI-powered chat conversations between teachers and a student's context. Each chat is a thread. The browser may optimistically render new chats/messages, but `childChatStream` is the source of truth for creating transcript messages and turn lifecycle docs. Soft-deleted chats are cleaned up by a scheduled Cloud Function after 31 days.
 
 ```typescript
 interface ChatDoc {
-  name: string;                     // auto-generated from first message, default "New Chat"
+  studentId: string;                 // equals parent {studentId}
+  classroomId: string | null;        // denorm for trace/debug context
+  createdBy: string;                 // uid that created the chat
+  visibility: 'classroom';           // shared by authorized teachers in the student's classroom
+  name: string;                     // sanitized first user message, truncated to 60 characters
   messageCount: number;             // count of messages in the chat
   lastMessagePreview: string;       // first 100 chars of the latest assistant response
+  activeTurnId?: string | null;      // running turn marker, cleared on terminal states
+  lastTurnStatus?: 'persisting' | 'running' | 'completed' | 'interrupted' | 'failed';
+  lastErrorCode?: string;             // latest failed turn's stable server error code
+  langfuseTraceId?: string;          // latest trace id; each turn uses runId as trace id
 
   // Soft delete
   deleted: boolean;                 // false by default; set true on user delete
@@ -467,33 +476,88 @@ interface ChatDoc {
 ```
 
 Notes
-- Chat name is AI-generated from the first user message via `generateChatName()`.
+- Chat creation and transcript writes happen in `childChatStream` via Admin SDK after auth and student access checks. Clients do not create chat, message, or turn docs directly.
+- Chat rename and soft delete are the only client-side chat doc mutations. They are allowed only for the chat creator or a privileged admin.
 - Soft delete: frontend sets `deleted: true` + `deletedAt`; `cleanupDeletedChats` (monthly scheduled function) hard-deletes chats where `deletedAt` > 31 days ago.
 - Listing: queries filter `deleted == false`, ordered by `createdAt` desc.
 
 ### Messages (`/students/{studentId}/chats/{chatId}/messages/{messageId}`)
-Individual messages within a chat thread.
+Individual transcript messages within a chat thread. Message docs are append-only and written by `childChatStream`.
 
 ```typescript
 interface MessageDoc {
   role: 'user' | 'assistant';
   content: string;                  // message text (trimmed)
-  timestamp: Timestamp;             // when message was created
+  createdAt: Timestamp;             // when message was created
+  timestamp?: Timestamp;            // legacy creation field; readers support either timestamp field
+  turnId: string;                   // associated turn lifecycle doc
+  status: 'complete' | 'interrupted' | 'failed';
 
   // Assistant messages only
+  runId?: string;                   // Langfuse trace id for this assistant run
   model?: string;                   // LLM model used (e.g., "gpt-4o-mini")
+  finishReason?: 'stop' | 'client_disconnect' | 'error' | string;
+  retry?: {                         // failed/interrupted response retry identity
+    chatId: string;
+    turnId: string;
+    userMessageId: string;
+  };
 
   // User messages only
   authorId?: string;                // uid of the teacher
   authorName?: string;              // display name of the teacher
-  cancelledResponseAt?: Timestamp;  // set when user presses Stop — CF skips assistant write
 }
 ```
 
 Notes
-- Messages are append-only except for `cancelledResponseAt`, which may be set on a user message after creation (stop button). No other updates or deletes allowed.
-- `messageCount` on the parent chat doc is incremented by 2 per exchange (user + assistant).
+- Server atomically writes the chat, user message, and `persisting` turn before resolving model config, provider credentials, or Langfuse. Provider/config failures therefore remain durable terminal turn records.
+- Legacy messages containing only `timestamp` remain readable; no destructive timestamp migration is required.
+- Individual model tokens are not written to Firestore.
+- If a user stops streaming or navigates away, the assistant message is saved with `status: 'interrupted'` and `finishReason: 'client_disconnect'`.
+- A `failed` attempt that produced no model content, or an `interrupted` attempt with no prefix, is recorded only in its turn doc; no empty assistant message is created. Readers listen to turns and attach the durable retry action to the matching user message. Completed responses and non-empty interrupted prefixes remain assistant message docs.
+- `messageCount` on the parent chat doc is incremented by completed server writes.
 - When the parent chat is hard-deleted by `cleanupDeletedChats`, all messages are recursively deleted.
+
+### Turns (`/students/{studentId}/chats/{chatId}/turns/{turnId}`)
+Execution state for one user-message-to-assistant-response run. These docs are written only by `childChatStream`; clients may read them for status/debug UI.
+
+```typescript
+interface TurnDoc {
+  runId: string;                    // Langfuse trace id
+  userMessageId: string;
+  assistantMessageId?: string;
+  idempotencyKey: string;           // `${chatId}:${userMessageId}` logical user-message identity
+  status: 'persisting' | 'running' | 'completed' | 'interrupted' | 'failed';
+  createdAt: Timestamp;
+  updatedAt: Timestamp;
+  startedAt?: Timestamp;
+  completedAt?: Timestamp;
+  finishReason?: string;
+  errorCode?: string;
+  model?: string;                   // latest attempt's model (compatibility projection)
+  langfuseTraceId?: string;         // latest attempt's trace (compatibility projection)
+  attempts: Array<{
+    runId: string;
+    assistantMessageId: string;
+    status: 'persisting' | 'running' | 'completed' | 'interrupted' | 'failed';
+    createdAt: Timestamp;
+    updatedAt: Timestamp;
+    startedAt?: Timestamp | null;
+    completedAt?: Timestamp | null;
+    finishReason?: string | null;
+    errorCode?: string | null;
+    model?: string | null;
+    langfuseTraceId?: string | null;
+  }>;                               // append-only execution history across retries
+}
+```
+
+Tool and trace notes
+- Chat tools are read-only and student-scoped. The model does not receive `studentId` or `chatId` in tool schemas; the backend injects those values after generation so hallucinated IDs cannot redirect tool reads.
+- Reusing a turn ID with different logical message identity is rejected. An exact active or terminal replay reads existing state without rewriting it; a retry reuses `chatId`, `turnId`, and `userMessageId`, creates only a new `runId`, and appends an attempt without duplicating the user message or overwriting prior execution/trace history.
+- Every OpenRouter model execution requires a Langfuse trace. Trace close/flush failures are isolated from Firestore terminalization.
+- If the model emits multiple tool calls in the same assistant turn, the Cloud Function executes them concurrently and appends results back to the model in original tool-call order.
+- Detailed tool-call observability belongs in Langfuse. Firestore keeps only transcript, turn state, and a trace id link.
 
 ---
 
@@ -711,7 +775,7 @@ Current documents
 - `text_summarizer` — prompts + model config for the Text Cleanup feature
 - `voice_transcriber` — context string for Whisper speech-to-text
 - `coach_{program}` — per-program Coach nudge configuration (program ∈ toddler | primary | elementary | adolescent)
-- `chat_{program}` — per-program AI chat configuration
+- `chat_{program}` — per-program AI chat configuration. Shape: `{ systemPrompt: string, model: string, temperature: number, max_tokens: number, chatMessageLimit: number, observationLimit: number | 'all', allowedTools?: string[] }`. `observationLimit` controls how many recent observations are included in server-built chat context.
 - `report_{program}` — per-program parent progress report prompts + model config
 - `soul_guidelines_{program}` — per-program developmental guidelines markdown (areas, skill areas, benchmarks from report cards). Shape: `{ markdown: string, programId: ProgramId, benchmarkCount: number, updatedBy: string, updatedAt: Timestamp }`.
 - `soul_generation_{program}` — program-specific soul generation instruction prompt + model config (PEP-163). Doc IDs: `soul_generation_toddler`, `soul_generation_primary`, `soul_generation_elementary`, `soul_generation_adolescent`. Shape: `{ systemPrompt: string, model: string, temperature: number, max_tokens: number, description?: string }`. The production soul generator reads this first, then falls back to legacy `config/soul_generation`, then to hardcoded defaults in `functions/utils/soulHelpers.js:SOUL_DEFAULTS`. Prompt templates may use `{{guidelinesContent}}` or `${guidelinesContent}` as the guidelines placeholder.

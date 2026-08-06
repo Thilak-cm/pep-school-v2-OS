@@ -13,6 +13,8 @@ import {
   handleGetAiSummaryHistory,
   handleListStudents,
   handleListClassrooms,
+  handleGetChatMessages,
+  mergeChatMessageGenerations,
   TOOL_DEFINITIONS,
 } from "./tools.js";
 
@@ -454,6 +456,27 @@ describe("handleListClassrooms", () => {
     assert.ok(first.programId);
     assert.ok(first.branchId);
     assert.equal(typeof first.studentCount, "number");
+  });
+});
+
+// --- chats ---
+
+describe("handleGetChatMessages", () => {
+  it("keeps timestamp-only legacy messages in chronological order", async () => {
+    const merged = mergeChatMessageGenerations([
+      [{ id: "new", role: "assistant", content: "New", createdAt: 2 }],
+      [{ id: "legacy", role: "user", content: "Legacy", timestamp: 1 }],
+    ], 100);
+    assert.deepEqual(merged.map((message) => message.id), ["legacy", "new"]);
+
+    const db = createMockDb({
+      "students/s1/chats/c1/messages": [
+        mockDoc("legacy", { role: "user", content: "Legacy", timestamp: 1 }),
+        mockDoc("new", { role: "assistant", content: "New", createdAt: 2 }),
+      ],
+    });
+    const result = await handleGetChatMessages(db, { studentId: "s1", chatId: "c1" });
+    assert.deepEqual(result.map((message) => message.id), ["legacy", "new"]);
   });
 });
 

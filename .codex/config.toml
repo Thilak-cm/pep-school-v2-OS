@@ -1,0 +1,11 @@
+# Project-scoped Codex configuration. Codex loads this file only for a trusted
+# checkout, which keeps the custom Pep OS roles from leaking into other repos.
+
+[agents]
+enabled = true
+max_concurrent_threads_per_session = 3
+default_subagent_model = "gpt-5.6-terra"
+default_subagent_reasoning_effort = "medium"
+
+# Project roles are auto-discovered from the generated TOML files in
+# `.codex/agents/`; their per-role model and sandbox settings override defaults.

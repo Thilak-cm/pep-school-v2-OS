@@ -337,6 +337,43 @@ async function main() {
     schema: chatMsgTotal > 0 ? finalizeSchema(chatMsgAcc, chatMsgTotal) : {},
   };
 
+  // Chat turns (need a chat ID first)
+  log("  students/{id}/chats/{id}/turns...");
+  const chatTurnAcc = {};
+  let chatTurnTotal = 0;
+  const chatTurnSamples = [];
+  for (const sid of studentIds) {
+    const chatSnap = await db
+      .collection("students")
+      .doc(sid)
+      .collection("chats")
+      .limit(1)
+      .get();
+
+    if (!chatSnap.empty) {
+      const chatId = chatSnap.docs[0].id;
+      const turnSnap = await db
+        .collection("students")
+        .doc(sid)
+        .collection("chats")
+        .doc(chatId)
+        .collection("turns")
+        .limit(SAMPLE_LIMIT)
+        .get();
+
+      turnSnap.forEach((doc) => {
+        chatTurnTotal++;
+        chatTurnSamples.push(`${sid}/chats/${chatId}/turns/${doc.id}`);
+        mergeDocFields(chatTurnAcc, doc.data(), 1);
+      });
+    }
+  }
+  result["students/{id}/chats/{id}/turns"] = {
+    docCount: chatTurnTotal,
+    sampleIds: chatTurnSamples.slice(0, 6),
+    schema: chatTurnTotal > 0 ? finalizeSchema(chatTurnAcc, chatTurnTotal) : {},
+  };
+
   // ── Named AI summary docs ──
 
   log("Sampling ai_summaries named docs...");

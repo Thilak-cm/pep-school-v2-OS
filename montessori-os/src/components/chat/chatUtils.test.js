@@ -1,221 +1,123 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
 
-import { stripQuotes, ASSISTANT_TIMEOUT_MS, collectInlineMatches, classifyLine } from './chatUtils.js';
+import { mergeMessageSnapshot, sortMessagesForDisplay } from './chatUtils.js';
 
-// --- stripQuotes ---
-
-test('stripQuotes removes surrounding double quotes', () => {
-  assert.equal(stripQuotes('"hello world"'), 'hello world');
-});
-
-test('stripQuotes removes surrounding single quotes', () => {
-  assert.equal(stripQuotes("'hello world'"), 'hello world');
-});
-
-test('stripQuotes removes only leading double quote', () => {
-  assert.equal(stripQuotes('"hello world'), 'hello world');
-});
-
-test('stripQuotes removes only trailing single quote', () => {
-  assert.equal(stripQuotes("hello world'"), 'hello world');
-});
-
-test('stripQuotes returns unchanged string without quotes', () => {
-  assert.equal(stripQuotes('hello world'), 'hello world');
-});
-
-test('stripQuotes preserves internal quotes', () => {
-  assert.equal(stripQuotes('"he said "hi" there"'), 'he said "hi" there');
-});
-
-test('stripQuotes returns null for null input', () => {
-  assert.equal(stripQuotes(null), null);
-});
-
-test('stripQuotes returns undefined for undefined input', () => {
-  assert.equal(stripQuotes(undefined), undefined);
-});
-
-test('stripQuotes returns empty string for empty string', () => {
-  assert.equal(stripQuotes(''), '');
-});
-
-// --- ASSISTANT_TIMEOUT_MS ---
-
-test('ASSISTANT_TIMEOUT_MS is 30 seconds', () => {
-  assert.equal(ASSISTANT_TIMEOUT_MS, 30_000);
-});
-
-// --- collectInlineMatches ---
-
-test('collectInlineMatches returns empty array for null', () => {
-  assert.deepEqual(collectInlineMatches(null), []);
-});
-
-test('collectInlineMatches returns empty array for empty string', () => {
-  assert.deepEqual(collectInlineMatches(''), []);
-});
-
-test('collectInlineMatches returns empty array for plain text', () => {
-  assert.deepEqual(collectInlineMatches('hello world'), []);
-});
-
-test('collectInlineMatches finds bold text', () => {
-  const matches = collectInlineMatches('hello **bold** world');
-  assert.equal(matches.length, 1);
-  assert.equal(matches[0].type, 'bold');
-  assert.equal(matches[0].content, 'bold');
-  assert.equal(matches[0].start, 6);
-  assert.equal(matches[0].end, 14);
-});
-
-test('collectInlineMatches finds italic text', () => {
-  const matches = collectInlineMatches('hello *italic* world');
-  assert.equal(matches.length, 1);
-  assert.equal(matches[0].type, 'italic');
-  assert.equal(matches[0].content, 'italic');
-});
-
-test('collectInlineMatches finds inline code', () => {
-  const matches = collectInlineMatches('hello `code` world');
-  assert.equal(matches.length, 1);
-  assert.equal(matches[0].type, 'code');
-  assert.equal(matches[0].content, 'code');
-});
-
-test('collectInlineMatches finds bold and code together', () => {
-  const matches = collectInlineMatches('**bold** and `code`');
-  assert.equal(matches.length, 2);
-  assert.equal(matches[0].type, 'bold');
-  assert.equal(matches[0].content, 'bold');
-  assert.equal(matches[1].type, 'code');
-  assert.equal(matches[1].content, 'code');
-});
-
-test('collectInlineMatches prefers bold over italic (no overlap)', () => {
-  const matches = collectInlineMatches('**bold text** here');
-  assert.equal(matches.length, 1);
-  assert.equal(matches[0].type, 'bold');
-  assert.equal(matches[0].content, 'bold text');
-});
-
-test('collectInlineMatches returns matches sorted by position', () => {
-  const matches = collectInlineMatches('`code` then **bold**');
-  assert.equal(matches.length, 2);
-  assert.ok(matches[0].start < matches[1].start);
-});
-
-test('collectInlineMatches is stable across multiple calls', () => {
-  // Ensures regex lastIndex is properly reset
-  const first = collectInlineMatches('**bold** *italic*');
-  const second = collectInlineMatches('**bold** *italic*');
-  assert.deepEqual(first, second);
-});
-
-// --- classifyLine ---
-
-test('classifyLine identifies blank lines', () => {
-  assert.deepEqual(classifyLine(''), { type: 'blank', content: '' });
-  assert.deepEqual(classifyLine('   '), { type: 'blank', content: '' });
-});
-
-test('classifyLine identifies h1 headings', () => {
-  const result = classifyLine('# Hello');
-  assert.equal(result.type, 'h1');
-  assert.equal(result.content, 'Hello');
-});
-
-test('classifyLine identifies h2 headings', () => {
-  const result = classifyLine('## Subheading');
-  assert.equal(result.type, 'h2');
-  assert.equal(result.content, 'Subheading');
-});
-
-test('classifyLine identifies h3 headings', () => {
-  const result = classifyLine('### Minor heading');
-  assert.equal(result.type, 'h3');
-  assert.equal(result.content, 'Minor heading');
-});
-
-test('classifyLine identifies unordered list items with dash', () => {
-  const result = classifyLine('- list item');
-  assert.equal(result.type, 'ul');
-  assert.equal(result.content, 'list item');
-});
-
-test('classifyLine identifies unordered list items with asterisk', () => {
-  const result = classifyLine('* list item');
-  assert.equal(result.type, 'ul');
-  assert.equal(result.content, 'list item');
-});
-
-test('classifyLine identifies ordered list items', () => {
-  const result = classifyLine('1. first item');
-  assert.equal(result.type, 'ol');
-  assert.equal(result.content, 'first item');
-});
-
-test('classifyLine identifies ordered list with multi-digit numbers', () => {
-  const result = classifyLine('10. tenth item');
-  assert.equal(result.type, 'ol');
-  assert.equal(result.content, 'tenth item');
-});
-
-test('classifyLine identifies regular paragraphs', () => {
-  const result = classifyLine('Just some text');
-  assert.equal(result.type, 'paragraph');
-  assert.equal(result.content, 'Just some text');
-});
-
-test('classifyLine trims leading whitespace', () => {
-  const result = classifyLine('   ## Indented heading');
-  assert.equal(result.type, 'h2');
-  assert.equal(result.content, 'Indented heading');
-});
-
-// --- filterMessagesAfterStop (PEP-96) ---
-
-import { filterMessagesAfterStop } from './chatUtils.js';
-
-test('filterMessagesAfterStop suppresses new assistant messages', () => {
-  const prev = [
-    { id: 'u1', role: 'user', content: 'hi' },
+test('snapshot merge retains the active assistant while the user message is persisted', () => {
+  const previous = [
+    { id: 'user-1', role: 'user', content: 'Question', createdAt: new Date(1000) },
+    { id: 'run-1-assistant', role: 'assistant', content: 'Progres', status: 'streaming', createdAt: new Date(1001) },
   ];
   const incoming = [
-    { id: 'u1', role: 'user', content: 'hi' },
-    { id: 'a1', role: 'assistant', content: 'hello back' },
+    { id: 'user-1', role: 'user', content: 'Question', status: 'complete', createdAt: new Date(1000) },
   ];
-  const result = filterMessagesAfterStop(prev, incoming);
-  assert.equal(result.length, 1);
-  assert.equal(result[0].id, 'u1');
+
+  const merged = mergeMessageSnapshot(previous, incoming, new Set(['run-1-assistant']));
+
+  assert.equal(merged.length, 2);
+  assert.equal(merged[0].status, 'complete');
+  assert.equal(merged[1].content, 'Progres');
+  assert.equal(merged[1].status, 'streaming');
 });
 
-test('filterMessagesAfterStop keeps already-known assistant messages', () => {
-  const prev = [
-    { id: 'u1', role: 'user', content: 'hi' },
-    { id: 'a1', role: 'assistant', content: 'hello' },
-  ];
-  const incoming = [
-    { id: 'u1', role: 'user', content: 'hi' },
-    { id: 'a1', role: 'assistant', content: 'hello' },
-    { id: 'a2', role: 'assistant', content: 'new one' },
-  ];
-  const result = filterMessagesAfterStop(prev, incoming);
-  assert.equal(result.length, 2);
-  assert.deepEqual(result.map(m => m.id), ['u1', 'a1']);
+test('progressive tokens survive snapshots until the authoritative assistant replaces them', () => {
+  const progressive = mergeMessageSnapshot([
+    { id: 'run-1-assistant', role: 'assistant', content: 'Progressive', status: 'streaming', createdAt: new Date(1001) },
+  ], [], new Set(['run-1-assistant']));
+
+  const authoritative = mergeMessageSnapshot(progressive, [
+    { id: 'run-1-assistant', role: 'assistant', content: 'Progressive answer', status: 'complete', createdAt: new Date(1001) },
+  ]);
+
+  assert.deepEqual(authoritative.map((message) => message.id), ['run-1-assistant']);
+  assert.equal(authoritative[0].content, 'Progressive answer');
+  assert.equal(authoritative[0].status, 'complete');
 });
 
-test('filterMessagesAfterStop always passes through new user messages', () => {
-  const prev = [
-    { id: 'u1', role: 'user', content: 'hi' },
+test('authoritative user timestamp cannot move a streaming reply above its initiating message', () => {
+  const previous = [
+    {
+      id: 'user-z',
+      turnId: 'turn-1',
+      role: 'user',
+      content: 'Question',
+      createdAt: new Date(1000),
+    },
+    {
+      id: 'run-a-assistant',
+      turnId: 'turn-1',
+      role: 'assistant',
+      content: 'Streaming answer',
+      status: 'streaming',
+      createdAt: new Date(1001),
+    },
   ];
-  const incoming = [
-    { id: 'u1', role: 'user', content: 'hi' },
-    { id: 'u2', role: 'user', content: 'another' },
-    { id: 'a1', role: 'assistant', content: 'response' },
+  const incoming = [{
+    id: 'user-z',
+    turnId: 'turn-1',
+    role: 'user',
+    content: 'Question',
+    status: 'complete',
+    createdAt: new Date(2000),
+  }];
+
+  const merged = mergeMessageSnapshot(previous, incoming, new Set(['run-a-assistant']));
+
+  assert.deepEqual(merged.map((message) => message.id), ['user-z', 'run-a-assistant']);
+});
+
+test('same-turn user precedes assistant attempts with missing, equal, or skewed timestamps', () => {
+  const scenarios = [
+    { userAt: undefined, assistantAt: undefined },
+    { userAt: new Date(1000), assistantAt: new Date(1000) },
+    { userAt: new Date(2000), assistantAt: new Date(1000) },
   ];
-  const result = filterMessagesAfterStop(prev, incoming);
-  assert.equal(result.length, 2);
-  assert.deepEqual(result.map(m => m.id), ['u1', 'u2']);
+
+  scenarios.forEach(({ userAt, assistantAt }) => {
+    const sorted = sortMessagesForDisplay([
+      { id: 'assistant-a', turnId: 'turn-1', role: 'assistant', createdAt: assistantAt },
+      { id: 'user-z', turnId: 'turn-1', role: 'user', createdAt: userAt },
+    ]);
+    assert.deepEqual(sorted.map((message) => message.id), ['user-z', 'assistant-a']);
+  });
+});
+
+test('later retries retain timestamp chronology while still following their turn user', () => {
+  const sorted = sortMessagesForDisplay([
+    { id: 'retry-assistant', turnId: 'turn-1', role: 'assistant', status: 'streaming', createdAt: new Date(4000) },
+    { id: 'next-user', turnId: 'turn-2', role: 'user', createdAt: new Date(3000) },
+    { id: 'first-assistant', turnId: 'turn-1', role: 'assistant', status: 'interrupted', createdAt: new Date(2000) },
+    { id: 'first-user', turnId: 'turn-1', role: 'user', createdAt: new Date(1000) },
+  ]);
+
+  assert.deepEqual(sorted.map((message) => message.id), [
+    'first-user',
+    'first-assistant',
+    'next-user',
+    'retry-assistant',
+  ]);
+});
+
+test('same-turn attempts with equal timestamps preserve their existing attempt order', () => {
+  const sorted = sortMessagesForDisplay([
+    { id: 'first-assistant', turnId: 'turn-1', role: 'assistant', status: 'interrupted' },
+    { id: 'retry-assistant', turnId: 'turn-1', role: 'assistant', status: 'streaming' },
+    { id: 'turn-user', turnId: 'turn-1', role: 'user' },
+  ]);
+
+  assert.deepEqual(sorted.map((message) => message.id), [
+    'turn-user',
+    'first-assistant',
+    'retry-assistant',
+  ]);
+});
+
+test('legacy messages without turn IDs continue to sort by timestamp then ID', () => {
+  const sorted = sortMessagesForDisplay([
+    { id: 'legacy-z', role: 'assistant', createdAt: new Date(2000) },
+    { id: 'legacy-b', role: 'user', createdAt: new Date(1000) },
+    { id: 'legacy-a', role: 'assistant', createdAt: new Date(1000) },
+  ]);
+
+  assert.deepEqual(sorted.map((message) => message.id), ['legacy-a', 'legacy-b', 'legacy-z']);
 });

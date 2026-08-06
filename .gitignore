@@ -58,6 +58,9 @@ jspm_packages/
 .idea/
 .cursor/
 .codex/*
+!.codex/config.toml
+!.codex/agents/
+!.codex/agents/**
 !.codex/skills/
 !.codex/skills/**
 *.swp

@@ -13,6 +13,8 @@
     "test:security:firestore": "node --test tests/security/firestore.rules.test.js",
     "test:security:storage": "node --test tests/security/storage.rules.test.js",
     "test:rules": "firebase emulators:exec --only firestore,storage --project pep-os \"node --test --test-concurrency=1 tests/rules/*.test.js\"",
+    "agents:generate": "node .agents/subagents/generate-adapters.mjs",
+    "agents:check": "node .agents/subagents/generate-adapters.mjs --check",
     "push-brain": "node scripts/ops/push-brain.mjs"
   },
   "dependencies": {
@@ -35,8 +37,6 @@
   "author": "Montessori OS Team",
   "license": "MIT",
   "devDependencies": {
-    "@firebase/rules-unit-testing": "^4.0.1",
-    "firebase": "^11.10.0",
     "firebase-tools": "^14.25.0"
   }
 }

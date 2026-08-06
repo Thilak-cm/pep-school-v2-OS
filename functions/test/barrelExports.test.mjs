@@ -27,8 +27,7 @@ const EXPECTED_EXPORTS = [
   "generateBaseballCards",
   "batchAnalyzeWriting",
   "generateWritingAnalysis",
-  // Chat
-  "childChat",
+  // Chat (#220)
   "childChatStream",
   "cleanupDeletedChats",
   // Reports

@@ -37,7 +37,7 @@ Also capture:
 
 ### Step 3: Launch Impact Checker Agent
 
-Spawn the **`impact-checker` agent** (`.claude/agents/impact-checker.md`) with:
+Spawn the **`impact-checker` custom subagent** using the host's native subagent mechanism, then wait for its structured result. Pass:
 
 - **Diff:** The full diff content from Step 1
 - **Diff stat:** The file-level summary

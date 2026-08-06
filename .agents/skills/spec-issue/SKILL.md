@@ -58,7 +58,7 @@ Requires a GitHub issue identifier as argument (e.g., `#42`). If not provided, a
    - `exploration_depth`: `"overview"` or `"deep"` per the matrix above
    - `specific_files`: Any files explicitly mentioned in the issue description
 
-   **Parallel dispatch:** When spawning multiple explorers, launch them all in the same tool-call message so they run concurrently. Each explorer handles its own area(s) independently and returns a focused summary. The orchestrator merges their outputs for the grilling phase.
+   **Parallel dispatch:** When spawning multiple explorers, launch one `codebase-explorer` custom subagent per area concurrently using the host's native subagent mechanism. Wait for all results. Each explorer handles its own area(s) independently and returns a focused summary for the orchestrator to merge before the grilling phase.
 
 5. Do not ask generic questions that ignore known app context (existing pages, roles, patterns, and current behavior).
 
