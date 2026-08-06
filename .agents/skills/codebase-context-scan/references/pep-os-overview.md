@@ -1,7 +1,7 @@
 # Pep OS Overview
 
-Generated: 2026-08-06T07:58:33.033Z
-App version: 12.2.0
+Generated: 2026-08-06T20:46:41.818Z
+App version: 12.2.1
 
 ## App Snapshot
 
@@ -69,8 +69,8 @@ App version: 12.2.0
 - `montessori-os/src/components/UpdateNotification.jsx`
 
 ### AI Tools and Chat (`ai-tools-and-chat`)
-- Count: 10
-- Components: `AICoachEditor`, `AIHomePage`, `AITextCleanupEditor`, `AIVoiceTranscriberEditor`, `ChatCommandCentreEditor`, `ChatCommandCentreEditor.test`, `chatCommandCentreTools`, `chatCommandCentreTools.test`, `ChildChat`, `ChildChat.test`
+- Count: 11
+- Components: `AICoachEditor`, `AIHomePage`, `AITextCleanupEditor`, `AIVoiceTranscriberEditor`, `ChatCommandCentreEditor`, `ChatCommandCentreEditor.test`, `chatCommandCentreTools`, `chatCommandCentreTools.test`, `ChildChat`, `ChildChat.layout.test`, `ChildChat.test`
 - Representative paths:
 - `montessori-os/src/components/AICoachEditor.jsx`
 - `montessori-os/src/components/AIHomePage.jsx`
@@ -152,6 +152,11 @@ App version: 12.2.0
 
 ## Recent Changes
 
+### 12.2.1 (2026-08-06)
+- Coach Pepper chat now uses a bounded phone-sized conversation viewport with a connected session selector, safe Markdown rendering, reliable follow-mode scrolling, and composer behavior that stays editable during streaming (#217).
+- User timestamps and copy actions, plus completed assistant copy and Helpful actions, remain permanently visible without hover or touch reveal (#217).
+- Conversation controls, messages, errors, and the composer remain correctly separated across safe-area, virtual-keyboard, dropdown, retry, and streaming-scroll states (#217).
+
 ### 12.2.0 (2026-08-06)
 - Coach Pepper now streams responses progressively through a durable, server-orchestrated chat session (#220).
 - Chat retries, interruption recovery, classroom-shared conversations, and configurable read-only context tools.
@@ -166,9 +171,4 @@ App version: 12.2.0
 - `brain/` knowledge base at repo root - single source of truth for all LLM pipeline context (knowledge, prompts, model config) across school-wide, primary, elementary, and adolescent programs with teacher-facing/parent-facing splits (#157)
 - `npm run push-brain` sync script: validates the folder tree (pipeline folders need config.json + prompt.md, blank/duplicate/reserved-name and empty-folder checks), shows NEW/CHANGED/DELETED/UNCHANGED with full diffs, and pushes to the Firestore `brain/{program}/files/{docId}` subcollections with SHA-256 change detection and y/N confirmation (#157)
 - `readBrain()` Cloud Function utility - four-layer deterministic context assembly (school-wide, program, audience, pipeline) with 5-min per-program cache, toddler→primary normalization, and school-wide-only mode for text-summarizer/voice-transcriber (#157)
-
-### 11.6.1 (2026-07-23)
-- Open questions archival: previous question set automatically snapshot to `history/` subcollection before each monthly regeneration overwrites the doc (#215)
-- Version-gated saves: teachers answering open questions from a stale doc get an error toast and auto-refresh instead of silently writing to the wrong generation (#215)
-- MCP tool support for querying open questions history via `get_ai_summary_history` (#215)
 
