@@ -2,6 +2,33 @@ import { sortMessagesForDisplay } from './chatUtils.js';
 
 const RETRYABLE_STATUSES = new Set(['failed', 'interrupted']);
 
+export function getOptimisticEntryMessageIds(ids, isRetry = false) {
+  const assistantMessageId = `${ids.runId}-assistant`;
+  return isRetry ? [assistantMessageId] : [ids.userMessageId, assistantMessageId];
+}
+
+export function createMessageAnimationState() {
+  return { entryMessageIds: new Set() };
+}
+
+export function resetMessageAnimationState(state) {
+  state.entryMessageIds.clear();
+}
+
+export function registerOptimisticEntryAnimations(state, ids, isRetry = false) {
+  const messageIds = getOptimisticEntryMessageIds(ids, isRetry);
+  messageIds.forEach((messageId) => state.entryMessageIds.add(messageId));
+  return messageIds;
+}
+
+export function registerAssistantAttemptAnimation(state, messageId) {
+  if (messageId) state.entryMessageIds.add(messageId);
+}
+
+export function shouldAnimateMessage(state, messageId) {
+  return state.entryMessageIds.has(messageId);
+}
+
 export function appendOptimisticTurn(messages, {
   ids,
   message,

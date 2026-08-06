@@ -1,4 +1,4 @@
-import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
+import React, { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react';
 import {
   Alert,
   Box,
@@ -25,9 +25,9 @@ import {
   Trash2 as Delete,
 } from '../icons';
 import { collection, doc, getDocs, onSnapshot, query, serverTimestamp, updateDoc, where } from 'firebase/firestore';
-import { HEADER_HEIGHT } from '../AppHeader.jsx';
+import { HEADER_BOTTOM_PADDING, HEADER_HEIGHT } from '../AppHeader.jsx';
+import { FOOTER_HEIGHT } from '../AppFooter.jsx';
 import { auth, db } from '../firebase';
-import { formatDate } from '../utils/dateFormat.js';
 import { createChatIds } from '../services/chatStreamService.js';
 import useInlineVoice from '../hooks/useInlineVoice';
 import InlineVoiceOverlay from './InlineVoiceOverlay.jsx';
@@ -41,13 +41,33 @@ import {
   appendOptimisticTurn,
   applyChatStreamEvent,
   buildRetryRequest,
+  createMessageAnimationState,
+  registerAssistantAttemptAnimation,
+  registerOptimisticEntryAnimations,
   reconcileMessagesWithTurns,
+  resetMessageAnimationState,
+  shouldAnimateMessage,
 } from './chat/childChatState.js';
 import {
   abortActiveChatRequest,
   chatErrorMessage,
   runAuthenticatedChatTurn,
 } from './chat/chatTurnController.js';
+import {
+  beginProgrammaticScroll,
+  CHAT_SHELL_WIDTH_SX,
+  CONVERSATION_SELECTOR_LAYER_SX,
+  FOLLOW_THRESHOLD_PX,
+  consumeFollowModeGrowth,
+  createFollowModeState,
+  enableFollowMode,
+  getChatShellGeometry,
+  getComposerState,
+  interruptProgrammaticScroll,
+  resetFollowMode,
+  TRANSCRIPT_LAYER_SX,
+  updateFollowModeFromScroll,
+} from './chat/chatPresentation.js';
 
 const projectId = import.meta.env.VITE_FIREBASE_PROJECT_ID || 'pep-os';
 const defaultStreamUrl = import.meta.env.DEV && import.meta.env.VITE_USE_FUNCTIONS_EMULATOR !== 'false'
@@ -60,21 +80,6 @@ function timestampMs(value) {
   if (value instanceof Date) return value.getTime();
   const parsed = new Date(value || 0).getTime();
   return Number.isFinite(parsed) ? parsed : 0;
-}
-
-function formatTimestamp(value) {
-  const milliseconds = timestampMs(value);
-  if (!milliseconds) return '';
-  const date = new Date(milliseconds);
-  const age = Date.now() - milliseconds;
-  const minutes = Math.floor(age / 60000);
-  const hours = Math.floor(age / 3600000);
-  const days = Math.floor(age / 86400000);
-  if (minutes < 1) return 'Just now';
-  if (minutes < 60) return `${minutes}m ago`;
-  if (hours < 24) return `${hours}h ago`;
-  if (days < 7) return `${days}d ago`;
-  return formatDate(date, false);
 }
 
 export default function ChildChat({ student, currentUser, userRole, manageableClassrooms = [] }) {
@@ -101,12 +106,15 @@ export default function ChildChat({ student, currentUser, userRole, manageableCl
   const activeTurnRef = useRef(null);
   const messagesEndRef = useRef(null);
   const messagesContainerRef = useRef(null);
+  const inputRef = useRef(null);
   const mountedRef = useRef(false);
   const currentStudentIdRef = useRef(student?.id);
   const selectedChatIdRef = useRef(selectedChatId);
   const hasManuallySelectedChatRef = useRef(false);
   const persistedMessageIdsRef = useRef(new Set());
   const turnDocsRef = useRef([]);
+  const followModeStateRef = useRef(createFollowModeState());
+  const messageAnimationStateRef = useRef(createMessageAnimationState());
 
   currentStudentIdRef.current = student?.id;
   selectedChatIdRef.current = selectedChatId;
@@ -165,6 +173,7 @@ export default function ChildChat({ student, currentUser, userRole, manageableCl
     activeTurnRef.current = null;
     persistedMessageIdsRef.current = new Set();
     turnDocsRef.current = [];
+    resetMessageAnimationState(messageAnimationStateRef.current);
     setSelectedChatId(null);
     setMessages([]);
     setInput('');
@@ -201,6 +210,7 @@ export default function ChildChat({ student, currentUser, userRole, manageableCl
 
     const studentId = student.id;
     const chatId = selectedChatId;
+    resetFollowMode(followModeStateRef.current, { initialScrollPending: true });
     setMessagesLoading(true);
     const messagesRef = collection(db, 'students', studentId, 'chats', chatId, 'messages');
     const turnsRef = collection(db, 'students', studentId, 'chats', chatId, 'turns');
@@ -279,11 +289,12 @@ export default function ChildChat({ student, currentUser, userRole, manageableCl
     };
   }, [isAuthorizedTester, selectedChatId, student?.id]);
 
-  useEffect(() => {
-    if (!messages.length) return undefined;
-    const timer = setTimeout(() => scrollToBottom('auto'), 50);
-    return () => clearTimeout(timer);
-  }, [messages.length, scrollToBottom]);
+  useLayoutEffect(() => {
+    if (!messages.length) return;
+    if (consumeFollowModeGrowth(followModeStateRef.current)) {
+      scrollToBottom('auto');
+    }
+  }, [messages, scrollToBottom]);
 
   useEffect(() => {
     const viewport = window.visualViewport;
@@ -314,6 +325,8 @@ export default function ChildChat({ student, currentUser, userRole, manageableCl
   const handleNewChat = () => {
     leaveActiveChat();
     hasManuallySelectedChatRef.current = true;
+    resetFollowMode(followModeStateRef.current);
+    resetMessageAnimationState(messageAnimationStateRef.current);
     setSelectedChatId(null);
     setMessages([]);
     setInput('');
@@ -324,6 +337,8 @@ export default function ChildChat({ student, currentUser, userRole, manageableCl
   const handleSelectChat = (chatId) => {
     if (chatId !== selectedChatId) leaveActiveChat();
     hasManuallySelectedChatRef.current = true;
+    resetFollowMode(followModeStateRef.current, { initialScrollPending: true });
+    resetMessageAnimationState(messageAnimationStateRef.current);
     setSelectedChatId(chatId);
     setChatDropdownOpen(false);
     setError('');
@@ -372,6 +387,10 @@ export default function ChildChat({ student, currentUser, userRole, manageableCl
       if (selectedChatId === deletingChat.id) {
         leaveActiveChat();
         hasManuallySelectedChatRef.current = true;
+        resetFollowMode(followModeStateRef.current, {
+          initialScrollPending: Boolean(remaining[0]?.id),
+        });
+        resetMessageAnimationState(messageAnimationStateRef.current);
         setSelectedChatId(remaining[0]?.id || null);
         setMessages([]);
       }
@@ -417,6 +436,7 @@ export default function ChildChat({ student, currentUser, userRole, manageableCl
     };
 
     hasManuallySelectedChatRef.current = true;
+    enableFollowMode(followModeStateRef.current);
     setSelectedChatId(chatId);
     setInput('');
     setError('');
@@ -429,6 +449,8 @@ export default function ChildChat({ student, currentUser, userRole, manageableCl
       createdAt,
       isRetry: canRetry,
     }));
+    registerOptimisticEntryAnimations(messageAnimationStateRef.current, ids, canRetry);
+    requestAnimationFrame(() => inputRef.current?.focus());
 
     const isCurrentRequest = () => mountedRef.current
       && currentStudentIdRef.current === studentId
@@ -447,6 +469,7 @@ export default function ChildChat({ student, currentUser, userRole, manageableCl
           if (!isCurrentRequest()) return;
           const previousAssistantId = activeTurnRef.current?.assistantMessageId;
           const nextAssistantId = `${retryIds.runId}-assistant`;
+          registerAssistantAttemptAnimation(messageAnimationStateRef.current, nextAssistantId);
           activeTurnRef.current = {
             ...activeTurnRef.current,
             runId: retryIds.runId,
@@ -511,27 +534,63 @@ export default function ChildChat({ student, currentUser, userRole, manageableCl
   const handleMessagesScroll = () => {
     const element = messagesContainerRef.current;
     if (!element) return;
-    setShowScrollButton(element.scrollHeight - element.scrollTop - element.clientHeight > 200);
+    const nearBottom = updateFollowModeFromScroll(
+      followModeStateRef.current,
+      element,
+      FOLLOW_THRESHOLD_PX,
+    );
+    setShowScrollButton(!nearBottom);
+  };
+
+  const handleTranscriptUserGesture = () => {
+    const element = messagesContainerRef.current;
+    if (!element || !followModeStateRef.current.programmaticScrollPending) return;
+    const nearBottom = interruptProgrammaticScroll(
+      followModeStateRef.current,
+      element,
+      FOLLOW_THRESHOLD_PX,
+    );
+    setShowScrollButton(!nearBottom);
   };
 
   if (!isAuthorizedTester) return <ChatMaintenance currentUser={currentUser} />;
   if (!student?.id) return <Alert severity="error" sx={{ m: 2 }}>Student information is required to start a chat.</Alert>;
 
   const isLanding = selectedChatId === null;
-  const bottomOffset = isKeyboardOpen
-    ? { xs: `${keyboardBottomOffset}px`, sm: '80px' }
-    : { xs: 'calc(80px + env(safe-area-inset-bottom, 0px))', sm: '80px' };
+  const shellGeometry = getChatShellGeometry({
+    headerHeight: HEADER_HEIGHT,
+    headerBottomPadding: HEADER_BOTTOM_PADDING,
+    footerHeight: FOOTER_HEIGHT,
+    safeAreaTop: 'env(safe-area-inset-top, 0px)',
+    safeAreaBottom: 'env(safe-area-inset-bottom, 0px)',
+    keyboardOpen: isKeyboardOpen,
+    keyboardBottomOffset,
+  });
+  const composerState = getComposerState({ loading, input });
   const activeAssistant = activeTurnRef.current
     ? messages.find((message) => message.id === activeTurnRef.current.assistantMessageId)
     : null;
   const showTypingIndicator = loading && !activeAssistant?.content;
 
   return (
-    <Box sx={{ width: '100%', maxWidth: { xs: '100%', sm: '420px' }, minHeight: 'calc(100vh - 80px)', position: 'relative', bgcolor: 'background.default' }}>
-      <Box sx={{ position: 'fixed', top: `calc(${HEADER_HEIGHT}px + env(safe-area-inset-top, 0px))`, left: '50%', transform: 'translateX(-50%)', zIndex: 1000, width: '100%', maxWidth: { xs: '100%', sm: '420px' }, px: 2, pt: 1, boxSizing: 'border-box' }}>
+    <Box sx={{ position: 'fixed', top: shellGeometry.topInset, bottom: shellGeometry.bottomInset, left: '50%', transform: 'translateX(-50%)', ...CHAT_SHELL_WIDTH_SX, display: 'flex', flexDirection: 'column', minHeight: 0, overflow: 'hidden', bgcolor: 'background.default', boxSizing: 'border-box' }}>
+      <Box sx={{ ...CONVERSATION_SELECTOR_LAYER_SX, flexShrink: 0, px: 2, pt: 1, pb: 1, boxSizing: 'border-box' }}>
         <ClickAwayListener onClickAway={() => setChatDropdownOpen(false)}>
-          <Box sx={{ position: 'relative' }}>
-            <Paper elevation={2} sx={{ display: 'flex', alignItems: 'center', borderRadius: '28px', overflow: 'hidden', border: '1px solid', borderColor: 'rgba(0,0,0,.08)', boxShadow: '0 2px 8px rgba(0,0,0,.06)' }}>
+          <Box sx={{ position: 'relative', filter: chatDropdownOpen ? 'drop-shadow(0 4px 8px rgba(0,0,0,.12))' : 'none' }}>
+            <Paper
+              elevation={0}
+              sx={{
+                display: 'flex',
+                alignItems: 'center',
+                borderRadius: chatDropdownOpen ? '28px 28px 0 0' : '28px',
+                overflow: 'hidden',
+                bgcolor: 'background.paper',
+                border: '1px solid',
+                borderColor: 'rgba(0,0,0,.08)',
+                borderBottomWidth: chatDropdownOpen ? 0 : '1px',
+                boxShadow: chatDropdownOpen ? 'none' : '0 2px 8px rgba(0,0,0,.06)',
+              }}
+            >
               <Button fullWidth onClick={() => setChatDropdownOpen((open) => !open)} sx={{ justifyContent: 'space-between', px: 2.5, py: 1.25, textTransform: 'none', minWidth: 0 }}>
                 <Typography noWrap color={selectedChatId ? 'text.primary' : 'text.secondary'} sx={{ fontWeight: selectedChatId ? 500 : 400 }}>
                   {selectedChatId ? chatTitle : 'Load past conversations here'}
@@ -542,7 +601,23 @@ export default function ChildChat({ student, currentUser, userRole, manageableCl
               <IconButton onClick={handleNewChat} disabled={isLanding} aria-label="New chat" sx={{ width: 48, height: 48, color: 'primary.main' }}><Add /></IconButton>
             </Paper>
             {chatDropdownOpen && (
-              <Paper elevation={4} sx={{ position: 'absolute', top: 'calc(100% + 8px)', left: 0, right: 0, maxHeight: 280, overflowY: 'auto', borderRadius: '20px' }}>
+              <Paper
+                elevation={0}
+                sx={{
+                  position: 'absolute',
+                  top: '100%',
+                  left: 0,
+                  right: 0,
+                  maxHeight: 280,
+                  overflowY: 'auto',
+                  borderRadius: '0 0 20px 20px',
+                  bgcolor: 'background.paper',
+                  border: '1px solid',
+                  borderColor: 'rgba(0,0,0,.08)',
+                  borderTopWidth: 0,
+                  boxShadow: 'none',
+                }}
+              >
                 {chatsLoading ? (
                   <Box sx={{ display: 'flex', justifyContent: 'center', p: 2 }}><CircularProgress size={20} /></Box>
                 ) : (
@@ -576,59 +651,68 @@ export default function ChildChat({ student, currentUser, userRole, manageableCl
         </ClickAwayListener>
       </Box>
 
-      <Box ref={messagesContainerRef} onScroll={handleMessagesScroll} sx={{ height: 'calc(100vh - 80px)', overflowY: isLanding ? 'hidden' : 'auto', overflowX: 'hidden', px: 2, pt: `calc(${HEADER_HEIGHT}px + 72px)`, pb: '190px', boxSizing: 'border-box', display: 'flex', flexDirection: 'column', gap: 1.5 }}>
-        {messagesLoading && messages.length === 0 ? (
-          <Box sx={{ flex: 1, display: 'grid', placeItems: 'center' }}><CircularProgress /></Box>
-        ) : isLanding ? (
-          <Box sx={{ flex: 1, display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', textAlign: 'center', p: 3 }}>
-            <Chat size={64} style={{ color: 'var(--color-text-soft)', marginBottom: 16 }} />
-            <Typography variant="h6" gutterBottom>Start a new conversation</Typography>
-            <Typography variant="body2" color="text.secondary">Type something to start a chat or pick a past conversation from above.</Typography>
-          </Box>
-        ) : messages.length === 0 ? (
-          <Box sx={{ flex: 1, display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', textAlign: 'center', p: 3 }}>
-            <Chat size={64} style={{ color: 'var(--color-text-soft)', marginBottom: 16 }} />
-            <Typography variant="h6" gutterBottom>No messages yet</Typography>
-            <Typography variant="body2" color="text.secondary">Start the conversation by asking a question about {studentName}.</Typography>
-          </Box>
-        ) : (
-          <>
-            {messages.map((message) => {
-              if (message.role === 'assistant' && !message.content && message.status === 'streaming') return null;
-              return (
-                <Box key={message.id} sx={{ display: 'flex', flexDirection: 'column', alignItems: message.role === 'user' ? 'flex-end' : 'flex-start', width: '100%' }}>
-                  {message.role === 'user'
-                    ? <UserBubble message={message} formatTimestamp={formatTimestamp} />
-                    : <AssistantBubble message={message} formatTimestamp={formatTimestamp} />}
-                  {message.status === 'interrupted' && <Typography variant="caption" color="text.disabled" sx={{ mt: 0.5, fontStyle: 'italic' }}>Response interrupted</Typography>}
-                  {message.status === 'failed' && <Typography variant="caption" color="error" sx={{ mt: 0.5 }}>Response failed</Typography>}
-                  {buildRetryRequest({ messages, assistantMessage: message, chatId: selectedChatId, runId: 'preview' }) && (
-                    <Button size="small" onClick={() => handleSend(message)} disabled={loading} sx={{ mt: 0.25, textTransform: 'none' }}>Retry</Button>
-                  )}
-                </Box>
-              );
-            })}
-            {showTypingIndicator && <TypingIndicator />}
-            <div ref={messagesEndRef} />
-          </>
-        )}
+      <Box sx={{ ...TRANSCRIPT_LAYER_SX, flex: 1, minHeight: 0, overflow: 'hidden' }}>
+        <Box
+          ref={messagesContainerRef}
+          onScroll={handleMessagesScroll}
+          onWheel={handleTranscriptUserGesture}
+          onTouchStart={handleTranscriptUserGesture}
+          onPointerDown={handleTranscriptUserGesture}
+          sx={{ height: '100%', overflowY: isLanding ? 'hidden' : 'auto', overflowX: 'hidden', px: 2, py: 1, boxSizing: 'border-box', display: 'flex', flexDirection: 'column', gap: 1.5 }}
+        >
+          {messagesLoading && messages.length === 0 ? (
+            <Box sx={{ flex: 1, display: 'grid', placeItems: 'center' }}><CircularProgress /></Box>
+          ) : isLanding ? (
+            <Box sx={{ flex: 1, display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', textAlign: 'center', p: 3 }}>
+              <Chat size={64} style={{ color: 'var(--color-text-soft)', marginBottom: 16 }} />
+              <Typography variant="h6" gutterBottom>Start a new conversation</Typography>
+              <Typography variant="body2" color="text.secondary">Type something to start a chat or pick a past conversation from above.</Typography>
+            </Box>
+          ) : messages.length === 0 ? (
+            <Box sx={{ flex: 1, display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', textAlign: 'center', p: 3 }}>
+              <Chat size={64} style={{ color: 'var(--color-text-soft)', marginBottom: 16 }} />
+              <Typography variant="h6" gutterBottom>No messages yet</Typography>
+              <Typography variant="body2" color="text.secondary">Start the conversation by asking a question about {studentName}.</Typography>
+            </Box>
+          ) : (
+            <>
+              {messages.map((message) => {
+                if (message.role === 'assistant' && !message.content && message.status === 'streaming') return null;
+                const animate = shouldAnimateMessage(messageAnimationStateRef.current, message.id);
+                return (
+                  <Box key={message.id} sx={{ display: 'flex', flexDirection: 'column', alignItems: message.role === 'user' ? 'flex-end' : 'flex-start', width: '100%' }}>
+                    {message.role === 'user'
+                      ? <UserBubble message={message} animate={animate} />
+                      : <AssistantBubble message={message} animate={animate} />}
+                    {message.status === 'interrupted' && <Typography variant="caption" color="text.disabled" sx={{ mt: 0.5, fontStyle: 'italic' }}>Response interrupted</Typography>}
+                    {message.status === 'failed' && <Typography variant="caption" color="error" sx={{ mt: 0.5 }}>Response failed</Typography>}
+                    {buildRetryRequest({ messages, assistantMessage: message, chatId: selectedChatId, runId: 'preview' }) && (
+                      <Button size="small" onClick={() => handleSend(message)} disabled={loading} sx={{ mt: 0.25, textTransform: 'none' }}>Retry</Button>
+                    )}
+                  </Box>
+                );
+              })}
+              {showTypingIndicator && <TypingIndicator />}
+              <div ref={messagesEndRef} />
+            </>
+          )}
+        </Box>
+        {!isLanding && <ScrollToBottomFab visible={showScrollButton} onClick={() => { beginProgrammaticScroll(followModeStateRef.current); scrollToBottom('smooth'); }} />}
       </Box>
 
-      {!isLanding && <ScrollToBottomFab visible={showScrollButton} onClick={scrollToBottom} isKeyboardOpen={isKeyboardOpen} />}
-
-      <Box sx={{ position: 'fixed', left: '50%', bottom: bottomOffset, transform: 'translateX(-50%)', width: '100%', maxWidth: { xs: '100%', sm: '420px' }, px: 2, zIndex: 1000, boxSizing: 'border-box', transition: 'bottom .15s' }}>
+      <Box sx={{ flexShrink: 0, px: 2, pt: 1, pb: 1, boxSizing: 'border-box' }}>
         {(error || voice.error) && (
           <Alert severity="error" sx={{ mb: 1 }} onClose={() => { setError(''); voice.clearError(); }}>{error || voice.error}</Alert>
         )}
         {voice.active ? <InlineVoiceOverlay {...voice} /> : (
           <Paper elevation={2} sx={{ display: 'flex', gap: 1, alignItems: 'flex-end', p: 1, borderRadius: '28px', border: '1px solid', borderColor: 'rgba(0,0,0,.08)', boxShadow: '0 2px 8px rgba(0,0,0,.06)' }}>
-            <TextField fullWidth multiline maxRows={4} value={input} onChange={(event) => setInput(event.target.value)} onKeyDown={handleInputKeyDown} disabled={loading} placeholder="Type your message..." variant="standard" InputProps={{ disableUnderline: true }} sx={{ '& .MuiInputBase-root': { px: 1.5, py: 1.25 } }} />
+            <TextField inputRef={inputRef} fullWidth multiline maxRows={4} value={input} onChange={(event) => setInput(event.target.value)} onKeyDown={handleInputKeyDown} placeholder="Type your message..." variant="standard" InputProps={{ disableUnderline: true }} sx={{ '& .MuiInputBase-root': { px: 1.5, py: 1.25 } }} />
             {loading ? (
               <IconButton onClick={() => abortActiveChatRequest(abortRef)} aria-label="Stop response" sx={{ width: 44, height: 44, color: 'error.main' }}><Stop /></IconButton>
             ) : (
               <>
                 <IconButton onClick={voice.startRecording} aria-label="Start voice recording" sx={{ width: 44, height: 44, color: 'primary.main' }}><Mic /></IconButton>
-                <IconButton onClick={() => handleSend()} disabled={!input.trim()} aria-label="Send message" sx={{ width: 44, height: 44, color: 'primary.main' }}><Send /></IconButton>
+                <IconButton onClick={() => handleSend()} disabled={composerState.sendDisabled} aria-label="Send message" sx={{ width: 44, height: 44, color: 'primary.main' }}><Send /></IconButton>
               </>
             )}
           </Paper>

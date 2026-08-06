@@ -1,42 +1,4 @@
-const INLINE_PATTERNS = [
-  { regex: /\*\*([^*]+)\*\*/g, type: 'bold' },
-  { regex: /\*([^*]+)\*/g, type: 'italic' },
-  { regex: /`([^`]+)`/g, type: 'code' },
-];
-
 export const stripQuotes = (text) => text ? text.replace(/^["']|["']$/g, '') : text;
-
-export const collectInlineMatches = (text) => {
-  if (!text) return [];
-  const matches = [];
-  INLINE_PATTERNS.forEach((pattern) => {
-    pattern.regex.lastIndex = 0;
-    let match;
-    while ((match = pattern.regex.exec(text)) !== null) {
-      matches.push({
-        start: match.index,
-        end: match.index + match[0].length,
-        type: pattern.type,
-        content: match[1],
-      });
-    }
-  });
-  matches.sort((a, b) => a.start - b.start);
-  return matches.filter((match, index, all) => !all.slice(0, index).some(
-    (previous) => match.start < previous.end && match.end > previous.start,
-  ));
-};
-
-export const classifyLine = (line) => {
-  const trimmed = line.trim();
-  if (!trimmed) return { type: 'blank', content: '' };
-  if (trimmed.startsWith('### ')) return { type: 'h3', content: trimmed.replace(/^###\s+/, '') };
-  if (trimmed.startsWith('## ')) return { type: 'h2', content: trimmed.replace(/^##\s+/, '') };
-  if (trimmed.startsWith('# ')) return { type: 'h1', content: trimmed.replace(/^#\s+/, '') };
-  if (/^[-*]\s+/.test(trimmed)) return { type: 'ul', content: trimmed.replace(/^[-*]\s+/, '') };
-  if (/^\d+\.\s+/.test(trimmed)) return { type: 'ol', content: trimmed.replace(/^\d+\.\s+/, '') };
-  return { type: 'paragraph', content: trimmed };
-};
 
 function messageTime(message) {
   const value = message?.createdAt || message?.timestamp || 0;

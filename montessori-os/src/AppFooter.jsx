@@ -3,7 +3,7 @@ import { Box, BottomNavigation, BottomNavigationAction, Badge } from '@mui/mater
 import { Home, Settings, Bell as Notifications, Inbox } from './icons';
 import { trackEvent } from './utils/analytics';
 
-const FOOTER_HEIGHT = 64;
+export const FOOTER_HEIGHT = 64;
 
 function AppFooter({ onHome, onNavigate, active = null, alertBadgeCount = 0 }) {
   const [value, setValue] = useState(active || 'none');
