@@ -25,7 +25,7 @@ Batch-triage meeting transcripts into lightweight Backlog issues, optionally gro
 
 ## Context Loading
 
-Silently read `.claude/skills/codebase-context-scan/references/pep-os-overview.md` for Area Map inference.
+Silently read `.agents/skills/codebase-context-scan/references/pep-os-overview.md` for Area Map inference.
 
 ## Workflow
 

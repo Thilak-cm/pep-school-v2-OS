@@ -56,6 +56,14 @@ Fan-out per student: one observation doc per student at `students/{studentId}/ob
 - Shared constants between frontend and functions live in `functions/config/` (Vite `fs.allow` permits cross-boundary imports)
 - App version tracked in `montessori-os/package.json` and `VERSION` file at root; service worker version updated at prebuild
 
+### Shared Skills & Subagents
+
+- `.agents/skills/` is the source of truth for shared skills; `.claude/skills` symlinks to it.
+- `.agents/subagents/definitions/` is the source of truth for shared subagent prompts and platform model settings.
+- `.claude/agents/*.md` and `.codex/agents/*.toml` are generated adapters. Never edit them directly.
+- After changing a subagent definition, run `npm run agents:generate`, then `npm run agents:check`.
+- Shared skills must dispatch subagents by agent name using the host's native mechanism. Do not reference platform-specific agent paths or tool names in `SKILL.md`.
+
 ## Firebase Security Rules Constraints
 
 Storage rules have a strict cross-service `firestore.get()` budget. Keep unique Firestore document paths to **2 or fewer** per storage rule evaluation. This is a hard platform limit - path-level caching is NOT reliable.

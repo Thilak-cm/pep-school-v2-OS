@@ -9,7 +9,7 @@
  * fields are optional (not present in every sampled doc).
  *
  * Usage:
- *   node .claude/skills/check-schema-sync/scripts/sample-firestore-schema.mjs
+ *   node .agents/skills/check-schema-sync/scripts/sample-firestore-schema.mjs
  *
  * Output: writes schema JSON to stdout. Logs progress to stderr.
  */

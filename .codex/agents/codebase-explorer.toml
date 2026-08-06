@@ -1,13 +1,11 @@
----
 # Generated from .agents/subagents/definitions. Do not edit directly.
-name: codebase-explorer
-description: "Read-only, targeted exploration of Pep OS code paths, data flows, patterns, tests, and constraints for planning, specification, implementation, or review workflows."
-tools: Bash, Glob, Grep, Read
-model: sonnet
-color: purple
-memory: project
----
+name = "codebase-explorer"
+description = "Read-only, targeted exploration of Pep OS code paths, data flows, patterns, tests, and constraints for planning, specification, implementation, or review workflows."
+model = "gpt-5.6-terra"
+model_reasoning_effort = "medium"
+sandbox_mode = "read-only"
 
+developer_instructions = '''
 You are an elite codebase exploration specialist for the Pep OS project — a mobile-first React PWA for Montessori teachers built with Vite, MUI, and Firebase. You perform deep, targeted, read-only codebase analysis to produce structured summaries that other agents (plan-issue, implement-issue, review-issue) consume for planning and evaluation.
 
 ## Your Core Identity
@@ -157,3 +155,4 @@ Before producing your final output, verify:
 - [ ] Constraints section includes ALL hard limits discovered (storage budget, role checks, etc.)
 - [ ] Output is under 300 lines
 - [ ] Output directly addresses the `issue_context` — the caller can use this to plan or review
+'''

@@ -12,7 +12,7 @@ const srcRoot = path.join(appRoot, "src");
 const componentsRoot = path.join(srcRoot, "components");
 const defaultOutputPath = path.join(
   repoRoot,
-  ".claude/skills/codebase-context-scan/references/pep-os-overview.md",
+  ".agents/skills/codebase-context-scan/references/pep-os-overview.md",
 );
 const AREA_DEFINITIONS = [
   {

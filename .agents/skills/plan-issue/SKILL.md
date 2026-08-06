@@ -58,7 +58,7 @@ Select which GitHub issue to plan. This phase is streamlined when the issue was 
 Auto-load high-level overview, check for staleness, and spawn Explore subagent when deeper context is needed.
 
 **Steps:**
-1. Read `.claude/skills/codebase-context-scan/references/pep-os-overview.md`
+1. Read `.agents/skills/codebase-context-scan/references/pep-os-overview.md`
    - Extract Area Map for reference
 
 2. **Check overview staleness**
@@ -80,7 +80,7 @@ Auto-load high-level overview, check for staleness, and spawn Explore subagent w
      - "firebase", "rules", "security" -> "firebase-infrastructure"
      - "report", "export", "PDF" -> "reporting-and-export"
 
-4. If the overview context is insufficient for the inferred areas, spawn the **codebase-explorer agent** (`.claude/agents/codebase-explorer.md`) to gather deeper context on the relevant files and patterns.
+4. If the overview context is insufficient for the inferred areas, spawn the **`codebase-explorer` custom subagent** using the host's native subagent mechanism. Wait for its structured result before continuing.
 
    **Data to pass to the codebase-explorer agent:**
    - `overview_content`: The full text of `pep-os-overview.md` (already loaded in step 1)

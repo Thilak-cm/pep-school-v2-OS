@@ -29,14 +29,14 @@ The orchestrator itself stays thin. Heavy work (reading diffs, auditing code, ma
 ```
 Orchestrator (this skill — thin, stays in main context)
     │
-    ├── Explore subagent (Task/Explore)                — only if diff is complex
+    ├── `codebase-explorer` subagent                   — only if diff is complex
     │
     ├── PARALLEL AUDIT ────────────────────────────────
-    │   ├── Quick auditor (.claude/agents/code-auditor, scope=quick)  — fast mechanical checks
-    │   └── Deep auditor  (.claude/agents/code-auditor, scope=deep)   — reasoning-heavy checks
+    │   ├── `code-auditor` (scope=quick)               — fast mechanical checks
+    │   └── `code-auditor` (scope=deep)                — reasoning-heavy checks
     │
     ├── IMPACT CHECK ──────────────────────────────────
-    │   └── Impact checker (.claude/agents/impact-checker)
+    │   └── `impact-checker`
     │       → transitive consumer tracing (not just 1-hop)
     │       → cross-boundary contracts (frontend ↔ functions ↔ rules)
     │       → security rule cascade analysis
@@ -46,12 +46,12 @@ Orchestrator (this skill — thin, stays in main context)
     │       → behavioral side effect detection
     │
     ├── OVERLAPPED FIX ────────────────────────────────
-    │   ├── Fixer-A (.claude/agents/code-fixer)  — fixes quick findings (starts as soon as quick audit returns)
-    │   └── Fixer-B (.claude/agents/code-fixer)  — fixes deep + integration findings (parallel if no file overlap, else after A)
+    │   ├── `code-fixer` A — fixes quick findings (starts as soon as quick audit returns)
+    │   └── `code-fixer` B — fixes deep + integration findings (parallel if no file overlap, else after A)
     │
     └── RE-AUDIT LOOP ────────────────────────────────
-        ├── Full auditor (.claude/agents/code-auditor, scope=full)  — fresh, complete re-audit
-        └── Fixer (.claude/agents/code-fixer)                       — single fixer for remaining findings
+        ├── `code-auditor` (scope=full)              — fresh, complete re-audit
+        └── `code-fixer`                             — single fixer for remaining findings
 ```
 
 The audit report contract at `references/audit-report-contract.md` defines the exact format the audit agent outputs and the fix agent consumes. Both quick and deep auditors produce reports in the same format — the orchestrator merges them before displaying to the user.
@@ -76,7 +76,7 @@ Gather everything the audit agent will need. The orchestrator does this directly
    - `git log --oneline dev..HEAD` — commits on the branch
 
 3. **Load the high-level overview**
-   - Read `.claude/skills/codebase-context-scan/references/pep-os-overview.md`
+   - Read `.agents/skills/codebase-context-scan/references/pep-os-overview.md`
    - This gives the audit agent enough orientation for most issues
 
 4. **Assess whether an Explore agent is needed**
@@ -93,7 +93,7 @@ Gather everything the audit agent will need. The orchestrator does this directly
 
 Only if Phase 1 determined exploration is needed.
 
-**Spawn the `codebase-explorer` agent (`.claude/agents/codebase-explorer.md`).**
+**Spawn the `codebase-explorer` custom subagent using the host's native subagent mechanism and wait for its structured result.**
 
 **Data to pass to the codebase-explorer agent:**
 - `overview_content`: The full text of `pep-os-overview.md` (already loaded in Phase 1)
@@ -112,8 +112,8 @@ The audit is split into two parallel agents with different scopes to enable over
 
 | Agent | Scope | Input | Why |
 |-------|-------|-------|-----|
-| **Quick auditor** (Sonnet) | `quick` | Diff only | Fast mechanical checks — dead code, debug artifacts, unused imports, obvious async errors |
-| **Deep auditor** (Sonnet) | `deep` | Diff + GitHub issue + overview + explore summary | Reasoning-heavy checks — scope alignment, correctness, security, patterns, test coverage |
+| **Quick auditor** (`code-auditor`) | `quick` | Diff only | Fast mechanical checks — dead code, debug artifacts, unused imports, obvious async errors |
+| **Deep auditor** (`code-auditor`) | `deep` | Diff + GitHub issue + overview + explore summary | Reasoning-heavy checks — scope alignment, correctness, security, patterns, test coverage |
 
 Both agents output structured reports in the audit report contract format. The quick auditor omits the `Scope Alignment` section.
 
@@ -153,7 +153,7 @@ Concatenate both reports into a single merged report for the user. Use the deep 
 
 **3a. Launch impact checker**
 
-Spawn the **`impact-checker` agent** (`.claude/agents/impact-checker.md`) with:
+Spawn the **`impact-checker` custom subagent** using the host's native subagent mechanism, then wait for its structured result. Pass:
 - **Diff:** The full diff from Phase 1 (`git diff dev...HEAD` + any uncommitted changes)
 - **Diff stat:** The file-level summary from Phase 1
 - **GitHub issue context:** Title + acceptance criteria (so it can distinguish intended from unintended effects)
@@ -379,7 +379,7 @@ After the PR is opened, the GitHub Claude CI reviewer (`claude-code-action` with
 
 **7c. Fix the CI reviewer's findings**
 - Ask user for confirmation before fixing (Human Approval Gate)
-- Spawn the **`code-fixer` agent** (`.claude/agents/code-fixer.md`) with:
+- Spawn the **`code-fixer` custom subagent** using the host's native subagent mechanism with:
   - The CI reviewer's comments (formatted as findings)
   - GitHub issue context
 - After fixes are applied, commit and push to the same branch:
