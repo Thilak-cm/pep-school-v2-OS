@@ -171,6 +171,16 @@ describe("firestore.rules: teacher access contract", () => {
     assert.match(chatBlock, /allow create:\s*if false/);
   });
 
+  it("classroomadmin chat access is limited to manageable classrooms", () => {
+    const block = extractMatchBlock(rules, "match /students/{studentId}");
+    const chatBlock = extractMatchBlock(block, "match /chats/{chatId}");
+    assert.ok(chatBlock);
+    assert.match(chatBlock, /hasManageableClassroom\(studentClassroomId\(studentId\)\)/);
+    assert.doesNotMatch(chatBlock, /isPrivilegedAdmin\(\)/);
+    assert.match(chatBlock, /isSuperAdmin\(\)/);
+    assert.match(chatBlock, /isTeacherInClassroom\(studentClassroomId\(studentId\)\)/);
+  });
+
   it("teachers can read AI summaries in their classrooms", () => {
     const block = extractMatchBlock(rules, "match /students/{studentId}");
     const aiBlock = extractMatchBlock(block, "match /ai_summaries/{summaryId}");

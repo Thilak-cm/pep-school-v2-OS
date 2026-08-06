@@ -2,7 +2,11 @@ import test from "node:test";
 import assert from "node:assert/strict";
 import { TextEncoder } from "node:util";
 
-import { runStreamingAgentLoop, streamOpenRouterTurn } from "./openrouterStream.js";
+import {
+  executeToolCallBatch,
+  runStreamingAgentLoop,
+  streamOpenRouterTurn,
+} from "./openrouterStream.js";
 
 function responseFromChunks(chunks) {
   const encoder = new TextEncoder();
@@ -17,6 +21,13 @@ function responseFromChunks(chunks) {
         releaseLock: () => {},
       }),
     },
+  };
+}
+
+function noOpTrace() {
+  return {
+    generation: () => ({ end: () => {} }),
+    span: () => ({ end: () => {} }),
   };
 }
 
@@ -77,6 +88,7 @@ test("runStreamingAgentLoop executes same-turn tool calls concurrently and prese
       executionOrder.push(`end:${name}`);
       return { name };
     },
+    trace: noOpTrace(),
     onChunk: () => {},
   });
 
@@ -90,6 +102,40 @@ test("runStreamingAgentLoop executes same-turn tool calls concurrently and prese
   assert.equal(result.messages[1].tool_calls.length, 2);
   assert.equal(result.messages.at(-2).tool_call_id, "tc_a");
   assert.equal(result.messages.at(-1).tool_call_id, "tc_b");
+});
+
+test("executeToolCallBatch waits for prerequisites and preserves model output order", async () => {
+  const toolCalls = [
+    { id: "dependent", function: { name: "fetch_snapshot_history", arguments: "{}" } },
+    { id: "prerequisite", function: { name: "fetch_weekly_snapshot", arguments: "{}" } },
+    { id: "independent", function: { name: "fetch_observations", arguments: "{}" } },
+  ];
+  const executionOrder = [];
+  const finishers = {};
+  const batch = executeToolCallBatch({
+    toolCalls,
+    toolPrerequisites: { fetch_snapshot_history: ["fetch_weekly_snapshot"] },
+    toolExecutor: async (name) => {
+      executionOrder.push(`start:${name}`);
+      if (name !== "fetch_snapshot_history") {
+        await new Promise((resolve) => { finishers[name] = resolve; });
+      }
+      executionOrder.push(`end:${name}`);
+      return { name };
+    },
+    trace: noOpTrace(),
+  });
+
+  assert.deepEqual(executionOrder, [
+    "start:fetch_weekly_snapshot",
+    "start:fetch_observations",
+  ]);
+  finishers.fetch_weekly_snapshot();
+  finishers.fetch_observations();
+
+  const results = await batch;
+  assert.equal(executionOrder.at(-2), "start:fetch_snapshot_history");
+  assert.deepEqual(results.map(({ tc }) => tc.id), ["dependent", "prerequisite", "independent"]);
 });
 
 test("runStreamingAgentLoop records Langfuse generations and tool spans", async () => {
@@ -137,4 +183,39 @@ test("runStreamingAgentLoop records Langfuse generations and tool spans", async 
   assert.equal(spans.length, 1);
   assert.equal(spans[0].input.name, "tool-fetch_observations");
   assert.deepEqual(spans[0].endCalls[0].output, { observations: 2 });
+});
+
+test("runStreamingAgentLoop refuses model execution without Langfuse", async () => {
+  let fetched = false;
+  await assert.rejects(
+    () => runStreamingAgentLoop({
+      fetchImpl: async () => {
+        fetched = true;
+        return responseFromChunks([]);
+      },
+      apiKey: "secret",
+      endpoint: "https://example.test",
+      messages: [{ role: "user", content: "question" }],
+      model: "test-model",
+    }),
+    /Langfuse trace is required/,
+  );
+  assert.equal(fetched, false);
+});
+
+test("runStreamingAgentLoop closes the generation when the provider fails", async () => {
+  const endCalls = [];
+  await assert.rejects(
+    () => runStreamingAgentLoop({
+      fetchImpl: async () => ({ ok: false, status: 503, text: async () => "unavailable" }),
+      apiKey: "secret",
+      endpoint: "https://example.test",
+      messages: [{ role: "user", content: "question" }],
+      model: "test-model",
+      trace: { generation: () => ({ end: (value) => endCalls.push(value) }) },
+    }),
+    /OpenRouter error: 503/,
+  );
+  assert.equal(endCalls.length, 1);
+  assert.equal(endCalls[0].level, "ERROR");
 });

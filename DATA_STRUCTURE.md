@@ -457,10 +457,12 @@ interface ChatDoc {
   classroomId: string | null;        // denorm for trace/debug context
   createdBy: string;                 // uid that created the chat
   visibility: 'classroom';           // shared by authorized teachers in the student's classroom
-  name: string;                     // auto-generated from first message, default "New Chat"
+  name: string;                     // sanitized first user message, truncated to 60 characters
   messageCount: number;             // count of messages in the chat
   lastMessagePreview: string;       // first 100 chars of the latest assistant response
   activeTurnId?: string | null;      // running turn marker, cleared on terminal states
+  lastTurnStatus?: 'persisting' | 'running' | 'completed' | 'interrupted' | 'failed';
+  lastErrorCode?: string;             // latest failed turn's stable server error code
   langfuseTraceId?: string;          // latest trace id; each turn uses runId as trace id
 
   // Soft delete
@@ -487,6 +489,7 @@ interface MessageDoc {
   role: 'user' | 'assistant';
   content: string;                  // message text (trimmed)
   createdAt: Timestamp;             // when message was created
+  timestamp?: Timestamp;            // legacy creation field; readers support either timestamp field
   turnId: string;                   // associated turn lifecycle doc
   status: 'complete' | 'interrupted' | 'failed';
 
@@ -494,6 +497,11 @@ interface MessageDoc {
   runId?: string;                   // Langfuse trace id for this assistant run
   model?: string;                   // LLM model used (e.g., "gpt-4o-mini")
   finishReason?: 'stop' | 'client_disconnect' | 'error' | string;
+  retry?: {                         // failed/interrupted response retry identity
+    chatId: string;
+    turnId: string;
+    userMessageId: string;
+  };
 
   // User messages only
   authorId?: string;                // uid of the teacher
@@ -502,9 +510,11 @@ interface MessageDoc {
 ```
 
 Notes
-- Server writes the user message before calling the LLM. The assistant response streams directly to the browser and is written once at completion or interruption using the server-accumulated text.
+- Server atomically writes the chat, user message, and `persisting` turn before resolving model config, provider credentials, or Langfuse. Provider/config failures therefore remain durable terminal turn records.
+- Legacy messages containing only `timestamp` remain readable; no destructive timestamp migration is required.
 - Individual model tokens are not written to Firestore.
 - If a user stops streaming or navigates away, the assistant message is saved with `status: 'interrupted'` and `finishReason: 'client_disconnect'`.
+- A `failed` attempt that produced no model content, or an `interrupted` attempt with no prefix, is recorded only in its turn doc; no empty assistant message is created. Readers listen to turns and attach the durable retry action to the matching user message. Completed responses and non-empty interrupted prefixes remain assistant message docs.
 - `messageCount` on the parent chat doc is incremented by completed server writes.
 - When the parent chat is hard-deleted by `cleanupDeletedChats`, all messages are recursively deleted.
 
@@ -516,7 +526,7 @@ interface TurnDoc {
   runId: string;                    // Langfuse trace id
   userMessageId: string;
   assistantMessageId?: string;
-  idempotencyKey: string;           // `${chatId}:${userMessageId}`
+  idempotencyKey: string;           // `${chatId}:${userMessageId}` logical user-message identity
   status: 'persisting' | 'running' | 'completed' | 'interrupted' | 'failed';
   createdAt: Timestamp;
   updatedAt: Timestamp;
@@ -524,11 +534,28 @@ interface TurnDoc {
   completedAt?: Timestamp;
   finishReason?: string;
   errorCode?: string;
+  model?: string;                   // latest attempt's model (compatibility projection)
+  langfuseTraceId?: string;         // latest attempt's trace (compatibility projection)
+  attempts: Array<{
+    runId: string;
+    assistantMessageId: string;
+    status: 'persisting' | 'running' | 'completed' | 'interrupted' | 'failed';
+    createdAt: Timestamp;
+    updatedAt: Timestamp;
+    startedAt?: Timestamp | null;
+    completedAt?: Timestamp | null;
+    finishReason?: string | null;
+    errorCode?: string | null;
+    model?: string | null;
+    langfuseTraceId?: string | null;
+  }>;                               // append-only execution history across retries
 }
 ```
 
 Tool and trace notes
 - Chat tools are read-only and student-scoped. The model does not receive `studentId` or `chatId` in tool schemas; the backend injects those values after generation so hallucinated IDs cannot redirect tool reads.
+- Reusing a turn ID with different logical message identity is rejected. An exact active or terminal replay reads existing state without rewriting it; a retry reuses `chatId`, `turnId`, and `userMessageId`, creates only a new `runId`, and appends an attempt without duplicating the user message or overwriting prior execution/trace history.
+- Every OpenRouter model execution requires a Langfuse trace. Trace close/flush failures are isolated from Firestore terminalization.
 - If the model emits multiple tool calls in the same assistant turn, the Cloud Function executes them concurrently and appends results back to the model in original tool-call order.
 - Detailed tool-call observability belongs in Langfuse. Firestore keeps only transcript, turn state, and a trace id link.
 
@@ -748,7 +775,7 @@ Current documents
 - `text_summarizer` — prompts + model config for the Text Cleanup feature
 - `voice_transcriber` — context string for Whisper speech-to-text
 - `coach_{program}` — per-program Coach nudge configuration (program ∈ toddler | primary | elementary | adolescent)
-- `chat_{program}` — per-program AI chat configuration
+- `chat_{program}` — per-program AI chat configuration. Shape: `{ systemPrompt: string, model: string, temperature: number, max_tokens: number, chatMessageLimit: number, observationLimit: number | 'all', allowedTools?: string[] }`. `observationLimit` controls how many recent observations are included in server-built chat context.
 - `report_{program}` — per-program parent progress report prompts + model config
 - `soul_guidelines_{program}` — per-program developmental guidelines markdown (areas, skill areas, benchmarks from report cards). Shape: `{ markdown: string, programId: ProgramId, benchmarkCount: number, updatedBy: string, updatedAt: Timestamp }`.
 - `soul_generation` — soul generation instruction prompt + model config (PEP-163). Shape: `{ systemPrompt: string, model: string, temperature: number, max_tokens: number }`. Fallback defaults in `functions/utils/soulHelpers.js:SOUL_DEFAULTS`. Note: this doc may not exist in Firestore — CFs fall back to hardcoded defaults when missing.

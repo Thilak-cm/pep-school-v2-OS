@@ -1,3 +1,19 @@
+const TERMINAL_FINISH_REASONS = new Set([
+  "stop",
+  "length",
+  "tool_calls",
+  "content_filter",
+  "function_call",
+]);
+
+export class ProviderStreamError extends Error {
+  constructor(message) {
+    super(message);
+    this.name = "ProviderStreamError";
+    this.code = "chat/provider-stream-error";
+  }
+}
+
 export async function streamOpenRouterResponse({
   fetchImpl = fetch,
   apiKey,
@@ -132,6 +148,12 @@ export async function streamOpenRouterTurn({
     reader.releaseLock?.();
   }
 
+  if (!TERMINAL_FINISH_REASONS.has(finishReason)) {
+    throw new ProviderStreamError(
+      "OpenRouter stream ended before a terminal event was received",
+    );
+  }
+
   return {
     content,
     toolCalls: normalizeToolCalls(toolCallParts),
@@ -155,6 +177,65 @@ function safeJsonSize(value) {
   }
 }
 
+async function executeToolCall({ tc, toolExecutor, trace }) {
+  const args = parseToolArgs(tc.function.arguments);
+  const toolSpan = trace?.span({
+    name: `tool-${tc.function.name}`,
+    input: args,
+  });
+  try {
+    const result = await toolExecutor(tc.function.name, args);
+    toolSpan?.end({
+      output: result,
+      metadata: { resultSizeBytes: safeJsonSize(result) },
+    });
+    return { tc, args, result };
+  } catch (error) {
+    const result = { error: error.message || "Tool call failed" };
+    toolSpan?.end({ output: result, level: "ERROR" });
+    return { tc, args, result };
+  }
+}
+
+/**
+ * Execute one model-emitted tool batch in prerequisite layers. Calls in the
+ * same layer remain concurrent, while a dependent call waits for its emitted
+ * prerequisite. Results retain the model's original tool-call order.
+ */
+export async function executeToolCallBatch({
+  toolCalls,
+  toolExecutor,
+  toolPrerequisites = {},
+  trace,
+}) {
+  const pending = toolCalls.map((tc, index) => ({ tc, index }));
+  const emittedNames = new Set(toolCalls.map((tc) => tc.function.name));
+  const completedNames = new Set();
+  const orderedResults = new Array(toolCalls.length);
+
+  while (pending.length) {
+    let ready = pending.filter(({ tc }) => (toolPrerequisites[tc.function.name] || [])
+      .every((prerequisite) => !emittedNames.has(prerequisite) || completedNames.has(prerequisite)));
+    // Catalog cycles should never occur, but executing the unresolved layer lets
+    // the registry return its normal prerequisite error instead of deadlocking.
+    if (!ready.length) ready = [...pending];
+
+    const layerResults = await Promise.all(ready.map(({ tc }) => executeToolCall({
+      tc,
+      toolExecutor,
+      trace,
+    })));
+    ready.forEach(({ tc, index }, layerIndex) => {
+      orderedResults[index] = layerResults[layerIndex];
+      completedNames.add(tc.function.name);
+      const pendingIndex = pending.findIndex((item) => item.index === index);
+      pending.splice(pendingIndex, 1);
+    });
+  }
+
+  return orderedResults;
+}
+
 export async function runStreamingAgentLoop({
   fetchImpl = fetch,
   apiKey,
@@ -165,12 +246,16 @@ export async function runStreamingAgentLoop({
   maxTokens = 4096,
   tools = [],
   toolExecutor,
+  toolPrerequisites = {},
   signal,
   onChunk = () => {},
   onToolCalls = () => {},
   trace,
   maxIterations = 8,
 }) {
+  if (typeof trace?.generation !== "function") {
+    throw new Error("Langfuse trace is required for chat model execution");
+  }
   let content = "";
   let iterations = 0;
   const toolCallLog = [];
@@ -183,21 +268,34 @@ export async function runStreamingAgentLoop({
       input: messages[messages.length - 1],
       metadata: { toolCount: tools.length, stream: true },
     });
-    const turn = await streamOpenRouterTurn({
-      fetchImpl,
-      apiKey,
-      endpoint,
-      messages,
-      model,
-      temperature,
-      maxTokens,
-      tools,
-      signal,
-      onChunk: (text) => {
-        content += text;
-        onChunk(text);
-      },
-    });
+    if (typeof generation?.end !== "function") {
+      throw new Error("Langfuse generation could not be created");
+    }
+    let turn;
+    try {
+      turn = await streamOpenRouterTurn({
+        fetchImpl,
+        apiKey,
+        endpoint,
+        messages,
+        model,
+        temperature,
+        maxTokens,
+        tools,
+        signal,
+        onChunk: (text) => {
+          content += text;
+          onChunk(text);
+        },
+      });
+    } catch (error) {
+      generation.end({
+        output: { error: error.message || "Model execution failed" },
+        level: "ERROR",
+        metadata: { streamedChars: content.length },
+      });
+      throw error;
+    }
 
     if (!turn.toolCalls.length) {
       generation?.end({
@@ -222,25 +320,12 @@ export async function runStreamingAgentLoop({
       metadata: { finishReason: turn.finishReason || "tool_calls" },
     });
 
-    const results = await Promise.all(turn.toolCalls.map(async (tc) => {
-      const args = parseToolArgs(tc.function.arguments);
-      const toolSpan = trace?.span({
-        name: `tool-${tc.function.name}`,
-        input: args,
-      });
-      try {
-        const result = await toolExecutor(tc.function.name, args);
-        toolSpan?.end({
-          output: result,
-          metadata: { resultSizeBytes: safeJsonSize(result) },
-        });
-        return { tc, args, result };
-      } catch (error) {
-        const result = { error: error.message || "Tool call failed" };
-        toolSpan?.end({ output: result, level: "ERROR" });
-        return { tc, args, result };
-      }
-    }));
+    const results = await executeToolCallBatch({
+      toolCalls: turn.toolCalls,
+      toolExecutor,
+      toolPrerequisites,
+      trace,
+    });
 
     for (const { tc, args, result } of results) {
       toolCallLog.push({ name: tc.function.name, args, result });

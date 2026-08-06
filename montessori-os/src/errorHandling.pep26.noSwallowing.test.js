@@ -5,6 +5,7 @@ import { readFile } from 'node:fs/promises';
 const SCOPED_FILES = [
   './components/ClassroomTimeline.jsx',
   './components/AddNoteModal.jsx',
+  './components/ChildChat.jsx',
   './components/GraduateStudentsPage.jsx',
   './components/noteBottomSheet/NoteBottomSheet.jsx',
   './components/noteBottomSheet/useMediaPreview.js',

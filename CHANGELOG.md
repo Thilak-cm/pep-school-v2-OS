@@ -1,5 +1,19 @@
 # Changelog
 
+# 12.2.0 — 2026-08-06
+
+### Added
+- Coach Pepper now streams responses progressively through a durable, server-orchestrated chat session (#220).
+- Chat retries, interruption recovery, classroom-shared conversations, and configurable read-only context tools.
+
+### Changed
+- Coach Pepper chat records now preserve message transcripts and execution attempts separately, while keeping legacy conversations readable (#220).
+- Chat Command Centre now controls which Coach Pepper tools are enabled for each program.
+
+### Fixed
+- Streaming responses keep their correct conversation order and preserve partial replies when interrupted or provider streams end early.
+- Chat permissions consistently limit rename and delete controls to conversation owners and scoped admins.
+
 # 12.1.0 — 2026-07-23
 
 ### Changed

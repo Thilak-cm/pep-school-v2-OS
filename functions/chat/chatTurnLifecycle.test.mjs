@@ -24,3 +24,8 @@ test("transitionTurn applies state and completion metadata", () => {
 test("transitionTurn throws for an invalid transition", () => {
   assert.throws(() => transitionTurn({ status: "completed" }, "running"), /Invalid turn transition/);
 });
+
+test("persisting turns can be interrupted before provider setup completes", () => {
+  const result = transitionTurn({ status: "persisting" }, "interrupted");
+  assert.equal(result.status, "interrupted");
+});

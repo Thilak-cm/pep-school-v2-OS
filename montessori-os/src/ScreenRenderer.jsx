@@ -179,7 +179,14 @@ function renderScreen(screen, ctx) {
       );
 
     case "childChat":
-      return <ChildChat student={ctx.selectedStudent} currentUser={ctx.user} />;
+      return (
+        <ChildChat
+          student={ctx.selectedStudent}
+          currentUser={ctx.user}
+          userRole={ctx.role}
+          manageableClassrooms={ctx.manageableClassrooms}
+        />
+      );
 
     case "alerts":
       return <NotificationsPage />;

@@ -15,6 +15,31 @@
 
 import { db } from "./firebase.js";
 
+function messageTimeValue(message) {
+  const value = message.createdAt || message.timestamp || 0;
+  if (typeof value?.toMillis === "function") return value.toMillis();
+  if (value instanceof Date) return value.getTime();
+  if (typeof value === "number") return value;
+  return String(value);
+}
+
+async function queryChatMessages(ref, field, limit) {
+  const snap = await ref.orderBy(field, "desc").limit(limit).get();
+  return snap.docs.map((doc) => ({ id: doc.id, ...doc.data() }));
+}
+
+export function mergeChronologicalChatMessages(messageGroups, limit) {
+  const byId = new Map();
+  for (const message of messageGroups.flat()) byId.set(message.id, message);
+  return [...byId.values()]
+    .sort((a, b) => {
+      const left = messageTimeValue(a);
+      const right = messageTimeValue(b);
+      return left < right ? -1 : left > right ? 1 : 0;
+    })
+    .slice(-limit);
+}
+
 // ── Tool Catalog ──────────────────────────────────────────────────────
 
 const TOOL_CATALOG = [
@@ -394,15 +419,20 @@ const TOOL_CATALOG = [
     },
     execute: async (args) => {
       const limit = Math.min(args.limit || 20, 80);
-      const snap = await db
-        .collection(`students/${args.studentId}/chats/${args.chatId}/messages`)
-        .orderBy("createdAt", "desc")
-        .limit(limit)
-        .get();
-      if (snap.empty) return { error: "No chat history found" };
-      return snap.docs
-        .map((d) => ({ id: d.id, role: d.data().role, content: d.data().content, createdAt: d.data().createdAt }))
-        .reverse();
+      const messagesRef = db.collection(
+        `students/${args.studentId}/chats/${args.chatId}/messages`,
+      );
+      const messages = mergeChronologicalChatMessages(await Promise.all([
+        queryChatMessages(messagesRef, "createdAt", limit),
+        queryChatMessages(messagesRef, "timestamp", limit),
+      ]), limit);
+      if (!messages.length) return { error: "No chat history found" };
+      return messages.map((message) => ({
+        id: message.id,
+        role: message.role,
+        content: message.content,
+        createdAt: message.createdAt || message.timestamp || null,
+      }));
     },
   },
 ];

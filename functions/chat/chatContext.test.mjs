@@ -1,7 +1,11 @@
 import test from "node:test";
 import assert from "node:assert/strict";
 
-import { buildScopedSystemPrompt, loadChatMessages } from "./chatContext.js";
+import {
+  buildScopedSystemPrompt,
+  loadChatMessages,
+  loadObservationContext,
+} from "./chatContext.js";
 
 test("buildScopedSystemPrompt steers teacher-friendly boundary language", () => {
   const prompt = buildScopedSystemPrompt({
@@ -57,4 +61,49 @@ test("loadChatMessages returns chronological recent transcript without pending t
     { role: "user", content: "First" },
     { role: "assistant", content: "Second" },
   ]);
+});
+
+test("loadChatMessages merges legacy timestamp-only messages", async () => {
+  const messagesRef = {
+    orderBy: (field) => ({
+      limit: () => ({
+        get: async () => ({
+          docs: field === "createdAt"
+            ? [{ id: "new", data: () => ({ role: "assistant", content: "New", createdAt: 2 }) }]
+            : [{ id: "legacy", data: () => ({ role: "user", content: "Legacy", timestamp: 1 }) }],
+        }),
+      }),
+    }),
+  };
+  const db = {
+    collection: () => ({
+      doc: () => ({
+        collection: () => ({ doc: () => ({ collection: () => messagesRef }) }),
+      }),
+    }),
+  };
+
+  const messages = await loadChatMessages({ db, studentId: "s1", chatId: "c1", limit: 10 });
+
+  assert.deepEqual(messages, [
+    { role: "user", content: "Legacy" },
+    { role: "assistant", content: "New" },
+  ]);
+});
+
+test("loadObservationContext applies the configured numeric limit", async () => {
+  let appliedLimit = null;
+  const query = {
+    orderBy: () => query,
+    limit: (value) => {
+      appliedLimit = value;
+      return query;
+    },
+    get: async () => ({ docs: [] }),
+  };
+  const db = { collection: () => ({ doc: () => ({ collection: () => query }) }) };
+
+  await loadObservationContext({ db, studentId: "s1", limit: 30 });
+
+  assert.equal(appliedLimit, 30);
 });

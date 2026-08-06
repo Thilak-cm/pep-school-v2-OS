@@ -15,6 +15,27 @@ function serializeTimestamps(obj) {
   return out;
 }
 
+function chatMessageTime(message) {
+  const value = message.createdAt || message.timestamp || 0;
+  if (typeof value?.toMillis === "function") return value.toMillis();
+  if (typeof value?.toDate === "function") return value.toDate().getTime();
+  if (value instanceof Date) return value.getTime();
+  if (typeof value === "number") return value;
+  return String(value);
+}
+
+export function mergeChatMessageGenerations(messageGroups, limit) {
+  const byId = new Map();
+  for (const message of messageGroups.flat()) byId.set(message.id, message);
+  return [...byId.values()]
+    .sort((a, b) => {
+      const left = chatMessageTime(a);
+      const right = chatMessageTime(b);
+      return left < right ? -1 : left > right ? 1 : 0;
+    })
+    .slice(-limit);
+}
+
 export const TOOL_DEFINITIONS = [
   // ── Students ──
   {
@@ -1033,22 +1054,20 @@ export async function handleListChats(db, params) {
 export async function handleGetChatMessages(db, params) {
   const { studentId, chatId, limit: maxResults = 100 } = params;
 
-  const snap = await db
+  const messagesRef = db
     .collection("students")
     .doc(studentId)
     .collection("chats")
     .doc(chatId)
-    .collection("messages")
-    .orderBy("createdAt", "asc")
-    .limit(maxResults)
-    .get();
-
-  const results = [];
-  snap.forEach((doc) => {
-    results.push(serializeTimestamps({ id: doc.id, ...doc.data() }));
-  });
-
-  return results;
+    .collection("messages");
+  // orderBy excludes documents missing that field, so read both timestamp
+  // generations and merge in memory to preserve legacy chat readability.
+  const snapshots = await Promise.all([
+    messagesRef.orderBy("createdAt", "desc").limit(maxResults).get(),
+    messagesRef.orderBy("timestamp", "desc").limit(maxResults).get(),
+  ]);
+  const groups = snapshots.map((snap) => snap.docs.map((doc) => ({ id: doc.id, ...doc.data() })));
+  return mergeChatMessageGenerations(groups, maxResults).map(serializeTimestamps);
 }
 
 // ── Classrooms ──

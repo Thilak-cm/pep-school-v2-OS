@@ -1,5 +1,5 @@
 const TRANSITIONS = {
-  persisting: new Set(["running", "failed"]),
+  persisting: new Set(["running", "interrupted", "failed"]),
   running: new Set(["completed", "interrupted", "failed"]),
   completed: new Set(),
   interrupted: new Set(),
@@ -24,3 +24,14 @@ export const TURN_STATUSES = Object.freeze([
   "interrupted",
   "failed",
 ]);
+
+export const ACTIVE_TURN_STATUSES = Object.freeze(["persisting", "running"]);
+export const TERMINAL_TURN_STATUSES = Object.freeze(["completed", "interrupted", "failed"]);
+
+export function isActiveTurnStatus(status) {
+  return ACTIVE_TURN_STATUSES.includes(status);
+}
+
+export function isTerminalTurnStatus(status) {
+  return TERMINAL_TURN_STATUSES.includes(status);
+}

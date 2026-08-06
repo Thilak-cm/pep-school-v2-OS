@@ -255,15 +255,19 @@ service cloud.firestore {
       // Chats subcollection — scoped by role
       match /chats/{chatId} {
         function canReadChat() {
-          return isPrivilegedAdmin() || isTeacherInClassroom(studentClassroomId(studentId));
+          return isSuperAdmin() ||
+            hasManageableClassroom(studentClassroomId(studentId)) ||
+            isTeacherInClassroom(studentClassroomId(studentId));
         }
 
         function canManageChatDoc() {
           return canReadChat() &&
-            (isPrivilegedAdmin() || resource.data.createdBy == request.auth.uid);
+            (isSuperAdmin() ||
+              hasManageableClassroom(studentClassroomId(studentId)) ||
+              resource.data.createdBy == request.auth.uid);
         }
 
-        allow read: if isPrivilegedAdmin() || isTeacherInClassroom(studentClassroomId(studentId));
+        allow read: if isSuperAdmin() || hasManageableClassroom(studentClassroomId(studentId)) || isTeacherInClassroom(studentClassroomId(studentId));
         allow create: if false;
         allow update: if canManageChatDoc() &&
           request.resource.data.diff(resource.data).affectedKeys().hasOnly([

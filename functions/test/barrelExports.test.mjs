@@ -29,6 +29,7 @@ const EXPECTED_EXPORTS = [
   "generateWritingAnalysis",
   // Chat (#220)
   "childChatStream",
+  "cleanupDeletedChats",
   // Reports
   "generateStudentReport",
   "previewStudentReport",

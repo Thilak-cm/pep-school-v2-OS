@@ -19,6 +19,29 @@ function messageTimeValue(message) {
   return String(value);
 }
 
+async function queryMessagesByTime(ref, field, limit) {
+  const snap = await ref.orderBy(field, "desc").limit(limit).get();
+  return snap.docs.map((doc) => ({ id: doc.id, ...doc.data() }));
+}
+
+export async function loadObservationContext({ db, studentId, limit }) {
+  let query = refStudent(db, studentId)
+    .collection("observations")
+    .orderBy("observedAt", "desc");
+  if (limit !== "all" && Number.isFinite(limit)) query = query.limit(limit);
+  const snap = await query.get();
+  const observations = snap.docs.map((doc) => {
+    const data = doc.data() || {};
+    return {
+      id: doc.id,
+      type: data.type || "text",
+      text: data.text || data.description || "",
+      observedAt: data.observedAt || data.createdAt || null,
+    };
+  });
+  return trimContext(JSON.stringify(observations), MAX_CONTEXT_CHARS);
+}
+
 export function buildScopedSystemPrompt({
   basePrompt,
   student,
@@ -63,23 +86,31 @@ export async function loadChatMessages({
   excludeMessageIds = new Set(),
   limit = DEFAULT_HISTORY_LIMIT,
 }) {
-  const snap = await refStudent(db, studentId)
+  const messagesRef = refStudent(db, studentId)
     .collection("chats")
     .doc(chatId)
-    .collection("messages")
-    .orderBy("createdAt", "desc")
-    .limit(limit)
-    .get();
+    .collection("messages");
+  // Firestore orderBy excludes documents where the field is absent. Read both
+  // generations so timestamp-only legacy transcripts remain visible without a
+  // destructive migration.
+  const [createdAtMessages, timestampMessages] = await Promise.all([
+    queryMessagesByTime(messagesRef, "createdAt", limit),
+    queryMessagesByTime(messagesRef, "timestamp", limit),
+  ]);
+  const byId = new Map();
+  for (const message of [...createdAtMessages, ...timestampMessages]) {
+    byId.set(message.id, message);
+  }
 
-  return snap.docs
-    .filter((doc) => !excludeMessageIds.has(doc.id))
-    .map((doc) => ({ id: doc.id, ...doc.data() }))
+  return [...byId.values()]
+    .filter((message) => !excludeMessageIds.has(message.id))
     .filter((message) => ["user", "assistant"].includes(message.role) && typeof message.content === "string")
     .sort((a, b) => {
       const left = messageTimeValue(a);
       const right = messageTimeValue(b);
       return left < right ? -1 : left > right ? 1 : 0;
     })
+    .slice(-limit)
     .map((message) => ({ role: message.role, content: trimContext(message.content, 4000) }));
 }
 
@@ -91,8 +122,9 @@ export async function buildChatMessages({
   userMessageId,
   basePrompt,
   historyLimit = DEFAULT_HISTORY_LIMIT,
+  observationLimit = 20,
 }) {
-  const [{ student, soul }, history] = await Promise.all([
+  const [{ student, soul }, history, observations] = await Promise.all([
     loadStudentContext({ db, studentId }),
     loadChatMessages({
       db,
@@ -101,10 +133,16 @@ export async function buildChatMessages({
       excludeMessageIds: new Set([userMessageId]),
       limit: historyLimit,
     }),
+    loadObservationContext({ db, studentId, limit: observationLimit }),
   ]);
 
+  const systemPrompt = buildScopedSystemPrompt({ basePrompt, student, soul });
+  const observationBlock = observations && observations !== "[]"
+    ? `\n\nConfigured recent observation context:\n${observations}`
+    : "";
+
   return [
-    { role: "system", content: buildScopedSystemPrompt({ basePrompt, student, soul }) },
+    { role: "system", content: `${systemPrompt}${observationBlock}` },
     ...history,
     { role: "user", content: currentMessage },
   ];

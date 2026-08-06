@@ -1,7 +1,14 @@
 import test from "node:test";
 import assert from "node:assert/strict";
+import { readFile } from "node:fs/promises";
+import { URL } from "node:url";
 
-import { createToolExecutor, getToolDefinitions, getTools } from "./toolRegistry.js";
+import {
+  createToolExecutor,
+  getToolDefinitions,
+  getTools,
+  mergeChronologicalChatMessages,
+} from "./toolRegistry.js";
 
 test("getToolDefinitions strips server-bound arguments from model schemas", () => {
   const tools = getTools(["fetch_observations"], ["student"]);
@@ -51,4 +58,28 @@ test("createToolExecutor checks prerequisites with the server-bound student", as
   });
 
   assert.deepEqual(result, { studentId: "student-bound" });
+});
+
+test("chat history merge preserves timestamp-only legacy messages", () => {
+  const messages = mergeChronologicalChatMessages([
+    [{ id: "new", createdAt: 2, content: "new" }],
+    [{ id: "legacy", timestamp: 1, content: "legacy" }],
+  ], 20);
+
+  assert.deepEqual(messages.map((message) => message.id), ["legacy", "new"]);
+});
+
+test("fetch_media query has its required observations composite index", async () => {
+  const raw = await readFile(new URL("../../firestore.indexes.json", import.meta.url), "utf8");
+  const config = JSON.parse(raw);
+  const expectedFields = [
+    { fieldPath: "type", order: "ASCENDING" },
+    { fieldPath: "status", order: "ASCENDING" },
+    { fieldPath: "createdAt", order: "DESCENDING" },
+  ];
+  const match = config.indexes.some((index) => index.collectionGroup === "observations"
+    && index.queryScope === "COLLECTION"
+    && JSON.stringify(index.fields) === JSON.stringify(expectedFields));
+
+  assert.equal(match, true);
 });

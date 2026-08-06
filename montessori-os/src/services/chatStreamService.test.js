@@ -1,7 +1,7 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
 
-import { createChatIds, createChatTurnPayload, parseSseEvents, streamChatTurn } from './chatStreamService.js';
+import { ChatStreamError, createChatIds, createChatTurnPayload, parseSseEvents, streamChatTurn } from './chatStreamService.js';
 
 test('createChatIds returns stable identifiers for a turn', () => {
   const ids = createChatIds(() => 'id-1');
@@ -65,4 +65,58 @@ test('streamChatTurn sends auth and forwards token events', async () => {
   assert.equal(request.headers.Authorization, 'Bearer token-1');
   assert.equal(result.content, 'Hi');
   assert.deepEqual(received.map((event) => event.event), ['token', 'complete']);
+});
+
+test('streamChatTurn rejects structured server error events', async () => {
+  const encoder = new TextEncoder();
+  let read = 0;
+  const response = {
+    ok: true,
+    body: {
+      getReader: () => ({
+        read: async () => read++ === 0
+          ? { done: false, value: encoder.encode('event: error\ndata: {"code":"auth/unauthenticated","error":"Token expired","retryable":true}\n\n') }
+          : { done: true },
+        releaseLock: () => {},
+      }),
+    },
+  };
+
+  await assert.rejects(
+    () => streamChatTurn({
+      url: 'https://example.test/chat',
+      token: 'expired',
+      payload: { message: 'hello' },
+      fetchImpl: async () => response,
+    }),
+    (error) => error instanceof ChatStreamError
+      && error.code === 'auth/unauthenticated'
+      && error.details.retryable === true,
+  );
+});
+
+test('streamChatTurn rejects EOF without a terminal complete event', async () => {
+  const encoder = new TextEncoder();
+  let read = 0;
+  const response = {
+    ok: true,
+    body: {
+      getReader: () => ({
+        read: async () => read++ === 0
+          ? { done: false, value: encoder.encode('event: token\ndata: {"text":"partial"}\n\n') }
+          : { done: true },
+        releaseLock: () => {},
+      }),
+    },
+  };
+
+  await assert.rejects(
+    () => streamChatTurn({
+      url: 'https://example.test/chat',
+      token: 'token',
+      payload: { message: 'hello' },
+      fetchImpl: async () => response,
+    }),
+    (error) => error.code === 'chat/incomplete-stream' && error.details.content === 'partial',
+  );
 });

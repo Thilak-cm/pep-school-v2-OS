@@ -3,7 +3,7 @@ import React, { useEffect, useMemo, useState } from 'react';
 import {
   Box, Typography, Card, CardContent, Button, TextField, Divider,
   Alert, CircularProgress, FormControl, InputLabel, Select, MenuItem,
-  ListItemButton, Collapse, Chip
+  ListItemButton, Collapse, Chip, Checkbox, FormControlLabel
 } from '@mui/material';
 import { Settings, ChevronDown as ExpandMore, ChevronUp as ExpandLess, Save, MessageCircle as Chat, XCircle as Cancel } from '../icons';
 import { doc, getDoc, updateDoc, serverTimestamp } from 'firebase/firestore';
@@ -12,6 +12,14 @@ import useNotify from '../notifications/useNotify';
 import { isSuperAdmin } from '../utils/roleUtils';
 import { CHAT_MODEL_INFO, DEFAULT_CHAT_MESSAGE_LIMIT, DEFAULT_OBSERVATION_LIMIT, CHAT_SYSTEM_PROMPT } from '../../../functions/config/chatConstants';
 import { AVAILABLE_MODELS } from '../../../scripts/config/modelConstants';
+import { DEFAULT_CHAT_TOOL_IDS } from '../../../functions/config/toolCatalog.js';
+import {
+  CHAT_TOOL_OPTIONS,
+  isValidChatAllowedTools,
+  normalizeChatAllowedTools,
+  sameChatAllowedTools,
+  toggleChatAllowedTool,
+} from './chatCommandCentreTools.js';
 
 // Program IDs
 const PROGRAMS = [
@@ -38,6 +46,7 @@ export default function ChatCommandCentreEditor({ currentUser, userRole }) {
   const [chatMessageLimit, setChatMessageLimit] = useState(DEFAULT_CHAT_MESSAGE_LIMIT);
   const [observationLimit, setObservationLimit] = useState('all');
   const [systemPrompt, setSystemPrompt] = useState(CHAT_SYSTEM_PROMPT);
+  const [allowedTools, setAllowedTools] = useState(() => [...DEFAULT_CHAT_TOOL_IDS]);
 
   // Track original values
   const [originalState, setOriginalState] = useState(null);
@@ -58,6 +67,7 @@ export default function ChatCommandCentreEditor({ currentUser, userRole }) {
         const snap = await getDoc(chatRef);
         if (snap.exists()) {
           const data = snap.data() || {};
+          const nextAllowedTools = normalizeChatAllowedTools(data.allowedTools);
 
           // Set state from Firestore data
           setModel(data.model || CHAT_MODEL_INFO.model);
@@ -66,6 +76,10 @@ export default function ChatCommandCentreEditor({ currentUser, userRole }) {
           setChatMessageLimit(Number.isFinite(data.chatMessageLimit) ? data.chatMessageLimit : DEFAULT_CHAT_MESSAGE_LIMIT);
           setObservationLimit(data.observationLimit === 'all' ? 'all' : (Number.isFinite(data.observationLimit) ? data.observationLimit : DEFAULT_OBSERVATION_LIMIT));
           setSystemPrompt(data.systemPrompt || CHAT_SYSTEM_PROMPT);
+          setAllowedTools(nextAllowedTools);
+          if (Array.isArray(data.allowedTools) && !isValidChatAllowedTools(data.allowedTools)) {
+            setError('Some saved chat tools are unavailable or missing prerequisites. Review and save the tool selection to update it.');
+          }
           
           setOriginalState({
             model: data.model || CHAT_MODEL_INFO.model,
@@ -74,6 +88,7 @@ export default function ChatCommandCentreEditor({ currentUser, userRole }) {
             chatMessageLimit: Number.isFinite(data.chatMessageLimit) ? data.chatMessageLimit : DEFAULT_CHAT_MESSAGE_LIMIT,
             observationLimit: data.observationLimit === 'all' ? 'all' : (Number.isFinite(data.observationLimit) ? data.observationLimit : DEFAULT_OBSERVATION_LIMIT),
             systemPrompt: data.systemPrompt || CHAT_SYSTEM_PROMPT,
+            allowedTools: nextAllowedTools,
           });
         } else {
           // Document doesn't exist, use defaults
@@ -83,6 +98,7 @@ export default function ChatCommandCentreEditor({ currentUser, userRole }) {
           setChatMessageLimit(DEFAULT_CHAT_MESSAGE_LIMIT);
           setObservationLimit('all');
           setSystemPrompt(CHAT_SYSTEM_PROMPT);
+          setAllowedTools([...DEFAULT_CHAT_TOOL_IDS]);
           
           setOriginalState({
             model: CHAT_MODEL_INFO.model,
@@ -91,6 +107,7 @@ export default function ChatCommandCentreEditor({ currentUser, userRole }) {
             chatMessageLimit: DEFAULT_CHAT_MESSAGE_LIMIT,
             observationLimit: 'all',
             systemPrompt: CHAT_SYSTEM_PROMPT,
+            allowedTools: [...DEFAULT_CHAT_TOOL_IDS],
           });
         }
       } catch {
@@ -109,11 +126,16 @@ export default function ChatCommandCentreEditor({ currentUser, userRole }) {
       maxTokens !== originalState.max_tokens ||
       chatMessageLimit !== originalState.chatMessageLimit ||
       observationLimit !== originalState.observationLimit ||
-      systemPrompt !== originalState.systemPrompt
+      systemPrompt !== originalState.systemPrompt ||
+      !sameChatAllowedTools(allowedTools, originalState.allowedTools)
     );
-  }, [model, temperature, maxTokens, chatMessageLimit, observationLimit, systemPrompt, originalState]);
+  }, [model, temperature, maxTokens, chatMessageLimit, observationLimit, systemPrompt, allowedTools, originalState]);
 
   const handleSave = async () => {
+    if (!isValidChatAllowedTools(allowedTools)) {
+      setError('Select only available chat tools and include required prerequisite tools.');
+      return;
+    }
     if (!hasChanges) {
       notify('No changes to save.', 'info');
       return;
@@ -133,6 +155,7 @@ export default function ChatCommandCentreEditor({ currentUser, userRole }) {
         chatMessageLimit: Number(chatMessageLimit),
         observationLimit: observationLimit === 'all' ? 'all' : Number(observationLimit),
         systemPrompt: systemPrompt.trim(),
+        allowedTools: [...allowedTools],
         updatedAt: serverTimestamp(),
         updatedBy: {
           uid: currentUser?.uid || '',
@@ -154,6 +177,7 @@ export default function ChatCommandCentreEditor({ currentUser, userRole }) {
           chatMessageLimit,
           observationLimit,
           systemPrompt,
+          allowedTools: [...allowedTools],
         });
       }
 
@@ -175,6 +199,7 @@ export default function ChatCommandCentreEditor({ currentUser, userRole }) {
     setChatMessageLimit(originalState.chatMessageLimit);
     setObservationLimit(originalState.observationLimit);
     setSystemPrompt(originalState.systemPrompt);
+    setAllowedTools([...originalState.allowedTools]);
   };
 
   if (!isAdmin) {
@@ -337,6 +362,46 @@ export default function ChatCommandCentreEditor({ currentUser, userRole }) {
                       <MenuItem value={100}>100 observations</MenuItem>
                     </Select>
                   </FormControl>
+                </Box>
+              </Box>
+
+              <Divider />
+
+              {/* Agent Tools */}
+              <Box>
+                <Box sx={{ display: 'flex', alignItems: 'center', gap: 1, mb: 1 }}>
+                  <Typography variant="subtitle2" sx={{ fontWeight: 600 }}>Allowed Agent Tools</Typography>
+                  <Chip label={`${allowedTools.length} enabled`} size="small" variant="outlined" />
+                </Box>
+                <Typography variant="body2" sx={{ color: 'var(--color-text-soft)', mb: 1.5 }}>
+                  Select which student-data tools Coach Pepper may use. Leaving every tool unchecked disables tool use.
+                </Typography>
+                <Box sx={{ display: 'flex', flexDirection: 'column' }}>
+                  {CHAT_TOOL_OPTIONS.map((tool) => {
+                    const checked = allowedTools.includes(tool.id);
+                    const prerequisitesMet = !tool.prerequisites?.length
+                      || tool.prerequisites.every((prerequisite) => allowedTools.includes(prerequisite));
+                    return (
+                      <FormControlLabel
+                        key={tool.id}
+                        control={(
+                          <Checkbox
+                            checked={checked}
+                            disabled={saving || (!checked && !prerequisitesMet)}
+                            onChange={() => setAllowedTools((current) => toggleChatAllowedTool(current, tool.id))}
+                            size="small"
+                          />
+                        )}
+                        label={(
+                          <Box>
+                            <Typography variant="body2">{tool.label}</Typography>
+                            <Typography variant="caption" color="text.secondary">{tool.description}</Typography>
+                          </Box>
+                        )}
+                        sx={{ alignItems: 'flex-start', mx: 0, mb: 0.5 }}
+                      />
+                    );
+                  })}
                 </Box>
               </Box>
             </Box>
