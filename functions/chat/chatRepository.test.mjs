@@ -1,8 +1,8 @@
 import test from "node:test";
 import assert from "node:assert/strict";
+import * as chatRepository from "./chatRepository.js";
 
 import {
-  ensureChat,
   ensureUserMessage,
   createTurn,
   updateTurnStatus,
@@ -51,35 +51,8 @@ function fakeDb() {
   };
 }
 
-test("ensureChat creates one metadata document and is idempotent", async () => {
-  const db = fakeDb();
-  const first = await ensureChat({ db, studentId: "s1", chatId: "c1", createdBy: "u1", classroomId: "class1" });
-  const second = await ensureChat({ db, studentId: "s1", chatId: "c1", createdBy: "u1", classroomId: "class1" });
-
-  assert.equal(first.created, true);
-  assert.equal(second.created, false);
-  assert.equal(db._docs.size, 1);
-  assert.equal(db._docs.get("students/s1/chats/c1").studentId, "s1");
-});
-
-test("ensureChat backfills legacy metadata when touching an existing chat", async () => {
-  const db = fakeDb();
-  db._docs.set("students/s1/chats/c1", { name: "Legacy Chat", deleted: false });
-
-  const result = await ensureChat({
-    db,
-    studentId: "s1",
-    chatId: "c1",
-    createdBy: "u1",
-    classroomId: "class1",
-  });
-
-  const doc = db._docs.get("students/s1/chats/c1");
-  assert.equal(result.created, false);
-  assert.equal(doc.createdBy, "u1");
-  assert.equal(doc.classroomId, "class1");
-  assert.equal(doc.visibility, "classroom");
-  assert.equal(doc.studentId, "s1");
+test("chat repository exposes only the atomic chat creation path", () => {
+  assert.equal("ensureChat" in chatRepository, false);
 });
 
 test("ensureUserMessage does not duplicate a retry with the same ID", async () => {
@@ -140,7 +113,7 @@ test("updateTurnStatus enforces lifecycle transitions and persists metadata", as
 
 test("updateChatMetadata increments messageCount idempotently from caller delta", async () => {
   const db = fakeDb();
-  await ensureChat({ db, studentId: "s1", chatId: "c1", createdBy: "u1", classroomId: "class1" });
+  await acquireChatTurn(acquireInput(db));
 
   await updateChatMetadata({
     db,
@@ -151,7 +124,7 @@ test("updateChatMetadata increments messageCount idempotently from caller delta"
   });
 
   const chat = db._docs.get("students/s1/chats/c1");
-  assert.equal(chat.messageCount, 2);
+  assert.equal(chat.messageCount, 3);
   assert.equal(chat.lastMessagePreview, "hello");
 });
 

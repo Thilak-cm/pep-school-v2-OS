@@ -53,6 +53,16 @@ describe("getPageTitle", () => {
     assert.equal(title, "Aarav's Timeline");
   });
 
+  it("uses firstName, then displayName, for the Coach Pepper chat title", () => {
+    assert.equal(getPageTitle("childChat", {
+      selectedStudent: { firstName: "Mira", displayName: "Mira Shah" },
+    }), "Mira's Chat with Coach Pepper");
+    assert.equal(getPageTitle("childChat", {
+      selectedStudent: { displayName: "Mira Shah" },
+    }), "Mira Shah's Chat with Coach Pepper");
+    assert.equal(getPageTitle("childChat", { selectedStudent: {} }), "Chat with Coach Pepper");
+  });
+
   it("returns static titles for simple screens", () => {
     assert.equal(getPageTitle("profile", {}), "Profile");
     assert.equal(getPageTitle("stats", {}), "Statistics");

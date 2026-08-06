@@ -34,6 +34,19 @@ test('progressive tokens survive snapshots until the authoritative assistant rep
   assert.equal(authoritative[0].status, 'complete');
 });
 
+test('authoritative assistant snapshot can be deferred until visual token draining completes', () => {
+  const assistantId = 'run-1-assistant';
+  const merged = mergeMessageSnapshot([
+    { id: assistantId, role: 'assistant', content: 'Progress', status: 'streaming' },
+  ], [
+    { id: assistantId, role: 'assistant', content: 'Progressive answer', status: 'complete', model: 'model-1' },
+  ], new Set([assistantId]), new Set([assistantId]));
+
+  assert.equal(merged[0].content, 'Progress');
+  assert.equal(merged[0].status, 'streaming');
+  assert.equal(merged[0].model, 'model-1');
+});
+
 test('authoritative user timestamp cannot move a streaming reply above its initiating message', () => {
   const previous = [
     {
