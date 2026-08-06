@@ -1,7 +1,7 @@
 // DynamicIslandPill.jsx — Rotating alert pill for Home page (PEP-213, PEP-296)
 import React, { useEffect, useState, useRef, useCallback } from 'react';
 import { keyframes } from '@emotion/react';
-import { Box, Typography, ButtonBase, IconButton, Dialog, DialogTitle, DialogContent, DialogActions, Button, TextField, Checkbox, Radio, FormControlLabel } from '@mui/material';
+import { Box, Typography, ButtonBase, IconButton, Dialog, DialogTitle, DialogContent, DialogActions, Button, TextField, Checkbox, Radio, FormControlLabel, Skeleton } from '@mui/material';
 import { Flag, Calendar, ShieldCheck, ChevronUp, ChevronDown } from '../icons';
 import { useAlertBus } from '../hooks/useAlertBus';
 import { dismissAlert, voteOnBroadcast } from '../utils/alertService';
@@ -34,8 +34,13 @@ const progressFill = keyframes`
 
 // ── Component ──────────────────────────────────────────────────────────────────
 
-function DynamicIslandPill({ onNavigateToStudent, onNavigate, classrooms = [] }) {
-  const { alerts, loading } = useAlertBus(classrooms);
+function DynamicIslandPill({
+  onNavigateToStudent,
+  onNavigate,
+  classrooms = [],
+  classroomsLoaded = false,
+}) {
+  const { alerts, loading } = useAlertBus(classrooms, { classroomsLoaded });
   const [activeIndex, setActiveIndex] = useState(0);
   const [paused, setPaused] = useState(false);
   const [animKey, setAnimKey] = useState(0);
@@ -240,9 +245,31 @@ function DynamicIslandPill({ onNavigateToStudent, onNavigate, classrooms = [] })
   }, [ackDialog, pollChoices, pollOtherText]);
 
 
-  // ── Loading state — pill-shaped placeholder ──────────────────────────────
+  // ── Loading state — reserve the final pill footprint ──────────────────────
 
   if (loading) {
+    return (
+      <Box>
+        <Box sx={{ display: 'flex', alignItems: 'center', gap: 1, mb: 1 }}>
+          <Typography variant="overline" sx={{ fontWeight: 700, color: 'var(--color-text)', letterSpacing: 1 }}>
+            Quick alerts
+          </Typography>
+
+        </Box>
+        <Skeleton
+          variant="rounded"
+          animation="wave"
+          width="100%"
+          height={PILL_HEIGHT}
+          sx={{ borderRadius: '22px' }}
+        />
+      </Box>
+    );
+  }
+
+  // ── Empty state — preserve the pill footprint to keep the page stable ────
+
+  if (alerts.length === 0) {
     return (
       <Box>
         <Box sx={{ display: 'flex', alignItems: 'center', gap: 1, mb: 1 }}>
@@ -262,27 +289,9 @@ function DynamicIslandPill({ onNavigateToStudent, onNavigate, classrooms = [] })
             fontSize: '0.82rem', color: 'var(--color-text-soft)',
             fontWeight: 500,
           }}>
-            Coach Pepper is scanning for alerts...
+            All clear this week
           </Typography>
         </Box>
-      </Box>
-    );
-  }
-
-  // ── Empty state — plain text, no pill ────────────────────────────────────
-
-  if (alerts.length === 0) {
-    return (
-      <Box>
-        <Box sx={{ display: 'flex', alignItems: 'center', gap: 1, mb: 0.5 }}>
-          <Typography variant="overline" sx={{ fontWeight: 700, color: 'var(--color-text)', letterSpacing: 1 }}>
-            Quick alerts
-          </Typography>
-
-        </Box>
-        <Typography sx={{ color: 'var(--color-text-soft)', fontSize: '0.85rem' }}>
-          All clear this week
-        </Typography>
       </Box>
     );
   }

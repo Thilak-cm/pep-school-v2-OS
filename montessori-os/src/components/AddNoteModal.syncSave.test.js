@@ -41,14 +41,14 @@ describe('#129 AC1: Synchronous note save', () => {
     );
   });
 
-  it('saveNote uses setDoc for direct Firestore writes', () => {
+  it('saveNote awaits the shared direct Firestore observation operation', () => {
     const saveNoteMatch = modalSource.match(
       /const saveNote\s*=\s*async\s*\([^)]*\)\s*=>\s*\{([\s\S]*?)\n\s{2}\};/
     );
     const fnBody = saveNoteMatch[1];
     assert.ok(
-      fnBody.includes('setDoc'),
-      'saveNote should use setDoc for direct Firestore writes'
+      fnBody.includes('await observationOperations.saveObservation'),
+      'saveNote should await the shared direct Firestore write'
     );
   });
 

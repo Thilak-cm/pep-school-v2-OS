@@ -39,19 +39,82 @@ const getCachedData = (key, dataType) => {
 
 // ── Hook ──────────────────────────────────────────────────────────────────────
 
-export function useAlertBus(classrooms = []) {
+export function useAlertBus(classrooms = [], { classroomsLoaded = false } = {}) {
   const [redFlagAlerts, setRedFlagAlerts] = useState([]);
   const [busAlerts, setBusAlerts] = useState([]);
-  const [loading, setLoading] = useState(true);
+  // Each source owns its readiness because either one may finish first. A single
+  // loading flag let the red-flag request expose a false empty state while the
+  // realtime snapshot was still being received and targeted.
+  const [redFlagsReady, setRedFlagsReady] = useState(false);
+  const [realtimeReady, setRealtimeReady] = useState(false);
   const mountedRef = useRef(true);
   // Role + classroom refs populated by fetchRedFlags; used by the alert filter effect
   const userRoleRef = useRef(null);
   const accessibleClassroomsRef = useRef([]);
-  // Raw snapshot docs stored for re-filtering when role/classroom refs are populated
+  const targetingContextReadyRef = useRef(false);
+  // Raw snapshot docs are retained when Firestore wins the race with user scope.
+  // They are only committed once targeting has been applied.
   const rawSnapshotDocsRef = useRef([]);
-  const [refVersion, setRefVersion] = useState(0);
+  const snapshotReceivedRef = useRef(false);
   // Stable key to avoid re-fetches on reference-only changes to classrooms array
   const classroomsKey = classrooms.map((c) => c.id).sort().join(',');
+
+  const commitBusAlerts = useCallback((docs) => {
+    const uid = auth?.currentUser?.uid;
+    if (!uid) {
+      setBusAlerts([]);
+      setRealtimeReady(true);
+      return;
+    }
+
+    const userRole = userRoleRef.current;
+    const userClassrooms = accessibleClassroomsRef.current;
+    const alerts = [];
+
+    for (const data of docs) {
+      // Client-side dismissedBy filtering
+      if (data.dismissedBy && data.dismissedBy[uid]) continue;
+      // expiresAt filtering — client-side guard; autoExpireBroadcast CF sets expiresAt when all teachers respond
+      if (data.expiresAt && data.expiresAt.toDate && data.expiresAt.toDate() < new Date()) continue;
+      // Skip scheduled broadcasts that haven't started yet (only applies to broadcast type)
+      if (data.type === 'broadcast' && data.startsAt && data.startsAt.toDate && data.startsAt.toDate() > new Date()) continue;
+
+      // Client-side targeting filter — empty arrays mean "all" (no filtering)
+      if (Array.isArray(data.targetRoles) && data.targetRoles.length > 0) {
+        if (!userRole || !data.targetRoles.includes(userRole)) continue;
+      }
+      if (Array.isArray(data.targetClassrooms) && data.targetClassrooms.length > 0) {
+        if (!userClassrooms.length || !data.targetClassrooms.some((c) => userClassrooms.includes(c))) continue;
+      }
+      if (Array.isArray(data.targetTeachers) && data.targetTeachers.length > 0) {
+        if (!data.targetTeachers.includes(uid)) continue;
+      }
+
+      const display = transformForDisplay({ id: data.id, ...data });
+      alerts.push({
+        ...display,
+        id: data.id,
+        priority: data.priority ?? 99,
+        createdAt: data.createdAt,
+        _source: 'alerts',
+      });
+    }
+
+    // Commit the filtered result before declaring this source ready. React batches
+    // these updates, so consumers cannot observe ready=true with the old empty list.
+    setBusAlerts(alerts);
+    setRealtimeReady(true);
+  }, []);
+
+  const commitTargetingContext = useCallback((role, accessibleClassrooms) => {
+    userRoleRef.current = role;
+    accessibleClassroomsRef.current = accessibleClassrooms;
+    targetingContextReadyRef.current = true;
+
+    if (snapshotReceivedRef.current) {
+      commitBusAlerts(rawSnapshotDocsRef.current);
+    }
+  }, [commitBusAlerts]);
 
   // ── Source 1: weekly_snapshot red flags (one-shot, cached) ──────────────
 
@@ -84,9 +147,7 @@ export function useAlertBus(classrooms = []) {
       }
 
       // Store role + accessible classrooms for targeting filter in onSnapshot
-      userRoleRef.current = role;
-      accessibleClassroomsRef.current = accessibleClassrooms;
-      setRefVersion((v) => v + 1);
+      commitTargetingContext(role, accessibleClassrooms);
 
       let signals = [];
       let studentInfo = {};
@@ -208,19 +269,22 @@ export function useAlertBus(classrooms = []) {
     }
   // classroomsKey is a stable string derived from classrooms — avoids re-fetch on reference-only changes
   // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [classroomsKey]);
+  }, [classroomsKey, commitTargetingContext]);
 
   // ── Source 2: alerts collection (realtime via onSnapshot) ──────────────
 
-  // Store raw snapshot docs; filtering happens in a separate effect so it
-  // re-runs when userRoleRef / accessibleClassroomsRef are populated (race fix).
+  // Store raw snapshot docs so filtering can wait for role/classroom targeting
+  // context regardless of which async source wins the startup race.
   useEffect(() => {
     const uid = auth?.currentUser?.uid;
     if (!uid) {
-      setLoading(false);
+      setBusAlerts([]);
+      setRealtimeReady(true);
       return;
     }
 
+    setRealtimeReady(false);
+    snapshotReceivedRef.current = false;
     const alertsQuery = query(
       collection(db, 'alerts'),
       where('dip', '==', true),
@@ -234,13 +298,17 @@ export function useAlertBus(classrooms = []) {
         docs.push({ id: d.id, ...(d.data() || {}) });
       });
       rawSnapshotDocsRef.current = docs;
-      // Bump version to trigger re-filter
-      setRefVersion((v) => v + 1);
+      snapshotReceivedRef.current = true;
+      if (targetingContextReadyRef.current) {
+        commitBusAlerts(docs);
+      }
     }, () => {
-      // onSnapshot error — silently degrade
+      // A failed source has settled as empty; do not leave the loading skeleton forever.
       if (cancelled) return;
       rawSnapshotDocsRef.current = [];
+      snapshotReceivedRef.current = true;
       setBusAlerts([]);
+      setRealtimeReady(true);
     });
 
     return () => {
@@ -250,58 +318,50 @@ export function useAlertBus(classrooms = []) {
       // Prevents "Unexpected state" assertion in SDK 11.x under StrictMode.
       queueMicrotask(() => unsub());
     };
-  }, []);
-
-  // Re-filter raw snapshot docs whenever refs or snapshot data change
-  useEffect(() => {
-    const uid = auth?.currentUser?.uid;
-    if (!uid) return;
-
-    const userRole = userRoleRef.current;
-    const userClassrooms = accessibleClassroomsRef.current;
-    const alerts = [];
-
-    for (const data of rawSnapshotDocsRef.current) {
-      // Client-side dismissedBy filtering
-      if (data.dismissedBy && data.dismissedBy[uid]) continue;
-      // expiresAt filtering — client-side guard; autoExpireBroadcast CF sets expiresAt when all teachers respond
-      if (data.expiresAt && data.expiresAt.toDate && data.expiresAt.toDate() < new Date()) continue;
-      // Skip scheduled broadcasts that haven't started yet (only applies to broadcast type)
-      if (data.type === 'broadcast' && data.startsAt && data.startsAt.toDate && data.startsAt.toDate() > new Date()) continue;
-
-      // Client-side targeting filter — empty arrays mean "all" (no filtering)
-      if (Array.isArray(data.targetRoles) && data.targetRoles.length > 0) {
-        if (!userRole || !data.targetRoles.includes(userRole)) continue;
-      }
-      if (Array.isArray(data.targetClassrooms) && data.targetClassrooms.length > 0) {
-        if (!userClassrooms.length || !data.targetClassrooms.some((c) => userClassrooms.includes(c))) continue;
-      }
-      if (Array.isArray(data.targetTeachers) && data.targetTeachers.length > 0) {
-        if (!data.targetTeachers.includes(uid)) continue;
-      }
-
-      const display = transformForDisplay({ id: data.id, ...data });
-      alerts.push({
-        ...display,
-        id: data.id,
-        priority: data.priority ?? 99,
-        createdAt: data.createdAt,
-        _source: 'alerts',
-      });
-    }
-    setBusAlerts(alerts);
-  // refVersion changes when either fetchRedFlags populates refs or onSnapshot delivers new data
-  }, [refVersion]);
+  }, [commitBusAlerts]);
 
   // ── Fetch red flags on mount ────────────────────────────────────────────
 
   useEffect(() => {
     mountedRef.current = true;
+    const uid = auth?.currentUser?.uid;
+
+    if (!uid) {
+      targetingContextReadyRef.current = true;
+      setRedFlagAlerts([]);
+      setRedFlagsReady(true);
+      return () => { mountedRef.current = false; };
+    }
+
+    // Classroom props begin as [] even for teachers who have classrooms. Waiting
+    // for the explicit readiness signal avoids treating that placeholder as the
+    // teacher's completed access scope and announcing an incorrect empty state.
+    if (!classroomsLoaded) {
+      targetingContextReadyRef.current = false;
+      setRedFlagsReady(false);
+      setRealtimeReady(false);
+      return () => { mountedRef.current = false; };
+    }
+
+    targetingContextReadyRef.current = false;
+    setRedFlagsReady(false);
+    setRealtimeReady(false);
     (async () => {
-      try { await fetchRedFlags(); } finally { if (mountedRef.current) setLoading(false); }
+      try {
+        await fetchRedFlags();
+      } finally {
+        if (mountedRef.current) {
+          // Missing user documents and red-flag read failures still settle both
+          // sources safely, using an empty targeting context as the fallback.
+          if (!targetingContextReadyRef.current) {
+            commitTargetingContext(null, []);
+          }
+          setRedFlagsReady(true);
+        }
+      }
     })();
     return () => { mountedRef.current = false; };
-  }, [fetchRedFlags]);
+  }, [classroomsLoaded, commitTargetingContext, fetchRedFlags]);
 
   // ── Merge and sort both sources ─────────────────────────────────────────
 
@@ -314,6 +374,8 @@ export function useAlertBus(classrooms = []) {
     const tb = b.createdAt?.seconds ?? b.createdAt?.toDate?.()?.getTime() ?? 0;
     return tb - ta;
   });
+
+  const loading = !redFlagsReady || !realtimeReady;
 
   return { alerts, loading };
 }

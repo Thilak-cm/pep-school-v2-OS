@@ -1,0 +1,180 @@
+{
+  "generatedAt": "2026-07-27T06:41:35.747Z",
+  "timezone": "Asia/Kolkata (IST, UTC+05:30)",
+  "dateRange": {
+    "startInclusive": "2026-05-31T18:30:00.000Z",
+    "endInclusive": "2026-07-24T19:18:17.500Z"
+  },
+  "source": "cache",
+  "totalObservations": 33369,
+  "validCreatedAt": 33369,
+  "missingOrInvalidCreatedAt": 0,
+  "calendarDays": 55,
+  "activeDays": 55,
+  "workWindow": {
+    "definition": "Monday-Friday, 08:00 inclusive to 16:00 exclusive, IST",
+    "count": 10107,
+    "percent": 30.3
+  },
+  "offHours": {
+    "count": 23262,
+    "percent": 69.7,
+    "early": 1299,
+    "late": 18656,
+    "weekend": 3307
+  },
+  "hotspots": [
+    {
+      "day": "Monday",
+      "hour": 22,
+      "count": 936,
+      "inWorkWindow": false
+    },
+    {
+      "day": "Tuesday",
+      "hour": 21,
+      "count": 860,
+      "inWorkWindow": false
+    },
+    {
+      "day": "Tuesday",
+      "hour": 22,
+      "count": 778,
+      "inWorkWindow": false
+    },
+    {
+      "day": "Monday",
+      "hour": 21,
+      "count": 770,
+      "inWorkWindow": false
+    },
+    {
+      "day": "Wednesday",
+      "hour": 13,
+      "count": 755,
+      "inWorkWindow": true
+    },
+    {
+      "day": "Wednesday",
+      "hour": 22,
+      "count": 752,
+      "inWorkWindow": false
+    },
+    {
+      "day": "Thursday",
+      "hour": 22,
+      "count": 747,
+      "inWorkWindow": false
+    },
+    {
+      "day": "Wednesday",
+      "hour": 21,
+      "count": 689,
+      "inWorkWindow": false
+    },
+    {
+      "day": "Thursday",
+      "hour": 21,
+      "count": 636,
+      "inWorkWindow": false
+    },
+    {
+      "day": "Tuesday",
+      "hour": 18,
+      "count": 622,
+      "inWorkWindow": false
+    }
+  ],
+  "topOffHoursTeachers": [
+    {
+      "teacher": "Hemapriya TS",
+      "count": 997,
+      "total": 1085,
+      "percent": 91.9
+    },
+    {
+      "teacher": "Geetha Aravind",
+      "count": 969,
+      "total": 1115,
+      "percent": 86.9
+    },
+    {
+      "teacher": "Archana Nair",
+      "count": 964,
+      "total": 993,
+      "percent": 97.1
+    },
+    {
+      "teacher": "Ramya Vijayachandran",
+      "count": 962,
+      "total": 1210,
+      "percent": 79.5
+    },
+    {
+      "teacher": "Sajitha Kandathil",
+      "count": 863,
+      "total": 969,
+      "percent": 89.1
+    },
+    {
+      "teacher": "Amrita Maitra",
+      "count": 844,
+      "total": 909,
+      "percent": 92.8
+    },
+    {
+      "teacher": "Ranjeta GA",
+      "count": 823,
+      "total": 999,
+      "percent": 82.4
+    },
+    {
+      "teacher": "Vidhya Santhosh",
+      "count": 809,
+      "total": 858,
+      "percent": 94.3
+    },
+    {
+      "teacher": "Sreeshyla Subash",
+      "count": 671,
+      "total": 756,
+      "percent": 88.8
+    },
+    {
+      "teacher": "Dewanshi Rawat",
+      "count": 657,
+      "total": 858,
+      "percent": 76.6
+    },
+    {
+      "teacher": "Padmaja Nanduri",
+      "count": 632,
+      "total": 670,
+      "percent": 94.3
+    },
+    {
+      "teacher": "Lakshmi Prabhu",
+      "count": 631,
+      "total": 803,
+      "percent": 78.6
+    },
+    {
+      "teacher": "Indumathy Thirunavukkarasu",
+      "count": 618,
+      "total": 845,
+      "percent": 73.1
+    },
+    {
+      "teacher": "Sabeena Ibrahim",
+      "count": 595,
+      "total": 718,
+      "percent": 82.9
+    },
+    {
+      "teacher": "Tharani Ranganathan",
+      "count": 589,
+      "total": 774,
+      "percent": 76.1
+    }
+  ]
+}

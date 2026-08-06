@@ -1,5 +1,14 @@
 # Changelog
 
+# 12.2.0 — 2026-07-30
+
+### Added
+- Emulator-based Firestore and Storage rules suite with canonical fixtures, shared production operation helpers, transfer lifecycle coverage, media Storage boundaries, and CI gating for security-rule regressions (#207)
+- Classroom directory, Firestore auth-boundary, and precise 48-hour edit/delete boundary coverage in the rules emulator suite (#207)
+
+### Changed
+- Storage static security spec now matches the current media read contract and keeps `pending_upload` enforcement scoped to media create/update checks (#207)
+
 # 12.1.0 — 2026-07-23
 
 ### Changed

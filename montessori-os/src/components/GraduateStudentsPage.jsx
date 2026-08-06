@@ -28,6 +28,22 @@ import {
 import { db } from '../firebase';
 import useNotify from '../notifications/useNotify.js';
 import { reportCaughtError } from '../utils/reportCaughtError.js';
+import { createTransferOperations } from '../../../shared/firebase/transferOperations.js';
+
+const transferOperations = createTransferOperations({
+  db,
+  firestore: {
+    collection,
+    doc,
+    getDoc,
+    getDocs,
+    limit,
+    query,
+    serverTimestamp,
+    where,
+    writeBatch,
+  },
+});
 
 function ymdStr(date = new Date()) {
   const y = date.getFullYear();
@@ -136,82 +152,19 @@ export default function GraduateStudentsPage({ _currentUser, _userRole }) {
     try {
       const srcName = classrooms.find(c => c.id === sourceClassroomId)?.name || sourceClassroomId;
       const dstName = classrooms.find(c => c.id === destClassroomId)?.name || destClassroomId;
-      // Fetch dest classroom branch (optional consistency)
-      let destBranchId = null;
-      try {
-        const destRef = doc(db, 'classrooms', destClassroomId);
-        const destSnap = await getDoc(destRef);
-        if (destSnap.exists()) destBranchId = destSnap.data()?.branchId || null;
-      } catch {
-        /* ignored */
-      }
+      const { successCount, failures } = await transferOperations.transferStudents({
+        sourceClassroomId,
+        destinationClassroomId: destClassroomId,
+        studentIds: selectedIds,
+        lastDay: lastDayStr,
+        newStartDate,
+        note,
+        onDestinationReadError: (error) => {
+          reportCaughtError(error, 'GraduateStudentsPage', 'destination classroom read');
+        },
+      });
 
-      const batch = writeBatch(db);
-      const failures = [];
-      let successCount = 0;
-
-      for (const studentId of selectedIds) {
-        try {
-          // Verify student's current classroom still matches source
-          const stuRef = doc(db, 'students', studentId);
-          const stuSnap = await getDoc(stuRef);
-          if (!stuSnap.exists()) { failures.push({ id: studentId, reason: 'missing student' }); continue; }
-          const stu = stuSnap.data() || {};
-          if (stu.classroomId !== sourceClassroomId) { failures.push({ id: studentId, reason: 'moved since selection' }); continue; }
-
-          // Find active placement (endDate == null)
-          const activeQ = query(collection(db, 'students', studentId, 'placements'), where('endDate', '==', null), limit(1));
-          const activeSnap = await getDocs(activeQ);
-          if (!activeSnap.empty) {
-            // Close existing active placement
-            const activeDoc = activeSnap.docs[0];
-            batch.update(activeDoc.ref, {
-              endDate: lastDayStr,
-              status: 'ended',
-              updatedAt: serverTimestamp(),
-            });
-          } else {
-            // No placement exists — backfill one using student's createdAt so classroom history is preserved
-            if (!stu.createdAt) { failures.push({ id: studentId, reason: 'no placement and no createdAt' }); continue; }
-            const backfillStart = ymdStr(stu.createdAt.toDate());
-            const backfillId = `${backfillStart}__${sourceClassroomId}`;
-            const backfillRef = doc(db, 'students', studentId, 'placements', backfillId);
-            batch.set(backfillRef, {
-              classroomId: sourceClassroomId,
-              startDate: backfillStart,
-              endDate: lastDayStr,
-              status: 'ended',
-              createdAt: stu.createdAt,
-              updatedAt: serverTimestamp(),
-            });
-          }
-
-          // Create new placement
-          const placementId = `${newStartDate}__${destClassroomId}`;
-          const newRef = doc(db, 'students', studentId, 'placements', placementId);
-          batch.set(newRef, {
-            classroomId: destClassroomId,
-            startDate: newStartDate,
-            endDate: null,
-            status: 'active',
-            ...(note ? { note } : {}),
-            createdAt: serverTimestamp(),
-          });
-
-          // Update student current classroom (and branch if known)
-          const updatePayload = { classroomId: destClassroomId, updatedAt: serverTimestamp() };
-          if (destBranchId) updatePayload.branchId = destBranchId;
-          batch.set(stuRef, updatePayload, { merge: true });
-
-          successCount++;
-        } catch (e) {
-          failures.push({ id: studentId, reason: e?.message || 'error' });
-        }
-      }
-
-      // studentCount maintained by onStudentWrite trigger (#161)
-
-      await batch.commit();
+      // studentCount remains maintained by onStudentWrite trigger (#161).
       setResult({ ok: successCount, failed: failures });
       if (successCount > 0) {
         notify.success(`${successCount} student(s) graduated from ${srcName} to ${dstName}.`);

@@ -1,0 +1,4 @@
+interface:
+  display_name: "Merge Issue"
+  short_description: "Drive reviewed GitHub PRs through CI, merge, cleanup, and Issue completion"
+  default_prompt: "Run the merge-issue workflow: monitor CI, handle automated review feedback and merge conflicts, get merge approval, merge the PR into dev via gh pr merge, clean up branches, and move the GitHub Issue to Done."

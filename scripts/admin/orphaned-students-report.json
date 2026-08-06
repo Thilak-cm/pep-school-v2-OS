@@ -1,0 +1,807 @@
+[
+  {
+    "studentId": "2025-AC-COS-003",
+    "counts": {
+      "observations": 37,
+      "ai_summaries": 1
+    },
+    "sampleObs": {
+      "text": "",
+      "classroomId": "accel_cosmos",
+      "createdByName": "Boby Boruah",
+      "createdAt": "2026-02-28T05:52:45.155Z",
+      "type": "lesson",
+      "studentComment": "One day, I noticed that while working with the geometric cabinet, Sashvatha matched the triangle with the geometric cards correctly, even though the first set of geometric cards was upside down. This "
+    }
+  },
+  {
+    "studentId": "2025-AC-COS-012",
+    "counts": {
+      "observations": 14,
+      "ai_summaries": 2
+    },
+    "sampleObs": {
+      "text": "Shaurya is 4 years 1 month old.",
+      "classroomId": "accel_cosmos",
+      "createdByName": "Hima Brijeshkumar Savaj",
+      "createdAt": "2026-03-11T09:24:09.548Z",
+      "type": "voice"
+    }
+  },
+  {
+    "studentId": "2025-AC-COS-015",
+    "counts": {
+      "observations": 31,
+      "ai_summaries": 1
+    },
+    "sampleObs": {
+      "text": "",
+      "classroomId": "accel_cosmos",
+      "createdByName": "Hima Brijeshkumar Savaj",
+      "createdAt": "2026-03-11T09:07:43.592Z",
+      "type": "lesson"
+    }
+  },
+  {
+    "studentId": "2025-AC-ELE-003",
+    "counts": {
+      "observations": 35,
+      "ai_summaries": 4
+    },
+    "sampleObs": {
+      "text": "Nilan picks up a stamp game and practices division with reminders.\n\nHe stays seated until he gets his answer and comes up if he has any doubt.",
+      "classroomId": "accel_elementary",
+      "createdByName": "Flovia Xavier",
+      "createdAt": "2026-03-13T07:15:16.898Z",
+      "type": "voice"
+    }
+  },
+  {
+    "studentId": "2025-AC-ELE-015",
+    "counts": {
+      "observations": 27,
+      "ai_summaries": 2
+    },
+    "sampleObs": {
+      "text": "Srushti is very reliable, conscientious, responsible, and sweet. She has a kind and cheerful disposition, can be playful with her peers, and in class is hardworking and focused. She feels to be overal",
+      "classroomId": "accel_elementary",
+      "createdByName": "Amritha Berger",
+      "createdAt": "2026-03-14T11:15:04.689Z",
+      "type": "voice"
+    }
+  },
+  {
+    "studentId": "2025-AC-ELE-016",
+    "counts": {
+      "observations": 21,
+      "ai_summaries": 2
+    },
+    "sampleObs": {
+      "text": "Vaishnavi is a very considerate and kind child. She always greets people, asking them how they are, and inquiring into their lives, like what they had for lunch, what language they speak, and how one'",
+      "classroomId": "accel_elementary",
+      "createdByName": "Amritha Berger",
+      "createdAt": "2026-03-14T10:44:21.834Z",
+      "type": "voice"
+    }
+  },
+  {
+    "studentId": "2025-AC-PER-002",
+    "counts": {
+      "observations": 11,
+      "ai_summaries": 1
+    },
+    "sampleObs": {
+      "text": "After presenting Viyaansh with the number rods, he picks them up and arranges them daily \n\nEvery day he comes to tell the educator that he did it.\n----\nDuration: 5–10 min\nIndependence: Independent",
+      "classroomId": "accel_periwinkle",
+      "createdByName": "Sabeena Ibrahim",
+      "createdAt": "2026-03-11T14:30:26.397Z",
+      "type": "voice"
+    }
+  },
+  {
+    "studentId": "2025-AC-PER-013",
+    "counts": {
+      "observations": 21,
+      "media": 1,
+      "ai_summaries": 1
+    },
+    "sampleObs": {
+      "text": "Saharsh made a really interesting  and unique piece out of all of these thin branches today.",
+      "classroomId": "accel_periwinkle",
+      "createdByName": "Amritha Berger",
+      "createdAt": "2026-03-06T16:30:24.249Z",
+      "type": "voice"
+    }
+  },
+  {
+    "studentId": "2025-AC-PER-016",
+    "counts": {
+      "observations": 7,
+      "ai_summaries": 1
+    },
+    "sampleObs": {
+      "text": "Now, he is coming to school regularly, so he is comfortable with the nanny. Today, the nanny told him to take out his water bottle and keep it in the tray, then to leave his bag here before going to c",
+      "classroomId": "accel_cosmos",
+      "createdByName": "Hima Brijeshkumar Savaj",
+      "createdAt": "2026-03-04T06:22:46.613Z",
+      "type": "voice"
+    }
+  },
+  {
+    "studentId": "2025-AC-PER-019",
+    "counts": {
+      "ai_summaries": 1
+    },
+    "sampleObs": null
+  },
+  {
+    "studentId": "2025-AC-PER-021",
+    "counts": {
+      "observations": 36,
+      "ai_summaries": 1,
+      "chats": 1
+    },
+    "sampleObs": {
+      "text": "Janhvi picked the spindle box today and completed the activity independently.\n\nShe correctly placed all the spindles in the box except for 5 and 9.Instead of 5, she placed 4, and for 9 she placed 10.",
+      "classroomId": "accel_periwinkle",
+      "createdByName": "Sabeena Ibrahim",
+      "createdAt": "2026-03-13T14:54:30.776Z",
+      "type": "voice"
+    }
+  },
+  {
+    "studentId": "2025-AC-PER-029",
+    "counts": {
+      "observations": 29,
+      "media": 1,
+      "ai_summaries": 2
+    },
+    "sampleObs": {
+      "text": "Vivaan develops an awareness of number names through stories and songs. He demonstrates an understanding of objects in his environment and begins to organize and categorize them. \n\nFor example, in the",
+      "classroomId": "accel_periwinkle",
+      "createdByName": "afrin taj",
+      "createdAt": "2026-03-02T16:02:48.065Z",
+      "type": "voice"
+    }
+  },
+  {
+    "studentId": "2025-AC-PER-030",
+    "counts": {
+      "observations": 35,
+      "ai_summaries": 1,
+      "chats": 2
+    },
+    "sampleObs": {
+      "text": "",
+      "classroomId": "accel_cosmos",
+      "createdByName": "Hima Brijeshkumar Savaj",
+      "createdAt": "2026-03-11T09:07:42.742Z",
+      "type": "lesson"
+    }
+  },
+  {
+    "studentId": "2025-AC-PER-032",
+    "counts": {
+      "observations": 31,
+      "ai_summaries": 3
+    },
+    "sampleObs": {
+      "text": "Vrihaan has a reputation for napkin folding and chose the work independently without any educator help.\n\nHe picked up the work and folded the napkin as shown by the educator. He was happy doing it and",
+      "classroomId": "accel_periwinkle",
+      "createdByName": "afrin taj",
+      "createdAt": "2026-03-13T06:49:50.118Z",
+      "type": "voice"
+    }
+  },
+  {
+    "studentId": "2025-ACC-001",
+    "counts": {
+      "observations": 32,
+      "ai_summaries": 1
+    },
+    "sampleObs": {
+      "text": "",
+      "classroomId": "accel_cosmos",
+      "createdByName": "Hima Brijeshkumar Savaj",
+      "createdAt": "2026-03-11T09:07:42.272Z",
+      "type": "lesson"
+    }
+  },
+  {
+    "studentId": "2025-ADO-013",
+    "counts": {
+      "observations": 55,
+      "placements": 1,
+      "ai_summaries": 3
+    },
+    "sampleObs": {
+      "text": "Kanav is participative in class. He rushes to give the answer to be first.\n\nA little time before answering would help him. He remembers most of the words but gets confused when words sound similar.\n\nW",
+      "classroomId": "allstars",
+      "createdByName": "Shravani Ramesh",
+      "createdAt": "2026-03-15T14:48:09.302Z",
+      "type": "voice"
+    }
+  },
+  {
+    "studentId": "2025-ADO-030",
+    "counts": {
+      "observations": 18,
+      "placements": 1,
+      "ai_summaries": 4
+    },
+    "sampleObs": {
+      "text": "Milan is making steady progress in Hindi. He is working on reading and writing Hindi with increasing confidence, and can recognize most alphabet sounds, though he still confuses the \"ga\" and \"ja\" soun",
+      "classroomId": "allstars",
+      "createdByName": "Rahul Raghavan",
+      "createdAt": "2026-03-17T09:49:28.269Z",
+      "type": "voice"
+    }
+  },
+  {
+    "studentId": "2025-ADO-031",
+    "counts": {
+      "observations": 10,
+      "placements": 1,
+      "ai_summaries": 1
+    },
+    "sampleObs": {
+      "text": "Participative in the games class on homonyms.",
+      "classroomId": "allstars",
+      "createdByName": "Gayathri Venkatadri",
+      "createdAt": "2025-10-07T06:05:09.505Z",
+      "type": "text"
+    }
+  },
+  {
+    "studentId": "2025-ADO-032",
+    "counts": {
+      "observations": 21,
+      "placements": 1,
+      "ai_summaries": 4
+    },
+    "sampleObs": {
+      "text": "Hindi:\nTulip is doing well in Hindi. She understands spoken Hindi comfortably and often responds in Hindi herself. She completes her Hindi assignments on time, and when working through reading passage",
+      "classroomId": "allstars",
+      "createdByName": "Rahul Raghavan",
+      "createdAt": "2026-03-17T09:57:35.154Z",
+      "type": "voice"
+    }
+  },
+  {
+    "studentId": "2025-ADO-033",
+    "counts": {
+      "observations": 19,
+      "placements": 1,
+      "ai_summaries": 4
+    },
+    "sampleObs": {
+      "text": "Hindi:\nShubhi is doing well in Hindi and can work independently for the most part. When she encounters something she doesn't understand, a small clue or reading through the material a few times — some",
+      "classroomId": "allstars",
+      "createdByName": "Rahul Raghavan",
+      "createdAt": "2026-03-17T09:51:42.157Z",
+      "type": "voice"
+    }
+  },
+  {
+    "studentId": "2025-GUL-003",
+    "counts": {
+      "observations": 49,
+      "media": 22,
+      "ai_summaries": 2
+    },
+    "sampleObs": {
+      "text": "",
+      "classroomId": "gulmohar",
+      "createdByName": "Ramya Vijayachandran",
+      "createdAt": "2026-03-11T04:10:11.054Z",
+      "type": "lesson"
+    }
+  },
+  {
+    "studentId": "2025-GUL-006",
+    "counts": {
+      "observations": 46,
+      "media": 14,
+      "ai_summaries": 2,
+      "chats": 1
+    },
+    "sampleObs": {
+      "text": "A story titled \"ನನ್ನ ಕುದುರೆ\" was narrated in Kannada.\n\nNumbers from 1 to 10 were introduced in Kannada. Colours such as black, pink, and blue were also introduced.\n\nWe communicated in Kannada througho",
+      "classroomId": "gulmohar",
+      "createdByName": "Sushmitha B N",
+      "createdAt": "2026-03-20T08:01:01.946Z",
+      "type": "voice"
+    }
+  },
+  {
+    "studentId": "2025-GUL-007",
+    "counts": {
+      "observations": 50,
+      "media": 25,
+      "placements": 1,
+      "ai_summaries": 2
+    },
+    "sampleObs": {
+      "text": "Aveer identified India's neighboring countries' flags. He drew the flags carefully and calmly, using the same colors.\n\nHe wrote the names of the flags and the names of the countries.",
+      "classroomId": "gulmohar",
+      "createdByName": "Ramya Vijayachandran",
+      "createdAt": "2026-03-11T05:53:56.981Z",
+      "type": "voice"
+    }
+  },
+  {
+    "studentId": "2025-GUL-013",
+    "counts": {
+      "observations": 8,
+      "ai_summaries": 2
+    },
+    "sampleObs": {
+      "text": "She shared that for Diwali, she went to her father's friend's home and celebrated.\n\nShe needs practice in number rod arrangement and exercises. If an adult sits next to her, she completes the tasks pr",
+      "classroomId": "gulmohar",
+      "createdByName": "Kokila Priya",
+      "createdAt": "2025-10-30T14:44:37.790Z",
+      "type": "text"
+    }
+  },
+  {
+    "studentId": "2025-GUL-017",
+    "counts": {
+      "observations": 73,
+      "media": 32,
+      "ai_summaries": 2
+    },
+    "sampleObs": {
+      "text": "Kartik remembers the flags of India's neighbouring countries. He drew the flags and wrote the names of the countries.",
+      "classroomId": "gulmohar",
+      "createdByName": "Ramya Vijayachandran",
+      "createdAt": "2026-03-11T06:35:27.328Z",
+      "type": "voice"
+    }
+  },
+  {
+    "studentId": "2025-GUL-022",
+    "counts": {
+      "observations": 10,
+      "ai_summaries": 2
+    },
+    "sampleObs": {
+      "text": "Panktee makes simple sentences such as \"I like carrot\" and \"I like palak\" when provided with picture cards or writing prompts about vegetables. When given tion sound picture cards, she created sentenc",
+      "classroomId": "gulmohar",
+      "createdByName": "Vidhya Santhosh",
+      "createdAt": "2025-11-18T16:31:01.306Z",
+      "type": "text"
+    }
+  },
+  {
+    "studentId": "2025-GUL-032",
+    "counts": {
+      "observations": 36,
+      "media": 4,
+      "ai_summaries": 2
+    },
+    "sampleObs": {
+      "text": "The child entered the work environment and said, “Time aagaya Chandigarh jaane ke liye.” He repeated this statement twice. After that, he proceeded to choose his work. He selected a sheet of plain cut",
+      "classroomId": "gulmohar",
+      "createdByName": "Lakshmi Prabhu",
+      "createdAt": "2026-03-10T14:50:45.805Z",
+      "type": "voice"
+    }
+  },
+  {
+    "studentId": "2025-GUL-033",
+    "counts": {
+      "observations": 47,
+      "media": 16,
+      "ai_summaries": 2
+    },
+    "sampleObs": {
+      "text": "Trishika needs occasional reminders to put away her materials.\n\nAfter lunch, she needs prompts to clear her table and return her bag to the cubby.",
+      "classroomId": "gulmohar",
+      "createdByName": "Ramya Vijayachandran",
+      "createdAt": "2026-03-11T08:08:46.786Z",
+      "type": "voice"
+    }
+  },
+  {
+    "studentId": "2025-PAR-002",
+    "counts": {
+      "observations": 34,
+      "media": 6,
+      "ai_summaries": 2
+    },
+    "sampleObs": {
+      "text": "Ahaan asked for paper strips to cut. When asked how many he needed, he said two. He is still figuring out how to hold the scissors.",
+      "classroomId": "parijat",
+      "createdByName": "Sajitha Kandathil",
+      "createdAt": "2026-04-09T16:54:31.690Z",
+      "type": "voice"
+    }
+  },
+  {
+    "studentId": "2025-PAR-009",
+    "counts": {
+      "observations": 99,
+      "media": 11,
+      "ai_summaries": 2
+    },
+    "sampleObs": {
+      "text": "Evana was sitting near the mat box and rolling a mat. When Ayra rolled her mat and was about to keep it back, Evana wanted to take it. Both of them began pulling the mat from each other.\nAs neither of",
+      "classroomId": "parijat",
+      "createdByName": "Shubhangi Shinde",
+      "createdAt": "2026-04-06T07:20:38.775Z",
+      "type": "voice"
+    }
+  },
+  {
+    "studentId": "2025-PAR-011",
+    "counts": {
+      "observations": 86,
+      "media": 9,
+      "ai_summaries": 2
+    },
+    "sampleObs": {
+      "text": "Kimaya worked with the brown stairs. As soon as she placed the material on the mat, she made a climbing motion with her fingers and said, \"stairs.\"\n\nShe checked for errors by using the thinnest block.",
+      "classroomId": "parijat",
+      "createdByName": "Sajitha Kandathil",
+      "createdAt": "2026-04-02T16:08:53.618Z",
+      "type": "voice"
+    }
+  },
+  {
+    "studentId": "2025-PAR-020",
+    "counts": {
+      "ai_summaries": 1
+    },
+    "sampleObs": null
+  },
+  {
+    "studentId": "2025-PAR-031",
+    "counts": {
+      "observations": 53,
+      "media": 1,
+      "ai_summaries": 2
+    },
+    "sampleObs": {
+      "text": "",
+      "classroomId": "parijat",
+      "createdByName": "Amrita Maitra",
+      "createdAt": "2026-03-05T13:37:33.598Z",
+      "type": "lesson"
+    }
+  },
+  {
+    "studentId": "2025-PER-001",
+    "counts": {
+      "observations": 77,
+      "media": 13,
+      "ai_summaries": 2,
+      "chats": 1
+    },
+    "sampleObs": {
+      "text": "",
+      "classroomId": "periwinkle",
+      "createdByName": "Hemapriya TS",
+      "createdAt": "2026-03-13T02:07:08.910Z",
+      "type": "lesson"
+    }
+  },
+  {
+    "studentId": "2025-PER-004",
+    "counts": {
+      "observations": 14,
+      "ai_summaries": 2
+    },
+    "sampleObs": {
+      "text": "Arundhati was given a nut-and-bolt activity. Initially, she removed two bolts and then handed the box to me, saying that she was unable to do it and asking me to do it instead. She sat aside holding t",
+      "classroomId": "periwinkle",
+      "createdByName": "Sushmitha B N",
+      "createdAt": "2025-12-16T08:34:55.352Z",
+      "type": "text"
+    }
+  },
+  {
+    "studentId": "2025-PER-007",
+    "counts": {
+      "observations": 55,
+      "media": 13,
+      "ai_summaries": 2
+    },
+    "sampleObs": {
+      "text": "Avyaan explains the static beads material to another student very easily. He is also very neat after taking what he needs from a material. He immediately puts it back in its place.",
+      "classroomId": "periwinkle",
+      "createdByName": "Ranjeta GA",
+      "createdAt": "2026-04-01T07:23:01.409Z",
+      "type": "voice"
+    }
+  },
+  {
+    "studentId": "2025-PER-016",
+    "counts": {
+      "observations": 69,
+      "media": 10,
+      "ai_summaries": 2
+    },
+    "sampleObs": {
+      "text": "During the Hindi session, Reeyansh does not want to join. When an adult calls him, he comes and sits next to the adult.\n\nHe listens closely to the story for a minute or two, then becomes distracted. O",
+      "classroomId": "periwinkle",
+      "createdByName": "Hemapriya TS",
+      "createdAt": "2026-03-11T16:00:26.267Z",
+      "type": "voice"
+    }
+  },
+  {
+    "studentId": "2025-PER-023",
+    "counts": {
+      "observations": 26,
+      "media": 2,
+      "ai_summaries": 2
+    },
+    "sampleObs": {
+      "text": "Initially, Sia was unable to open the buckle frame and was not paying attention; she was looking at other children in the class.\n\nI showed her how to do it, and she tried 2–3 times but was still unabl",
+      "classroomId": "periwinkle",
+      "createdByName": "Sushmitha B N",
+      "createdAt": "2026-03-10T08:26:49.674Z",
+      "type": "voice"
+    }
+  },
+  {
+    "studentId": "2025-PER-024",
+    "counts": {
+      "observations": 4,
+      "ai_summaries": 2
+    },
+    "sampleObs": {
+      "text": "With the support of an adult, Swasthi worked on sorting picture cards according to their initial sounds. She identified the sounds /s/, /m/, /a/, and /t/. Initially, she required assistance in identif",
+      "classroomId": "periwinkle",
+      "createdByName": "Ranjeta GA",
+      "createdAt": "2025-12-13T16:50:41.951Z",
+      "type": "text"
+    }
+  },
+  {
+    "studentId": "2025-PLU-001",
+    "counts": {
+      "observations": 15,
+      "ai_summaries": 2
+    },
+    "sampleObs": {
+      "text": "Avishi has introduced fractions and has grasped the concept, demonstrating the ability to work independently. She has also been introduced to multiplication using colored bread bars and understands th",
+      "classroomId": "plumeria",
+      "createdByName": "Sreeshyla Subash",
+      "createdAt": "2025-12-21T07:28:32.784Z",
+      "type": "text"
+    }
+  },
+  {
+    "studentId": "2025-PLU-006",
+    "counts": {
+      "observations": 59,
+      "media": 30,
+      "ai_summaries": 2
+    },
+    "sampleObs": {
+      "text": "Arsh worked with writing sentence set 1.\n\nHe took pictures of a pot, buns, a peg, and a pen, and made the sentences: \"I made a pot.\" \"I like to eat buns.\" \"I can hang a peg.\" \"I fed the hungry hens.\"\n",
+      "classroomId": "plumeria",
+      "createdByName": "Sreeshyla Subash",
+      "createdAt": "2026-03-10T12:18:31.315Z",
+      "type": "voice"
+    }
+  },
+  {
+    "studentId": "2025-PLU-007",
+    "counts": {
+      "observations": 79,
+      "media": 24,
+      "placements": 1,
+      "ai_summaries": 2
+    },
+    "sampleObs": {
+      "text": "Atharv is strong in subtraction and addition mental math skills, but he sometimes forgets to raise his hand before speaking.\n----\nModality: Mental\nIndependence: Small group",
+      "classroomId": "plumeria",
+      "createdByName": "Sreeshyla Subash",
+      "createdAt": "2026-04-09T07:29:35.453Z",
+      "type": "voice"
+    }
+  },
+  {
+    "studentId": "2025-PLU-015",
+    "counts": {
+      "ai_summaries": 1
+    },
+    "sampleObs": null
+  },
+  {
+    "studentId": "2025-PLU-016",
+    "counts": {
+      "observations": 39,
+      "media": 2,
+      "ai_summaries": 2,
+      "chats": 1
+    },
+    "sampleObs": {
+      "text": "",
+      "classroomId": "plumeria",
+      "createdByName": "Srineethi Menon",
+      "createdAt": "2026-03-10T14:12:50.953Z",
+      "type": "lesson"
+    }
+  },
+  {
+    "studentId": "2025-PLU-021",
+    "counts": {
+      "observations": 64,
+      "media": 22,
+      "ai_summaries": 2
+    },
+    "sampleObs": {
+      "text": "The children were asked to recall the activities they had done in the morning.\nColours were reviewed ( ಗುಲಾಬಿ, ನೀಲಿ, ಕಪ್ಪು, ಹಸಿರು, ಬಿಳಿ, ನೀಲಿ, ಕೆಂಪು, ಕಂದು, ಬೂದು)\nThey were asked to name their family m",
+      "classroomId": "plumeria",
+      "createdByName": "Sushmitha B N",
+      "createdAt": "2026-03-26T08:51:58.703Z",
+      "type": "voice"
+    }
+  },
+  {
+    "studentId": "2025-PLU-022",
+    "counts": {
+      "observations": 39,
+      "media": 5,
+      "ai_summaries": 2
+    },
+    "sampleObs": {
+      "text": "When Yalini came to the Kannada class, she asked me why I do not come daily to conduct the class. \n\nI informed her that I am at Periwinkle every morning and, therefore, I am unable to come regularly. ",
+      "classroomId": "plumeria",
+      "createdByName": "Sushmitha B N",
+      "createdAt": "2026-02-27T05:25:58.904Z",
+      "type": "voice"
+    }
+  },
+  {
+    "studentId": "2026-ADO-001",
+    "counts": {
+      "observations": 33,
+      "media": 1,
+      "placements": 1,
+      "ai_summaries": 1,
+      "chats": 1
+    },
+    "sampleObs": {
+      "text": "Today I observed Dhruv working with stringing beads. He took the material independently and was able to string all the beads without getting distracted. He remained focused throughout the activity. Af",
+      "classroomId": "adonis",
+      "createdByName": "Sonal Jayaswal",
+      "createdAt": "2026-05-04T17:29:33.406Z",
+      "type": "voice"
+    }
+  },
+  {
+    "studentId": "2026-ADO-004",
+    "counts": {
+      "observations": 39,
+      "media": 3,
+      "placements": 1,
+      "ai_summaries": 1,
+      "chats": 1
+    },
+    "sampleObs": {
+      "text": "On Friday, the children participated in preparing buttermilk. They began by washing their hands. The children then contributed the required materials: Tahaan brought the bowl, Tara brought the salt, V",
+      "classroomId": "adonis",
+      "createdByName": "Nalini BA",
+      "createdAt": "2026-04-18T14:16:13.823Z",
+      "type": "voice"
+    }
+  },
+  {
+    "studentId": "2026-ADO-009",
+    "counts": {
+      "observations": 43,
+      "media": 6,
+      "placements": 1,
+      "ai_summaries": 1
+    },
+    "sampleObs": {
+      "text": "",
+      "classroomId": "adonis",
+      "createdByName": "Amirtha Lakshmi`",
+      "createdAt": "2026-04-30T02:03:21.206Z",
+      "type": "lesson"
+    }
+  },
+  {
+    "studentId": "2026-ADO-015",
+    "counts": {
+      "observations": 16,
+      "ai_summaries": 3
+    },
+    "sampleObs": {
+      "text": "",
+      "classroomId": "adonis",
+      "createdByName": "Amirtha Lakshmi`",
+      "createdAt": "2026-03-17T16:48:21.463Z",
+      "type": "lesson"
+    }
+  },
+  {
+    "studentId": "2026-ADO-022",
+    "counts": {
+      "placements": 1,
+      "ai_summaries": 1
+    },
+    "sampleObs": null
+  },
+  {
+    "studentId": "2026-AED-005",
+    "counts": {
+      "observations": 21,
+      "placements": 1,
+      "ai_summaries": 1
+    },
+    "sampleObs": {
+      "text": "We visited the salon for our field trip. As the children went inside, they began observing their surroundings. After a few minutes, we showed them basic salon items, such as scissors, trimmers, a broa",
+      "classroomId": "aedon",
+      "createdByName": "Richa Harsh",
+      "createdAt": "2026-04-30T08:05:15.769Z",
+      "type": "voice"
+    }
+  },
+  {
+    "studentId": "2026-AED-020",
+    "counts": {
+      "observations": 12,
+      "ai_summaries": 1
+    },
+    "sampleObs": {
+      "text": "Ashwi came to school. She was assigned to work with the sponging activity, but she became distracted during the activity. She then engaged with a vehicle puzzle, during which she was able to place a f",
+      "classroomId": "aedon",
+      "createdByName": "Gomathi R",
+      "createdAt": "2026-05-08T14:50:39.196Z",
+      "type": "voice"
+    }
+  },
+  {
+    "studentId": "2026-NIL-023",
+    "counts": {
+      "placements": 1,
+      "ai_summaries": 1
+    },
+    "sampleObs": null
+  },
+  {
+    "studentId": "2026-NIL-026",
+    "counts": {
+      "placements": 1,
+      "ai_summaries": 1
+    },
+    "sampleObs": null
+  },
+  {
+    "studentId": "2026-VIN-020",
+    "counts": {
+      "observations": 5,
+      "media": 2,
+      "placements": 1,
+      "ai_summaries": 1
+    },
+    "sampleObs": {
+      "text": "Haanvika chose to work on the stamp game for static addition today. She completed one static addition problem, showed it to me, and then immediately winds up her work. When I checked her work, I notic",
+      "classroomId": "vindhyas",
+      "createdByName": "Padmaja Nanduri",
+      "createdAt": "2026-02-24T15:43:48.057Z",
+      "type": "voice"
+    }
+  },
+  {
+    "studentId": "2026-VIN-022",
+    "counts": {
+      "observations": 1,
+      "placements": 1,
+      "ai_summaries": 1
+    },
+    "sampleObs": {
+      "text": "Introduced stamp game addition, got the concept of merging the quantities. works with concentration.\n----\nDuration: 5–10 min\nModality: Material",
+      "classroomId": "vindhyas",
+      "createdByName": "Vanitha G",
+      "createdAt": "2026-02-05T09:02:06.139Z",
+      "type": "text"
+    }
+  }
+]
