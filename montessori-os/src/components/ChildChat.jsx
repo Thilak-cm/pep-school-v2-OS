@@ -68,6 +68,13 @@ import {
   TRANSCRIPT_LAYER_SX,
   updateFollowModeFromScroll,
 } from './chat/chatPresentation.js';
+import {
+  getChatStudentName,
+  getSuggestedChatPrompts,
+  getToolStatusQuips,
+  resolveChatMessage,
+} from './chat/chatStartupPresentation.js';
+import { createChatTokenPresentation } from './chat/chatTokenPresentation.js';
 
 const projectId = import.meta.env.VITE_FIREBASE_PROJECT_ID || 'pep-os';
 const defaultStreamUrl = import.meta.env.DEV && import.meta.env.VITE_USE_FUNCTIONS_EMULATOR !== 'false'
@@ -101,6 +108,8 @@ export default function ChildChat({ student, currentUser, userRole, manageableCl
   const [showScrollButton, setShowScrollButton] = useState(false);
   const [isKeyboardOpen, setIsKeyboardOpen] = useState(false);
   const [keyboardBottomOffset, setKeyboardBottomOffset] = useState(0);
+  const [progressText, setProgressText] = useState(null);
+  const [hasPresentedToken, setHasPresentedToken] = useState(false);
 
   const abortRef = useRef(null);
   const activeTurnRef = useRef(null);
@@ -115,6 +124,8 @@ export default function ChildChat({ student, currentUser, userRole, manageableCl
   const turnDocsRef = useRef([]);
   const followModeStateRef = useRef(createFollowModeState());
   const messageAnimationStateRef = useRef(createMessageAnimationState());
+  const presentationRef = useRef(null);
+  const pendingAssistantSnapshotRef = useRef(null);
 
   currentStudentIdRef.current = student?.id;
   selectedChatIdRef.current = selectedChatId;
@@ -126,10 +137,8 @@ export default function ChildChat({ student, currentUser, userRole, manageableCl
     return stripQuotes(chats.find((chat) => chat.id === selectedChatId)?.name || 'New Chat');
   }, [chats, selectedChatId]);
 
-  const studentName = useMemo(() => student?.displayName
-    || student?.name
-    || `${student?.firstName || ''} ${student?.lastName || ''}`.trim()
-    || 'this student', [student]);
+  const studentName = useMemo(() => getChatStudentName(student), [student]);
+  const suggestedPrompts = useMemo(() => getSuggestedChatPrompts(student), [student]);
 
   const scrollToBottom = useCallback((behavior = 'smooth') => {
     messagesEndRef.current?.scrollIntoView({ behavior });
@@ -164,11 +173,16 @@ export default function ChildChat({ student, currentUser, userRole, manageableCl
     mountedRef.current = true;
     return () => {
       mountedRef.current = false;
+      presentationRef.current?.clear();
+      pendingAssistantSnapshotRef.current = null;
       abortActiveChatRequest(abortRef, { clear: true });
     };
   }, []);
 
   useEffect(() => {
+    presentationRef.current?.clear();
+    presentationRef.current = null;
+    pendingAssistantSnapshotRef.current = null;
     hasManuallySelectedChatRef.current = false;
     activeTurnRef.current = null;
     persistedMessageIdsRef.current = new Set();
@@ -178,8 +192,12 @@ export default function ChildChat({ student, currentUser, userRole, manageableCl
     setMessages([]);
     setInput('');
     setLoading(false);
+    setProgressText(null);
+    setHasPresentedToken(false);
     setError('');
     return () => {
+      presentationRef.current?.clear();
+      pendingAssistantSnapshotRef.current = null;
       abortActiveChatRequest(abortRef, { clear: true });
       activeTurnRef.current = null;
     };
@@ -223,12 +241,19 @@ export default function ChildChat({ student, currentUser, userRole, manageableCl
         persistedMessageIdsRef.current = new Set(incoming.map((message) => message.id));
         const activeTurn = activeTurnRef.current;
         const retainedIds = new Set();
+        const deferredAuthoritativeIds = new Set();
 
         if (activeTurn?.studentId === studentId && activeTurn.chatId === chatId) {
           const authoritativeAssistant = incoming.find((message) => message.role === 'assistant'
             && message.id === activeTurn.assistantMessageId);
           if (authoritativeAssistant) {
-            activeTurnRef.current = null;
+            if (presentationRef.current && abortRef.current) {
+              pendingAssistantSnapshotRef.current = authoritativeAssistant;
+              retainedIds.add(activeTurn.assistantMessageId);
+              deferredAuthoritativeIds.add(activeTurn.assistantMessageId);
+            } else {
+              activeTurnRef.current = null;
+            }
           } else {
             retainedIds.add(activeTurn.assistantMessageId);
           }
@@ -238,7 +263,7 @@ export default function ChildChat({ student, currentUser, userRole, manageableCl
         }
 
         setMessages((previous) => reconcileMessagesWithTurns(
-          mergeMessageSnapshot(previous, incoming, retainedIds),
+          mergeMessageSnapshot(previous, incoming, retainedIds, deferredAuthoritativeIds),
           turnDocsRef.current,
           chatId,
           persistedMessageIdsRef.current,
@@ -317,9 +342,14 @@ export default function ChildChat({ student, currentUser, userRole, manageableCl
   }, []);
 
   const leaveActiveChat = useCallback(() => {
+    presentationRef.current?.clear();
+    presentationRef.current = null;
+    pendingAssistantSnapshotRef.current = null;
     abortActiveChatRequest(abortRef, { clear: true });
     activeTurnRef.current = null;
     setLoading(false);
+    setProgressText(null);
+    setHasPresentedToken(false);
   }, []);
 
   const handleNewChat = () => {
@@ -400,7 +430,7 @@ export default function ChildChat({ student, currentUser, userRole, manageableCl
     }
   };
 
-  const handleSend = async (retryAssistantMessage = null) => {
+  const handleSend = async (retryAssistantMessage = null, explicitMessage = '') => {
     const studentId = student?.id;
     if (!studentId || loading) return;
     const firebaseUser = auth.currentUser;
@@ -416,7 +446,11 @@ export default function ChildChat({ student, currentUser, userRole, manageableCl
       chatId: selectedChatId,
       runId: generatedIds.runId,
     }) : null;
-    const message = retryRequest?.message || input.trim();
+    const message = resolveChatMessage({
+      retryMessage: retryRequest?.message,
+      explicitMessage,
+      input,
+    });
     if (!message || (retryAssistantMessage && !retryRequest)) return;
     const canRetry = Boolean(retryRequest);
     const ids = retryRequest?.ids || generatedIds;
@@ -424,6 +458,8 @@ export default function ChildChat({ student, currentUser, userRole, manageableCl
     const createdAt = new Date();
     const assistantMessageId = `${ids.runId}-assistant`;
     const controller = new AbortController();
+    presentationRef.current?.clear();
+    pendingAssistantSnapshotRef.current = null;
     abortRef.current = controller;
     activeTurnRef.current = {
       studentId,
@@ -441,6 +477,8 @@ export default function ChildChat({ student, currentUser, userRole, manageableCl
     setInput('');
     setError('');
     setLoading(true);
+    setProgressText(null);
+    setHasPresentedToken(false);
     setMessages((previous) => appendOptimisticTurn(previous, {
       ids: { ...ids, chatId },
       message,
@@ -455,6 +493,28 @@ export default function ChildChat({ student, currentUser, userRole, manageableCl
     const isCurrentRequest = () => mountedRef.current
       && currentStudentIdRef.current === studentId
       && abortRef.current === controller;
+    let currentIds = ids;
+    let completeEvent = null;
+    const presentation = createChatTokenPresentation({
+      onToken: (text) => {
+        if (!isCurrentRequest()) return;
+        setMessages((previous) => applyChatStreamEvent(
+          previous,
+          { event: 'token', data: { text } },
+          currentIds,
+          ids.userMessageId,
+        ));
+      },
+      onProgressChange: (text) => {
+        if (isCurrentRequest()) setProgressText(text);
+      },
+      onFirstPresented: () => {
+        if (!isCurrentRequest()) return;
+        setHasPresentedToken(true);
+        setProgressText(null);
+      },
+    });
+    presentationRef.current = presentation;
 
     try {
       await runAuthenticatedChatTurn({
@@ -467,6 +527,11 @@ export default function ChildChat({ student, currentUser, userRole, manageableCl
         message,
         onRunChange: (retryIds) => {
           if (!isCurrentRequest()) return;
+          presentationRef.current?.clear();
+          pendingAssistantSnapshotRef.current = null;
+          setProgressText(null);
+          setHasPresentedToken(false);
+          currentIds = retryIds;
           const previousAssistantId = activeTurnRef.current?.assistantMessageId;
           const nextAssistantId = `${retryIds.runId}-assistant`;
           registerAssistantAttemptAnimation(messageAnimationStateRef.current, nextAssistantId);
@@ -481,6 +546,22 @@ export default function ChildChat({ student, currentUser, userRole, manageableCl
         },
         onEvent: (event, eventIds) => {
           if (!isCurrentRequest()) return;
+          currentIds = eventIds;
+          if (event.event === 'token') {
+            presentation.enqueue(event.data?.text || '');
+            return;
+          }
+          if (event.event === 'tool_calls') {
+            presentation.replaceProgress(getToolStatusQuips({
+              names: event.data?.names,
+              student,
+            }));
+            return;
+          }
+          if (event.event === 'complete') {
+            completeEvent = { event, eventIds };
+            return;
+          }
           setMessages((previous) => applyChatStreamEvent(
             previous,
             event,
@@ -489,7 +570,21 @@ export default function ChildChat({ student, currentUser, userRole, manageableCl
           ));
         },
       });
+      await presentation.drain();
+      if (isCurrentRequest() && completeEvent) {
+        const pendingAssistant = pendingAssistantSnapshotRef.current;
+        pendingAssistantSnapshotRef.current = null;
+        setMessages((previous) => applyChatStreamEvent(
+          previous,
+          completeEvent.event,
+          completeEvent.eventIds,
+          ids.userMessageId,
+        ).map((item) => item.id === pendingAssistant?.id ? { ...item, ...pendingAssistant } : item));
+        if (pendingAssistant) activeTurnRef.current = null;
+      }
     } catch (streamError) {
+      if (!isCurrentRequest()) return;
+      await presentation.drain();
       if (!isCurrentRequest()) return;
       const interrupted = controller.signal.aborted;
       if (!interrupted) {
@@ -497,6 +592,8 @@ export default function ChildChat({ student, currentUser, userRole, manageableCl
         setInput((draft) => draft || message);
       }
       const activeAssistantId = activeTurnRef.current?.assistantMessageId;
+      const pendingAssistant = pendingAssistantSnapshotRef.current;
+      pendingAssistantSnapshotRef.current = null;
       setMessages((previous) => previous.map((item) => {
         if (item.id === ids.userMessageId && streamError.details?.persisted === false) {
           return { ...item, status: 'unsent' };
@@ -508,11 +605,15 @@ export default function ChildChat({ student, currentUser, userRole, manageableCl
           };
         }
         return item;
-      }));
+      }).map((item) => item.id === pendingAssistant?.id ? { ...item, ...pendingAssistant } : item));
+      if (pendingAssistant) activeTurnRef.current = null;
     } finally {
       if (isCurrentRequest()) {
+        presentationRef.current?.clear();
+        presentationRef.current = null;
         abortRef.current = null;
         setLoading(false);
+        setProgressText(null);
         try {
           await loadChats();
         } catch {
@@ -567,10 +668,7 @@ export default function ChildChat({ student, currentUser, userRole, manageableCl
     keyboardBottomOffset,
   });
   const composerState = getComposerState({ loading, input });
-  const activeAssistant = activeTurnRef.current
-    ? messages.find((message) => message.id === activeTurnRef.current.assistantMessageId)
-    : null;
-  const showTypingIndicator = loading && !activeAssistant?.content;
+  const showTypingIndicator = loading && !hasPresentedToken;
 
   return (
     <Box sx={{ position: 'fixed', top: shellGeometry.topInset, bottom: shellGeometry.bottomInset, left: '50%', transform: 'translateX(-50%)', ...CHAT_SHELL_WIDTH_SX, display: 'flex', flexDirection: 'column', minHeight: 0, overflow: 'hidden', bgcolor: 'background.default', boxSizing: 'border-box' }}>
@@ -667,6 +765,19 @@ export default function ChildChat({ student, currentUser, userRole, manageableCl
               <Chat size={64} style={{ color: 'var(--color-text-soft)', marginBottom: 16 }} />
               <Typography variant="h6" gutterBottom>Start a new conversation</Typography>
               <Typography variant="body2" color="text.secondary">Type something to start a chat or pick a past conversation from above.</Typography>
+              <Box sx={{ display: 'grid', gap: 1, width: '100%', mt: 2 }}>
+                {suggestedPrompts.map((suggestion) => (
+                  <Button
+                    key={suggestion}
+                    variant="outlined"
+                    onClick={() => handleSend(null, suggestion)}
+                    disabled={loading}
+                    sx={{ justifyContent: 'flex-start', textAlign: 'left', textTransform: 'none', borderRadius: 3 }}
+                  >
+                    {suggestion}
+                  </Button>
+                ))}
+              </Box>
             </Box>
           ) : messages.length === 0 ? (
             <Box sx={{ flex: 1, display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', textAlign: 'center', p: 3 }}>
@@ -692,7 +803,7 @@ export default function ChildChat({ student, currentUser, userRole, manageableCl
                   </Box>
                 );
               })}
-              {showTypingIndicator && <TypingIndicator />}
+              {showTypingIndicator && <TypingIndicator label={progressText} />}
               <div ref={messagesEndRef} />
             </>
           )}

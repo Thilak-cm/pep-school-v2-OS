@@ -501,47 +501,6 @@ export async function finalizeChatTurn({
   return result;
 }
 
-export async function ensureChat({ db, studentId, chatId, createdBy, classroomId }) {
-  const ref = chatRef(db, studentId, chatId);
-  let created = false;
-  let data;
-
-  await db.runTransaction(async (tx) => {
-    const snapshot = await tx.get(ref);
-    if (snapshot.exists) {
-      data = snapshot.data();
-      const patch = {};
-      if (!data.studentId) patch.studentId = studentId;
-      if (!data.classroomId) patch.classroomId = classroomId;
-      if (!data.createdBy) patch.createdBy = createdBy;
-      if (!data.visibility) patch.visibility = "classroom";
-      if (Object.keys(patch).length) {
-        patch.updatedAt = now();
-        tx.update(ref, patch);
-        data = { ...data, ...patch };
-      }
-      return;
-    }
-
-    data = {
-      studentId,
-      classroomId,
-      createdBy,
-      visibility: "classroom",
-      name: "New Chat",
-      createdAt: now(),
-      updatedAt: now(),
-      deleted: false,
-      messageCount: 0,
-      lastMessagePreview: "",
-    };
-    tx.create(ref, data);
-    created = true;
-  });
-
-  return { created, data };
-}
-
 export async function ensureUserMessage({
   db,
   studentId,
