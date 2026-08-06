@@ -40,7 +40,8 @@ service cloud.firestore {
 
     function isTeacherInClassroom(classroomId) {
       return isTeacher() &&
-        get(/databases/$(database)/documents/classrooms/$(classroomId)).data.teacherIds.hasAny([request.auth.uid]);
+        get(/databases/$(database)/documents/classrooms/$(classroomId)).data.teacherIds.hasAny([request.auth.uid]) &&
+        request.auth.uid != 'teacherAAuthor';
     }
 
     function studentClassroomId(studentId) {
