@@ -109,3 +109,59 @@ test("loadObservationContext applies the configured numeric limit", async () => 
 
   assert.equal(appliedLimit, 30);
 });
+
+test("context loaders report query stages and aggregate sizes without content", async () => {
+  const stages = [];
+  const dimensions = [];
+  const telemetry = {
+    startStage: (name) => {
+      stages.push(name);
+      return (metadata = {}) => dimensions.push(metadata);
+    },
+    setDimensions: (metadata) => dimensions.push(metadata),
+  };
+  const query = {
+    orderBy: () => query,
+    limit: () => query,
+    get: async () => ({
+      docs: [{
+        id: "o1",
+        data: () => ({ type: "text", text: "Private observation", observedAt: 1 }),
+      }],
+    }),
+  };
+  const db = { collection: () => ({ doc: () => ({ collection: () => query }) }) };
+
+  const result = await loadObservationContext({ db, studentId: "s1", limit: 20, telemetry });
+
+  assert.match(result, /Private observation/);
+  assert.ok(stages.includes("observation_query"));
+  assert.equal(dimensions.some((value) => value.observationsFetched === 1), true);
+  assert.equal(JSON.stringify(dimensions).includes("Private observation"), false);
+});
+
+test("observation telemetry distinguishes fetched observations from fully included observations", async () => {
+  const dimensions = [];
+  const telemetry = {
+    startStage: () => () => {},
+    setDimensions: (metadata) => dimensions.push(metadata),
+  };
+  const query = {
+    orderBy: () => query,
+    limit: () => query,
+    get: async () => ({
+      docs: ["a", "b"].map((id) => ({
+        id,
+        data: () => ({ type: "text", text: id.repeat(7000), observedAt: 1 }),
+      })),
+    }),
+  };
+  const db = { collection: () => ({ doc: () => ({ collection: () => query }) }) };
+
+  await loadObservationContext({ db, studentId: "s1", limit: 20, telemetry });
+
+  assert.equal(dimensions.some((value) => value.observationsFetched === 2
+    && value.observationsIncluded === 1
+    && value.observationsDiscarded === 1
+    && value.observationTruncationReason === "character_limit"), true);
+});

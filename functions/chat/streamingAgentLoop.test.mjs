@@ -50,6 +50,7 @@ test("streamOpenRouterTurn collects streamed tool call deltas", async () => {
   });
 
   assert.equal(body.tools.length, 1);
+  assert.deepEqual(body.stream_options, { include_usage: true });
   assert.equal(result.finishReason, "tool_calls");
   assert.deepEqual(result.toolCalls, [{
     id: "tc_1",
@@ -183,6 +184,46 @@ test("runStreamingAgentLoop records Langfuse generations and tool spans", async 
   assert.equal(spans.length, 1);
   assert.equal(spans[0].input.name, "tool-fetch_observations");
   assert.deepEqual(spans[0].endCalls[0].output, { observations: 2 });
+});
+
+test("runStreamingAgentLoop records model iterations, tool layers, and tool durations", async () => {
+  const fetchResponses = [
+    responseFromChunks([
+      'data: {"choices":[{"delta":{"tool_calls":[{"index":0,"id":"tc_a","type":"function","function":{"name":"fetch_observations","arguments":"{}"}}]},"finish_reason":"tool_calls"}]}\n\n',
+      "data: [DONE]\n\n",
+    ]),
+    responseFromChunks([
+      'data: {"choices":[{"delta":{"content":"Done"},"finish_reason":"stop"}]}\n\n',
+      "data: [DONE]\n\n",
+    ]),
+  ];
+  const stages = [];
+  const dimensions = [];
+  const telemetry = {
+    startStage: (name, metadata = {}) => {
+      stages.push({ name, metadata });
+      return (endMetadata = {}) => dimensions.push(endMetadata);
+    },
+    mark: () => {},
+    setDimensions: (metadata) => dimensions.push(metadata),
+  };
+
+  await runStreamingAgentLoop({
+    fetchImpl: async () => fetchResponses.shift(),
+    apiKey: "secret",
+    endpoint: "https://example.test",
+    messages: [{ role: "user", content: "question" }],
+    model: "test-model",
+    tools: [{ type: "function", function: { name: "fetch_observations" } }],
+    toolExecutor: async () => ({ observations: 2 }),
+    trace: noOpTrace(),
+    telemetry,
+  });
+
+  assert.equal(stages.filter(({ name }) => name === "model_iteration").length, 2);
+  assert.equal(stages.some(({ name }) => name === "tool_layer"), true);
+  assert.equal(stages.some(({ name, metadata }) => name === "tool_execution" && metadata.toolName === "fetch_observations"), true);
+  assert.equal(dimensions.some((value) => value.modelIterationCount === 2), true);
 });
 
 test("runStreamingAgentLoop refuses model execution without Langfuse", async () => {

@@ -24,12 +24,43 @@ test('createChatTurnPayload keeps selected chat id over generated chat id', () =
       userMessageId: 'message-1',
     },
     message: 'hello',
+    clientTurnId: 'client-turn-1',
   });
 
   assert.equal(payload.chatId, 'selected-chat');
   assert.equal(payload.turnId, 'turn-1');
   assert.equal(payload.runId, 'run-1');
   assert.equal(payload.userMessageId, 'message-1');
+  assert.equal(payload.clientTurnId, 'client-turn-1');
+});
+
+test('streamChatTurn reports request, response, byte, and error-event telemetry before throwing', async () => {
+  const marks = [];
+  const events = [];
+  const encoder = new TextEncoder();
+  let read = 0;
+  const telemetry = {
+    mark: (name) => marks.push(name),
+    addResponseBytes: (count) => marks.push(`bytes:${count}`),
+    recordSseEvent: (event) => events.push(event.event),
+  };
+
+  await assert.rejects(() => streamChatTurn({
+    url: 'https://example.test/chat', token: 'token', payload: { message: 'hello' }, telemetry,
+    fetchImpl: async () => ({
+      ok: true,
+      body: { getReader: () => ({
+        read: async () => read++ === 0
+          ? { done: false, value: encoder.encode('event: error\ndata: {"code":"chat/test","error":"Failed"}\n\n') }
+          : { done: true },
+        releaseLock: () => {},
+      }) },
+    }),
+  }), (error) => error.code === 'chat/test');
+
+  assert.deepEqual(marks.slice(0, 2), ['requestStarted', 'responseHeaders']);
+  assert.equal(marks.some((value) => String(value).startsWith('bytes:')), true);
+  assert.deepEqual(events, ['error']);
 });
 
 test('parseSseEvents handles complete and partial event blocks', () => {

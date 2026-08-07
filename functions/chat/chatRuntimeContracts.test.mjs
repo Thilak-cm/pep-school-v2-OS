@@ -29,3 +29,12 @@ test("chat runtime exposes only server-bound student tools", async () => {
   assert.match(source, /getTools\(chatConfig\.allowedTools, \["student"\]\)/);
   assert.match(source, /boundArgs = \{ studentId: request\.studentId, chatId: request\.chatId \}/);
 });
+
+test("chat runtime emits one latency summary and threads telemetry through context and provider", async () => {
+  const source = await readFile(sourceUrl, "utf8");
+  assert.match(source, /new ChatLatencyRecorder/);
+  assert.match(source, /buildChatMessages\(\{[\s\S]*telemetry/);
+  assert.match(source, /runStreamingAgentLoop\(\{[\s\S]*telemetry/);
+  assert.match(source, /telemetry\.emit\(functions\.logger\)/);
+  assert.match(source, /timing: telemetry\.snapshot\(\)/);
+});

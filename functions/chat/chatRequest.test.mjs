@@ -11,6 +11,7 @@ test("parseChatRequest accepts stable client identifiers", () => {
       turnId: "t1",
       runId: "r1",
       userMessageId: "m1",
+      clientTurnId: "ct1",
       message: " Hello ",
     }),
     {
@@ -19,9 +20,22 @@ test("parseChatRequest accepts stable client identifiers", () => {
       turnId: "t1",
       runId: "r1",
       userMessageId: "m1",
+      clientTurnId: "ct1",
       message: "Hello",
     },
   );
+});
+
+test("parseChatRequest remains compatible with clients without clientTurnId", () => {
+  const parsed = parseChatRequest({
+    studentId: "s1",
+    chatId: "c1",
+    turnId: "t1",
+    runId: "r1",
+    userMessageId: "m1",
+    message: "Hello",
+  });
+  assert.equal(parsed.clientTurnId, null);
 });
 
 test("parseChatRequest rejects missing identifiers and empty messages", () => {

@@ -22,6 +22,12 @@ test('typed auth failure force-refreshes once with stable turn IDs and a new run
   const runChanges = [];
   let streamCalls = 0;
   const authError = Object.assign(new Error('Expired'), { code: 'auth/unauthenticated', status: 401 });
+  const telemetryCalls = [];
+  const telemetry = {
+    clientTurnId: 'client-turn-1',
+    mark: (name) => telemetryCalls.push(name),
+    addRunId: (runId, options) => telemetryCalls.push({ runId, options }),
+  };
 
   const outcome = await runAuthenticatedChatTurn({
     currentUser: { getIdToken: async (forceRefresh) => { tokenCalls.push(forceRefresh); return forceRefresh ? 'fresh' : 'stale'; } },
@@ -31,6 +37,7 @@ test('typed auth failure force-refreshes once with stable turn IDs and a new run
     chatId: 'chat-1',
     ids: stableIds,
     message: 'Hello',
+    telemetry,
     createRunId: () => 'run-2',
     onRunChange: (ids) => runChanges.push(ids),
     stream: async ({ payload }) => {
@@ -49,6 +56,13 @@ test('typed auth failure force-refreshes once with stable turn IDs and a new run
   }
   assert.equal(runChanges[0].runId, 'run-2');
   assert.equal(outcome.ids.runId, 'run-2');
+  assert.equal(payloads[0].clientTurnId, 'client-turn-1');
+  assert.equal(payloads[1].clientTurnId, 'client-turn-1');
+  assert.deepEqual(telemetryCalls.filter((value) => typeof value === 'object'), [
+    { runId: 'run-1', options: undefined },
+    { runId: 'run-2', options: { authRetry: true } },
+  ]);
+  assert.equal(telemetryCalls.filter((value) => value === 'tokenReady').length, 2);
 });
 
 test('auth retry stays failed after one force refresh and exposes a friendly error', async () => {

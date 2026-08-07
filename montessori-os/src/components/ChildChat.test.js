@@ -1,5 +1,7 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
+import { readFile } from 'node:fs/promises';
+import { URL } from 'node:url';
 
 import { canManageChildChat } from './chat/chatPermissions.js';
 import {
@@ -155,4 +157,21 @@ test('ChildChat exposes role controls only to creator and scoped admins', () => 
     manageableClassrooms: ['allstars'],
   }), true);
   assert.equal(canManageChildChat({ chat, currentUser, userRole: 'superadmin' }), true);
+});
+
+test('ChildChat wires latency telemetry through send, visible paint, terminal outcome, and refresh', async () => {
+  const source = await readFile(new URL('./ChildChat.jsx', import.meta.url), 'utf8');
+  assert.match(source, /new ChatTurnTelemetry/);
+  assert.match(source, /runAuthenticatedChatTurn\(\{[\s\S]*telemetry: turnTelemetry/);
+  assert.match(source, /scheduleAfterVisiblePaintOnce/);
+  assert.match(source, /onFirstPresented:[\s\S]*scheduleAfterVisiblePaintOnce/);
+  assert.match(source, /turnTelemetry\.finish/);
+  assert.match(source, /conversationRefreshCompleted/);
+  assert.match(source, /void turnTelemetry\.deliver\(\)/);
+});
+
+test('ChildChat uses the configured tester allowlist in production', async () => {
+  const source = await readFile(new URL('./ChildChat.jsx', import.meta.url), 'utf8');
+  assert.match(source, /const isAuthorizedTester = isChatAllowed\(currentUser\?\.uid\)/);
+  assert.doesNotMatch(source, /import\.meta\.env\.DEV && isChatAllowed/);
 });

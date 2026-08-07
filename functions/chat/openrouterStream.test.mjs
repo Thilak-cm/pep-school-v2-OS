@@ -58,6 +58,27 @@ test("streamOpenRouterResponse surfaces provider errors", async () => {
   );
 });
 
+test("streamOpenRouterTurn closes provider header timing when fetch rejects", async () => {
+  const ended = [];
+  const telemetry = {
+    startStage: (name) => (metadata = {}) => ended.push({ name, metadata }),
+  };
+
+  await assert.rejects(
+    () => streamOpenRouterTurn({
+      fetchImpl: async () => { throw new Error("network unavailable"); },
+      apiKey: "secret",
+      endpoint: "https://example.test",
+      messages: [],
+      model: "test-model",
+      telemetry,
+    }),
+    /network unavailable/,
+  );
+
+  assert.deepEqual(ended, [{ name: "openrouter_request_headers", metadata: {} }]);
+});
+
 test("streamOpenRouterTurn rejects a truncated stream before any token", async () => {
   const output = [];
 
@@ -111,4 +132,38 @@ test("streamOpenRouterTurn accepts EOF after a terminal finish reason", async ()
 
   assert.equal(result.content, "Complete");
   assert.equal(result.finishReason, "stop");
+});
+
+test("streamOpenRouterTurn records provider headers, first event, reasoning, and text milestones", async () => {
+  const stages = [];
+  const milestones = [];
+  const dimensions = [];
+  const telemetry = {
+    startStage: (name) => {
+      stages.push(name);
+      return () => {};
+    },
+    mark: (name) => milestones.push(name),
+    setDimensions: (value) => dimensions.push(value),
+  };
+
+  await streamOpenRouterTurn({
+    fetchImpl: async () => responseFromChunks([
+      'data: {"provider":"test-provider","choices":[{"delta":{"reasoning":"thinking"}}]}\n\n',
+      'data: {"usage":{"prompt_tokens":120,"completion_tokens":30,"completion_tokens_details":{"reasoning_tokens":8},"prompt_tokens_details":{"cached_tokens":20}},"choices":[{"delta":{"content":"Answer"},"finish_reason":"stop"}]}\n\n',
+      "data: [DONE]\n\n",
+    ]),
+    apiKey: "secret",
+    endpoint: "https://example.test",
+    messages: [{ role: "user", content: "hi" }],
+    model: "test-model",
+    telemetry,
+  });
+
+  assert.ok(stages.includes("openrouter_request_headers"));
+  assert.deepEqual(milestones, ["first_provider_event", "first_reasoning_event", "first_text_token"]);
+  assert.equal(dimensions.some((value) => value.inputTokens === 120
+    && value.outputTokens === 30
+    && value.reasoningTokens === 8
+    && value.cacheTokens === 20), true);
 });
