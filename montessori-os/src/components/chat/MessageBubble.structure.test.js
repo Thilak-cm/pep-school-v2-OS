@@ -31,6 +31,7 @@ const assistantMetaSource = source.slice(
 let vite;
 let UserBubble;
 let AssistantBubble;
+let NotificationProvider;
 
 before(async () => {
   vite = await createServer({
@@ -40,6 +41,7 @@ before(async () => {
     server: { middlewareMode: true },
   });
   ({ UserBubble, AssistantBubble } = await vite.ssrLoadModule('/src/components/chat/MessageBubble.jsx'));
+  ({ NotificationProvider } = await vite.ssrLoadModule('/src/notifications/NotificationContext.jsx'));
 });
 
 after(async () => {
@@ -50,6 +52,7 @@ test('message bubbles use role-specific always-visible metadata and terminal ass
   assert.match(source, /UserBubble/);
   assert.match(source, /AssistantBubble/);
   assert.match(source, /ThumbsUp/);
+  assert.match(source, /ThumbsDown/);
   assert.match(source, /shouldShowAssistantActions/);
   assert.doesNotMatch(source, /onTouchStart/);
   assert.doesNotMatch(source, /opacity:\s*visible\s*\?/);
@@ -76,40 +79,44 @@ test('optimistic user metadata renders immediately and is permanently visible', 
 });
 
 test('terminal assistant actions render permanently without hover or touch reveal', () => {
-  const completeHtml = renderToStaticMarkup(React.createElement(AssistantBubble, {
-    message: {
-      id: 'assistant-complete',
-      role: 'assistant',
-      content: 'A complete answer',
-      status: 'complete',
-    },
-  }));
-  const interruptedHtml = renderToStaticMarkup(React.createElement(AssistantBubble, {
-    message: {
-      id: 'assistant-interrupted',
-      role: 'assistant',
-      content: 'A partial answer',
-      status: 'interrupted',
-    },
-  }));
-  const streamingHtml = renderToStaticMarkup(React.createElement(AssistantBubble, {
-    message: {
-      id: 'assistant-streaming',
-      role: 'assistant',
-      content: 'Still changing',
-      status: 'streaming',
-    },
-  }));
+  const renderAssistant = (message) => renderToStaticMarkup(
+    React.createElement(
+      NotificationProvider,
+      null,
+      React.createElement(AssistantBubble, { message }),
+    ),
+  );
+  const completeHtml = renderAssistant({
+    id: 'assistant-complete',
+    role: 'assistant',
+    content: 'A complete answer',
+    status: 'complete',
+  });
+  const interruptedHtml = renderAssistant({
+    id: 'assistant-interrupted',
+    role: 'assistant',
+    content: 'A partial answer',
+    status: 'interrupted',
+  });
+  const streamingHtml = renderAssistant({
+    id: 'assistant-streaming',
+    role: 'assistant',
+    content: 'Still changing',
+    status: 'streaming',
+  });
 
   [completeHtml, interruptedHtml].forEach((html) => {
     assert.match(html, /data-message-meta="assistant"/);
     assert.match(html, /aria-label="Copy message"/);
     assert.match(html, /aria-label="Helpful"/);
+    assert.match(html, /aria-label="Not helpful"/);
   });
   assert.doesNotMatch(streamingHtml, /data-message-meta="assistant"/);
   assert.match(assistantMetaSource, /display:\s*'flex'/);
   assert.match(assistantMetaSource, /visibility:\s*'visible'/);
   assert.match(assistantMetaSource, /opacity:\s*1/);
+  assert.match(assistantMetaSource, /onClick=\{\(\) => notify\.info\(FEEDBACK_NOTICE\)\}/);
+  assert.match(source, /Feedback is still being worked on/);
   assert.doesNotMatch(assistantMetaSource, /&:hover|onMouse|onTouch/);
 });
 
