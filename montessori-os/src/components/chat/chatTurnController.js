@@ -35,6 +35,7 @@ export async function runAuthenticatedChatTurn({
   onRunChange = () => {},
   createRunId = () => createChatIds().runId,
   stream = streamChatTurn,
+  telemetry,
 }) {
   if (!currentUser?.getIdToken) {
     const error = new Error('You must be signed in to chat.');
@@ -44,20 +45,29 @@ export async function runAuthenticatedChatTurn({
 
   let attemptIds = { ...ids, chatId };
   for (let attempt = 0; attempt < 2; attempt += 1) {
+    telemetry?.addRunId?.(attemptIds.runId, attempt === 1 ? { authRetry: true } : undefined);
     let receivedToken = false;
     try {
       const token = await currentUser.getIdToken(attempt === 1);
+      telemetry?.mark?.('tokenReady');
       if (signal.aborted) throw abortedError();
 
       const result = await stream({
         url,
         token,
         signal,
-        payload: createChatTurnPayload({ studentId, chatId, ids: attemptIds, message }),
+        payload: createChatTurnPayload({
+          studentId,
+          chatId,
+          ids: attemptIds,
+          message,
+          clientTurnId: telemetry?.clientTurnId,
+        }),
         onEvent: (event) => {
           if (event.event === 'token') receivedToken = true;
           onEvent?.(event, attemptIds);
         },
+        telemetry,
       });
       return { result, ids: attemptIds };
     } catch (error) {

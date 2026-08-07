@@ -21,12 +21,13 @@ export function createChatIds(idFactory = undefined) {
   };
 }
 
-export function createChatTurnPayload({ studentId, chatId, ids, message }) {
+export function createChatTurnPayload({ studentId, chatId, ids, message, clientTurnId }) {
   return {
     studentId,
     ...ids,
     chatId,
     message,
+    ...(clientTurnId ? { clientTurnId } : {}),
   };
 }
 
@@ -58,13 +59,16 @@ export async function streamChatTurn({
   signal,
   fetchImpl = fetch,
   onEvent = () => {},
+  telemetry,
 }) {
+  telemetry?.mark?.('requestStarted');
   const response = await fetchImpl(url, {
     method: 'POST',
     headers: { Authorization: `Bearer ${token}`, 'Content-Type': 'application/json' },
     body: JSON.stringify(payload),
     signal,
   });
+  telemetry?.mark?.('responseHeaders');
   if (!response.ok) {
     let details = null;
     try {
@@ -93,11 +97,15 @@ export async function streamChatTurn({
     while (true) {
       const { done, value } = await reader.read();
       if (done) break;
+      telemetry?.addResponseBytes?.(value?.byteLength || 0);
       const parsed = parseSseEvents(buffer, decoder.decode(value, { stream: true }));
       buffer = parsed.remainder;
       for (const event of parsed.events) {
         let data = event.data;
         try { data = JSON.parse(event.data); } catch { /* keep text payload */ }
+        const parsedEvent = { ...event, data };
+        telemetry?.recordSseEvent?.(parsedEvent);
+        onEvent(parsedEvent);
         if (event.event === 'token' && typeof data?.text === 'string') content += data.text;
         if (event.event === 'error') {
           throw new ChatStreamError(data?.error || 'Chat request failed', {
@@ -110,7 +118,6 @@ export async function streamChatTurn({
           terminalEvent = event;
           status = data?.status || 'complete';
         }
-        onEvent({ ...event, data });
       }
     }
   } finally {

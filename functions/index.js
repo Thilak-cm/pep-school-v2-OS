@@ -84,6 +84,7 @@ export { autoExpireBroadcast } from "./alerts/index.js";
 
 // Chat (#220)
 export { childChatStream } from "./chat/index.js";
+export { chatClientTelemetry } from "./chat/clientTelemetry.js";
 export { cleanupDeletedChats } from "./chat/cleanupDeletedChats.js";
 
 // Weekly Digest (PEP-297)

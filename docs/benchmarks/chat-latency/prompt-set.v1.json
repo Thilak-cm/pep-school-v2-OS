@@ -1,0 +1,42 @@
+{
+  "schemaVersion": 1,
+  "execution": "sequential",
+  "groups": {
+    "direct": [
+      { "caseId": "direct-01", "prompt": "Suggest one calm way to welcome a child into the work cycle." },
+      { "caseId": "direct-02", "prompt": "What is a concise way to describe concentration to a parent?" },
+      { "caseId": "direct-03", "prompt": "Give me three neutral phrases for documenting classroom behavior." },
+      { "caseId": "direct-04", "prompt": "How can I invite a child to restore materials without sounding punitive?" },
+      { "caseId": "direct-05", "prompt": "Explain the difference between helping and interrupting a child's effort." },
+      { "caseId": "direct-06", "prompt": "Suggest a brief transition ritual for returning from outdoor time." },
+      { "caseId": "direct-07", "prompt": "What should a useful Montessori observation avoid?" },
+      { "caseId": "direct-08", "prompt": "Give me one reflection question for the end of a classroom day." },
+      { "caseId": "direct-09", "prompt": "How can I respond when a child declines a presentation?" },
+      { "caseId": "direct-10", "prompt": "Write a two-sentence reminder about following the child." }
+    ],
+    "observation-context": [
+      { "caseId": "observation-01", "prompt": "Based on the recent observations, what pattern of concentration is emerging?" },
+      { "caseId": "observation-02", "prompt": "Summarize the strongest interest visible in the recent classroom observations." },
+      { "caseId": "observation-03", "prompt": "What change in independence is visible across the recent observations?" },
+      { "caseId": "observation-04", "prompt": "Which recent observation best suggests readiness for a follow-up presentation?" },
+      { "caseId": "observation-05", "prompt": "Identify one repeated challenge in the recent observations and suggest a gentle response." },
+      { "caseId": "observation-06", "prompt": "How has the child's choice of work varied in the recent observations?" },
+      { "caseId": "observation-07", "prompt": "Describe the recent social pattern using only evidence from the available observations." },
+      { "caseId": "observation-08", "prompt": "What is one useful next observation to collect based on the recent notes?" },
+      { "caseId": "observation-09", "prompt": "Summarize recent progress in one teacher-friendly paragraph." },
+      { "caseId": "observation-10", "prompt": "What evidence in the recent observations should we avoid over-interpreting?" }
+    ],
+    "tool-assisted": [
+      { "caseId": "tool-01", "prompt": "Fetch the current weekly snapshot and summarize its main theme." },
+      { "caseId": "tool-02", "prompt": "Compare the current weekly snapshot with earlier snapshots and describe the clearest change." },
+      { "caseId": "tool-03", "prompt": "Fetch the current monthly plan and identify the most relevant classroom priority." },
+      { "caseId": "tool-04", "prompt": "Fetch the latest writing analysis and explain the next useful support." },
+      { "caseId": "tool-05", "prompt": "Fetch recent interview information and summarize one recurring idea." },
+      { "caseId": "tool-06", "prompt": "Fetch recent observations and identify a repeated interest." },
+      { "caseId": "tool-07", "prompt": "Fetch recent media records and tell me what kinds of classroom evidence are available." },
+      { "caseId": "tool-08", "prompt": "Fetch the latest term report and summarize its main developmental emphasis." },
+      { "caseId": "tool-09", "prompt": "Fetch the baseline report and identify one area worth revisiting." },
+      { "caseId": "tool-10", "prompt": "Fetch placement history and explain the current classroom placement in one sentence." }
+    ]
+  }
+}

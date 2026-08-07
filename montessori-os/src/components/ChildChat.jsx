@@ -29,6 +29,11 @@ import { HEADER_BOTTOM_PADDING, HEADER_HEIGHT } from '../AppHeader.jsx';
 import { FOOTER_HEIGHT } from '../AppFooter.jsx';
 import { auth, db } from '../firebase';
 import { createChatIds } from '../services/chatStreamService.js';
+import {
+  ChatTurnTelemetry,
+  flushPendingChatTelemetry,
+  scheduleAfterVisiblePaintOnce,
+} from '../services/chatTelemetryService.js';
 import useInlineVoice from '../hooks/useInlineVoice';
 import InlineVoiceOverlay from './InlineVoiceOverlay.jsx';
 import ChatMaintenance from './ChatMaintenance.jsx';
@@ -82,6 +87,9 @@ const projectId = import.meta.env.VITE_FIREBASE_PROJECT_ID || 'pep-os';
 const defaultStreamUrl = import.meta.env.DEV && import.meta.env.VITE_USE_FUNCTIONS_EMULATOR !== 'false'
   ? `http://127.0.0.1:5001/${projectId}/asia-south1/childChatStream`
   : `https://asia-south1-${projectId}.cloudfunctions.net/childChatStream`;
+const defaultTelemetryUrl = import.meta.env.DEV && import.meta.env.VITE_USE_FUNCTIONS_EMULATOR !== 'false'
+  ? `http://127.0.0.1:5001/${projectId}/asia-south1/chatClientTelemetry`
+  : `https://asia-south1-${projectId}.cloudfunctions.net/chatClientTelemetry`;
 
 function timestampMs(value) {
   if (typeof value?.toMillis === 'function') return value.toMillis();
@@ -115,6 +123,8 @@ export default function ChildChat({ student, currentUser, userRole, manageableCl
 
   const abortRef = useRef(null);
   const activeTurnRef = useRef(null);
+  const activeTelemetryRef = useRef(null);
+  const visiblePaintScheduleRef = useRef({});
   const messagesEndRef = useRef(null);
   const messagesContainerRef = useRef(null);
   const inputRef = useRef(null);
@@ -177,9 +187,25 @@ export default function ChildChat({ student, currentUser, userRole, manageableCl
       mountedRef.current = false;
       presentationRef.current?.clear();
       pendingAssistantSnapshotRef.current = null;
+      activeTelemetryRef.current?.finish('aborted', 'client/navigation');
+      void activeTelemetryRef.current?.deliver();
+      visiblePaintScheduleRef.current.cancel?.();
       abortActiveChatRequest(abortRef, { clear: true });
     };
   }, []);
+
+  useEffect(() => {
+    if (!currentUser?.uid) return undefined;
+    const flush = () => {
+      void flushPendingChatTelemetry({
+        endpoint: import.meta.env.VITE_CHAT_TELEMETRY_URL || defaultTelemetryUrl,
+        getToken: () => auth.currentUser?.getIdToken?.(),
+      });
+    };
+    flush();
+    window.addEventListener('online', flush);
+    return () => window.removeEventListener('online', flush);
+  }, [currentUser?.uid]);
 
   useEffect(() => {
     presentationRef.current?.clear();
@@ -200,6 +226,10 @@ export default function ChildChat({ student, currentUser, userRole, manageableCl
     return () => {
       presentationRef.current?.clear();
       pendingAssistantSnapshotRef.current = null;
+      activeTelemetryRef.current?.finish('aborted', 'client/student-switch');
+      void activeTelemetryRef.current?.deliver();
+      visiblePaintScheduleRef.current.cancel?.();
+      visiblePaintScheduleRef.current = {};
       abortActiveChatRequest(abortRef, { clear: true });
       activeTurnRef.current = null;
     };
@@ -347,6 +377,10 @@ export default function ChildChat({ student, currentUser, userRole, manageableCl
     presentationRef.current?.clear();
     presentationRef.current = null;
     pendingAssistantSnapshotRef.current = null;
+    activeTelemetryRef.current?.finish('aborted', 'client/navigation');
+    void activeTelemetryRef.current?.deliver();
+    visiblePaintScheduleRef.current.cancel?.();
+    visiblePaintScheduleRef.current = {};
     abortActiveChatRequest(abortRef, { clear: true });
     activeTurnRef.current = null;
     setLoading(false);
@@ -462,6 +496,12 @@ export default function ChildChat({ student, currentUser, userRole, manageableCl
     const controller = new AbortController();
     presentationRef.current?.clear();
     pendingAssistantSnapshotRef.current = null;
+    const turnTelemetry = new ChatTurnTelemetry({
+      endpoint: import.meta.env.VITE_CHAT_TELEMETRY_URL || defaultTelemetryUrl,
+      getToken: () => firebaseUser.getIdToken(),
+      programId: student?.programId || student?.program || 'unknown',
+    });
+    activeTelemetryRef.current = turnTelemetry;
     abortRef.current = controller;
     activeTurnRef.current = {
       studentId,
@@ -514,6 +554,12 @@ export default function ChildChat({ student, currentUser, userRole, manageableCl
         if (!isCurrentRequest()) return;
         setHasPresentedToken(true);
         setProgressText(null);
+        // The presentation layer has now queued the first visible text update.
+        // Two frames capture the first paint opportunity after React commits it.
+        scheduleAfterVisiblePaintOnce(
+          visiblePaintScheduleRef.current,
+          turnTelemetry,
+        );
       },
     });
     presentationRef.current = presentation;
@@ -529,6 +575,7 @@ export default function ChildChat({ student, currentUser, userRole, manageableCl
           chatId,
           ids,
           message,
+          telemetry: turnTelemetry,
           onRunChange: (retryIds) => {
             if (!isCurrentRequest()) return;
             presentationRef.current?.clear();
@@ -574,7 +621,10 @@ export default function ChildChat({ student, currentUser, userRole, manageableCl
             ));
           },
         }),
-        onComplete: () => {
+        onComplete: (turnResult) => {
+          turnTelemetry.finish(
+            turnResult.result.status === 'complete' ? 'completed' : turnResult.result.status,
+          );
           if (!isCurrentRequest() || !completeEvent) return;
           const pendingAssistant = pendingAssistantSnapshotRef.current;
           pendingAssistantSnapshotRef.current = null;
@@ -587,8 +637,12 @@ export default function ChildChat({ student, currentUser, userRole, manageableCl
           if (pendingAssistant) activeTurnRef.current = null;
         },
         onError: (streamError) => {
-          if (!isCurrentRequest()) return;
           const interrupted = controller.signal.aborted;
+          turnTelemetry.finish(
+            interrupted ? 'aborted' : (streamError.status === 'interrupted' ? 'interrupted' : 'failed'),
+            interrupted ? 'client/aborted' : streamError.code || 'chat/client-error',
+          );
+          if (!isCurrentRequest()) return;
           if (!interrupted) {
             setError(chatErrorMessage(streamError));
             setInput((draft) => draft || message);
@@ -618,14 +672,17 @@ export default function ChildChat({ student, currentUser, userRole, manageableCl
         abortRef.current = null;
         setLoading(false);
         setProgressText(null);
+        turnTelemetry.mark('uiSettled');
         try {
           await loadChats();
+          turnTelemetry.mark('conversationRefreshCompleted');
         } catch {
           if (mountedRef.current && currentStudentIdRef.current === studentId) {
             setError((current) => current || 'The response was saved, but conversations could not be refreshed.');
           }
         }
       }
+      void turnTelemetry.deliver();
     }
   };
 

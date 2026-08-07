@@ -24,6 +24,7 @@ export async function streamOpenRouterResponse({
   maxTokens = 4096,
   signal,
   onChunk,
+  telemetry,
 }) {
   const result = await streamOpenRouterTurn({
     fetchImpl,
@@ -35,6 +36,7 @@ export async function streamOpenRouterResponse({
     maxTokens,
     signal,
     onChunk,
+    telemetry,
   });
   return result.content;
 }
@@ -64,23 +66,33 @@ export async function streamOpenRouterTurn({
   tools = [],
   signal,
   onChunk = () => {},
+  telemetry,
 }) {
-  const response = await fetchImpl(endpoint, {
-    method: "POST",
-    headers: {
-      Authorization: `Bearer ${apiKey}`,
-      "Content-Type": "application/json",
-    },
-    signal,
-    body: JSON.stringify({
-      model,
-      messages,
-      temperature,
-      max_tokens: maxTokens,
-      stream: true,
-      ...(tools?.length ? { tools } : {}),
-    }),
-  });
+  const endHeaders = telemetry?.startStage?.("openrouter_request_headers") || (() => {});
+  let response;
+  try {
+    response = await fetchImpl(endpoint, {
+      method: "POST",
+      headers: {
+        Authorization: `Bearer ${apiKey}`,
+        "Content-Type": "application/json",
+      },
+      signal,
+      body: JSON.stringify({
+        model,
+        messages,
+        temperature,
+        max_tokens: maxTokens,
+        stream: true,
+        stream_options: { include_usage: true },
+        ...(tools?.length ? { tools } : {}),
+      }),
+    });
+  } finally {
+    // A rejected fetch has no status, but its elapsed time still separates
+    // provider/network failures from earlier server work (#234).
+    endHeaders(response ? { httpStatus: response.status || (response.ok ? 200 : 0) } : {});
+  }
 
   if (!response.ok) {
     const detail = await response.text().catch(() => "");
@@ -94,11 +106,16 @@ export async function streamOpenRouterTurn({
   let content = "";
   let finishReason = null;
   const toolCallParts = new Map();
+  let sawProviderEvent = false;
+  let sawReasoning = false;
+  let sawText = false;
+  let responseBytes = 0;
 
   try {
     while (true) {
       const { done, value } = await reader.read();
       if (done) break;
+      responseBytes += value?.byteLength || 0;
       buffer += decoder.decode(value, { stream: true });
       const lines = buffer.split("\n");
       buffer = lines.pop() || "";
@@ -119,9 +136,26 @@ export async function streamOpenRouterTurn({
         } catch {
           continue;
         }
+        if (!sawProviderEvent) {
+          sawProviderEvent = true;
+          telemetry?.mark?.("first_provider_event");
+        }
+        if (typeof json?.provider === "string") telemetry?.setDimensions?.({ provider: json.provider });
+        if (json?.usage && typeof json.usage === "object") {
+          telemetry?.setDimensions?.({
+            inputTokens: json.usage.prompt_tokens,
+            outputTokens: json.usage.completion_tokens,
+            reasoningTokens: json.usage.completion_tokens_details?.reasoning_tokens,
+            cacheTokens: json.usage.prompt_tokens_details?.cached_tokens,
+          });
+        }
         const choice = json?.choices?.[0] || {};
         finishReason = choice.finish_reason || finishReason;
         const delta = choice.delta || {};
+        if (!sawReasoning && typeof delta.reasoning === "string" && delta.reasoning) {
+          sawReasoning = true;
+          telemetry?.mark?.("first_reasoning_event");
+        }
         const toolCalls = Array.isArray(delta.tool_calls) ? delta.tool_calls : [];
         for (const part of toolCalls) {
           const index = Number.isInteger(part.index) ? part.index : toolCallParts.size;
@@ -139,6 +173,10 @@ export async function streamOpenRouterTurn({
 
         const contentDelta = delta.content;
         if (typeof contentDelta === "string" && contentDelta) {
+          if (!sawText) {
+            sawText = true;
+            telemetry?.mark?.("first_text_token");
+          }
           content += contentDelta;
           onChunk(contentDelta);
         }
@@ -146,6 +184,7 @@ export async function streamOpenRouterTurn({
     }
   } finally {
     reader.releaseLock?.();
+    telemetry?.setDimensions?.({ responseBytes });
   }
 
   if (!TERMINAL_FINISH_REASONS.has(finishReason)) {
@@ -177,8 +216,9 @@ function safeJsonSize(value) {
   }
 }
 
-async function executeToolCall({ tc, toolExecutor, trace }) {
+async function executeToolCall({ tc, toolExecutor, trace, telemetry }) {
   const args = parseToolArgs(tc.function.arguments);
+  const endTelemetry = telemetry?.startStage?.("tool_execution", { toolName: tc.function.name }) || (() => {});
   const toolSpan = trace?.span({
     name: `tool-${tc.function.name}`,
     input: args,
@@ -189,10 +229,12 @@ async function executeToolCall({ tc, toolExecutor, trace }) {
       output: result,
       metadata: { resultSizeBytes: safeJsonSize(result) },
     });
+    endTelemetry({ resultSizeBytes: safeJsonSize(result) });
     return { tc, args, result };
   } catch (error) {
     const result = { error: error.message || "Tool call failed" };
     toolSpan?.end({ output: result, level: "ERROR" });
+    endTelemetry({ resultSizeBytes: safeJsonSize(result) });
     return { tc, args, result };
   }
 }
@@ -207,24 +249,30 @@ export async function executeToolCallBatch({
   toolExecutor,
   toolPrerequisites = {},
   trace,
+  telemetry,
 }) {
   const pending = toolCalls.map((tc, index) => ({ tc, index }));
   const emittedNames = new Set(toolCalls.map((tc) => tc.function.name));
   const completedNames = new Set();
   const orderedResults = new Array(toolCalls.length);
+  let layer = 0;
 
   while (pending.length) {
+    layer += 1;
     let ready = pending.filter(({ tc }) => (toolPrerequisites[tc.function.name] || [])
       .every((prerequisite) => !emittedNames.has(prerequisite) || completedNames.has(prerequisite)));
     // Catalog cycles should never occur, but executing the unresolved layer lets
     // the registry return its normal prerequisite error instead of deadlocking.
     if (!ready.length) ready = [...pending];
 
+    const endLayer = telemetry?.startStage?.("tool_layer", { layer, count: ready.length }) || (() => {});
     const layerResults = await Promise.all(ready.map(({ tc }) => executeToolCall({
       tc,
       toolExecutor,
       trace,
+      telemetry,
     })));
+    endLayer();
     ready.forEach(({ tc, index }, layerIndex) => {
       orderedResults[index] = layerResults[layerIndex];
       completedNames.add(tc.function.name);
@@ -233,6 +281,7 @@ export async function executeToolCallBatch({
     });
   }
 
+  telemetry?.setDimensions?.({ toolLayerCount: layer });
   return orderedResults;
 }
 
@@ -252,6 +301,7 @@ export async function runStreamingAgentLoop({
   onToolCalls = () => {},
   trace,
   maxIterations = 8,
+  telemetry,
 }) {
   if (typeof trace?.generation !== "function") {
     throw new Error("Langfuse trace is required for chat model execution");
@@ -262,6 +312,7 @@ export async function runStreamingAgentLoop({
 
   while (iterations < maxIterations) {
     iterations += 1;
+    const endIteration = telemetry?.startStage?.("model_iteration", { iteration: iterations }) || (() => {});
     const generation = trace?.generation({
       name: `chat-stream-iteration-${iterations}`,
       model,
@@ -287,8 +338,15 @@ export async function runStreamingAgentLoop({
           content += text;
           onChunk(text);
         },
+        telemetry,
       });
     } catch (error) {
+      endIteration({ streamedChars: content.length });
+      telemetry?.setDimensions?.({
+        modelIterationCount: iterations,
+        toolCallCount: toolCallLog.length,
+        toolNames: toolCallLog.map((entry) => entry.name),
+      });
       generation.end({
         output: { error: error.message || "Model execution failed" },
         level: "ERROR",
@@ -296,6 +354,7 @@ export async function runStreamingAgentLoop({
       });
       throw error;
     }
+    endIteration({ streamedChars: turn.content.length });
 
     if (!turn.toolCalls.length) {
       generation?.end({
@@ -304,6 +363,11 @@ export async function runStreamingAgentLoop({
           finishReason: turn.finishReason || "stop",
           streamedChars: content.length,
         },
+      });
+      telemetry?.setDimensions?.({
+        modelIterationCount: iterations,
+        toolCallCount: toolCallLog.length,
+        toolNames: toolCallLog.map((entry) => entry.name),
       });
       return { content, messages, toolCallLog, iterations, finishReason: turn.finishReason || "stop" };
     }
@@ -325,6 +389,7 @@ export async function runStreamingAgentLoop({
       toolExecutor,
       toolPrerequisites,
       trace,
+      telemetry,
     });
 
     for (const { tc, args, result } of results) {
@@ -337,6 +402,11 @@ export async function runStreamingAgentLoop({
     }
   }
 
+  telemetry?.setDimensions?.({
+    modelIterationCount: iterations,
+    toolCallCount: toolCallLog.length,
+    toolNames: toolCallLog.map((entry) => entry.name),
+  });
   const error = new Error(`Chat agent loop exceeded max iterations (${maxIterations})`);
   trace?.span?.({ name: "chat-stream-loop-error" })?.end?.({ output: error.message, level: "ERROR" });
   throw error;

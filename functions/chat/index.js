@@ -21,9 +21,11 @@ import { parseChatRequest } from "./chatRequest.js";
 import { encodeSseEvent } from "./streamProtocol.js";
 import { runStreamingAgentLoop } from "./openrouterStream.js";
 import { buildChatMessages } from "./chatContext.js";
+import { ChatLatencyRecorder } from "./chatTelemetry.js";
 
 const LANGFUSE_SECRET_KEY = defineSecret("LANGFUSE_SECRET_KEY");
 const LANGFUSE_PUBLIC_KEY = defineSecret("LANGFUSE_PUBLIC_KEY");
+let firstInvocation = true;
 
 function corsOrigin(req) {
   return process.env.CHAT_ALLOWED_ORIGIN || req.headers.origin || "*";
@@ -43,25 +45,47 @@ function sendEvent(res, event, data) {
   if (!res.writableEnded) res.write(encodeSseEvent(event, data));
 }
 
-async function verifyRequest(req) {
+async function verifyRequest(req, telemetry) {
   const header = req.headers.authorization || "";
   const token = header.startsWith("Bearer ") ? header.slice(7) : null;
   if (!token) throw new Error("Authentication required");
 
-  const decoded = await auth.verifyIdToken(token);
-  const userSnap = await db.collection("users").doc(decoded.uid).get();
+  const endToken = telemetry?.startStage?.("auth_token_verify") || (() => {});
+  let decoded;
+  try {
+    decoded = await auth.verifyIdToken(token);
+  } finally {
+    endToken();
+  }
+  const endUser = telemetry?.startStage?.("user_lookup") || (() => {});
+  let userSnap;
+  try {
+    userSnap = await db.collection("users").doc(decoded.uid).get();
+  } finally {
+    endUser();
+  }
   if (!userSnap.exists) throw new Error("User profile not found");
   return { decoded, user: userSnap.data() || {} };
 }
 
-async function verifyStudentAccess(uid, user, studentId) {
-  const studentSnap = await db.collection("students").doc(studentId).get();
+async function verifyStudentAccess(uid, user, studentId, telemetry) {
+  const endStudent = telemetry?.startStage?.("student_lookup") || (() => {});
+  let studentSnap;
+  try {
+    studentSnap = await db.collection("students").doc(studentId).get();
+  } finally {
+    endStudent();
+  }
   if (!studentSnap.exists) throw new Error("Student not found");
   const student = studentSnap.data() || {};
   const classroomId = student.classroomId;
-  const classroomSnap = classroomId
-    ? await db.collection("classrooms").doc(classroomId).get()
-    : null;
+  const endClassroom = telemetry?.startStage?.("classroom_lookup") || (() => {});
+  let classroomSnap;
+  try {
+    classroomSnap = classroomId ? await db.collection("classrooms").doc(classroomId).get() : null;
+  } finally {
+    endClassroom();
+  }
   const classroom = classroomSnap?.data() || {};
 
   const allowed = user.role === "superadmin"
@@ -71,14 +95,17 @@ async function verifyStudentAccess(uid, user, studentId) {
   return { classroomId, programId: classroom.programId || "primary" };
 }
 
-async function loadChatConfig(programId) {
+async function loadChatConfig(programId, telemetry) {
+  const endConfig = telemetry?.startStage?.("chat_config_load", { cacheStatus: "miss" }) || (() => {});
   let snap;
   try {
     snap = await db.collection("config").doc(`chat_${programId}`).get();
   } catch (error) {
+    endConfig();
     error.code = error.code || "chat/config-unavailable";
     throw error;
   }
+  endConfig();
   const data = snap.exists ? snap.data() || {} : {};
   return {
     model: typeof data.model === "string" ? data.model : CHAT_MODEL_INFO.model,
@@ -110,7 +137,7 @@ function errorCode(error, interrupted = false) {
   return "chat/internal-error";
 }
 
-function sendTerminalReplay(res, acquisition) {
+function sendTerminalReplay(res, acquisition, telemetry) {
   const { turn, assistantMessage } = acquisition;
   if (assistantMessage?.content) sendEvent(res, "token", { text: assistantMessage.content, replay: true });
   if (turn.status === "failed") {
@@ -119,6 +146,7 @@ function sendTerminalReplay(res, acquisition) {
       error: "This chat turn failed",
       status: turn.status,
       replay: true,
+      timing: telemetry.snapshot(),
     });
     return;
   }
@@ -126,6 +154,7 @@ function sendTerminalReplay(res, acquisition) {
     messageId: turn.assistantMessageId || null,
     status: turn.status === "completed" ? "complete" : turn.status,
     replay: true,
+    timing: telemetry.snapshot(),
   });
 }
 
@@ -137,19 +166,36 @@ export const childChatStream = functions
     secrets: [OPENROUTER_API_KEY, LANGFUSE_SECRET_KEY, LANGFUSE_PUBLIC_KEY],
   })
   .https.onRequest(async (req, res) => {
+    const coldInstance = firstInvocation;
+    firstInvocation = false;
+    const telemetry = new ChatLatencyRecorder({ coldInstance });
+    telemetry.setDimensions({
+      functionRegion: "asia-south1",
+      requestBytes: JSON.stringify(req.body || {}).length,
+    });
     if (req.method === "OPTIONS") {
+      const endPreflight = telemetry.startStage("cors_preflight");
       res.setHeader("Access-Control-Allow-Origin", corsOrigin(req));
       res.setHeader("Access-Control-Allow-Headers", "Content-Type, Authorization");
       res.setHeader("Access-Control-Allow-Methods", "POST, OPTIONS");
       res.status(204).send("");
+      endPreflight({ httpStatus: 204 });
+      telemetry.setDimensions({ httpStatus: 204 });
+      telemetry.setOutcome("completed");
+      telemetry.emit(functions.logger);
       return;
     }
     if (req.method !== "POST") {
       res.status(405).json({ error: "Method not allowed" });
+      telemetry.setDimensions({ httpStatus: 405 });
+      telemetry.setOutcome("failed", "chat/method-not-allowed");
+      telemetry.emit(functions.logger);
       return;
     }
 
+    const endSseHeaders = telemetry.startStage("sse_headers");
     configureSse(req, res);
+    endSseHeaders();
     let finished = false;
     const abortController = new AbortController();
     const abortOnDisconnect = () => {
@@ -173,25 +219,39 @@ export const childChatStream = functions
     let terminalStatus = null;
     let model = null;
     try {
-      const { decoded, user } = await verifyRequest(req);
-      request = parseChatRequest(req.body);
-      context = await verifyStudentAccess(decoded.uid, user, request.studentId);
+      const { decoded, user } = await verifyRequest(req, telemetry);
+      const endValidation = telemetry.startStage("request_validation");
+      try {
+        request = parseChatRequest(req.body);
+      } finally {
+        endValidation();
+      }
+      telemetry.setCorrelation({ runId: request.runId, clientTurnId: request.clientTurnId });
+      context = await verifyStudentAccess(decoded.uid, user, request.studentId, telemetry);
+      telemetry.setDimensions({ programId: context.programId });
 
-      const acquisition = await acquireChatTurn({
-        db,
-        studentId: request.studentId,
-        chatId: request.chatId,
-        turnId: request.turnId,
-        runId: request.runId,
-        userMessageId: request.userMessageId,
-        content: request.message,
-        authorId: decoded.uid,
-        authorName: user.displayName || decoded.name || null,
-        classroomId: context.classroomId,
-      });
+      const endAcquisition = telemetry.startStage("turn_acquisition");
+      let acquisition;
+      try {
+        acquisition = await acquireChatTurn({
+          db,
+          studentId: request.studentId,
+          chatId: request.chatId,
+          turnId: request.turnId,
+          runId: request.runId,
+          userMessageId: request.userMessageId,
+          content: request.message,
+          authorId: decoded.uid,
+          authorName: user.displayName || decoded.name || null,
+          classroomId: context.classroomId,
+        });
+      } finally {
+        endAcquisition();
+      }
       if (acquisition.disposition === "terminal") {
         terminalStatus = acquisition.turn.status;
-        sendTerminalReplay(res, acquisition);
+        telemetry.setOutcome(terminalStatus === "completed" ? "completed" : terminalStatus);
+        sendTerminalReplay(res, acquisition, telemetry);
         finished = true;
         res.end();
         return;
@@ -203,6 +263,7 @@ export const childChatStream = functions
           error: "This chat turn is already in progress",
           status: acquisition.turn.status,
           retryable: true,
+          timing: telemetry.snapshot(),
         });
         finished = true;
         res.end();
@@ -212,8 +273,9 @@ export const childChatStream = functions
 
       // Provider, config, and observability resolution deliberately happen only
       // after the durable persisting turn exists.
-      const chatConfig = await loadChatConfig(context.programId);
+      const chatConfig = await loadChatConfig(context.programId, telemetry);
       model = chatConfig.model;
+      telemetry.setDimensions({ model: chatConfig.model });
       const apiKey = getOpenRouterKey();
       if (!apiKey) {
         throw runtimeError("chat/provider-not-configured", "OpenRouter key is not configured");
@@ -224,6 +286,7 @@ export const childChatStream = functions
           "Langfuse is required for chat model execution",
         );
       }
+      const endTrace = telemetry.startStage("langfuse_trace_create");
       langfuseClient = createLangfuse();
       trace = langfuseClient.trace({
         id: request.runId,
@@ -240,34 +303,54 @@ export const childChatStream = functions
         },
       });
       if (!trace) {
+        endTrace();
         throw runtimeError("chat/observability-unavailable", "Langfuse trace could not be created");
       }
-      const started = await startChatTurn({
-        db,
-        studentId: request.studentId,
-        chatId: request.chatId,
-        turnId: request.turnId,
-        runId: request.runId,
-        model: chatConfig.model,
-        langfuseTraceId: request.runId,
-      });
+      endTrace();
+      telemetry.attachTrace(trace);
+      const endStartTurn = telemetry.startStage("turn_start_transaction");
+      let started;
+      try {
+        started = await startChatTurn({
+          db,
+          studentId: request.studentId,
+          chatId: request.chatId,
+          turnId: request.turnId,
+          runId: request.runId,
+          model: chatConfig.model,
+          langfuseTraceId: request.runId,
+        });
+      } finally {
+        endStartTurn();
+      }
       if (!started.started) {
         terminalStatus = started.turn.status;
         sendEvent(res, "error", {
           code: "chat/turn-superseded",
           error: "This chat turn was interrupted by a newer request",
           status: terminalStatus,
+          timing: telemetry.snapshot(),
         });
         finished = true;
         res.end();
         return;
       }
 
+      const endStartedEvent = telemetry.startStage("started_sse_emit");
       sendEvent(res, "started", { chatId: request.chatId, turnId: request.turnId, runId: request.runId });
+      endStartedEvent();
+      const endTools = telemetry.startStage("tool_schema_construction");
       const selectedTools = getTools(chatConfig.allowedTools, ["student"]);
       const boundArgs = { studentId: request.studentId, chatId: request.chatId };
       const toolDefinitions = getToolDefinitions(selectedTools, { boundArgs });
       const toolExecutor = createToolExecutor(selectedTools, { boundArgs });
+      const toolSchemaChars = JSON.stringify(toolDefinitions).length;
+      endTools({ selectedToolCount: selectedTools.length, toolSchemaChars });
+      telemetry.setDimensions({
+        selectedToolCount: selectedTools.length,
+        toolSchemaChars,
+        toolNames: selectedTools.map((tool) => tool.id),
+      });
       const messages = await buildChatMessages({
         db,
         studentId: request.studentId,
@@ -277,6 +360,7 @@ export const childChatStream = functions
         basePrompt: chatConfig.systemPrompt,
         historyLimit: chatConfig.historyLimit,
         observationLimit: chatConfig.observationLimit,
+        telemetry,
       });
 
       const agentResult = await runStreamingAgentLoop({
@@ -294,6 +378,7 @@ export const childChatStream = functions
           tool.prerequisites || [],
         ])),
         trace,
+        telemetry,
         onChunk: (text) => {
           streamedContent += text;
           sendEvent(res, "token", { text });
@@ -306,47 +391,67 @@ export const childChatStream = functions
 
       const interrupted = abortController.signal.aborted;
       const finishReason = interrupted ? "client_disconnect" : agentResult.finishReason;
-      const finalized = await finalizeChatTurn({
-        db,
-        studentId: request.studentId,
-        chatId: request.chatId,
-        turnId: request.turnId,
-        runId: request.runId,
-        content,
-        status: interrupted ? "interrupted" : "completed",
-        finishReason,
-        model: chatConfig.model,
-        langfuseTraceId: request.runId,
-      });
+      telemetry.setDimensions({ finishReason, clientDisconnected: interrupted });
+      const endFinalize = telemetry.startStage("final_persistence_transaction");
+      let finalized;
+      try {
+        finalized = await finalizeChatTurn({
+          db,
+          studentId: request.studentId,
+          chatId: request.chatId,
+          turnId: request.turnId,
+          runId: request.runId,
+          content,
+          status: interrupted ? "interrupted" : "completed",
+          finishReason,
+          model: chatConfig.model,
+          langfuseTraceId: request.runId,
+        });
+      } finally {
+        endFinalize();
+      }
       terminalStatus = finalized.turn.status;
+      telemetry.setOutcome(interrupted ? "interrupted" : "completed");
 
+      const endTerminal = telemetry.startStage("terminal_sse_emit");
       sendEvent(res, "complete", {
         messageId: finalized.turn.assistantMessageId,
         status: terminalStatus === "completed" ? "complete" : terminalStatus,
+        timing: telemetry.snapshot(),
       });
+      endTerminal();
+      telemetry.mark("terminal_sse");
       finished = true;
       res.end();
     } catch (error) {
       const interrupted = abortController.signal.aborted;
       const code = errorCode(error, interrupted);
+      telemetry.setDimensions({ clientDisconnected: interrupted });
+      telemetry.setOutcome(interrupted ? "interrupted" : "failed", code);
       if (request && context && acquired) {
         try {
-          const finalized = await finalizeChatTurn({
-            db,
-            studentId: request.studentId,
-            chatId: request.chatId,
-            turnId: request.turnId,
-            runId: request.runId,
-            content: streamedContent,
-            // Once any response text reached the user, preserve that durable
-            // prefix as interrupted so a retry can start a fresh attempt without
-            // representing the already-visible response as an unsent failure.
-            status: interrupted || streamedContent.length > 0 ? "interrupted" : "failed",
-            finishReason: interrupted ? "client_disconnect" : "error",
-            errorCode: code,
-            model,
-            langfuseTraceId: trace ? request.runId : null,
-          });
+          const endFailurePersistence = telemetry.startStage("failure_persistence_transaction");
+          let finalized;
+          try {
+            finalized = await finalizeChatTurn({
+              db,
+              studentId: request.studentId,
+              chatId: request.chatId,
+              turnId: request.turnId,
+              runId: request.runId,
+              content: streamedContent,
+              // Once any response text reached the user, preserve that durable
+              // prefix as interrupted so a retry can start a fresh attempt without
+              // representing the already-visible response as an unsent failure.
+              status: interrupted || streamedContent.length > 0 ? "interrupted" : "failed",
+              finishReason: interrupted ? "client_disconnect" : "error",
+              errorCode: code,
+              model,
+              langfuseTraceId: trace ? request.runId : null,
+            });
+          } finally {
+            endFailurePersistence();
+          }
           terminalStatus = finalized.turn.status;
         } catch (persistError) {
           console.error("[childChatStream] failed to persist terminal state", persistError);
@@ -358,7 +463,9 @@ export const childChatStream = functions
         status: terminalStatus || (interrupted ? "interrupted" : "failed"),
         retryable: code !== "chat/idempotency-conflict" && code !== "chat/deleted",
         persisted: acquired,
+        timing: telemetry.snapshot(),
       });
+      telemetry.mark("terminal_sse");
       finished = true;
       res.end();
     } finally {
@@ -370,9 +477,20 @@ export const childChatStream = functions
         console.error("[childChatStream] failed to close Langfuse trace", traceError);
       }
       try {
-        await langfuseClient?.flushAsync?.();
+        const endFlush = telemetry.startStage("langfuse_flush");
+        try {
+          await langfuseClient?.flushAsync?.();
+        } finally {
+          endFlush();
+        }
       } catch (flushError) {
         console.error("[childChatStream] Langfuse flush failed", flushError);
+      } finally {
+        telemetry.setDimensions({
+          httpStatus: res.statusCode || 200,
+          streamedChars: streamedContent.length,
+        });
+        telemetry.emit(functions.logger);
       }
     }
   });

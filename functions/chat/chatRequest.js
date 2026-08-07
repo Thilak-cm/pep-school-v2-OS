@@ -18,6 +18,9 @@ export function parseChatRequest(body = {}) {
     turnId: body.turnId.trim(),
     runId: body.runId.trim(),
     userMessageId: body.userMessageId.trim(),
+    clientTurnId: typeof body.clientTurnId === "string" && body.clientTurnId.trim()
+      ? body.clientTurnId.trim()
+      : null,
     message,
   };
 }
