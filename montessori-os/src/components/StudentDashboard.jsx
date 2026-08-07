@@ -122,11 +122,11 @@ function StudentDashboard({ student, onOpenTimeline, onOpenFeedback, onOpenChat,
   const [studentProgramId, setStudentProgramId] = useState(null);
   const [programResolved, setProgramResolved] = useState(false);
   const hasPlanTab = PLAN_PROGRAMS.includes(studentProgramId);
-  // Questions are currently a toddler/primary teacher pilot. Keep superadmins
-  // able to inspect the feature across programs while hiding it from other
-  // roles and from elementary/adolescent teachers.
+  // Questions are currently limited to toddler/primary teachers and classroom
+  // admins. Keep superadmins able to inspect the feature across programs while
+  // hiding it from elementary/adolescent staff.
   const canViewQuestions = isSuperAdmin(userRole) || (
-    userRole === 'teacher' &&
+    ['teacher', 'classroomadmin'].includes(userRole) &&
     programResolved &&
     QUESTIONS_PROGRAMS.includes(studentProgramId)
   );

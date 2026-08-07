@@ -124,10 +124,10 @@ describe('StudentDashboard Plan tab (PEP-260)', () => {
 });
 
 describe('StudentDashboard Questions pilot gate', () => {
-  it('limits Questions to toddler/primary teachers while retaining superadmin access', async () => {
+  it('limits Questions to toddler/primary teachers and classroom admins while retaining superadmin access', async () => {
     const src = await readFile(dashboardPath, 'utf8');
     assert.match(src, /const QUESTIONS_PROGRAMS = \['toddler', 'primary'\]/);
-    assert.match(src, /userRole === ['"]teacher['"][\s\S]*?programResolved[\s\S]*?QUESTIONS_PROGRAMS\.includes\(studentProgramId\)/);
+    assert.match(src, /\[['"]teacher['"], ['"]classroomadmin['"]\]\.includes\(userRole\)[\s\S]*?programResolved[\s\S]*?QUESTIONS_PROGRAMS\.includes\(studentProgramId\)/);
     assert.match(src, /isSuperAdmin\(userRole\)/);
     assert.match(src, /\{canViewQuestions && \(/);
   });
