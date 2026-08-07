@@ -31,7 +31,8 @@ import { auth, db } from '../firebase';
 import { createChatIds } from '../services/chatStreamService.js';
 import useInlineVoice from '../hooks/useInlineVoice';
 import InlineVoiceOverlay from './InlineVoiceOverlay.jsx';
-import { CHAT_MAINTENANCE_ALLOWED_UID, default as ChatMaintenance } from './ChatMaintenance.jsx';
+import ChatMaintenance from './ChatMaintenance.jsx';
+import { isChatAllowed } from './chat/chatAccess.js';
 import { AssistantBubble, UserBubble } from './chat/MessageBubble.jsx';
 import ScrollToBottomFab from './chat/ScrollToBottomFab.jsx';
 import TypingIndicator from './chat/TypingIndicator.jsx';
@@ -91,7 +92,7 @@ function timestampMs(value) {
 }
 
 export default function ChildChat({ student, currentUser, userRole, manageableClassrooms = [] }) {
-  const isAuthorizedTester = import.meta.env.DEV && currentUser?.uid === CHAT_MAINTENANCE_ALLOWED_UID;
+  const isAuthorizedTester = isChatAllowed(currentUser?.uid);
   const [chats, setChats] = useState([]);
   const [selectedChatId, setSelectedChatId] = useState(null);
   const [messages, setMessages] = useState([]);

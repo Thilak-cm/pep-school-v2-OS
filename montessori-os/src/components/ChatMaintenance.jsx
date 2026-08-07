@@ -1,12 +1,9 @@
 import React from 'react';
 import { Alert, Box, Typography } from '@mui/material';
-
-// Temporary deployment safety gate for #220. Keep this explicit and UID-based:
-// role checks are intentionally not sufficient while the chat is being rebuilt.
-export const CHAT_MAINTENANCE_ALLOWED_UID = 'T1iLA2qjTqMvgS4hamw2PEtNsov1';
+import { isChatAllowed } from './chat/chatAccess.js';
 
 export default function ChatMaintenance({ currentUser }) {
-  const isAuthorizedTester = currentUser?.uid === CHAT_MAINTENANCE_ALLOWED_UID;
+  const isAuthorizedTester = isChatAllowed(currentUser?.uid);
 
   return (
     <Box sx={{ p: 3, display: 'flex', flexDirection: 'column', gap: 2 }}>

@@ -55,6 +55,7 @@ const CHIP_BASE = {
 };
 
 const PLAN_PROGRAMS = ['toddler', 'primary'];
+const QUESTIONS_PROGRAMS = ['toddler', 'primary'];
 
 const SNAPSHOT_TABS_WITH_PLAN = [
   { label: 'Plan', value: 'plan' },
@@ -121,6 +122,14 @@ function StudentDashboard({ student, onOpenTimeline, onOpenFeedback, onOpenChat,
   const [studentProgramId, setStudentProgramId] = useState(null);
   const [programResolved, setProgramResolved] = useState(false);
   const hasPlanTab = PLAN_PROGRAMS.includes(studentProgramId);
+  // Questions are currently a toddler/primary teacher pilot. Keep superadmins
+  // able to inspect the feature across programs while hiding it from other
+  // roles and from elementary/adolescent teachers.
+  const canViewQuestions = isSuperAdmin(userRole) || (
+    userRole === 'teacher' &&
+    programResolved &&
+    QUESTIONS_PROGRAMS.includes(studentProgramId)
+  );
   const snapshotTabs = hasPlanTab ? SNAPSHOT_TABS_WITH_PLAN : SNAPSHOT_TABS_NO_PLAN;
   const handlePlanFeedbackChipClick = () => {
     setPlanFeedbackOpen(true);
@@ -1606,26 +1615,28 @@ function StudentDashboard({ student, onOpenTimeline, onOpenFeedback, onOpenChat,
       />
 
       {/* ── Quick jump buttons — pinned at bottom ── */}
-      <Box sx={{ display: 'grid', gridTemplateColumns: 'repeat(4, 1fr)', gap: 1, flexShrink: 0 }}>
-        <Box ref={questionsButtonRef} sx={{ position: 'relative' }}>
-          <QuickJumpButton
-            icon={<Lightbulb size={22} />}
-            label="Questions"
-            iconColor="var(--color-primary)"
-            onClick={() => { trackEvent('student_dashboard_card_click', { card: 'questions', studentId }).catch(() => {}); onOpenQuestions?.(); }}
-          />
-          {!questionsCoachmark.isDismissed && (
-            <Box sx={{
-              position: 'absolute', top: 4, right: 4,
-              px: 0.75, py: 0.25, borderRadius: '8px',
-              backgroundColor: 'var(--color-primary)',
-              color: '#fff', fontSize: '0.6rem', fontWeight: 700,
-              lineHeight: 1.2, pointerEvents: 'none',
-            }}>
-              New
-            </Box>
-          )}
-        </Box>
+      <Box sx={{ display: 'grid', gridTemplateColumns: `repeat(${canViewQuestions ? 4 : 3}, 1fr)`, gap: 1, flexShrink: 0 }}>
+        {canViewQuestions && (
+          <Box ref={questionsButtonRef} sx={{ position: 'relative' }}>
+            <QuickJumpButton
+              icon={<Lightbulb size={22} />}
+              label="Questions"
+              iconColor="var(--color-primary)"
+              onClick={() => { trackEvent('student_dashboard_card_click', { card: 'questions', studentId }).catch(() => {}); onOpenQuestions?.(); }}
+            />
+            {!questionsCoachmark.isDismissed && (
+              <Box sx={{
+                position: 'absolute', top: 4, right: 4,
+                px: 0.75, py: 0.25, borderRadius: '8px',
+                backgroundColor: 'var(--color-primary)',
+                color: '#fff', fontSize: '0.6rem', fontWeight: 700,
+                lineHeight: 1.2, pointerEvents: 'none',
+              }}>
+                New
+              </Box>
+            )}
+          </Box>
+        )}
         <QuickJumpButton
           icon={<NotesIcon size={22} />}
           label="Timeline"
@@ -1646,13 +1657,15 @@ function StudentDashboard({ student, onOpenTimeline, onOpenFeedback, onOpenChat,
         />
       </Box>
 
-      <Coachmark
-        coachmarkKey="open_questions_v1"
-        title="Open Questions"
-        body="See what Pep still needs to learn about this student. Answer questions to help the AI build a deeper understanding."
-        anchorRef={questionsButtonRef}
-        placement="top"
-      />
+      {canViewQuestions && (
+        <Coachmark
+          coachmarkKey="open_questions_v1"
+          title="Open Questions"
+          body="See what Pep still needs to learn about this student. Answer questions to help the AI build a deeper understanding."
+          anchorRef={questionsButtonRef}
+          placement="top"
+        />
+      )}
     </Box>
   );
 }
