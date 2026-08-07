@@ -82,6 +82,58 @@ describe('useAlertBus hook — dual-source alert subscriber (PEP-296)', () => {
     });
   });
 
+  // --- Readiness state machine ---
+  describe('Readiness state machine', () => {
+    it('keeps loading true until both alert sources are ready', () => {
+      assert.ok(
+        source.includes('redFlagsReady') && source.includes('realtimeReady'),
+        'Should track weekly red flags and realtime alerts independently'
+      );
+      assert.ok(
+        source.includes('const loading = !redFlagsReady || !realtimeReady'),
+        'Should only leave loading after both sources settle'
+      );
+    });
+
+    it('commits filtered snapshot results before marking realtime ready', () => {
+      const commitStart = source.indexOf('const commitBusAlerts');
+      const commitEnd = source.indexOf('const commitTargetingContext', commitStart);
+      const commitSource = source.slice(commitStart, commitEnd);
+
+      assert.ok(commitStart >= 0, 'Should centralize filtered snapshot commits');
+      assert.ok(
+        commitSource.indexOf('setBusAlerts(alerts)') <
+          commitSource.lastIndexOf('setRealtimeReady(true)'),
+        'Should commit filtered alerts before settling realtime readiness'
+      );
+      assert.ok(
+        source.includes('targetingContextReadyRef.current') &&
+          source.includes('snapshotReceivedRef.current'),
+        'Should wait for both the raw snapshot and its targeting context'
+      );
+    });
+
+    it('waits for explicit classroom scope readiness', () => {
+      assert.ok(
+        source.includes('{ classroomsLoaded = false }') &&
+          source.includes('if (!classroomsLoaded)'),
+        'Should not treat the initial empty classrooms prop as completed scope'
+      );
+    });
+
+    it('settles failed and unauthenticated sources safely', () => {
+      assert.ok(
+        source.includes('A failed source has settled as empty') &&
+          source.includes('setRealtimeReady(true)'),
+        'A realtime listener error should settle as empty'
+      );
+      assert.ok(
+        source.includes('if (!uid)') && source.includes('setRedFlagsReady(true)'),
+        'No authenticated user should not leave the hook loading forever'
+      );
+    });
+  });
+
   // --- Heatmap cache integration (PEP-303) ---
   describe('Heatmap cache fast path (PEP-303)', () => {
     it('reads from statsCache heatmap docs for red flags', () => {

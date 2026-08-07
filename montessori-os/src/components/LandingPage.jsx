@@ -1,6 +1,6 @@
 // LandingPage.jsx — Teacher launchpad (PEP-190)
 import React from 'react';
-import { Box, Typography, ButtonBase, CircularProgress } from '@mui/material';
+import { Box, Typography, ButtonBase, Skeleton } from '@mui/material';
 import { BarChart3, UserPlus, Download, MessageSquare, ChevronRight } from '../icons';
 import { Avatar, MiniTangram, QuickJumpButton } from './ui';
 import { trackEvent } from '../utils/analytics';
@@ -13,6 +13,8 @@ const FALLBACK_PALETTES = [
   ['var(--color-warning)', 'var(--color-amber-bg)', 'var(--color-amber-yellow)'],
   ['var(--color-pink)', 'rgba(236, 72, 153, 0.1)', 'rgba(236, 72, 153, 0.2)'],
 ];
+
+const CLASSROOM_SKELETON_COUNT = 4;
 
 function LandingPage({
   classrooms = [],
@@ -83,7 +85,32 @@ function LandingPage({
         onNavigateToStudent={onNavigateToStudent}
         onNavigate={onNavigate}
         classrooms={classrooms}
+        classroomsLoaded={classroomsLoaded}
       />
+
+      {/* ── Quick jump ─────────────────────────────────────── */}
+      <Box>
+        <Box sx={{ display: 'flex', alignItems: 'center', mb: 1.5 }}>
+          <Typography variant="overline" sx={{ fontWeight: 700, color: 'var(--color-text)', letterSpacing: 1 }}>
+            Quick jumps
+          </Typography>
+        </Box>
+        <Box sx={{
+          display: 'grid',
+          gridTemplateColumns: `repeat(${Math.min(quickJumps.length, 4)}, 1fr)`,
+          gap: 1,
+        }}>
+          {quickJumps.map((item) => (
+            <QuickJumpButton
+              key={item.label}
+              icon={item.icon}
+              label={item.label}
+              iconColor={item.iconColor}
+              onClick={item.action}
+            />
+          ))}
+        </Box>
+      </Box>
 
       {/* ── Classrooms section ─────────────────────────────── */}
       <Box>
@@ -106,11 +133,26 @@ function LandingPage({
         </Box>
 
         {!classroomsLoaded ? (
-          <Box sx={{ display: 'flex', alignItems: 'center', gap: 1.5, py: 3, justifyContent: 'center' }}>
-            <CircularProgress size={20} sx={{ color: 'var(--color-primary)' }} />
-            <Typography variant="body2" sx={{ color: 'var(--color-text-soft)' }}>
-              Coach Pepper is fetching your classrooms...
-            </Typography>
+          <Box sx={{
+            display: 'grid',
+            gridTemplateColumns: 'repeat(2, 1fr)',
+            gap: 1.5,
+          }}>
+            {Array.from({ length: CLASSROOM_SKELETON_COUNT }, (_, index) => (
+              <Box
+                key={index}
+                sx={{
+                  display: 'flex', flexDirection: 'column', alignItems: 'flex-start',
+                  p: 2, borderRadius: 3,
+                  backgroundColor: 'var(--color-paper)',
+                  border: '1px solid var(--color-border)',
+                }}
+              >
+                <Skeleton variant="rounded" animation="wave" width={32} height={32} sx={{ mb: 1.5, borderRadius: 1 }} />
+                <Skeleton variant="text" animation="wave" width="72%" sx={{ fontSize: '0.875rem' }} />
+                <Skeleton variant="text" animation="wave" width="48%" sx={{ fontSize: '0.75rem', mt: 0.25 }} />
+              </Box>
+            ))}
           </Box>
         ) : classrooms.length === 0 ? (
           <Box sx={{ py: 3, textAlign: 'center' }}>
@@ -156,25 +198,6 @@ function LandingPage({
             })}
           </Box>
         )}
-      </Box>
-
-      {/* ── Quick jump ─────────────────────────────────────── */}
-      <Box>
-        <Box sx={{
-          display: 'grid',
-          gridTemplateColumns: `repeat(${Math.min(quickJumps.length, 4)}, 1fr)`,
-          gap: 1,
-        }}>
-          {quickJumps.map((item) => (
-            <QuickJumpButton
-              key={item.label}
-              icon={item.icon}
-              label={item.label}
-              iconColor={item.iconColor}
-              onClick={item.action}
-            />
-          ))}
-        </Box>
       </Box>
     </Box>
   );

@@ -352,11 +352,11 @@ export const ACCESS_CONTROL_SPEC = [
   },
 
   {
-    name: 'Storage media read requires pending_upload status',
-    description: 'allow read checks mediaDoc status == "pending_upload"',
+    name: 'Storage media read requires signed-in known role and media observation doc',
+    description: 'allow read checks signed-in auth, a media observation doc, and a known requester role',
     file: 'storage',
     criticality: 'important',
-    pattern: /allow\s+read:[\s\S]*?mediaDoc\s*\(\s*studentId\s*,\s*mediaId\s*\)\.data\.status\s*==\s*['\"]pending_upload['\"]/,
+    pattern: /allow\s+read:\s*if\s+isSignedIn\s*\(\s*\)\s*&&\s*isMediaDoc\s*\(\s*mediaDoc\s*\(\s*studentId\s*,\s*mediaId\s*\)\s*\)\s*&&\s*isKnownRole\s*\(\s*\)\s*;/,
   },
 
   {

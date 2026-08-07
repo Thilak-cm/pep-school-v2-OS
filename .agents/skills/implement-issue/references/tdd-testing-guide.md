@@ -298,7 +298,7 @@ The `implement-issue` skill enforces strict test coverage:
 
 ### Requirement 1: Every Acceptance Criterion Must Have a Test
 
-Each acceptance criterion in the Linear issue must map to at least one test:
+Each acceptance criterion in the GitHub Issue must map to at least one test:
 
 ```markdown
 ❌ BAD:

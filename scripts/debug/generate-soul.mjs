@@ -17,6 +17,7 @@ import {
   VALID_PROGRAMS,
   buildSoulSystemPrompt,
   buildSoulUserPrompt,
+  injectGuidelinesContent,
   parseSoulResponse,
   buildSoulDoc,
   buildGuidelinesDoc,
@@ -52,21 +53,31 @@ if (!studentId) {
 }
 
 const SOUL_TEMPLATE_CACHE_TTL_MS = 5 * 60 * 1000;
-let soulConfigCache = { data: null, ts: 0 };
+let soulConfigCache = {};
 
-async function getSoulConfig() {
-  if (soulConfigCache.ts && (Date.now() - soulConfigCache.ts < SOUL_TEMPLATE_CACHE_TTL_MS)) {
-    return soulConfigCache.data;
+async function getSoulConfig(programId) {
+  const docIds = [`soul_generation_${programId}`, "soul_generation"];
+
+  for (const docId of docIds) {
+    const cached = soulConfigCache[docId];
+    if (cached && (Date.now() - cached.ts < SOUL_TEMPLATE_CACHE_TTL_MS)) {
+      if (cached.data) return cached.data;
+      continue;
+    }
+
+    const snap = await db.collection("config").doc(docId).get();
+    if (!snap.exists) {
+      soulConfigCache[docId] = { data: null, ts: Date.now() };
+      continue;
+    }
+
+    const data = { ...snap.data(), sourceDocId: `config/${docId}` };
+    soulConfigCache[docId] = { data, ts: Date.now() };
+    return data;
   }
-  const snap = await db.collection("config").doc("soul_generation").get();
-  if (!snap.exists) {
-    console.log("[soul] No config/soul_generation doc — using hardcoded defaults");
-    soulConfigCache = { data: null, ts: Date.now() };
-    return null;
-  }
-  const data = snap.data();
-  soulConfigCache = { data, ts: Date.now() };
-  return data;
+
+  console.log(`[soul] No config/soul_generation_${programId} or config/soul_generation doc — using hardcoded defaults`);
+  return null;
 }
 
 async function getSoulTemplateConfig(programId) {
@@ -83,16 +94,14 @@ async function getSoulTemplateConfig(programId) {
 }
 
 async function callSoulGeneration(observations, interviews, guidelinesContent, studentContext, previousSoul) {
-  const soulConfig = await getSoulConfig();
+  const soulConfig = await getSoulConfig(studentContext.programId);
   const systemPromptTemplate = soulConfig?.systemPrompt || null;
   const model = soulConfig?.model || SOUL_DEFAULTS.model;
   const temperature = soulConfig?.temperature ?? SOUL_DEFAULTS.temperature;
   const maxTokens = soulConfig?.max_tokens || SOUL_DEFAULTS.max_tokens;
 
   const systemContent = systemPromptTemplate
-    ? (systemPromptTemplate.includes("${guidelinesContent}")
-      ? systemPromptTemplate.replace("${guidelinesContent}", () => guidelinesContent)
-      : systemPromptTemplate + "\n\n" + guidelinesContent)
+    ? injectGuidelinesContent(systemPromptTemplate, guidelinesContent)
     : buildSoulSystemPrompt(guidelinesContent);
   const userContent = buildSoulUserPrompt(studentContext, observations, interviews, previousSoul);
 

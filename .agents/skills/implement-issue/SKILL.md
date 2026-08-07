@@ -1,11 +1,11 @@
 ---
 name: implement-issue
-description: Execute an approved plan from /plan-issue. Creates feature branch, implements via TDD, pushes to remote with CI check, syncs GitHub Issue, and walks user through manual e2e verification. Must run in the same session as /plan-issue (plan is in context).
+description: Execute an approved plan from /plan-issue. Creates a feature branch, implements via TDD, runs local verification, syncs the GitHub Issue, and walks the user through manual e2e verification. Must run in the same session as /plan-issue (plan is in context).
 ---
 
 # Implement Issue
 
-Execute a user-approved plan that was produced by `/plan-issue` in this same session. This skill reads the finalized plan from conversation context and proceeds directly to branch creation, TDD implementation, pushing to remote with CI verification, GitHub Issue sync, and manual e2e verification.
+Execute a user-approved plan that was produced by `/plan-issue` in this same session. This skill reads the finalized plan from conversation context and proceeds directly to branch creation, TDD implementation, local verification, GitHub Issue sync, and manual e2e verification. Remote CI and PR lifecycle work belong to `/merge-issue` after `/review-issue` opens the PR.
 
 **Precondition:** An approved plan from `/plan-issue` must be in this conversation's context. If no plan is found, instruct the user to run `/plan-issue` first.
 
@@ -13,16 +13,15 @@ Execute a user-approved plan that was produced by `/plan-issue` in this same ses
 
 - You just finished `/plan-issue` and the user approved a plan in Phase 5
 - The approved plan (with implementation path, file list, test specs) is in this conversation's context
-- You're ready to write code, push, verify CI, and sync the GitHub Issue
+- You're ready to write code, run local verification, and sync the GitHub Issue
 
 ## Workflow Overview
 
-5-phase workflow (plan already approved):
+3-phase workflow (plan already approved):
 
 1. **Implementation (TDD)** — Create branch, write tests first, implement code, verify coverage
-2. **Push & CI Check** — Push feature branch to remote, verify CI passes
-3. **GitHub Issue Sync** — Update GitHub Issue with branch, commits, files, and test results
-4. **Manual Verification** — Walk user through e2e verification steps tailored to the change
+2. **GitHub Issue Sync** — Update GitHub Issue with branch, commits, files, and local test results
+3. **Manual Verification** — Walk user through e2e verification steps tailored to the change
 
 ## Precondition Check
 
@@ -76,7 +75,7 @@ Execute the approved plan using Test-Driven Development.
    - Update tests if refactoring changes interfaces
 
 6. **Manual verification BEFORE committing:**
-   - Present a tailored verification checklist (see Phase 4 for checklist details)
+   - Present a tailored verification checklist (see Phase 3 for checklist details)
    - Wait for user to verify and confirm everything looks good
    - If user wants changes: apply them, re-run tests, re-verify — all before any commits
    - Only proceed to committing after explicit user approval
@@ -84,6 +83,7 @@ Execute the approved plan using Test-Driven Development.
 7. Create commits (only after manual verification passes):
    - Commit tests separately: `test: add tests for [feature/fix] (#123)`
    - Commit implementation: `feat/fix: [description] (#123)`
+   - Co-authored-by: Automated Assistant
 
 **TDD Cycle Summary:**
 ```
@@ -101,52 +101,7 @@ For each acceptance criterion:
 - Manual verification passed by user
 - BLOCK if any criterion lacks tests
 
-## Phase 2: Push & CI Check
-
-Push the feature branch to remote and verify CI passes.
-
-**Steps:**
-1. Push the feature branch to remote:
-   ```bash
-   git push origin {branch-name} -u
-   ```
-
-2. Check if a CI workflow was triggered:
-   ```bash
-   gh run list --branch {branch-name} --limit 3
-   ```
-
-3. If a CI run is in progress, monitor it:
-   ```bash
-   gh run watch {run-id} --exit-status
-   ```
-   - This blocks until the run completes and exits non-zero on failure
-
-4. **If CI passes:** Report success, proceed to Phase 3.
-
-5. **If CI fails:**
-   - Fetch the failure logs:
-     ```bash
-     gh run view {run-id} --log-failed
-     ```
-   - Diagnose the failure (lint error, test failure, build error, etc.)
-   - Apply the fix locally
-   - Run local tests to verify the fix: `cd montessori-os && npm run test`
-   - Commit the fix: `fix: CI failure — [description] (#XXX)`
-   - Push again: `git push origin {branch-name}`
-   - Re-monitor the new CI run
-   - **Max 3 CI fix iterations.** If still failing after 3 attempts, escalate to user with the failure logs and ask how to proceed.
-
-6. **If no CI workflow exists** (no GitHub Actions configured for this branch):
-   - Run local verification instead:
-     ```bash
-     cd montessori-os && npm run lint && npm run build && npm run test
-     ```
-   - Report results and proceed to Phase 3
-
-**Output:** CI status (passed/fixed/no-CI-with-local-verification)
-
-## Phase 3: GitHub Issue Sync
+## Phase 2: GitHub Issue Sync
 
 Update the GitHub Issue with implementation progress and test results.
 
@@ -156,7 +111,7 @@ Update the GitHub Issue with implementation progress and test results.
    - Commit hashes (test commits + implementation commits)
    - Files modified
    - Test results (pass/fail counts)
-   - CI status
+   - Local test, lint, and build status
 
 2. Compose GitHub Issue comment:
 
@@ -164,7 +119,7 @@ Update the GitHub Issue with implementation progress and test results.
 ## Implementation Completed
 
 **Branch:** `{branch-name}`
-**CI:** {Passed | Fixed after N attempts | Local verification passed}
+**Local Verification:** {tests/lint/build results}
 
 **Commits:**
 - {commit-hash}: test: add tests for [feature] (#XXX)
@@ -188,11 +143,11 @@ Update the GitHub Issue with implementation progress and test results.
    gh issue comment {issue-number} --body "..."
    ```
 
-4. Do NOT change the issue state — `/review-issue` will close the issue or move it to "In Review" after independent audit passes.
+4. Do NOT close the issue or move it to Done. `/review-issue` owns review readiness; `/merge-issue` owns completion after merge.
 
 **Output:** GitHub Issue updated with implementation progress. Issue stays in current state.
 
-## Phase 4: Manual Verification Gate
+## Phase 3: Manual Verification Gate
 
 Walk the user through end-to-end verification of the implementation.
 
@@ -233,7 +188,7 @@ Walk the user through end-to-end verification of the implementation.
 3. Ask user to work through the checklist and confirm using AskUserQuestion:
    - Question: "Have you manually verified the e2e flow?"
    - Options: "Yes, verified and working" / "Found issues (describe)"
-   - If "Found issues": Address the issues, re-run tests, re-push if needed, then ask again
+   - If "Found issues": Address the issues, re-run local tests, and ask again
    - If "Yes": Proceed to Next Step
 
 **GUARDRAIL:** Do NOT suggest `/clear` + `/review-issue` until the user explicitly confirms "Yes, verified and working".
@@ -247,9 +202,6 @@ Walk the user through end-to-end verification of the implementation.
 - Warn user about existing failures
 - Ask if they should be fixed first or if implementation should proceed
 - Do NOT proceed if failures are in areas being modified
-
-**Edge Case: CI has no runs / no Actions configured**
-- Fall back to local lint + build + test verification
 
 **GUARDRAIL: Test Coverage Blocking**
 - Do NOT complete implementation if any acceptance criterion lacks test coverage
@@ -267,7 +219,7 @@ Walk the user through end-to-end verification of the implementation.
 
 ## Tools Used
 
-- `Bash` - Git operations, run tests, push to remote, monitor CI, post GitHub Issue comments via `gh`
+- `Bash` - Git operations, run tests, local lint/build, and post GitHub Issue comments via `gh`
 - `Edit` - Modify existing files
 - `Write` - Create new files
 - `Read` - Load context files
@@ -291,15 +243,7 @@ git branch --show-current        # Show current branch
 git checkout -b {branch}         # Create new branch
 git add {files}                  # Stage changes
 git commit -m "message"          # Create commit
-git push origin {branch} -u     # Push to remote with tracking
 git log --oneline -5             # Show recent commits
-```
-
-### CI Monitoring
-```bash
-gh run list --branch {branch} --limit 3   # List CI runs
-gh run watch {run-id} --exit-status        # Watch CI run until complete
-gh run view {run-id} --log-failed          # Get failure logs
 ```
 
 ### GitHub Issue Operations
@@ -320,20 +264,18 @@ Implementation is complete when:
 4. ALL acceptance criteria have test coverage (enforced)
 5. All tests passing (new + existing, no regressions)
 6. Implementation executed following approved plan
-7. Branch pushed to remote
-8. CI passes (or local verification passes if no CI)
-9. GitHub Issue updated with branch, commits, CI status, and test results
-10. User has manually verified the e2e flow and confirmed it works
+7. GitHub Issue updated with branch, commits, and local test results
+8. User has manually verified the e2e flow and confirmed it works
 
 ## Next Step
 
-> **After the user confirms manual verification in Phase 4:**
+> **After the user confirms manual verification in Phase 3:**
 >
-> Implementation is done, CI green, and manually verified. Now clear your context and run an independent review:
+> Implementation is locally verified and manually verified. Now clear your context and run an independent review:
 >
 > 1. Run `/clear` to wipe the implementation context (the branch stays checked out)
 > 2. Run `/review-issue` — it will auto-detect the issue from the branch name and audit the diff with fresh eyes
 >
 > This ensures the code review is independent — no implementation bias carrying over.
 >
-> **Do NOT present this section until Phase 4 is complete and the user has explicitly confirmed "Yes, verified and working".**
+> **Do NOT present this section until Phase 3 is complete and the user has explicitly confirmed "Yes, verified and working".**

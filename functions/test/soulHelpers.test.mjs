@@ -50,6 +50,27 @@ test("buildSoulSystemPrompt instructs stability from previous soul", async () =>
   );
 });
 
+test("injectGuidelinesContent supports brain placeholder format", async () => {
+  const { injectGuidelinesContent } = await import("../utils/soulHelpers.js");
+  const result = injectGuidelinesContent("Before\n{{guidelinesContent}}\nAfter", "## Guidelines");
+
+  assert.equal(result, "Before\n## Guidelines\nAfter");
+});
+
+test("injectGuidelinesContent supports legacy config placeholder format", async () => {
+  const { injectGuidelinesContent } = await import("../utils/soulHelpers.js");
+  const result = injectGuidelinesContent("Before\n${guidelinesContent}\nAfter", "## Guidelines");
+
+  assert.equal(result, "Before\n## Guidelines\nAfter");
+});
+
+test("injectGuidelinesContent appends guidelines when no placeholder exists", async () => {
+  const { injectGuidelinesContent } = await import("../utils/soulHelpers.js");
+  const result = injectGuidelinesContent("Prompt", "## Guidelines");
+
+  assert.equal(result, "Prompt\n\n## Guidelines");
+});
+
 // ---------------------------------------------------------------------------
 // buildSoulUserPrompt
 // ---------------------------------------------------------------------------

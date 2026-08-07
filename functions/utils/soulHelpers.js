@@ -13,6 +13,27 @@ export const SOUL_DEFAULTS = {
 export const VALID_PROGRAMS = ["toddler", "primary", "elementary", "adolescent"];
 
 /**
+ * Inject per-student/per-program guidelines into a soul system prompt.
+ *
+ * Historical config docs use {{guidelinesContent}} while the older generic
+ * config path used ${guidelinesContent}. Support both so existing Firestore
+ * prompts can be wired without a brittle migration.
+ *
+ * @param {string} systemPrompt - Prompt template from config
+ * @param {string} guidelinesContent - Markdown guidelines document
+ * @returns {string} Prompt with guidelines inserted
+ */
+export function injectGuidelinesContent(systemPrompt, guidelinesContent) {
+  if (systemPrompt.includes("{{guidelinesContent}}")) {
+    return systemPrompt.replaceAll("{{guidelinesContent}}", guidelinesContent);
+  }
+  if (systemPrompt.includes("${guidelinesContent}")) {
+    return systemPrompt.replaceAll("${guidelinesContent}", guidelinesContent);
+  }
+  return systemPrompt + "\n\n" + guidelinesContent;
+}
+
+/**
  * Build the system prompt for soul generation.
  * The guidelines document is injected as a reference lens — the AI uses it
  * to know what developmental areas matter and what to look for.
@@ -60,10 +81,14 @@ If there are no emergent patterns worth suggesting, omit the YAML block entirely
 After the guidelines_suggestions block (or after Emergent Observations if no suggestions), append a fenced block of open questions that teachers could be asked about this child during interviews, organized by exploration area. Each area groups questions about a developmental theme where evidence is thin, contradictory, single-sourced, or stale. You have free range to identify areas — do not limit yourself to guidelines categories. Focus on what would be most valuable to explore next.
 
 Questions should:
-- Range from specific ("Does Aria choose the bead chain independently or only when directed?") to broad ("How does this child navigate conflict with peers?")
-- Be phrased as questions a knowledgeable interviewer would ask a teacher
+- Use simple, teacher-friendly language. Do not sound clinical, diagnostic, or academic.
+- Ask for concrete moments, examples, and visible behavior, not judgments or summaries.
+- Prefer prompts like "Tell us about a time...", "Describe a time...", "Think of two moments...", and "Share an example..."
+- Include enough context for the teacher to remember the situation: what the class was doing, what the child did, and what seemed different from other moments.
+- Range from specific ("Tell us about a time Aria chose the bead chain on her own. What happened next?") to broad ("Describe a recent conflict Aria had with another child. What started it, and how did she respond?")
 - Be fully self-contained — a teacher reading a single question with NO other context must understand exactly what is being asked. Never use vague references like "at this point", "the current situation", or "as mentioned". Instead, name the specific skill, behavior, or observation the question is about (e.g., instead of "Would a more systematic reading intervention be appropriate at this point?" write "Aria has been reading at a pre-primer level for 3 months — has the team considered a structured phonics intervention like Orton-Gillingham?")
-- Avoid yes/no phrasing — use open-ended "how", "what", "describe" stems that invite the teacher to share detail
+- Avoid yes/no phrasing. If a question starts with "Have you noticed...", immediately ask for an example.
+- Avoid polished phrases such as "mental drifting", "visual anchors", "processing extended oral instructions", "executive functioning", or "environmental stimulation" unless those are words teachers already use. Translate them into plain classroom language.
 
 Format — a JSON object with area names as keys and arrays of question strings as values:
 
@@ -71,12 +96,12 @@ Format — a JSON object with area names as keys and arrays of question strings 
 {
   "areas": {
     "Self-Regulation & Emotional Awareness": [
-      "When the child argues with a teacher, what seems to trigger it?",
-      "How does the child respond after a conflict once cooled down?"
+      "Tell us about a time the child became upset with a teacher. What had just happened, and what did the child do next?",
+      "Describe a recent moment when the child calmed down after a conflict. What helped?"
     ],
     "Reading Profile & Language Load": [
-      "What is the current reading level in English in practical terms?",
-      "Is the main reading difficulty decoding, fluency, vocabulary, or comprehension?"
+      "Describe a recent time the child read aloud or looked through a book. What was easy, and where did the child need help?",
+      "Tell us about a time the child did not understand a word, sentence, or story. What did the child do?"
     ]
   }
 }
@@ -348,4 +373,3 @@ export function hasEmergentObservations(soulContent) {
   if (!match) return false;
   return match[1].trim().length > 0;
 }
-

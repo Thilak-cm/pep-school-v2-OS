@@ -162,12 +162,11 @@ App version: 12.2.2
 - Conversation controls, messages, errors, and the composer remain correctly separated across safe-area, virtual-keyboard, dropdown, retry, and streaming-scroll states (#217).
 
 ### 12.2.0 (2026-08-06)
+- Emulator-based Firestore and Storage rules suite with canonical fixtures, shared production operation helpers, transfer lifecycle coverage, media Storage boundaries, and CI gating for security-rule regressions (#207).
+- Classroom directory, Firestore auth-boundary, and precise 48-hour edit/delete boundary coverage in the rules emulator suite (#207).
 - Coach Pepper now streams responses progressively through a durable, server-orchestrated chat session (#220).
-- Chat retries, interruption recovery, classroom-shared conversations, and configurable read-only context tools.
-- Coach Pepper chat records now preserve message transcripts and execution attempts separately, while keeping legacy conversations readable (#220).
 
 ### 12.1.0 (2026-07-23)
 - Timeline pagination: classroom and student timelines now load 20 notes at a time with cursor-based "Show More" instead of fetching all notes at once (#221)
 - Timeline stats (notes overall, 7-day count, student count) now read from statsCache instead of being derived from loaded notes (#221)
 - Media observations merged into unified `observations` subcollection - single sorted stream replaces the previous two-collection k-way merge (#221)
-

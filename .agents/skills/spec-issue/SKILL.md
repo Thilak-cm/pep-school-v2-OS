@@ -68,7 +68,7 @@ Requires a GitHub issue identifier as argument (e.g., `#42`). If not provided, a
 
 - Fetch the issue from GitHub using the provided identifier.
 - Read the current title, description, priority, labels, state, and assignee.
-- Check the description for a `Source: Meeting Notes —` marker (created by `/draft-linear-issues`).
+- Check the description for a `Source: Meeting Transcript —` marker (created by `/draft-github-issues`).
 - Summarize the current state of the issue to the user before starting the grill.
 
 ### 2. Grill — One Question at a Time
@@ -165,7 +165,7 @@ After gathering enough information, mentally run through implementation. This is
 [What this issue does not cover — be explicit]
 
 ### MoM Reference
-[Original meeting notes context — only if issue was created by /draft-linear-issues]
+[Original meeting transcript context — only if issue was created by /draft-github-issues]
 ```
 
 ## Defaults

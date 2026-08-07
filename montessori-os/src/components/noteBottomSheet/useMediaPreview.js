@@ -2,6 +2,12 @@ import { useState, useEffect } from 'react';
 import { doc, updateDoc, serverTimestamp } from 'firebase/firestore';
 import { db } from '../../firebase';
 import { reportCaughtError } from '../../utils/reportCaughtError.js';
+import { createObservationOperations } from '../../../../shared/firebase/observationOperations.js';
+
+const observationOperations = createObservationOperations({
+  db,
+  firestore: { doc, updateDoc, serverTimestamp },
+});
 
 /**
  * Custom hook encapsulating media preview edit state.
@@ -37,13 +43,11 @@ export default function useMediaPreview(observation, currentUser, notify) {
       setMediaEditSaving(true);
       const parentId = observation.parentStudentId || observation.studentId;
       if (!parentId) throw new Error('Missing student ID');
-      // #221: media docs migrated to observations subcollection
-      const obsRef = doc(db, 'students', parentId, 'observations', observation.id);
-      await updateDoc(obsRef, {
+      await observationOperations.updateMediaComment({
+        studentId: parentId,
+        observationId: observation.id,
         teacherComment: mediaEditComment.trim(),
-        updatedAt: serverTimestamp(),
-        lastEditedBy: currentUser.uid,
-        lastEditedAt: serverTimestamp(),
+        editorUid: currentUser.uid,
       });
       setMediaEditMode(false);
       notify?.success('Comment updated');

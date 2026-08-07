@@ -16,51 +16,29 @@ import {
   getDocs, getDoc, doc, limit, startAfter,
 } from 'firebase/firestore';
 import { db } from '../firebase';
+import { createTimelineQueries } from '../../../shared/firebase/timelineQueries.js';
 import { reportCaughtError } from '../utils/reportCaughtError.js';
 import { checkClassroomAccess } from './timelineDataHelpers.js';
 
 const PAGE_SIZE = 20;
 
-// ── Fetchers ─────────────────────────────────────────────────
-
-async function fetchClassroomNotes(classroomId, pageSize, cursor) {
-  const constraints = [
-    where('classroomId', '==', classroomId),
-    orderBy('observedAt', 'desc'),
-    limit(pageSize),
-  ];
-  if (cursor) constraints.push(startAfter(cursor));
-
-  const obsQuery = query(collectionGroup(db, 'observations'), ...constraints);
-  const snap = await getDocs(obsQuery);
-
-  return snap.docs.map(d => ({
-    id: d.id,
-    parentStudentId: d.ref.parent?.parent?.id,
-    docPath: d.ref.path,
-    ...d.data(),
-  }));
-}
-
-async function fetchStudentNotes(studentId, pageSize, cursor) {
-  const constraints = [
-    orderBy('observedAt', 'desc'),
-    limit(pageSize),
-  ];
-  if (cursor) constraints.push(startAfter(cursor));
-
-  const obsQuery = query(
-    collection(db, 'students', studentId, 'observations'),
-    ...constraints,
-  );
-  const snap = await getDocs(obsQuery);
-
-  return snap.docs.map(d => ({
-    id: d.id,
-    studentId,
-    ...d.data(),
-  }));
-}
+const {
+  fetchActiveClassroomStudents,
+  fetchClassroomTimelineNotes,
+  fetchStudentTimelineNotes,
+} = createTimelineQueries({
+  db,
+  firestore: {
+    collection,
+    collectionGroup,
+    getDocs,
+    limit,
+    orderBy,
+    query,
+    startAfter,
+    where,
+  },
+});
 
 // ── Main hook ────────────────────────────────────────────────
 
@@ -116,12 +94,7 @@ export default function useTimelineData({ scope, id, classroom, userRole, manage
       try {
         if (scope === 'classroom') {
           // Fetch students list
-          const studentsSnap = await getDocs(
-            query(collection(db, 'students'), where('classroomId', '==', id))
-          );
-          const classroomStudents = studentsSnap.docs
-            .map(d => ({ id: d.id, ...d.data() }))
-            .filter(s => (s.status || 'active') === 'active');
+          const classroomStudents = await fetchActiveClassroomStudents(id);
 
           if (cancelled) return;
           setStudents(classroomStudents);
@@ -139,7 +112,10 @@ export default function useTimelineData({ scope, id, classroom, userRole, manage
           }
 
           // Fetch first page of notes
-          const page = await fetchClassroomNotes(id, PAGE_SIZE, null);
+          const page = await fetchClassroomTimelineNotes({
+            classroomId: id,
+            pageSize: PAGE_SIZE,
+          });
           if (cancelled) return;
 
           setNotes(page);
@@ -147,7 +123,10 @@ export default function useTimelineData({ scope, id, classroom, userRole, manage
           setCursor(page.length > 0 ? page[page.length - 1].observedAt : null);
         } else {
           // Student scope - first page
-          const page = await fetchStudentNotes(id, PAGE_SIZE, null);
+          const page = await fetchStudentTimelineNotes({
+            studentId: id,
+            pageSize: PAGE_SIZE,
+          });
           if (cancelled) return;
 
           setNotes(page);
@@ -178,8 +157,16 @@ export default function useTimelineData({ scope, id, classroom, userRole, manage
     setIsLoadingMore(true);
     try {
       const page = scope === 'classroom'
-        ? await fetchClassroomNotes(id, PAGE_SIZE, cursor)
-        : await fetchStudentNotes(id, PAGE_SIZE, cursor);
+        ? await fetchClassroomTimelineNotes({
+          classroomId: id,
+          pageSize: PAGE_SIZE,
+          cursor,
+        })
+        : await fetchStudentTimelineNotes({
+          studentId: id,
+          pageSize: PAGE_SIZE,
+          cursor,
+        });
 
       setNotes(prev => [...prev, ...page]);
       setHasMore(page.length >= PAGE_SIZE);

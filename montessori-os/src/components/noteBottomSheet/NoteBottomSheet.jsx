@@ -42,6 +42,7 @@ import ClassroomStudentPicker from '../ClassroomStudentPicker';
 import LessonNoteTagDialog from '../LessonNoteTagDialog';
 import { reportCaughtError } from '../../utils/reportCaughtError.js';
 import { TransferredChip } from '../ui';
+import { createObservationOperations } from '../../../../shared/firebase/observationOperations.js';
 
 import SharedHeader from './SharedHeader';
 import TextContent from './TextContent';
@@ -50,6 +51,19 @@ import LessonContent from './LessonContent';
 import MediaContent from './MediaContent';
 import ActionButtons from './ActionButtons';
 import useMediaPreview from './useMediaPreview';
+
+const observationOperations = createObservationOperations({
+  db,
+  firestore: {
+    arrayRemove,
+    arrayUnion,
+    deleteDoc,
+    doc,
+    serverTimestamp,
+    setDoc,
+    updateDoc,
+  },
+});
 
 const normalizeLinkedIds = (value) => {
   if (!value) return [];
@@ -218,12 +232,12 @@ export default function NoteBottomSheet({
     if (!canEditCurrent) { notify.error(getPermissionErrorMessage()); return; }
     try {
       setSaving(true);
-      await updateDoc(doc(db, 'students', observation.studentId, 'observations', observation.id), {
+      await observationOperations.updateObservationText({
+        studentId: observation.studentId,
+        observationId: observation.id,
         text: editText.trim(),
         editCount: (observation.editCount || 0) + 1,
-        updatedAt: serverTimestamp(),
-        lastEditedBy: currentUser.uid,
-        lastEditedAt: serverTimestamp(),
+        editorUid: currentUser.uid,
       });
       setEditing(false);
       setEditText('');
@@ -273,7 +287,10 @@ export default function NoteBottomSheet({
         try {
           const parentId = obs.parentStudentId || obs.studentId;
           // #221: all note types (including media) now in observations subcollection
-          await deleteDoc(doc(db, 'students', parentId, 'observations', obs.id));
+          await observationOperations.deleteObservation({
+            studentId: parentId,
+            observationId: obs.id,
+          });
           notify.success('Note deleted successfully', { id: notifId, duration: 2500 });
         } catch { notify.error('Error deleting note. Please try again.', { id: notifId, duration: 3500 }); }
       },
@@ -309,9 +326,22 @@ export default function NoteBottomSheet({
         const targetStuSnap = await getDoc(doc(db, 'students', newStudentId));
         targetClassroomId = targetStuSnap.data()?.classroomId || targetClassroomId;
       } catch (e) { reportCaughtError(e, 'NoteBottomSheet', 'reassign target classroom'); }
-      const destRef = doc(db, 'students', newStudentId, 'observations', observation.id);
-      await setDoc(destRef, { ...srcData, studentId: newStudentId, classroomId: targetClassroomId, updatedAt: serverTimestamp(), lastEditedBy: currentUser.uid, lastEditedAt: serverTimestamp() });
-      await deleteDoc(srcRef);
+      await observationOperations.saveObservation({
+        studentId: newStudentId,
+        observationId: observation.id,
+        data: {
+          ...srcData,
+          studentId: newStudentId,
+          classroomId: targetClassroomId,
+          updatedAt: serverTimestamp(),
+          lastEditedBy: currentUser.uid,
+          lastEditedAt: serverTimestamp(),
+        },
+      });
+      await observationOperations.deleteObservation({
+        studentId: oldParentId,
+        observationId: observation.id,
+      });
       setReassignConfirmOpen(false);
       handleClose();
       notify.success(reassignToStudentName ? `Note reassigned to ${reassignToStudentName}` : 'Note reassigned', {
@@ -375,14 +405,17 @@ export default function NoteBottomSheet({
     const currentIds = normalizeLinkedIds(linkedLessonObservationIds);
     const desiredIds = normalizeLinkedIds(nextIds);
     if (currentIds.length === desiredIds.length && currentIds.every((id) => desiredIds.includes(id))) { setTagDialogOpen(false); return; }
-    const added = desiredIds.filter((id) => !currentIds.includes(id));
-    const removed = currentIds.filter((id) => !desiredIds.includes(id));
     try {
       setLinkSaving(true);
-      const obsRef = doc(db, 'students', studentId, 'observations', observation.id);
-      await updateDoc(obsRef, { linkedLessonObservationId: desiredIds, updatedAt: serverTimestamp(), lastEditedBy: currentUser.uid, lastEditedAt: serverTimestamp() });
-      await Promise.all(added.map(async (lessonId) => { try { await updateDoc(doc(db, 'students', studentId, 'observations', lessonId), { linkedObservations: arrayUnion(observation.id) }); } catch (e) { reportCaughtError(e, 'NoteBottomSheet', 'add backlink'); } }));
-      await Promise.all(removed.map(async (lessonId) => { try { await updateDoc(doc(db, 'students', studentId, 'observations', lessonId), { linkedObservations: arrayRemove(observation.id) }); } catch (e) { reportCaughtError(e, 'NoteBottomSheet', 'remove backlink'); } }));
+      await observationOperations.updateLessonLinks({
+        studentId,
+        observationId: observation.id,
+        currentLessonIds: currentIds,
+        desiredLessonIds: desiredIds,
+        onBacklinkError: (error, lessonId, action) => {
+          reportCaughtError(error, 'NoteBottomSheet', `${action} backlink ${lessonId}`);
+        },
+      });
       setLinkedLessonObservationIds(desiredIds);
       notify.success(desiredIds.length > 0 ? 'Tagged lesson notes updated' : 'Tagged lesson notes cleared');
       setTagDialogOpen(false);
