@@ -56,6 +56,28 @@ Fan-out per student: one observation doc per student at `students/{studentId}/ob
 - Shared constants between frontend and functions live in `functions/config/` (Vite `fs.allow` permits cross-boundary imports)
 - App version tracked in `montessori-os/package.json` and `VERSION` file at root; service worker version updated at prebuild
 
+### Commit Message Conventions
+
+Write commit messages as durable change records, not terse labels. Every non-merge commit should:
+
+- Use a conventional type (`feat:`, `fix:`, `test:`, `refactor:`, `docs:`, `chore:`, `perf:`, `build:`, or `ci:`), a specific outcome-focused subject, and the relevant issue reference when one exists.
+- Avoid vague subjects such as `update stuff`, `small fixes`, or `Add controls`; do not optimize for an arbitrary word-count limit.
+- Add a body for substantive behavior, bug, multi-file, security, data-model, or refactor changes. Explain what changed, why, and how it was verified.
+
+Example:
+
+```text
+fix: add temporary Coach Pepper feedback controls (#233)
+
+Add thumbs-up and thumbs-down actions to assistant messages.
+Route both actions through the shared useNotify toast system with a
+temporary notice explaining that feedback collection is still in progress.
+Keep the controls presentation-only until persistence is implemented.
+Add focused rendering and wiring coverage.
+```
+
+Merge and tool-generated revert commits may follow Git's generated format. Before committing, inspect the staged diff and exclude unrelated work.
+
 ### Shared Skills & Subagents
 
 - `.agents/skills/` is the source of truth for shared skills; `.claude/skills` symlinks to it.
