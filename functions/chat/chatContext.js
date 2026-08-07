@@ -60,6 +60,11 @@ export function buildScopedSystemPrompt({
 
 ${basePrompt}
 
+Response formatting:
+- Use standard Markdown.
+- Ordered lists must use \`1.\` markers, never \`1)\`.
+- Indent nested bullets under their numbered item.
+
 This conversation is only about ${studentName}.
 The app information available to you here belongs only to ${studentName}. You should not choose, guess, or switch to another child.
 

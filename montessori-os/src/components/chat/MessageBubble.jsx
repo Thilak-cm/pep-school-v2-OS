@@ -1,9 +1,12 @@
 import React from 'react';
 import { Box, IconButton, Typography } from '@mui/material';
-import { ThumbsUp } from '../../icons';
+import { ThumbsDown, ThumbsUp } from '../../icons';
 import CopyToClipboardButton from '../CopyToClipboardButton';
 import MarkdownMessage from './MarkdownMessage.jsx';
 import { formatChatTimestamp, getBubbleAnimationSx, shouldShowAssistantActions } from './chatPresentation.js';
+import useNotify from '../../notifications/useNotify.js';
+
+const FEEDBACK_NOTICE = 'Feedback is still being worked on. This will be available in a few days.';
 
 function UserMetaRow({ message }) {
   return (
@@ -22,6 +25,8 @@ function UserMetaRow({ message }) {
 }
 
 function AssistantMetaRow({ message }) {
+  const notify = useNotify();
+
   if (!shouldShowAssistantActions(message)) return null;
   return (
     <Box
@@ -29,8 +34,21 @@ function AssistantMetaRow({ message }) {
       sx={{ display: 'flex', visibility: 'visible', opacity: 1, alignItems: 'center', gap: 0.5, mt: 0.5, minHeight: 24 }}
     >
       <CopyToClipboardButton text={message.content} ariaLabel="Copy message" sx={{ color: 'text.secondary', opacity: 0.82 }} />
-      <IconButton aria-label="Helpful" size="small" sx={{ color: 'text.secondary', visibility: 'visible', opacity: 1, p: 0.5 }}>
+      <IconButton
+        aria-label="Helpful"
+        onClick={() => notify.info(FEEDBACK_NOTICE)}
+        size="small"
+        sx={{ color: 'text.secondary', visibility: 'visible', opacity: 1, p: 0.5 }}
+      >
         <ThumbsUp size={17} />
+      </IconButton>
+      <IconButton
+        aria-label="Not helpful"
+        onClick={() => notify.info(FEEDBACK_NOTICE)}
+        size="small"
+        sx={{ color: 'text.secondary', visibility: 'visible', opacity: 1, p: 0.5 }}
+      >
+        <ThumbsDown size={17} />
       </IconButton>
     </Box>
   );

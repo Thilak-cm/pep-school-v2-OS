@@ -5,7 +5,9 @@ import {
   abortActiveChatRequest,
   chatErrorMessage,
   runAuthenticatedChatTurn,
+  settlePresentedChatTurn,
 } from './chatTurnController.js';
+import { createChatTokenPresentation } from './chatTokenPresentation.js';
 
 const stableIds = {
   chatId: 'chat-1',
@@ -89,6 +91,70 @@ test('an auth-shaped failure after tokens does not replay the turn', async () =>
   }), authError);
 
   assert.equal(streamCalls, 1);
+});
+
+async function runPresentedLifecycle({ token = '', error = null }) {
+  const order = [];
+  let frame = null;
+  const presentation = createChatTokenPresentation({
+    onToken: (text) => order.push(`text:${text}`),
+    onProgressChange: () => {},
+    onFirstPresented: () => {},
+    requestFrame: (callback) => { frame = callback; return 1; },
+    cancelFrame: () => { frame = null; },
+    setTimeoutFn: () => 1,
+    clearTimeoutFn: () => {},
+    now: () => 0,
+  });
+
+  const settled = settlePresentedChatTurn({
+    presentation,
+    run: async () => {
+      if (token) presentation.enqueue(token);
+      if (error) throw error;
+      return { status: 'complete' };
+    },
+    onComplete: () => order.push('terminal:complete'),
+    onError: (streamError) => order.push(`terminal:${streamError.status || 'failed'}`),
+  });
+  await Promise.resolve();
+  while (frame) {
+    const callback = frame;
+    frame = null;
+    callback();
+  }
+  await settled;
+  return order;
+}
+
+test('presented lifecycle orders queued text before complete terminal state', async () => {
+  assert.deepEqual(await runPresentedLifecycle({ token: 'answer' }), [
+    'text:answer',
+    'terminal:complete',
+  ]);
+});
+
+test('presented lifecycle orders queued text before interruption state', async () => {
+  assert.deepEqual(await runPresentedLifecycle({
+    token: 'partial',
+    error: Object.assign(new Error('stopped'), { status: 'interrupted' }),
+  }), [
+    'text:partial',
+    'terminal:interrupted',
+  ]);
+});
+
+test('presented lifecycle orders queued text before post-token failure state', async () => {
+  assert.deepEqual(await runPresentedLifecycle({ token: 'partial', error: new Error('failed') }), [
+    'text:partial',
+    'terminal:failed',
+  ]);
+});
+
+test('presented lifecycle settles pre-token failure directly into retry state', async () => {
+  assert.deepEqual(await runPresentedLifecycle({ error: new Error('failed') }), [
+    'terminal:failed',
+  ]);
 });
 
 test('stop aborts but retains the request; navigation aborts and clears it', () => {

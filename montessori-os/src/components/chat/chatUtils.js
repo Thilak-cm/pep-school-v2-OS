@@ -69,14 +69,27 @@ export function sortMessagesForDisplay(messages) {
  * not erase progressively rendered tokens. The authoritative document wins as
  * soon as it appears.
  */
-export function mergeMessageSnapshot(previous, incoming, retainedIds = new Set()) {
+export function mergeMessageSnapshot(
+  previous,
+  incoming,
+  retainedIds = new Set(),
+  deferredAuthoritativeIds = new Set(),
+) {
   const incomingIds = new Set(incoming.map((message) => message.id));
   const merged = new Map();
 
   previous.forEach((message) => {
     if (incomingIds.has(message.id) || retainedIds.has(message.id)) merged.set(message.id, message);
   });
-  incoming.forEach((message) => merged.set(message.id, { ...(merged.get(message.id) || {}), ...message }));
+  incoming.forEach((message) => {
+    const current = merged.get(message.id) || {};
+    // The server persists the final assistant before sending SSE `complete`.
+    // While the visual queue is still draining, keep its local content/status
+    // but accept non-visual authoritative metadata such as model and timestamps.
+    merged.set(message.id, deferredAuthoritativeIds.has(message.id)
+      ? { ...message, ...current }
+      : { ...current, ...message });
+  });
 
   return sortMessagesForDisplay([...merged.values()]);
 }

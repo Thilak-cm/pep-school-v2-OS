@@ -38,6 +38,17 @@ test('child chat owns one bounded middle transcript viewport', () => {
   assert.doesNotMatch(childChatSource, /height:\s*['"]calc\(100vh - 80px\)['"]/);
 });
 
+test('startup suggestions and stream presentation are wired through transient controllers', () => {
+  assert.match(childChatSource, /getSuggestedChatPrompts/);
+  assert.match(childChatSource, /handleSend\(null, suggestion\)/);
+  assert.match(childChatSource, /createChatTokenPresentation/);
+  assert.match(childChatSource, /TypingIndicator label=\{progressText\}/);
+  assert.ok(
+    (childChatSource.match(/presentationRef\.current\?\.clear\(\)/g) || []).length >= 4,
+    'student changes, navigation, retries, and unmount clear transient presentation',
+  );
+});
+
 test('chat shell geometry exactly bounds the header, footer, and safe areas', () => {
   const geometry = getChatShellGeometry({
     viewportHeight: 844,

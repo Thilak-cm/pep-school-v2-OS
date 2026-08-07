@@ -17,6 +17,8 @@ test("buildScopedSystemPrompt steers teacher-friendly boundary language", () => 
 
   assert.match(prompt, /^Communication style:/);
   assert.match(prompt, /simple, warm, non-technical English/);
+  assert.match(prompt, /Ordered lists must use `1\.` markers, never `1\)`/);
+  assert.match(prompt, /Indent nested bullets under their numbered item/);
   assert.match(prompt, /only about Aadya/);
   assert.match(prompt, /Please open that child's chat/);
   assert.doesNotMatch(prompt, /permanently scoped/);
