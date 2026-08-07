@@ -69,11 +69,7 @@ Example:
 ```text
 fix: add temporary Coach Pepper feedback controls (#233)
 
-Add thumbs-up and thumbs-down actions to assistant messages.
-Route both actions through the shared useNotify toast system with a
-temporary notice explaining that feedback collection is still in progress.
-Keep the controls presentation-only until persistence is implemented.
-Add focused rendering and wiring coverage.
+Add thumbs-up and thumbs-down actions to assistant messages. Route both actions through the shared useNotify toast system with a temporary notice explaining that feedback collection is still in progress. Keep the controls presentation-only until persistence is implemented. Add focused rendering and wiring coverage.
 ```
 
 Merge and tool-generated revert commits may follow Git's generated format. Before committing, inspect the staged diff and exclude unrelated work.
