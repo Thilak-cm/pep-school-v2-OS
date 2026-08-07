@@ -1,7 +1,7 @@
 # Pep OS Overview
 
-Generated: 2026-08-06T20:46:41.818Z
-App version: 12.2.1
+Generated: 2026-08-07T01:41:11.896Z
+App version: 12.2.2
 
 ## App Snapshot
 
@@ -152,6 +152,10 @@ App version: 12.2.1
 
 ## Recent Changes
 
+### 12.2.2 (2026-08-06)
+- Coach Pepper chat now gives clearer startup guidance, teacher-friendly tool progress, smoother streamed responses, and standard Markdown list-formatting guidance.
+- Empty-chat cleanup now revalidates candidates transactionally before deletion, and chat streaming/persistence edge cases have expanded test coverage.
+
 ### 12.2.1 (2026-08-06)
 - Coach Pepper chat now uses a bounded phone-sized conversation viewport with a connected session selector, safe Markdown rendering, reliable follow-mode scrolling, and composer behavior that stays editable during streaming (#217).
 - User timestamps and copy actions, plus completed assistant copy and Helpful actions, remain permanently visible without hover or touch reveal (#217).
@@ -166,9 +170,4 @@ App version: 12.2.1
 - Timeline pagination: classroom and student timelines now load 20 notes at a time with cursor-based "Show More" instead of fetching all notes at once (#221)
 - Timeline stats (notes overall, 7-day count, student count) now read from statsCache instead of being derived from loaded notes (#221)
 - Media observations merged into unified `observations` subcollection - single sorted stream replaces the previous two-collection k-way merge (#221)
-
-### 12.0.0 (2026-07-15)
-- `brain/` knowledge base at repo root - single source of truth for all LLM pipeline context (knowledge, prompts, model config) across school-wide, primary, elementary, and adolescent programs with teacher-facing/parent-facing splits (#157)
-- `npm run push-brain` sync script: validates the folder tree (pipeline folders need config.json + prompt.md, blank/duplicate/reserved-name and empty-folder checks), shows NEW/CHANGED/DELETED/UNCHANGED with full diffs, and pushes to the Firestore `brain/{program}/files/{docId}` subcollections with SHA-256 change detection and y/N confirmation (#157)
-- `readBrain()` Cloud Function utility - four-layer deterministic context assembly (school-wide, program, audience, pipeline) with 5-min per-program cache, toddler→primary normalization, and school-wide-only mode for text-summarizer/voice-transcriber (#157)
 
