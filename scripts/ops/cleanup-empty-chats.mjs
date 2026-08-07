@@ -5,34 +5,28 @@
  *   node scripts/ops/cleanup-empty-chats.mjs          # dry-run (default)
  *   node scripts/ops/cleanup-empty-chats.mjs --yes    # execute after review
  */
-import admin from "firebase-admin";
 import { parseArgs } from "node:util";
+import { pathToFileURL } from "node:url";
 
-import { deleteEmptyChat, inspectChat } from "./cleanup-empty-chats-lib.mjs";
+import { deleteEmptyChatSafely, inspectChat } from "./cleanup-empty-chats-lib.mjs";
 
-if (!admin.apps.length) {
-  admin.initializeApp({
-    credential: admin.credential.applicationDefault(),
-    projectId: "pep-os",
-  });
+export function parseCleanupArgs(args = process.argv.slice(2)) {
+  return parseArgs({
+    args,
+    options: { yes: { type: "boolean", default: false } },
+    strict: true,
+  }).values;
 }
-
-const db = admin.firestore();
-const { values: flags } = parseArgs({
-  options: { yes: { type: "boolean", default: false } },
-  strict: true,
-});
-const dryRun = !flags.yes;
 
 function isStudentChatPath(path) {
   return /^students\/[^/]+\/chats\/[^/]+$/.test(path);
 }
 
-function printSkip(path, reason) {
-  console.log(`!!! SKIP ${path}: ${reason}`);
+function printSkip(log, path, reason) {
+  log(`!!! SKIP ${path}: ${reason}`);
 }
 
-async function scanChats() {
+export async function scanChats({ db, log = console.log, inspect = inspectChat }) {
   const snapshot = await db.collectionGroup("chats").get();
   const candidates = [];
   let kept = 0;
@@ -45,14 +39,14 @@ async function scanChats() {
       if (!isStudentChatPath(chatDoc.ref.path)) {
         return { chatDoc, classification: { action: "skip", reason: "unexpected chat document path" } };
       }
-      return inspectChat(chatDoc);
+      return inspect(chatDoc);
     }));
 
     for (const inspected of inspectedBatch) {
       if (inspected.classification.action === "delete") {
         candidates.push(inspected);
       } else if (inspected.classification.action === "skip") {
-        printSkip(inspected.chatDoc.ref.path, inspected.classification.reason);
+        printSkip(log, inspected.chatDoc.ref.path, inspected.classification.reason);
         skipped += 1;
       } else {
         kept += 1;
@@ -62,45 +56,62 @@ async function scanChats() {
   return { candidates, kept, skipped, scanned: snapshot.size };
 }
 
-async function run() {
-  console.log("\n=== Empty Coach Pepper Chat Cleanup ===");
-  console.log(`Project: pep-os`);
-  console.log(`Mode: ${dryRun ? "DRY RUN (pass --yes only after reviewing these IDs)" : "LIVE"}\n`);
+export async function runCleanup({
+  db,
+  yes = false,
+  log = console.log,
+  inspect = inspectChat,
+  deleteCandidate = deleteEmptyChatSafely,
+}) {
+  const dryRun = !yes;
+  log("\n=== Empty Coach Pepper Chat Cleanup ===");
+  log("Project: pep-os");
+  log(`Mode: ${dryRun ? "DRY RUN (pass --yes only after reviewing these IDs)" : "LIVE"}\n`);
 
-  const scan = await scanChats();
+  const scan = await scanChats({ db, log, inspect });
   for (const candidate of scan.candidates) {
-    console.log(`CANDIDATE ${candidate.chatDoc.ref.path} (${candidate.turnDocs.length} terminal turn(s))`);
+    const turnIds = candidate.turnDocs.map((turn) => turn.id);
+    log(`CANDIDATE ${candidate.chatDoc.ref.path} (terminal turn IDs: ${turnIds.join(", ") || "none"})`);
   }
 
   let deleted = 0;
   let liveSkipped = 0;
   if (!dryRun) {
     for (const original of scan.candidates) {
-      // The approved dry-run can become stale. Re-read every candidate directly
-      // before deletion and skip on any new message, turn state, or collection.
-      const currentSnapshot = await original.chatDoc.ref.get();
-      if (!currentSnapshot.exists) {
-        printSkip(original.chatDoc.ref.path, "chat no longer exists");
+      const result = await deleteCandidate({
+        db,
+        chatRef: original.chatDoc.ref,
+        expectedTerminalTurnIds: original.turnDocs.map((turn) => turn.id),
+      });
+      if (!result.deleted) {
+        printSkip(log, original.chatDoc.ref.path, result.reason);
         liveSkipped += 1;
         continue;
       }
-      const current = await inspectChat(currentSnapshot);
-      if (current.classification.action !== "delete") {
-        printSkip(current.chatDoc.ref.path, `changed since scan: ${current.classification.reason}`);
-        liveSkipped += 1;
-        continue;
-      }
-      await deleteEmptyChat({ chatRef: current.chatDoc.ref, terminalTurns: current.turnDocs });
-      console.log(`DELETED ${current.chatDoc.ref.path}`);
+      log(`DELETED ${original.chatDoc.ref.path}`);
       deleted += 1;
     }
   }
 
-  console.log("\nSummary");
-  console.log(`Scanned: ${scan.scanned}`);
-  console.log(`Kept with messages: ${scan.kept}`);
-  console.log(`Highlighted skips: ${scan.skipped + liveSkipped}`);
-  console.log(`${dryRun ? "Candidates" : "Deleted"}: ${dryRun ? scan.candidates.length : deleted}`);
+  log("\nSummary");
+  log(`Scanned: ${scan.scanned}`);
+  log(`Kept with messages: ${scan.kept}`);
+  log(`Highlighted skips: ${scan.skipped + liveSkipped}`);
+  log(`${dryRun ? "Candidates" : "Deleted"}: ${dryRun ? scan.candidates.length : deleted}`);
+  return { ...scan, deleted, liveSkipped, dryRun };
 }
 
-await run();
+async function main() {
+  const { default: admin } = await import("firebase-admin");
+  if (!admin.apps.length) {
+    admin.initializeApp({
+      credential: admin.credential.applicationDefault(),
+      projectId: "pep-os",
+    });
+  }
+  await runCleanup({ db: admin.firestore(), yes: parseCleanupArgs().yes });
+}
+
+if (process.argv[1] && import.meta.url === pathToFileURL(process.argv[1]).href) {
+  await main();
+}

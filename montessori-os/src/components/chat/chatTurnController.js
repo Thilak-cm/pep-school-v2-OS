@@ -74,6 +74,28 @@ export async function runAuthenticatedChatTurn({
 }
 
 /**
+ * Settles transport only after its visual token queue. Keeping this boundary in
+ * the controller prevents terminal/loading/error state from overtaking text
+ * that has already arrived but is still waiting for a paint frame.
+ */
+export async function settlePresentedChatTurn({
+  run,
+  presentation,
+  onComplete = () => {},
+  onError = () => {},
+}) {
+  let result;
+  try {
+    result = await run();
+  } catch (error) {
+    await presentation.drain();
+    return await onError(error);
+  }
+  await presentation.drain();
+  return onComplete(result);
+}
+
+/**
  * Stop keeps the active request registered so its catch/finally handlers can
  * mark the placeholder interrupted. Navigation clears it to suppress stale UI.
  */

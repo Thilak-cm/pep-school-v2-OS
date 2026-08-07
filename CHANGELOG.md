@@ -1,5 +1,13 @@
 # Changelog
 
+# 12.2.2 — 2026-08-06
+
+### Changed
+- Coach Pepper chat now gives clearer startup guidance, teacher-friendly tool progress, smoother streamed responses, and standard Markdown list-formatting guidance.
+
+### Fixed
+- Empty-chat cleanup now revalidates candidates transactionally before deletion, and chat streaming/persistence edge cases have expanded test coverage.
+
 # 12.2.1 — 2026-08-06
 
 ### Changed

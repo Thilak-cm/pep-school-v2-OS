@@ -52,6 +52,7 @@ import {
   abortActiveChatRequest,
   chatErrorMessage,
   runAuthenticatedChatTurn,
+  settlePresentedChatTurn,
 } from './chat/chatTurnController.js';
 import {
   beginProgrammaticScroll,
@@ -517,96 +518,98 @@ export default function ChildChat({ student, currentUser, userRole, manageableCl
     presentationRef.current = presentation;
 
     try {
-      await runAuthenticatedChatTurn({
-        currentUser: firebaseUser,
-        url: import.meta.env.VITE_CHAT_STREAM_URL || defaultStreamUrl,
-        signal: controller.signal,
-        studentId,
-        chatId,
-        ids,
-        message,
-        onRunChange: (retryIds) => {
-          if (!isCurrentRequest()) return;
-          presentationRef.current?.clear();
+      await settlePresentedChatTurn({
+        presentation,
+        run: () => runAuthenticatedChatTurn({
+          currentUser: firebaseUser,
+          url: import.meta.env.VITE_CHAT_STREAM_URL || defaultStreamUrl,
+          signal: controller.signal,
+          studentId,
+          chatId,
+          ids,
+          message,
+          onRunChange: (retryIds) => {
+            if (!isCurrentRequest()) return;
+            presentationRef.current?.clear();
+            pendingAssistantSnapshotRef.current = null;
+            setProgressText(null);
+            setHasPresentedToken(false);
+            currentIds = retryIds;
+            const previousAssistantId = activeTurnRef.current?.assistantMessageId;
+            const nextAssistantId = `${retryIds.runId}-assistant`;
+            registerAssistantAttemptAnimation(messageAnimationStateRef.current, nextAssistantId);
+            activeTurnRef.current = {
+              ...activeTurnRef.current,
+              runId: retryIds.runId,
+              assistantMessageId: nextAssistantId,
+            };
+            setMessages((previous) => previous.map((item) => item.id === previousAssistantId
+              ? { ...item, id: nextAssistantId, runId: retryIds.runId, content: '', status: 'streaming' }
+              : item));
+          },
+          onEvent: (event, eventIds) => {
+            if (!isCurrentRequest()) return;
+            currentIds = eventIds;
+            if (event.event === 'token') {
+              presentation.enqueue(event.data?.text || '');
+              return;
+            }
+            if (event.event === 'tool_calls') {
+              presentation.replaceProgress(getToolStatusQuips({
+                names: event.data?.names,
+                student,
+              }));
+              return;
+            }
+            if (event.event === 'complete') {
+              completeEvent = { event, eventIds };
+              return;
+            }
+            setMessages((previous) => applyChatStreamEvent(
+              previous,
+              event,
+              eventIds,
+              ids.userMessageId,
+            ));
+          },
+        }),
+        onComplete: () => {
+          if (!isCurrentRequest() || !completeEvent) return;
+          const pendingAssistant = pendingAssistantSnapshotRef.current;
           pendingAssistantSnapshotRef.current = null;
-          setProgressText(null);
-          setHasPresentedToken(false);
-          currentIds = retryIds;
-          const previousAssistantId = activeTurnRef.current?.assistantMessageId;
-          const nextAssistantId = `${retryIds.runId}-assistant`;
-          registerAssistantAttemptAnimation(messageAnimationStateRef.current, nextAssistantId);
-          activeTurnRef.current = {
-            ...activeTurnRef.current,
-            runId: retryIds.runId,
-            assistantMessageId: nextAssistantId,
-          };
-          setMessages((previous) => previous.map((item) => item.id === previousAssistantId
-            ? { ...item, id: nextAssistantId, runId: retryIds.runId, content: '', status: 'streaming' }
-            : item));
-        },
-        onEvent: (event, eventIds) => {
-          if (!isCurrentRequest()) return;
-          currentIds = eventIds;
-          if (event.event === 'token') {
-            presentation.enqueue(event.data?.text || '');
-            return;
-          }
-          if (event.event === 'tool_calls') {
-            presentation.replaceProgress(getToolStatusQuips({
-              names: event.data?.names,
-              student,
-            }));
-            return;
-          }
-          if (event.event === 'complete') {
-            completeEvent = { event, eventIds };
-            return;
-          }
           setMessages((previous) => applyChatStreamEvent(
             previous,
-            event,
-            eventIds,
+            completeEvent.event,
+            completeEvent.eventIds,
             ids.userMessageId,
-          ));
+          ).map((item) => item.id === pendingAssistant?.id ? { ...item, ...pendingAssistant } : item));
+          if (pendingAssistant) activeTurnRef.current = null;
+        },
+        onError: (streamError) => {
+          if (!isCurrentRequest()) return;
+          const interrupted = controller.signal.aborted;
+          if (!interrupted) {
+            setError(chatErrorMessage(streamError));
+            setInput((draft) => draft || message);
+          }
+          const activeAssistantId = activeTurnRef.current?.assistantMessageId;
+          const pendingAssistant = pendingAssistantSnapshotRef.current;
+          pendingAssistantSnapshotRef.current = null;
+          setMessages((previous) => previous.map((item) => {
+            if (item.id === ids.userMessageId && streamError.details?.persisted === false) {
+              return { ...item, status: 'unsent' };
+            }
+            if (item.id === activeAssistantId) {
+              return {
+                ...item,
+                status: interrupted || streamError.status === 'interrupted' ? 'interrupted' : 'failed',
+              };
+            }
+            return item;
+          }).map((item) => item.id === pendingAssistant?.id ? { ...item, ...pendingAssistant } : item));
+          if (pendingAssistant) activeTurnRef.current = null;
         },
       });
-      await presentation.drain();
-      if (isCurrentRequest() && completeEvent) {
-        const pendingAssistant = pendingAssistantSnapshotRef.current;
-        pendingAssistantSnapshotRef.current = null;
-        setMessages((previous) => applyChatStreamEvent(
-          previous,
-          completeEvent.event,
-          completeEvent.eventIds,
-          ids.userMessageId,
-        ).map((item) => item.id === pendingAssistant?.id ? { ...item, ...pendingAssistant } : item));
-        if (pendingAssistant) activeTurnRef.current = null;
-      }
-    } catch (streamError) {
-      if (!isCurrentRequest()) return;
-      await presentation.drain();
-      if (!isCurrentRequest()) return;
-      const interrupted = controller.signal.aborted;
-      if (!interrupted) {
-        setError(chatErrorMessage(streamError));
-        setInput((draft) => draft || message);
-      }
-      const activeAssistantId = activeTurnRef.current?.assistantMessageId;
-      const pendingAssistant = pendingAssistantSnapshotRef.current;
-      pendingAssistantSnapshotRef.current = null;
-      setMessages((previous) => previous.map((item) => {
-        if (item.id === ids.userMessageId && streamError.details?.persisted === false) {
-          return { ...item, status: 'unsent' };
-        }
-        if (item.id === activeAssistantId) {
-          return {
-            ...item,
-            status: interrupted || streamError.status === 'interrupted' ? 'interrupted' : 'failed',
-          };
-        }
-        return item;
-      }).map((item) => item.id === pendingAssistant?.id ? { ...item, ...pendingAssistant } : item));
-      if (pendingAssistant) activeTurnRef.current = null;
     } finally {
       if (isCurrentRequest()) {
         presentationRef.current?.clear();

@@ -15,13 +15,17 @@ export function createChatTokenPresentation({
   cancelFrame = cancelAnimationFrame,
   setIntervalFn = setInterval,
   clearIntervalFn = clearInterval,
+  setTimeoutFn = setTimeout,
+  clearTimeoutFn = clearTimeout,
   now = () => performance.now(),
 }) {
   let queue = [];
   let frameId = null;
   let intervalId = null;
+  let drainTimerId = null;
   let receivedToken = false;
   let presentedToken = false;
+  let presentedText = '';
   let terminalDeadline = null;
   let drainResolvers = [];
 
@@ -36,6 +40,11 @@ export function createChatTokenPresentation({
     intervalId = null;
   };
 
+  const clearDrainTimer = () => {
+    if (drainTimerId !== null) clearTimeoutFn(drainTimerId);
+    drainTimerId = null;
+  };
+
   const clearProgress = () => {
     clearProgressTimer();
     onProgressChange(null);
@@ -45,11 +54,33 @@ export function createChatTokenPresentation({
     if (frameId === null && queue.length > 0) frameId = requestFrame(paintFrame);
   };
 
+  const present = (text) => {
+    onToken(text);
+    presentedText += text;
+    if (!presentedToken && /\S/.test(presentedText)) {
+      presentedToken = true;
+      clearProgress();
+      onFirstPresented();
+    }
+  };
+
+  const finishDrain = () => {
+    terminalDeadline = null;
+    clearDrainTimer();
+    resolveDrains();
+  };
+
+  const flushQueue = () => {
+    if (frameId !== null) cancelFrame(frameId);
+    frameId = null;
+    if (queue.length > 0) present(queue.splice(0).join(''));
+    finishDrain();
+  };
+
   function paintFrame() {
     frameId = null;
     if (queue.length === 0) {
-      terminalDeadline = null;
-      resolveDrains();
+      finishDrain();
       return;
     }
 
@@ -60,19 +91,10 @@ export function createChatTokenPresentation({
       itemCount = Math.max(1, Math.ceil(queue.length / remainingFrames));
     }
 
-    const text = queue.splice(0, itemCount).join('');
-    if (!presentedToken) {
-      presentedToken = true;
-      clearProgress();
-      onFirstPresented();
-    }
-    onToken(text);
+    present(queue.splice(0, itemCount).join(''));
 
     if (queue.length > 0) schedule();
-    else {
-      terminalDeadline = null;
-      resolveDrains();
-    }
+    else finishDrain();
   }
 
   return {
@@ -84,7 +106,7 @@ export function createChatTokenPresentation({
     },
 
     replaceProgress(labels) {
-      if (receivedToken || presentedToken) return;
+      if (presentedToken) return;
       clearProgressTimer();
       if (!labels?.length) {
         onProgressChange(null);
@@ -102,7 +124,12 @@ export function createChatTokenPresentation({
 
     drain() {
       if (queue.length === 0) return Promise.resolve();
-      terminalDeadline = now() + TERMINAL_DRAIN_MS;
+      if (terminalDeadline === null) {
+        terminalDeadline = now() + TERMINAL_DRAIN_MS;
+        // RAF can be paused in a background tab. The wall-clock fallback keeps
+        // terminal UI bounded while preserving FIFO order for every queued byte.
+        drainTimerId = setTimeoutFn(flushQueue, TERMINAL_DRAIN_MS);
+      }
       schedule();
       return new Promise((resolve) => drainResolvers.push(resolve));
     },
@@ -113,7 +140,9 @@ export function createChatTokenPresentation({
       queue = [];
       receivedToken = false;
       presentedToken = false;
+      presentedText = '';
       terminalDeadline = null;
+      clearDrainTimer();
       clearProgress();
       resolveDrains();
     },

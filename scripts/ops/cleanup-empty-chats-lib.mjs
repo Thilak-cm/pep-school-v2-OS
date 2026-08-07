@@ -52,17 +52,72 @@ export async function inspectChat(chatDoc) {
     ref: turn.ref,
     subcollectionNames: (await turn.ref.listCollections()).map((collection) => collection.id),
   })));
+  const subcollectionNames = subcollections.map((collection) => collection.id);
   const classification = classifyEmptyChat({
     messageCount: messages.size,
     turns: turnDocs,
-    subcollectionNames: subcollections.map((collection) => collection.id),
+    subcollectionNames,
   });
-  return { chatDoc, turnDocs, classification };
+  return { chatDoc, turnDocs, subcollectionNames, classification };
 }
 
-export async function deleteEmptyChat({ chatRef, terminalTurns }) {
-  // Firestore does not cascade parent deletes. Delete only the terminal turns
-  // we inspected, then the empty parent; unknown subcollections never reach here.
-  for (const turn of terminalTurns) await turn.ref.delete();
-  await chatRef.delete();
+function sameIds(left, right) {
+  return [...left].sort().join("\n") === [...right].sort().join("\n");
+}
+
+/**
+ * Revalidates documents and performs all deletes in one Firestore transaction.
+ * The preceding structural inspection protects unknown/nested collections;
+ * transactional queries then prevent message inserts or turn changes from
+ * racing the destructive writes.
+ */
+export async function deleteEmptyChatSafely({ db, chatRef, expectedTerminalTurnIds }) {
+  const currentSnapshot = await chatRef.get();
+  if (!currentSnapshot.exists) return { deleted: false, reason: "chat no longer exists" };
+
+  const preflight = await inspectChat(currentSnapshot);
+  if (preflight.classification.action !== "delete") {
+    return { deleted: false, reason: `changed since scan: ${preflight.classification.reason}` };
+  }
+
+  const preflightTurnIds = preflight.turnDocs.map((turn) => turn.id);
+  if (!sameIds(preflightTurnIds, expectedTerminalTurnIds)) {
+    return { deleted: false, reason: "changed since scan: terminal turn IDs changed" };
+  }
+
+  return db.runTransaction(async (transaction) => {
+    const [chatSnapshot, messages, turns] = await Promise.all([
+      transaction.get(chatRef),
+      transaction.get(chatRef.collection("messages").limit(1)),
+      transaction.get(chatRef.collection("turns")),
+    ]);
+    if (!chatSnapshot.exists) return { deleted: false, reason: "chat no longer exists" };
+
+    const transactionTurnIds = turns.docs.map((turn) => turn.id);
+    if (!sameIds(transactionTurnIds, expectedTerminalTurnIds)) {
+      return { deleted: false, reason: "changed since scan: terminal turn IDs changed" };
+    }
+
+    const preflightTurns = new Map(preflight.turnDocs.map((turn) => [turn.id, turn]));
+    const turnDocs = turns.docs.map((turn) => ({
+      id: turn.id,
+      status: turn.data()?.status,
+      ref: turn.ref,
+      subcollectionNames: preflightTurns.get(turn.id)?.subcollectionNames || [],
+    }));
+    const classification = classifyEmptyChat({
+      messageCount: messages.size,
+      turns: turnDocs,
+      subcollectionNames: preflight.subcollectionNames,
+    });
+    if (classification.action !== "delete") {
+      return { deleted: false, reason: `changed since scan: ${classification.reason}` };
+    }
+
+    // Firestore does not cascade parent deletes. Every known child delete and
+    // the parent delete commit atomically with the reads above.
+    for (const turn of turnDocs) transaction.delete(turn.ref);
+    transaction.delete(chatRef);
+    return { deleted: true };
+  });
 }
