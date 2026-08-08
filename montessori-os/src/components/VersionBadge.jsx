@@ -1,6 +1,9 @@
 import React from 'react';
 import { Box, Typography } from '@mui/material';
 import { isAdminRole } from '../utils/roleUtils';
+import packageJson from '../../package.json' with { type: 'json' };
+
+const APP_VERSION = `v${packageJson.version}`;
 
 /**
  * A version badge that can be displayed either:
@@ -48,7 +51,7 @@ const VersionBadge = ({ userRole, showInProfile = false }) => {
             fontSize: '1.1rem'
           }}
         >
-          v12.2.2
+          {APP_VERSION}
         </Typography>
       </Box>
     );
@@ -88,7 +91,7 @@ const VersionBadge = ({ userRole, showInProfile = false }) => {
           fontSize: 'inherit'
         }}
       >
-        v12.2.2
+        {APP_VERSION}
       </Typography>
     </Box>
   );
