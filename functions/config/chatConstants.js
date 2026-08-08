@@ -8,7 +8,7 @@ export const CHAT_MODEL_INFO = {
   max_tokens: 2000
 };
 
-export const DEFAULT_CHAT_MESSAGE_LIMIT = 6;
+export const DEFAULT_CHAT_MESSAGE_LIMIT = 30;
 export const DEFAULT_OBSERVATION_LIMIT = 20;
 
 // System prompt for the Montessori-aware assistant
