@@ -27,6 +27,8 @@ test('typed auth failure force-refreshes once with stable turn IDs and a new run
     clientTurnId: 'client-turn-1',
     mark: (name) => telemetryCalls.push(name),
     addRunId: (runId, options) => telemetryCalls.push({ runId, options }),
+    finishAttempt: (outcome, category) => telemetryCalls.push({ outcome, category }),
+    markTerminalFromAttempt: () => telemetryCalls.push('logicalTerminal'),
   };
 
   const outcome = await runAuthenticatedChatTurn({
@@ -60,9 +62,12 @@ test('typed auth failure force-refreshes once with stable turn IDs and a new run
   assert.equal(payloads[1].clientTurnId, 'client-turn-1');
   assert.deepEqual(telemetryCalls.filter((value) => typeof value === 'object'), [
     { runId: 'run-1', options: undefined },
+    { outcome: 'failed', category: 'auth/unauthenticated' },
     { runId: 'run-2', options: { authRetry: true } },
+    { outcome: 'completed', category: undefined },
   ]);
   assert.equal(telemetryCalls.filter((value) => value === 'tokenReady').length, 2);
+  assert.equal(telemetryCalls.filter((value) => value === 'logicalTerminal').length, 1);
 });
 
 test('auth retry stays failed after one force refresh and exposes a friendly error', async () => {

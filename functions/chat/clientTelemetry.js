@@ -46,12 +46,17 @@ export async function handleChatClientTelemetry({ req, res, verifyIdToken, logge
     return;
   }
 
+  const acknowledgedAt = new Date().toISOString();
   logger.info("[chat-latency] client summary", {
     eventName: "chat_client_latency",
-    receivedAt: new Date().toISOString(),
+    receivedAt: acknowledgedAt,
     ...payload,
+    delivery: {
+      attemptedOffsetMs: payload.milestones.telemetryAttempted ?? null,
+      acknowledgedAt,
+    },
   });
-  res.status(202).json({ accepted: true, eventId: payload.eventId });
+  res.status(202).json({ accepted: true, eventId: payload.eventId, acknowledgedAt });
 }
 
 export const chatClientTelemetry = functions

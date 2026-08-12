@@ -69,11 +69,23 @@ export async function runAuthenticatedChatTurn({
         },
         telemetry,
       });
+      telemetry?.finishAttempt?.(result.status === 'complete' ? 'completed' : result.status);
+      telemetry?.markTerminalFromAttempt?.();
       return { result, ids: attemptIds };
     } catch (error) {
-      if (signal.aborted) throw error;
+      telemetry?.finishAttempt?.(
+        signal.aborted ? 'aborted' : (error?.status === 'interrupted' ? 'interrupted' : 'failed'),
+        signal.aborted ? 'client/aborted' : error?.code || 'chat/client-error',
+      );
+      if (signal.aborted) {
+        telemetry?.markTerminalFromAttempt?.();
+        throw error;
+      }
       const canRefreshAuth = attempt === 0 && !receivedToken && isTypedAuthError(error);
-      if (!canRefreshAuth) throw error;
+      if (!canRefreshAuth) {
+        telemetry?.markTerminalFromAttempt?.();
+        throw error;
+      }
 
       attemptIds = { ...attemptIds, runId: createRunId() };
       onRunChange(attemptIds, { retryingAuth: true });

@@ -1,4 +1,8 @@
 import { performance } from "node:perf_hooks";
+import {
+  validateOpaqueTelemetryId,
+  validateTelemetryErrorCategory,
+} from "../config/chatTelemetry.js";
 
 const SAFE_DIMENSION_KEYS = new Set([
   "model", "provider", "httpStatus", "errorCategory", "functionRegion",
@@ -8,9 +12,10 @@ const SAFE_DIMENSION_KEYS = new Set([
   "historyFetched", "historyIncluded", "historyChars", "observationsFetched",
   "observationsIncluded", "observationsDiscarded", "observationChars",
   "observationTruncationReason", "cacheStatus", "cacheAgeMs", "requestBytes",
-  "responseBytes", "clientDisconnected", "clientTurnIdPresent", "programId",
+  "providerResponseBytes", "sseResponseBytes", "clientDisconnected",
+  "clientTurnIdPresent", "programId",
   "finishReason", "resultSizeBytes", "streamedChars", "iteration", "layer",
-  "toolName", "count",
+  "toolName", "count", "latencySpanFailureCount", "requestKind",
 ]);
 
 function cleanValue(value) {
@@ -38,10 +43,16 @@ function round(value) {
   return Math.round(Math.max(0, value) * 1000) / 1000;
 }
 
+export function jsonUtf8ByteLength(value) {
+  return Buffer.byteLength(JSON.stringify(value), "utf8");
+}
+
 export class ChatLatencyRecorder {
   constructor({ runId = null, clientTurnId = null, coldInstance = false, now = () => performance.now(), wallNow = () => Date.now() } = {}) {
-    this.runId = runId;
-    this.clientTurnId = clientTurnId;
+    this.runId = runId == null ? null : validateOpaqueTelemetryId(runId, "runId");
+    this.clientTurnId = clientTurnId == null
+      ? null
+      : validateOpaqueTelemetryId(clientTurnId, "clientTurnId");
     this.now = now;
     this.startedAt = now();
     this.startedWallMs = wallNow();
@@ -68,13 +79,25 @@ export class ChatLatencyRecorder {
       let suffix = 2;
       while (this.stages[key]) key = `${baseName}_${suffix++}`;
       const metadata = safeTelemetryDimensions({ ...initialMetadata, ...endMetadata });
+      const startOffsetMs = round(start - this.startedAt);
+      const endOffsetMs = round(end - this.startedAt);
       const stage = {
         name: key,
-        startOffsetMs: round(start - this.startedAt),
+        startOffsetMs,
+        endOffsetMs,
+        startedAt: new Date(this.startedWallMs + startOffsetMs).toISOString(),
+        endedAt: new Date(this.startedWallMs + endOffsetMs).toISOString(),
         durationMs: round(end - start),
         metadata,
       };
-      this.stages[key] = { durationMs: stage.durationMs, ...metadata };
+      this.stages[key] = {
+        startOffsetMs: stage.startOffsetMs,
+        endOffsetMs: stage.endOffsetMs,
+        startedAt: stage.startedAt,
+        endedAt: stage.endedAt,
+        durationMs: stage.durationMs,
+        ...metadata,
+      };
       this.stageList.push(stage);
       if (this.trace) this.writeSpan(stage);
     };
@@ -89,24 +112,47 @@ export class ChatLatencyRecorder {
     }
   }
 
-  mark(name) {
-    if (this.milestones[name]) return;
-    this.milestones[name] = { offsetMs: round(this.now() - this.startedAt) };
+  mark(name, { repeat = false, ...metadata } = {}) {
+    const baseName = String(name || "unknown").replace(/[^a-zA-Z0-9_-]/g, "_");
+    if (!repeat && this.milestones[baseName]) return;
+    let key = baseName;
+    let suffix = 2;
+    while (this.milestones[key]) key = `${baseName}_${suffix++}`;
+    this.milestones[key] = {
+      offsetMs: round(this.now() - this.startedAt),
+      ...safeTelemetryDimensions(metadata),
+    };
   }
 
   setDimensions(values) {
     Object.assign(this.dimensions, safeTelemetryDimensions(values));
   }
 
+  incrementDimensions(values) {
+    const safeValues = safeTelemetryDimensions(values);
+    for (const [key, value] of Object.entries(safeValues)) {
+      if (typeof value !== "number") continue;
+      this.dimensions[key] = (Number(this.dimensions[key]) || 0) + value;
+    }
+  }
+
   setCorrelation({ runId, clientTurnId } = {}) {
-    if (runId) this.runId = String(runId).slice(0, 128);
-    if (clientTurnId) this.clientTurnId = String(clientTurnId).slice(0, 128);
+    if (runId) this.runId = validateOpaqueTelemetryId(runId, "runId");
+    if (clientTurnId) {
+      this.clientTurnId = validateOpaqueTelemetryId(clientTurnId, "clientTurnId");
+    }
     this.dimensions.clientTurnIdPresent = Boolean(this.clientTurnId);
   }
 
   setOutcome(outcome, errorCategory = null) {
     this.outcome = outcome || "failed";
-    if (errorCategory) this.dimensions.errorCategory = String(errorCategory).slice(0, 256);
+    delete this.dimensions.errorCategory;
+    if (this.outcome === "completed") return;
+    try {
+      this.dimensions.errorCategory = validateTelemetryErrorCategory(errorCategory);
+    } catch {
+      this.dimensions.errorCategory = "chat/internal-error";
+    }
   }
 
   attachTrace(trace) {
@@ -118,22 +164,43 @@ export class ChatLatencyRecorder {
   writeSpan(stage) {
     const startTime = new Date(this.startedWallMs + stage.startOffsetMs);
     const endTime = new Date(startTime.getTime() + stage.durationMs);
-    const span = this.trace?.span({
-      name: `latency-${stage.name.replaceAll("_", "-")}`,
-      startTime,
-      metadata: stage.metadata,
-    });
-    span?.end?.({ endTime });
-    this.spanCount += 1;
+    let span;
+    try {
+      span = this.trace?.span({
+        name: `latency-${stage.name.replaceAll("_", "-")}`,
+        startTime,
+        metadata: stage.metadata,
+      });
+    } catch {
+      this.noteSpanFailure();
+      return;
+    }
+    if (typeof span?.end !== "function") {
+      this.noteSpanFailure();
+      return;
+    }
+    try {
+      span.end({ endTime });
+      this.spanCount += 1;
+    } catch {
+      this.noteSpanFailure();
+    }
+  }
+
+  noteSpanFailure() {
+    this.dimensions.latencySpanFailureCount =
+      (this.dimensions.latencySpanFailureCount || 0) + 1;
   }
 
   snapshot() {
+    const endedWallMs = this.wallNow();
     return {
       eventName: "chat_server_latency",
       schemaVersion: 1,
       runId: this.runId,
       clientTurnId: this.clientTurnId,
       startedAt: new Date(this.startedWallMs).toISOString(),
+      endedAt: new Date(endedWallMs).toISOString(),
       totalDurationMs: round(this.now() - this.startedAt),
       stages: structuredClone(this.stages),
       milestones: structuredClone(this.milestones),

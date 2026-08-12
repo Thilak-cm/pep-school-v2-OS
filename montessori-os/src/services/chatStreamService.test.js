@@ -13,6 +13,12 @@ test('createChatIds returns stable identifiers for a turn', () => {
   });
 });
 
+test('createChatIds generates canonical opaque UUIDs by default', () => {
+  const ids = createChatIds();
+  const uuidPattern = /^[0-9a-f]{8}-[0-9a-f]{4}-4[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/;
+  Object.values(ids).forEach((value) => assert.match(value, uuidPattern));
+});
+
 test('createChatTurnPayload keeps selected chat id over generated chat id', () => {
   const payload = createChatTurnPayload({
     studentId: 'student-1',

@@ -1,5 +1,13 @@
 # Changelog
 
+# 12.3.0 — 2026-08-12
+
+### Added
+- End-to-end Coach Pepper chat latency telemetry with correlated client/server attempts, genuine first-paint timing, privacy-safe structured stages, reliable delivery retries, and benchmark analysis primitives (#234).
+
+### Changed
+- Coach Pepper fallback and seeded history defaults now retain 30 recent messages, and the displayed PWA version derives from package metadata (#234).
+
 # 12.2.2 — 2026-08-06
 
 ### Changed

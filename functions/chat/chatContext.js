@@ -62,20 +62,29 @@ export async function loadObservationContext({ db, studentId, limit, telemetry }
   } finally {
     endQuery(snap ? { observationsFetched: snap.docs.length } : {});
   }
-  const observations = snap.docs.map((doc) => {
-    const data = doc.data() || {};
-    return {
-      id: doc.id,
-      type: data.type || "text",
-      text: data.text || data.description || "",
-      observedAt: data.observedAt || data.createdAt || null,
-    };
-  });
-  const serialized = JSON.stringify(observations);
-  const result = trimContext(serialized, MAX_CONTEXT_CHARS);
-  const observationsIncluded = serialized.length <= MAX_CONTEXT_CHARS
-    ? observations.length
-    : countFullySerializedItems(observations, MAX_CONTEXT_CHARS);
+  const endSerialization = telemetry?.startStage?.("observation_serialization") || (() => {});
+  let observations;
+  let serialized;
+  let result;
+  let observationsIncluded;
+  try {
+    observations = snap.docs.map((doc) => {
+      const data = doc.data() || {};
+      return {
+        id: doc.id,
+        type: data.type || "text",
+        text: data.text || data.description || "",
+        observedAt: data.observedAt || data.createdAt || null,
+      };
+    });
+    serialized = JSON.stringify(observations);
+    result = trimContext(serialized, MAX_CONTEXT_CHARS);
+    observationsIncluded = serialized.length <= MAX_CONTEXT_CHARS
+      ? observations.length
+      : countFullySerializedItems(observations, MAX_CONTEXT_CHARS);
+  } finally {
+    endSerialization();
+  }
   telemetry?.setDimensions?.({
     observationsFetched: observations.length,
     observationsIncluded,

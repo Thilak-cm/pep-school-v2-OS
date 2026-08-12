@@ -3,6 +3,16 @@ export function encodeSseEvent(event, data) {
   return `event: ${event}\ndata: ${payload}\n\n`;
 }
 
+export function writeSseEvent(res, event, data, telemetry) {
+  if (res.writableEnded) return false;
+  const encoded = encodeSseEvent(event, data);
+  res.write(encoded);
+  telemetry?.incrementDimensions?.({
+    sseResponseBytes: new TextEncoder().encode(encoded).byteLength,
+  });
+  return true;
+}
+
 export function consumeSseChunk(buffer, chunk) {
   const source = `${buffer || ""}${chunk || ""}`;
   const events = [];

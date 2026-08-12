@@ -3,11 +3,21 @@ import {
   CHAT_CLIENT_QUEUE_LIMIT,
   CHAT_CLIENT_QUEUE_MAX_AGE_MS,
   CHAT_TELEMETRY_SCHEMA_VERSION,
+  validateTelemetryErrorCategory,
 } from '../../../functions/config/chatTelemetry.js';
 
 const QUEUE_KEY = 'pep.chatLatency.v1';
 const APP_VERSION = packageJson.version;
+const MAX_MILESTONE_OFFSET_MS = 86_400_000;
 const deliveriesInFlight = new Set();
+const liveTelemetryByEventId = new Map();
+const PROGRAM_IDS = new Set(['toddler', 'primary', 'elementary', 'adolescent', 'unknown']);
+const VISIBILITY_STATES = new Set(['visible', 'hidden', 'prerender', 'unknown']);
+const NETWORK_EFFECTIVE_TYPES = new Set(['slow-2g', '2g', '3g', '4g']);
+
+function normalizedEnum(value, allowed, fallback = 'unknown') {
+  return allowed.has(value) ? value : fallback;
+}
 
 function claimDelivery(eventId) {
   if (!eventId || deliveriesInFlight.has(eventId)) return false;
@@ -20,16 +30,25 @@ function releaseDelivery(eventId) {
 }
 
 function defaultId() {
-  return globalThis.crypto?.randomUUID?.() || `${Date.now()}-${Math.random().toString(36).slice(2)}`;
+  if (globalThis.crypto?.randomUUID) return globalThis.crypto.randomUUID();
+  // Correlation IDs are canonical UUIDs even in older test/webview runtimes
+  // without crypto.randomUUID. They are identifiers, not authentication tokens.
+  return 'xxxxxxxx-xxxx-4xxx-yxxx-xxxxxxxxxxxx'.replace(/[xy]/g, (character) => {
+    const random = Math.floor(Math.random() * 16);
+    const value = character === 'x' ? random : (random & 0x3) | 0x8;
+    return value.toString(16);
+  });
 }
 
 function browserDimensions(navigatorObject, documentObject) {
   const connection = navigatorObject?.connection;
   return {
     appVersion: APP_VERSION,
-    visibilityAtSend: documentObject?.visibilityState || 'unknown',
+    visibilityAtSend: normalizedEnum(documentObject?.visibilityState, VISIBILITY_STATES),
     onlineAtSend: navigatorObject?.onLine ?? true,
-    ...(connection?.effectiveType ? { networkEffectiveType: connection.effectiveType } : {}),
+    ...(connection?.effectiveType
+      ? { networkEffectiveType: normalizedEnum(connection.effectiveType, NETWORK_EFFECTIVE_TYPES) }
+      : {}),
     ...(Number.isFinite(connection?.rtt) ? { networkRtt: connection.rtt } : {}),
     ...(Number.isFinite(connection?.downlink) ? { networkDownlink: connection.downlink } : {}),
     ...(typeof connection?.saveData === 'boolean' ? { networkSaveData: connection.saveData } : {}),
@@ -76,11 +95,62 @@ function removeFromQueue(storage, eventId, wallNow) {
   writeTelemetryQueue(storage, next);
 }
 
+async function isAcceptedTelemetryResponse(response, eventId) {
+  if (response?.status !== 202) return false;
+  try {
+    const payload = await response.json();
+    return payload?.accepted === true && payload.eventId === eventId;
+  } catch {
+    return false;
+  }
+}
+
+function finalizePendingRecord(stored) {
+  if (stored.errorCategory !== 'client/pending') return stored;
+  const offsets = [
+    ...Object.values(stored.milestones || {}),
+    ...(stored.attempts || []).flatMap((attempt) => [
+      attempt.started,
+      attempt.tokenReady,
+      attempt.requestStarted,
+      attempt.responseHeaders,
+      attempt.terminalEvent,
+    ]),
+  ].filter(Number.isFinite);
+  const terminalEvent = Math.max(0, ...offsets);
+  const attempts = (stored.attempts || []).map((attempt) => attempt.outcome ? attempt : {
+    ...attempt,
+    terminalEvent,
+    outcome: 'interrupted',
+    errorCategory: 'client/session-ended',
+  });
+  return {
+    ...stored,
+    attempts,
+    milestones: { ...stored.milestones, terminalEvent },
+    outcome: 'interrupted',
+    errorCategory: 'client/session-ended',
+  };
+}
+
+function recordFlushAttempt(stored, wallNow) {
+  const record = finalizePendingRecord(stored);
+  if (record.milestones?.telemetryAttempted != null) return record;
+  const elapsed = Number.isFinite(record.createdAtMs)
+    ? Math.max(0, Math.min(MAX_MILESTONE_OFFSET_MS, wallNow() - record.createdAtMs))
+    : 0;
+  return {
+    ...record,
+    milestones: { ...record.milestones, telemetryAttempted: elapsed },
+  };
+}
+
 export function normalizeTelemetryErrorCategory(errorCategory, outcome) {
   if (outcome === 'completed') return null;
-  if (typeof errorCategory === 'string') {
-    const normalized = errorCategory.trim();
-    if (normalized && normalized.length <= 128) return normalized;
+  try {
+    return validateTelemetryErrorCategory(errorCategory);
+  } catch {
+    // Fall through to a stable client category accepted by the server schema.
   }
   return 'client/unknown-error';
 }
@@ -112,6 +182,11 @@ export class ChatTurnTelemetry {
     this.clientTurnId = idFactory();
     this.finished = false;
     this.acknowledged = false;
+    this.firstVisibleExpected = false;
+    this.firstVisibleWaitComplete = false;
+    this.firstVisibleFallback = null;
+    this.clearFirstVisibleFallback = null;
+    this.firstVisibleWaiters = [];
     this.record = {
       schemaVersion: CHAT_TELEMETRY_SCHEMA_VERSION,
       eventId: this.eventId,
@@ -120,28 +195,37 @@ export class ChatTurnTelemetry {
       attempts: [],
       finalRunId: null,
       milestones: { send: 0 },
-      dimensions: { ...browserDimensions(navigatorObject, documentObject), appVersion, programId },
+      dimensions: {
+        ...browserDimensions(navigatorObject, documentObject),
+        appVersion,
+        programId: normalizedEnum(programId, PROGRAM_IDS),
+      },
       outcome: 'interrupted',
       errorCategory: 'client/pending',
       createdAtMs: wallNow(),
     };
+    liveTelemetryByEventId.set(this.eventId, this);
     const durable = this.persist();
     this.record.dimensions.durableQueueAvailable = durable;
-    this.mark('pendingPersisted');
+    if (durable) this.mark('pendingPersisted');
   }
 
   persist() {
+    // Once the endpoint acknowledges this event it must never be placed back
+    // into the durable queue by a late paint or cleanup callback.
+    if (this.acknowledged) return true;
     return upsertQueue(this.storage, this.record, this.wallNow);
   }
 
-  mark(name) {
+  mark(name, { persist = true } = {}) {
+    const elapsed = Math.max(0, this.now() - this.startedAt);
     if (["tokenReady", "requestStarted", "responseHeaders"].includes(name)) {
       const attempt = this.record.attempts.at(-1);
-      if (attempt && !(name in attempt)) attempt[name] = Math.max(0, this.now() - this.startedAt);
+      if (attempt && !(name in attempt)) attempt[name] = elapsed;
     }
     if (!(name in this.record.milestones)) {
-      this.record.milestones[name] = Math.max(0, this.now() - this.startedAt);
-      this.persist();
+      this.record.milestones[name] = elapsed;
+      if (persist) this.persist();
     }
   }
 
@@ -153,10 +237,26 @@ export class ChatTurnTelemetry {
         authRetry,
         started: Math.max(0, this.now() - this.startedAt),
       });
+      if (authRetry) this.record.dimensions.authRetryCount += 1;
     }
     this.record.finalRunId = runId || this.record.finalRunId;
     this.record.dimensions.requestAttemptCount = this.record.attemptRunIds.length;
-    if (authRetry) this.record.dimensions.authRetryCount += 1;
+    this.persist();
+  }
+
+  finishAttempt(outcome, errorCategory = null) {
+    const attempt = this.record.attempts.at(-1);
+    if (!attempt || attempt.outcome) return;
+    attempt.terminalEvent = Math.max(0, this.now() - this.startedAt);
+    attempt.outcome = outcome === 'complete' ? 'completed' : outcome;
+    attempt.errorCategory = normalizeTelemetryErrorCategory(errorCategory, attempt.outcome);
+    this.persist();
+  }
+
+  markTerminalFromAttempt() {
+    const terminalEvent = this.record.attempts.at(-1)?.terminalEvent;
+    if (terminalEvent == null || this.record.milestones.terminalEvent != null) return;
+    this.record.milestones.terminalEvent = terminalEvent;
     this.persist();
   }
 
@@ -174,14 +274,66 @@ export class ChatTurnTelemetry {
 
   recordSseEvent(event) {
     this.record.dimensions.sseEventCount += 1;
-    this.mark('firstSseEvent');
-    if (event?.event === 'token') this.mark('firstTextToken');
-    if (event?.event === 'complete' || event?.event === 'error') this.mark('terminalEvent');
+    // Streaming callbacks run before token forwarding. Keep these milestones
+    // in memory so synchronous localStorage writes cannot delay presentation.
+    this.mark('firstSseEvent', { persist: false });
+    if (event?.event === 'token') this.mark('firstTextToken', { persist: false });
+    if (event?.event === 'complete') this.finishAttempt(event.data?.status || 'completed');
+    if (event?.event === 'error') {
+      this.finishAttempt(
+        event.data?.status === 'interrupted' ? 'interrupted' : 'failed',
+        event.data?.code || 'chat/server-error',
+      );
+    }
   }
 
   markFirstVisible() {
+    if (this.record.dimensions.firstVisibleReached) return;
     this.record.dimensions.firstVisibleReached = true;
     this.mark('firstVisibleToken');
+    this.releaseFirstVisibleWait();
+  }
+
+  releaseFirstVisibleWait() {
+    if (this.firstVisibleFallback != null) {
+      this.clearFirstVisibleFallback?.(this.firstVisibleFallback);
+      this.firstVisibleFallback = null;
+    }
+    this.clearFirstVisibleFallback = null;
+    this.firstVisibleWaitComplete = true;
+    this.firstVisibleWaiters.splice(0).forEach((resolve) => resolve());
+  }
+
+  expectFirstVisible({
+    fallbackMs = 1000,
+    setTimeoutFn = globalThis.setTimeout,
+    clearTimeoutFn = globalThis.clearTimeout,
+  } = {}) {
+    if (this.record.dimensions.firstVisibleReached) return;
+    this.firstVisibleExpected = true;
+    if (this.documentObject?.visibilityState === 'hidden' || typeof setTimeoutFn !== 'function') {
+      // Hidden documents and missing/stalled frame schedulers cannot prove a
+      // paint. Release best-effort delivery without fabricating the primary
+      // first-visible measurement.
+      this.releaseFirstVisibleWait();
+      return;
+    }
+    if (this.firstVisibleFallback == null) {
+      this.clearFirstVisibleFallback = clearTimeoutFn;
+      this.firstVisibleFallback = setTimeoutFn(() => {
+        this.firstVisibleFallback = null;
+        this.clearFirstVisibleFallback = null;
+        this.releaseFirstVisibleWait();
+      }, fallbackMs);
+    }
+  }
+
+  waitForFirstVisible() {
+    if (!this.firstVisibleExpected || this.record.dimensions.firstVisibleReached
+      || this.firstVisibleWaitComplete) {
+      return Promise.resolve();
+    }
+    return new Promise((resolve) => this.firstVisibleWaiters.push(resolve));
   }
 
   finish(outcome, errorCategory = null) {
@@ -189,9 +341,13 @@ export class ChatTurnTelemetry {
     this.finished = true;
     this.record.outcome = outcome;
     this.record.errorCategory = normalizeTelemetryErrorCategory(errorCategory, outcome);
-    this.record.dimensions.visibilityAtTerminal = this.documentObject?.visibilityState || 'unknown';
+    this.record.dimensions.visibilityAtTerminal = normalizedEnum(
+      this.documentObject?.visibilityState,
+      VISIBILITY_STATES,
+    );
     this.record.dimensions.onlineAtTerminal = this.navigatorObject?.onLine ?? true;
-    this.mark('terminalEvent');
+    this.finishAttempt(outcome, this.record.errorCategory);
+    this.mark('terminalEvent', { persist: false });
     this.persist();
   }
 
@@ -200,6 +356,7 @@ export class ChatTurnTelemetry {
     if (!this.endpoint || typeof this.fetchImpl !== 'function') return false;
     if (!claimDelivery(this.eventId)) return false;
     try {
+      await this.waitForFirstVisible();
       this.mark('telemetryAttempted');
       const token = await this.getToken();
       if (!token) return false;
@@ -209,10 +366,13 @@ export class ChatTurnTelemetry {
         body: JSON.stringify(this.record),
         keepalive: true,
       });
-      if (!response.ok) return false;
+      if (!await isAcceptedTelemetryResponse(response, this.eventId)) return false;
+      this.acknowledged = true;
+      if (liveTelemetryByEventId.get(this.eventId) === this) {
+        liveTelemetryByEventId.delete(this.eventId);
+      }
       this.mark('telemetryAcknowledged');
       removeFromQueue(this.storage, this.eventId, this.wallNow);
-      this.acknowledged = true;
       return true;
     } catch {
       return false;
@@ -234,11 +394,21 @@ export async function flushPendingChatTelemetry({
   if (!endpoint || typeof fetchImpl !== 'function') return 0;
   let delivered = 0;
   for (const stored of queue) {
+    const liveTelemetry = liveTelemetryByEventId.get(stored.eventId);
+    if (liveTelemetry) {
+      // A queued client/pending record can belong to a turn that is still
+      // streaming in this page. Only records without a live owner are orphaned
+      // sessions; finished live turns retain their terminal state and use the
+      // instance delivery path so later milestones cannot be overwritten.
+      if (liveTelemetry.finished && await liveTelemetry.deliver()) delivered += 1;
+      continue;
+    }
     if (!claimDelivery(stored.eventId)) continue;
     try {
-      const record = stored.errorCategory === 'client/pending'
-        ? { ...stored, outcome: 'interrupted', errorCategory: 'client/session-ended' }
-        : stored;
+      const record = recordFlushAttempt(stored, wallNow);
+      // Persist before auth/fetch so an offline or signed-out flush still
+      // records that delivery was attempted without losing the event.
+      upsertQueue(storage, record, wallNow);
       const token = await getToken();
       if (!token) continue;
       const response = await fetchImpl(endpoint, {
@@ -247,13 +417,9 @@ export async function flushPendingChatTelemetry({
         body: JSON.stringify(record),
         keepalive: true,
       });
-      if (response.ok) {
+      if (await isAcceptedTelemetryResponse(response, record.eventId)) {
         removeFromQueue(storage, record.eventId, wallNow);
         delivered += 1;
-      } else if (response.status === 400) {
-        // A schema-invalid payload cannot become valid on retry. Remove only
-        // that record so one poisoned event does not retry on every chat open.
-        removeFromQueue(storage, record.eventId, wallNow);
       }
     } catch {
       // Telemetry is deliberately best-effort from the teacher's perspective;
@@ -270,8 +436,11 @@ export function markAfterVisiblePaint(
   requestFrame = globalThis.requestAnimationFrame,
   cancelFrame = globalThis.cancelAnimationFrame,
 ) {
+  telemetry?.expectFirstVisible?.();
+  if (telemetry?.documentObject?.visibilityState === 'hidden') {
+    return () => {};
+  }
   if (typeof requestFrame !== 'function') {
-    telemetry?.markFirstVisible?.();
     return () => {};
   }
   let secondFrame = null;

@@ -143,8 +143,9 @@ test("streamOpenRouterTurn records provider headers, first event, reasoning, and
       stages.push(name);
       return () => {};
     },
-    mark: (name) => milestones.push(name),
+    mark: (name, metadata) => milestones.push({ name, metadata }),
     setDimensions: (value) => dimensions.push(value),
+    incrementDimensions: (value) => dimensions.push(value),
   };
 
   await streamOpenRouterTurn({
@@ -161,7 +162,9 @@ test("streamOpenRouterTurn records provider headers, first event, reasoning, and
   });
 
   assert.ok(stages.includes("openrouter_request_headers"));
-  assert.deepEqual(milestones, ["first_provider_event", "first_reasoning_event", "first_text_token"]);
+  assert.deepEqual(milestones.map(({ name }) => name), [
+    "first_provider_event", "first_reasoning_event", "first_text_token",
+  ]);
   assert.equal(dimensions.some((value) => value.inputTokens === 120
     && value.outputTokens === 30
     && value.reasoningTokens === 8
