@@ -651,18 +651,20 @@ export const TOOL_DEFINITIONS = [
       properties: {
         startTime: { type: "string" }, endTime: { type: "string" }, lookbackMinutes: { type: "number" },
         pageSize: { type: "number" }, pageToken: { type: "string" }, eventTypes: { type: "array", items: { enum: ["client", "server", "preflight"] } },
+        outcomes: { type: "array", items: { type: "string" } }, clientTurnIds: { type: "array", items: { type: "string" } }, runIds: { type: "array", items: { type: "string" } },
+        programId: { type: "string" }, configKey: { type: "string" }, model: { type: "string" }, functionRegion: { type: "string" }, coldInstance: { type: "boolean" },
       },
     },
   },
   {
     name: "get_chat_latency_correlation",
     description: "Correlate Coach Pepper latency client turns to server attempts by clientTurnId and runId, retaining retries and unmatched records.",
-    inputSchema: { type: "object", properties: { startTime: { type: "string" }, endTime: { type: "string" }, lookbackMinutes: { type: "number" }, pageSize: { type: "number" }, pageToken: { type: "string" } } },
+    inputSchema: { type: "object", properties: { clientTurnId: { type: "string" }, runId: { type: "string" }, startTime: { type: "string" }, endTime: { type: "string" }, lookbackMinutes: { type: "number" }, pageSize: { type: "number" }, pageToken: { type: "string" } } },
   },
   {
     name: "check_chat_latency_coverage",
     description: "Check Coach Pepper latency telemetry coverage for duplicates, missing run IDs, orphan server events, missing client turns, and CORS preflights.",
-    inputSchema: { type: "object", properties: { startTime: { type: "string" }, endTime: { type: "string" }, lookbackMinutes: { type: "number" }, pageSize: { type: "number" }, pageToken: { type: "string" } } },
+    inputSchema: { type: "object", properties: { startTime: { type: "string" }, endTime: { type: "string" }, lookbackMinutes: { type: "number" }, pageSize: { type: "number" }, pageToken: { type: "string" }, eventTypes: { type: "array", items: { enum: ["client", "server", "preflight"] } }, outcomes: { type: "array", items: { type: "string" } }, clientTurnIds: { type: "array", items: { type: "string" } }, runIds: { type: "array", items: { type: "string" } }, programId: { type: "string" }, configKey: { type: "string" }, model: { type: "string" }, functionRegion: { type: "string" }, coldInstance: { type: "boolean" } } },
   },
   {
     name: "get_chat_latency_schema",

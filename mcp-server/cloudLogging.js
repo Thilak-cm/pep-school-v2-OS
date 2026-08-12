@@ -29,14 +29,26 @@ const DIMENSION_FIELDS = [
 const SAFE_ROOT_FIELDS = [
   "eventId", "timestamp", "eventName", "schemaVersion", "runId", "clientTurnId",
   "startedAt", "endedAt", "outcome", "finishReason", "stages", "milestones",
-  "dimensions", "attemptRunIds", "finalRunId",
+  "dimensions", "attemptRunIds", "attempts", "finalRunId",
 ];
 
 const SAFE_NESTED_FIELDS = {
-  stages: null,
-  milestones: null,
   dimensions: new Set(DIMENSION_FIELDS),
 };
+const STAGE_FIELDS = new Set([
+  "startOffsetMs", "endOffsetMs", "startedAt", "endedAt", "durationMs",
+  ...DIMENSION_FIELDS,
+]);
+const MILESTONE_FIELDS = new Set(["offsetMs", ...DIMENSION_FIELDS]);
+const FLAT_MILESTONE_FIELDS = new Set([
+  "send", "requestStarted", "tokenReady", "firstSseEvent", "firstTextToken",
+  "firstVisibleToken", "terminalEvent", "responseHeaders", "uiSettled",
+  "conversationRefreshCompleted", "pendingPersisted", "telemetryAttempted",
+]);
+const ATTEMPT_FIELDS = new Set([
+  "runId", "authRetry", "started", "tokenReady", "requestStarted", "responseHeaders",
+  "terminalEvent", "outcome", "errorCategory",
+]);
 
 export { MAX_LOOKBACK_MS, DEFAULT_PAGE_SIZE, MAX_PAGE_SIZE };
 
@@ -64,9 +76,9 @@ function quote(value) {
   return JSON.stringify(String(value));
 }
 
-function namedFilter(field, values) {
+function namedFilter(field, values, type = "string") {
   if (!values?.length) return "";
-  return `(${values.map((value) => `jsonPayload.${field} = ${quote(value)}`).join(" OR ")})`;
+  return `(${values.map((value) => `jsonPayload.${field} = ${type === "boolean" ? Boolean(value) : quote(value)}`).join(" OR ")})`;
 }
 
 function isTargetFunction(entry) {
@@ -121,7 +133,7 @@ export function buildLatencyLoggingFilter(params = {}) {
     `timestamp <= ${quote(window.endTime)}`,
   ];
   for (const [field, values] of [["outcome", params.outcomes], ["clientTurnId", params.clientTurnIds], ["runId", params.runIds], ["dimensions.programId", params.programId && [params.programId]], ["dimensions.configKey", params.configKey && [params.configKey]], ["dimensions.model", params.model && [params.model]], ["dimensions.functionRegion", params.functionRegion && [params.functionRegion]], ["dimensions.coldInstance", params.coldInstance === undefined ? null : [params.coldInstance]]]) {
-    const clause = namedFilter(field, values);
+    const clause = namedFilter(field, values, field === "dimensions.coldInstance" ? "boolean" : "string");
     if (clause) clauses.push(clause);
   }
   return clauses.join(" AND ");
@@ -142,6 +154,28 @@ function safeObject(value, allowed) {
   return output;
 }
 
+function safeTelemetryMap(value, allowed) {
+  if (!value || typeof value !== "object" || Array.isArray(value)) return undefined;
+  const output = {};
+  for (const [key, record] of Object.entries(value)) {
+    if (FLAT_MILESTONE_FIELDS.has(key)
+      && ["string", "number", "boolean"].includes(typeof record)) {
+      output[key] = record;
+      continue;
+    }
+    const safeRecord = safeObject(record, allowed);
+    if (safeRecord && Object.keys(safeRecord).length) output[key] = safeRecord;
+  }
+  return output;
+}
+
+function safeTelemetryAttempts(value) {
+  if (!Array.isArray(value)) return undefined;
+  return value
+    .map((attempt) => safeObject(attempt, ATTEMPT_FIELDS))
+    .filter((attempt) => attempt && Object.keys(attempt).length);
+}
+
 export function sanitizeLatencyEvent(entry = {}) {
   const metadata = entry.metadata || entry;
   const payload = entryPayload(entry);
@@ -149,9 +183,11 @@ export function sanitizeLatencyEvent(entry = {}) {
   for (const field of SAFE_ROOT_FIELDS) {
     if (payload[field] === undefined && entry[field] === undefined) continue;
     const value = payload[field] ?? entry[field];
-    if (field === "stages" || field === "milestones") result[field] = safeObject(value, SAFE_NESTED_FIELDS[field]);
+    if (field === "stages") result[field] = safeTelemetryMap(value, STAGE_FIELDS);
+    else if (field === "milestones") result[field] = safeTelemetryMap(value, MILESTONE_FIELDS);
     else if (field === "dimensions") result[field] = safeObject(value, SAFE_NESTED_FIELDS.dimensions);
     else if (["attemptRunIds"].includes(field) && Array.isArray(value)) result[field] = value.filter((item) => typeof item === "string");
+    else if (field === "attempts") result[field] = safeTelemetryAttempts(value);
     else if (["string", "number", "boolean"].includes(typeof value)) result[field] = value;
   }
   if (metadata.insertId) result.eventId = metadata.insertId;
@@ -163,8 +199,17 @@ function isPreflight(event) {
   return event.dimensions?.requestKind === "cors_preflight" || event.stages?.cors_preflight;
 }
 
-export function correlateLatencyEvents({ clientEvents = [], serverEvents = [] } = {}) {
-  const clients = [...new Map(clientEvents.filter((event) => event.clientTurnId).map((event) => [event.eventId || event.clientTurnId, event])).values()];
+function eventCategory(event) {
+  if (event.eventName === EVENT_NAMES.client) return "client";
+  if (event.eventName === EVENT_NAMES.server) return isPreflight(event) ? "preflight" : "server";
+  return null;
+}
+
+export function correlateLatencyEvents({ clientEvents = [], serverEvents = [], clientTurnId, runId } = {}) {
+  const clients = [...new Map(clientEvents
+    .filter((event) => event.clientTurnId)
+    .filter((event) => !clientTurnId || event.clientTurnId === clientTurnId)
+    .map((event) => [event.eventId || event.clientTurnId, event])).values()];
   const servers = serverEvents.filter((event) => !isPreflight(event));
   const serverByRun = new Map(servers.filter((event) => event.runId).map((event) => [event.runId, event]));
   const matches = [];
@@ -178,7 +223,25 @@ export function correlateLatencyEvents({ clientEvents = [], serverEvents = [] } 
     }
   }
   const matchedIds = new Set([...matches, ...retries].map(({ server }) => server.eventId || server.runId));
-  return { matches, retries, unmatchedServers: servers.filter((event) => !matchedIds.has(event.eventId || event.runId)) };
+  const filteredMatches = runId
+    ? matches.filter(({ server }) => server.runId === runId)
+    : matches;
+  const filteredRetries = runId
+    ? retries.filter(({ server }) => server.runId === runId)
+    : retries;
+  const filteredMatchedIds = new Set([...filteredMatches, ...filteredRetries].map(({ server }) => server.eventId || server.runId));
+  return {
+    matches: filteredMatches,
+    retries: filteredRetries,
+    unmatchedServers: servers.filter((event) => !runId || event.runId === runId).filter((event) => !filteredMatchedIds.has(event.eventId || event.runId)),
+  };
+}
+
+function requireCorrelationIdentifier(params) {
+  const clientTurnId = typeof params.clientTurnId === "string" ? params.clientTurnId.trim() : "";
+  const runId = typeof params.runId === "string" ? params.runId.trim() : "";
+  if (!clientTurnId && !runId) throw new Error("clientTurnId or runId is required");
+  return { clientTurnId: clientTurnId || undefined, runId: runId || undefined };
 }
 
 export function checkLatencyCoverage({ clientEvents = [], serverEvents = [] } = {}) {
@@ -187,6 +250,25 @@ export function checkLatencyCoverage({ clientEvents = [], serverEvents = [] } = 
   const postServers = serverEvents.filter((event) => !isPreflight(event));
   const uniqueRuns = new Map(postServers.filter((event) => event.runId).map((event) => [event.runId, event]));
   const clientRuns = new Set([...uniqueClients.values()].flatMap((event) => [event.finalRunId, ...(event.attemptRunIds || [])]).filter(Boolean));
+  const duplicateClientEventIds = [...new Set(clientEvents
+    .filter((event) => event.eventId)
+    .filter((event, index, events) => events.findIndex((candidate) => candidate.eventId === event.eventId) !== index)
+    .map((event) => event.eventId))];
+  const duplicateServerRunIds = [...new Set(postServers
+    .filter((event) => event.runId)
+    .filter((event, index, events) => events.findIndex((candidate) => candidate.runId === event.runId) !== index)
+    .map((event) => event.runId))];
+  const clientsMissingServerAttempts = [...uniqueClients.values()]
+    .filter((event) => event.attemptRunIds?.length && event.attemptRunIds.some((runId) => !uniqueRuns.has(runId)))
+    .map((event) => event.clientTurnId)
+    .filter(Boolean);
+  const serversMissingClientReferences = [...uniqueRuns.values()]
+    .filter((event) => !clientRuns.has(event.runId))
+    .map((event) => event.runId);
+  const clientsMissingTerminalOutcome = [...uniqueClients.values()]
+    .filter((event) => !event.outcome || event.milestones?.terminalEvent == null)
+    .map((event) => event.clientTurnId)
+    .filter(Boolean);
   return {
     duplicateClientEvents: clientIds.length - uniqueClients.size,
     duplicateServerEvents: postServers.filter((event) => event.runId).length - uniqueRuns.size,
@@ -194,6 +276,22 @@ export function checkLatencyCoverage({ clientEvents = [], serverEvents = [] } = 
     orphanServers: [...uniqueRuns.values()].filter((event) => !clientRuns.has(event.runId)).length,
     corsPreflightEvents: serverEvents.filter(isPreflight).length,
     missingClientTurns: [...uniqueClients.values()].filter((event) => event.finalRunId && !uniqueRuns.has(event.finalRunId)).map((event) => event.clientTurnId),
+    duplicateClientEventIds,
+    duplicateServerRunIds,
+    clientsMissingServerAttempts,
+    serversMissingClientReferences,
+    serverSummariesWithoutRunId: postServers.filter((event) => !event.runId).map((event) => event.eventId).filter(Boolean),
+    clientsMissingTerminalOutcome,
+    incompleteRetryChains: [...uniqueClients.values()]
+      .filter((event) => {
+        const attemptRunIds = event.attemptRunIds || [];
+        const attempts = event.attempts || [];
+        if (attempts.length !== attemptRunIds.length) return true;
+        if (attempts.some((attempt, index) => attempt.runId !== attemptRunIds[index])) return true;
+        return attempts.some((attempt, index) => Boolean(attempt.authRetry) !== (index > 0));
+      })
+      .map((event) => event.clientTurnId)
+      .filter(Boolean),
   };
 }
 
@@ -213,33 +311,107 @@ export function createCloudLoggingAdapter({ entries }) {
         throw authRecoveryError(error);
       }
       const [rawEntries, nextQuery] = response;
-      const names = new Set((params.eventTypes || ["client", "server", "preflight"]).map((type) => EVENT_NAMES[type]));
+      const requestedTypes = new Set(params.eventTypes || ["client", "server", "preflight"]);
       const sorted = rawEntries
         .filter((entry) => {
           const payload = entryPayload(entry);
-          return isTargetFunction(entry) && names.has(payload?.eventName);
+          return isTargetFunction(entry) && requestedTypes.has(eventCategory(payload));
         })
         .map(sanitizeLatencyEvent)
         .sort((a, b) => String(b.timestamp).localeCompare(String(a.timestamp)));
       const nextPageToken = nextQuery?.pageToken || undefined;
       const events = { client: [], server: [], preflight: [] };
       for (const event of sorted) {
-        if (event.eventName === "chat_client_latency") events.client.push(event);
-        else if (isPreflight(event)) events.preflight.push(event);
-        else if (event.eventName === "chat_server_latency") events.server.push(event);
+        const category = eventCategory(event);
+        if (category) events[category].push(event);
       }
       return { schemaVersion: 1, query: window, rawEntryCount: rawEntries.length, events, counts: Object.fromEntries(Object.entries(events).map(([key, value]) => [key, value.length])), nextPageToken, truncated: Boolean(nextPageToken) };
     },
     async getChatLatencyCorrelation(params = {}, now = new Date()) {
-      const exported = await this.exportChatLatencyEvents(params, now);
-      return { ...exported, correlation: correlateLatencyEvents({ clientEvents: exported.events.client, serverEvents: exported.events.server }) };
+      const identifiers = requireCorrelationIdentifier(params);
+      const exported = await this.exportChatLatencyEvents({
+        ...params,
+        clientTurnIds: identifiers.clientTurnId ? [identifiers.clientTurnId] : undefined,
+        // A run ID is stored on server events, while the client event stores
+        // the related IDs in attemptRunIds/finalRunId. Applying runIds to the
+        // Logging query would discard that client event before correlation.
+      }, now);
+      const correlation = correlateLatencyEvents({
+        clientEvents: exported.events.client,
+        serverEvents: exported.events.server,
+        ...identifiers,
+      });
+      const logicalClientTurn = exported.events.client.find((event) => !identifiers.clientTurnId || event.clientTurnId === identifiers.clientTurnId) || null;
+      if (identifiers.runId && logicalClientTurn && ![logicalClientTurn.finalRunId, ...(logicalClientTurn.attemptRunIds || [])].includes(identifiers.runId)) {
+        return {
+          ...exported,
+          correlation: { matches: [], retries: [], unmatchedServers: [] },
+          logicalClientTurn: null,
+          attempts: [],
+          matchingServerSummaries: [],
+          terminalAttempt: null,
+        };
+      }
+      const attemptRunIds = logicalClientTurn?.attemptRunIds || [];
+      const matchingServerSummaries = exported.events.server
+        .filter((event) => attemptRunIds.includes(event.runId) || (identifiers.runId && event.runId === identifiers.runId))
+        .sort((a, b) => attemptRunIds.indexOf(a.runId) - attemptRunIds.indexOf(b.runId));
+      return {
+        ...exported,
+        correlation,
+        logicalClientTurn,
+        attempts: attemptRunIds,
+        matchingServerSummaries,
+        terminalAttempt: matchingServerSummaries.find((event) => event.runId === logicalClientTurn?.finalRunId) || null,
+      };
     },
     async checkChatLatencyCoverage(params = {}, now = new Date()) {
       const exported = await this.exportChatLatencyEvents(params, now);
       return { ...exported, coverage: checkLatencyCoverage(exported.events) };
     },
     getChatLatencySchema() {
-      return { schemaVersion: 1, eventNames: EVENT_NAMES, rootFields: SAFE_ROOT_FIELDS, dimensionFields: DIMENSION_FIELDS, defaultLookbackMinutes: DEFAULT_LOOKBACK_MINUTES, maxLookbackDays: 7, defaultPageSize: DEFAULT_PAGE_SIZE, maxPageSize: MAX_PAGE_SIZE, privacy: "No message, prompt, observation, tool, credential, or direct personal-identifying fields" };
+      return {
+        schemaVersion: 1,
+        eventTypes: Object.keys(EVENT_NAMES),
+        eventNames: EVENT_NAMES,
+        fields: {
+          root: Object.fromEntries(SAFE_ROOT_FIELDS.map((field) => [field, field === "stages" || field === "milestones" || field === "dimensions" || field === "attempts" ? "object" : field === "attemptRunIds" ? "string[]" : "string|number|boolean"])),
+          dimensions: Object.fromEntries(DIMENSION_FIELDS.map((field) => [field, "string|number|boolean|string[]"])),
+          stageMeasurement: ["startOffsetMs", "endOffsetMs", "startedAt", "endedAt", "durationMs", ...DIMENSION_FIELDS],
+          milestoneMeasurement: ["offsetMs", "send", "requestStarted", "tokenReady", "firstSseEvent", "firstTextToken", "firstVisibleToken", "terminalEvent", "responseHeaders", "uiSettled", "conversationRefreshCompleted", "pendingPersisted", "telemetryAttempted"],
+          attempt: ["runId", "authRetry", "started", "tokenReady", "requestStarted", "responseHeaders", "terminalEvent", "outcome", "errorCategory"],
+        },
+        filters: {
+          eventTypes: ["client", "server", "preflight"],
+          outcomes: "string[]",
+          clientTurnIds: "string[]",
+          runIds: "string[]",
+          programId: "string",
+          configKey: "string",
+          model: "string",
+          functionRegion: "string",
+          coldInstance: "boolean",
+        },
+        query: {
+          defaultLookbackMinutes: DEFAULT_LOOKBACK_MINUTES,
+          maxLookbackDays: 7,
+          defaultPageSize: DEFAULT_PAGE_SIZE,
+          maxPageSize: MAX_PAGE_SIZE,
+          ordering: "Cloud Logging timestamp descending",
+          pagination: "opaque pageToken/nextPageToken",
+        },
+        correlation: {
+          identifiers: ["clientTurnId", "runId"],
+          requirement: "at least one identifier; when both are supplied they must match the same correlation",
+          retries: "attemptRunIds ordered from first attempt to finalRunId",
+          terminalAttempt: "attempt matching finalRunId",
+        },
+        terminalSemantics: {
+          client: "outcome plus milestones.terminalEvent",
+          server: "outcome plus endedAt",
+        },
+        privacy: "No message, prompt, observation, tool, credential, or direct personal-identifying fields",
+      };
     },
   };
 }

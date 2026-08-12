@@ -1,5 +1,10 @@
 # Changelog
 
+# 12.4.0 — 2026-08-12
+
+### Added
+- Four privacy-safe MCP tools for bounded Coach Pepper Cloud Logging export, correlation, coverage checks, and schema discovery (#244).
+
 # 12.3.0 — 2026-08-12
 
 ### Added

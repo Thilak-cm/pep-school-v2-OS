@@ -51,6 +51,8 @@ test("builds a fixed Cloud Logging boundary and only named filters", () => {
   assert.match(filter, /jsonPayload\.eventName = "chat_server_latency"/);
   assert.match(filter, /jsonPayload.outcome = "completed"/);
   assert.match(filter, /jsonPayload.dimensions.model = "gpt-5-mini"/);
+  assert.match(buildLatencyLoggingFilter({ coldInstance: true, lookbackMinutes: 5 }), /jsonPayload\.dimensions\.coldInstance = true/);
+  assert.match(buildLatencyLoggingFilter({ coldInstance: false, lookbackMinutes: 5 }), /jsonPayload\.dimensions\.coldInstance = false/);
   assert.throws(() => buildLatencyLoggingFilter({ query: "severity >= ERROR" }), /unsupported/i);
 });
 
@@ -64,7 +66,9 @@ test("sanitizes events to the privacy-safe telemetry allowlist", () => {
       runId: "run-1",
       clientTurnId: "turn-1",
       outcome: "completed",
-      stages: { provider: { durationMs: 10 }, prompt: { durationMs: 4 } },
+      stages: { provider: { durationMs: 10, secret: "must not escape" }, prompt: { durationMs: 4 } },
+      milestones: { firstToken: { offsetMs: 12, prompt: "must not escape" } },
+      attempts: [{ runId: "run-1", authRetry: false, outcome: "completed", secret: "must not escape" }],
       dimensions: { model: "gpt-5-mini", functionRegion: "asia-south1", coldInstance: true },
       message: "must not escape",
       prompt: "must not escape",
@@ -81,6 +85,8 @@ test("sanitizes events to the privacy-safe telemetry allowlist", () => {
     clientTurnId: "turn-1",
     outcome: "completed",
     stages: { provider: { durationMs: 10 }, prompt: { durationMs: 4 } },
+    milestones: { firstToken: { offsetMs: 12 } },
+    attempts: [{ runId: "run-1", authRetry: false, outcome: "completed" }],
     dimensions: { model: "gpt-5-mini", functionRegion: "asia-south1", coldInstance: true },
   });
 });
@@ -107,6 +113,16 @@ test("sanitizes the Node Cloud Logging client's metadata/data entry shape", () =
     runId: "e9575968-0899-4192-9cfb-18da1b44ba24",
     outcome: "completed",
   });
+});
+
+test("preserves flat client milestone telemetry while filtering unknown fields", () => {
+  const event = sanitizeLatencyEvent({
+    jsonPayload: {
+      eventName: "chat_client_latency",
+      milestones: { firstVisibleToken: 14123, terminalEvent: 14022, prompt: "must not escape" },
+    },
+  });
+  assert.deepEqual(event.milestones, { firstVisibleToken: 14123, terminalEvent: 14022 });
 });
 
 test("accepts the SDK entry shape with direct data payload", async () => {
@@ -140,6 +156,28 @@ test("correlates by clientTurnId and runId while retaining retries and unmatched
   assert.deepEqual(result.retries.map(({ server }) => server.runId), ["run-1"]);
   assert.deepEqual(result.unmatchedServers.map((event) => event.runId), ["orphan"]);
   assert.deepEqual(correlateLatencyEvents({ clientEvents: [], serverEvents: [] }).matches, []);
+  assert.equal(correlateLatencyEvents({ clientEvents: [client], serverEvents: servers, clientTurnId: "other" }).matches.length, 0);
+  assert.equal(correlateLatencyEvents({ clientEvents: [client], serverEvents: servers, runId: "run-1" }).matches.length, 0);
+});
+
+test("correlation requires an opaque client or server identifier and returns the logical turn shape", async () => {
+  const adapter = createCloudLoggingAdapter({
+    entries: async () => [[
+      { insertId: "client-1", timestamp: "2026-08-12T02:59:00.000Z", resource: { labels: { function_name: "chatClientTelemetry" } }, jsonPayload: { eventName: "chat_client_latency", clientTurnId: "turn-1", attemptRunIds: ["run-1", "run-2"], finalRunId: "run-2" } },
+      { insertId: "server-1", timestamp: "2026-08-12T02:58:00.000Z", resource: { labels: { function_name: "childChatStream" } }, jsonPayload: { eventName: "chat_server_latency", runId: "run-1" } },
+      { insertId: "server-2", timestamp: "2026-08-12T02:57:00.000Z", resource: { labels: { function_name: "childChatStream" } }, jsonPayload: { eventName: "chat_server_latency", runId: "run-2" } },
+    ], null],
+  });
+  await assert.rejects(adapter.getChatLatencyCorrelation({ lookbackMinutes: 5 }, NOW), /clientTurnId or runId/);
+  const result = await adapter.getChatLatencyCorrelation({ clientTurnId: "turn-1", lookbackMinutes: 5 }, NOW);
+  assert.equal(result.logicalClientTurn.clientTurnId, "turn-1");
+  assert.deepEqual(result.attempts, ["run-1", "run-2"]);
+  assert.equal(result.terminalAttempt.runId, "run-2");
+  const byRun = await adapter.getChatLatencyCorrelation({ runId: "run-2", lookbackMinutes: 5 }, NOW);
+  assert.equal(byRun.logicalClientTurn.clientTurnId, "turn-1");
+  assert.equal(byRun.terminalAttempt.runId, "run-2");
+  const mismatch = await adapter.getChatLatencyCorrelation({ clientTurnId: "turn-1", runId: "other-run", lookbackMinutes: 5 }, NOW);
+  assert.equal(mismatch.logicalClientTurn, null);
 });
 
 test("coverage reports duplicates, missing run IDs, orphans, and CORS preflights", () => {
@@ -160,6 +198,42 @@ test("coverage reports duplicates, missing run IDs, orphans, and CORS preflights
   assert.equal(result.orphanServers, 1);
   assert.equal(result.corsPreflightEvents, 1);
   assert.deepEqual(result.missingClientTurns, []);
+  assert.deepEqual(result.duplicateClientEventIds, ["c1"]);
+  assert.deepEqual(result.duplicateServerRunIds, []);
+  assert.deepEqual(result.clientsMissingServerAttempts, []);
+  assert.deepEqual(result.serversMissingClientReferences, ["orphan"]);
+  assert.deepEqual(result.serverSummariesWithoutRunId, ["s3"]);
+  assert.deepEqual(result.clientsMissingTerminalOutcome, ["turn-1"]);
+  assert.deepEqual(result.incompleteRetryChains, []);
+});
+
+test("coverage identifies incomplete retry chains and terminal markers", () => {
+  const result = checkLatencyCoverage({
+    clientEvents: [{ eventId: "c1", clientTurnId: "turn-1", attemptRunIds: ["run-1", "missing"], finalRunId: "missing", outcome: "completed", milestones: {} }],
+    serverEvents: [{ eventId: "s1", runId: "run-1", outcome: "failed" }],
+  });
+  assert.deepEqual(result.clientsMissingServerAttempts, ["turn-1"]);
+  assert.deepEqual(result.incompleteRetryChains, ["turn-1"]);
+  assert.deepEqual(result.missingClientTurns, ["turn-1"]);
+  assert.deepEqual(result.clientsMissingTerminalOutcome, ["turn-1"]);
+});
+
+test("coverage preserves zero-valued terminal markers and detects invalid retry flags", () => {
+  const result = checkLatencyCoverage({
+    clientEvents: [{
+      eventId: "c1",
+      clientTurnId: "turn-1",
+      attemptRunIds: ["run-1", "run-2"],
+      attempts: [
+        { runId: "run-1", authRetry: false, outcome: "failed" },
+        { runId: "run-2", authRetry: false, outcome: "completed" },
+      ],
+      outcome: "completed",
+      milestones: { terminalEvent: 0 },
+    }],
+  });
+  assert.deepEqual(result.clientsMissingTerminalOutcome, []);
+  assert.deepEqual(result.incompleteRetryChains, ["turn-1"]);
 });
 
 test("adapter paginates deterministically and exposes the four tool operations", async () => {
@@ -202,6 +276,21 @@ test("adapter paginates deterministically and exposes the four tool operations",
   assert.equal(MAX_LOOKBACK_MS, 7 * 24 * 60 * 60 * 1000);
 });
 
+test("separates server and preflight categories when the event name is shared", async () => {
+  const adapter = createCloudLoggingAdapter({
+    entries: async () => [[
+      { insertId: "post", timestamp: "2026-08-12T02:59:00.000Z", resource: { labels: { function_name: "childChatStream" } }, jsonPayload: { eventName: "chat_server_latency", dimensions: { requestKind: "chat_post" }, runId: "run-1" } },
+      { insertId: "preflight", timestamp: "2026-08-12T02:58:00.000Z", resource: { labels: { function_name: "childChatStream" } }, jsonPayload: { eventName: "chat_server_latency", dimensions: { requestKind: "cors_preflight" }, stages: { cors_preflight: { durationMs: 2 } } } },
+    ], null],
+  });
+  const serverOnly = await adapter.exportChatLatencyEvents({ eventTypes: ["server"], lookbackMinutes: 5 }, NOW);
+  assert.equal(serverOnly.counts.server, 1);
+  assert.equal(serverOnly.counts.preflight, 0);
+  const preflightOnly = await adapter.exportChatLatencyEvents({ eventTypes: ["preflight"], lookbackMinutes: 5 }, NOW);
+  assert.equal(preflightOnly.counts.server, 0);
+  assert.equal(preflightOnly.counts.preflight, 1);
+});
+
 test("turns Cloud Logging authentication failures into an actionable HITL prompt", async () => {
   const adapter = createCloudLoggingAdapter({
     entries: async () => { throw new Error("Could not load the default credentials"); },
@@ -210,4 +299,15 @@ test("turns Cloud Logging authentication failures into an actionable HITL prompt
     adapter.exportChatLatencyEvents({ lookbackMinutes: 5 }, NOW),
     /gcloud auth login.*application-default login/,
   );
+});
+
+test("schema metadata describes fields, filters, correlation, terminal semantics, and pagination", () => {
+  const schema = createCloudLoggingAdapter({ entries: async () => [[], null] }).getChatLatencySchema();
+  assert.deepEqual(schema.eventTypes, ["client", "server", "preflight"]);
+  assert.equal(schema.filters.coldInstance, "boolean");
+  assert.equal(schema.fields.root.attempts, "object");
+  assert.equal(schema.fields.root.attemptRunIds, "string[]");
+  assert.equal(schema.query.pagination, "opaque pageToken/nextPageToken");
+  assert.deepEqual(schema.correlation.identifiers, ["clientTurnId", "runId"]);
+  assert.equal(schema.terminalSemantics.client, "outcome plus milestones.terminalEvent");
 });
