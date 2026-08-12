@@ -1,7 +1,7 @@
 # Pep OS Overview
 
-Generated: 2026-08-12T03:50:07.594Z
-App version: 12.3.0
+Generated: 2026-08-12T22:59:41.943Z
+App version: 12.4.0
 
 ## App Snapshot
 
@@ -152,6 +152,9 @@ App version: 12.3.0
 
 ## Recent Changes
 
+### 12.4.0 (2026-08-12)
+- Four privacy-safe MCP tools for bounded Coach Pepper Cloud Logging export, correlation, coverage checks, and schema discovery (#244).
+
 ### 12.3.0 (2026-08-12)
 - End-to-end Coach Pepper chat latency telemetry with correlated client/server attempts, genuine first-paint timing, privacy-safe structured stages, reliable delivery retries, and benchmark analysis primitives (#234).
 - Coach Pepper fallback and seeded history defaults now retain 30 recent messages, and the displayed PWA version derives from package metadata (#234).
@@ -164,9 +167,4 @@ App version: 12.3.0
 - Coach Pepper chat now uses a bounded phone-sized conversation viewport with a connected session selector, safe Markdown rendering, reliable follow-mode scrolling, and composer behavior that stays editable during streaming (#217).
 - User timestamps and copy actions, plus completed assistant copy and Helpful actions, remain permanently visible without hover or touch reveal (#217).
 - Conversation controls, messages, errors, and the composer remain correctly separated across safe-area, virtual-keyboard, dropdown, retry, and streaming-scroll states (#217).
-
-### 12.2.0 (2026-08-06)
-- Emulator-based Firestore and Storage rules suite with canonical fixtures, shared production operation helpers, transfer lifecycle coverage, media Storage boundaries, and CI gating for security-rule regressions (#207).
-- Classroom directory, Firestore auth-boundary, and precise 48-hour edit/delete boundary coverage in the rules emulator suite (#207).
-- Coach Pepper now streams responses progressively through a durable, server-orchestrated chat session (#220).
 
