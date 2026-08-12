@@ -82,6 +82,16 @@ Merge and tool-generated revert commits may follow Git's generated format. Befor
 - After changing a subagent definition, run `npm run agents:generate`, then `npm run agents:check`.
 - Shared skills must dispatch subagents by agent name using the host's native mechanism. Do not reference platform-specific agent paths or tool names in `SKILL.md`.
 
+### Automatic RCA for Debugging
+
+For unexpected behavior—bugs, empty or incorrect results, regressions, integration failures, or failed verification—the main agent and all subagents must invoke the shared `rca` skill automatically.
+
+- Reproduce first; do not edit from a plausible explanation alone.
+- Trace and prove the root cause, then follow the RCA user-agreement gate before fixing.
+- Never enter an edit/restart/retry loop; after one unproven fix fails, stop and switch to RCA.
+- Re-run the original reproduction after fixing; tests alone do not prove an integration issue is resolved.
+- `.agents/skills/rca/SKILL.md` is the source of truth for the full workflow.
+
 ## Firebase Security Rules Constraints
 
 Storage rules have a strict cross-service `firestore.get()` budget. Keep unique Firestore document paths to **2 or fewer** per storage rule evaluation. This is a hard platform limit - path-level caching is NOT reliable.
