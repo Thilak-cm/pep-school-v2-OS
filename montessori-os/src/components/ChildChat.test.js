@@ -170,6 +170,18 @@ test('ChildChat wires latency telemetry through send, visible paint, terminal ou
   assert.match(source, /void turnTelemetry\.deliver\(\)/);
 });
 
+test('ChildChat records a valid Send rejected by local unauthenticated state', async () => {
+  const source = await readFile(new URL('./ChildChat.jsx', import.meta.url), 'utf8');
+  const messageValidation = source.indexOf("if (!message || (retryAssistantMessage && !retryRequest)) return;");
+  const telemetryCreation = source.indexOf('new ChatTurnTelemetry', messageValidation);
+  const localAuthRejection = source.indexOf("turnTelemetry.finish('failed', 'auth/unauthenticated')");
+
+  assert.ok(messageValidation > 0);
+  assert.ok(telemetryCreation > messageValidation);
+  assert.ok(localAuthRejection > telemetryCreation);
+  assert.match(source.slice(localAuthRejection, localAuthRejection + 160), /turnTelemetry\.deliver\(\)/);
+});
+
 test('ChildChat uses the configured tester allowlist in production', async () => {
   const source = await readFile(new URL('./ChildChat.jsx', import.meta.url), 'utf8');
   assert.match(source, /const isAuthorizedTester = isChatAllowed\(currentUser\?\.uid\)/);

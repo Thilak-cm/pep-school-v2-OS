@@ -136,6 +136,7 @@ test("context loaders report query stages and aggregate sizes without content", 
 
   assert.match(result, /Private observation/);
   assert.ok(stages.includes("observation_query"));
+  assert.ok(stages.includes("observation_serialization"));
   assert.equal(dimensions.some((value) => value.observationsFetched === 1), true);
   assert.equal(JSON.stringify(dimensions).includes("Private observation"), false);
 });

@@ -49,11 +49,17 @@ function groupDistribution(rows, key) {
 export function analyzeChatLatency({ clientEvents = [], serverEvents = [], cases = [] } = {}) {
   const clientLatencyEvents = clientEvents.filter((event) => event?.eventName === "chat_client_latency");
   const clients = uniqueBy(clientLatencyEvents, "eventId");
-  const servers = uniqueBy(
-    serverEvents.filter((event) => event?.eventName === "chat_server_latency"),
-    "runId",
-  );
-  const serverByRun = new Map(servers.map((event) => [event.runId, event]));
+  const serverLatencyEvents = serverEvents.filter((event) => event?.eventName === "chat_server_latency");
+  const preflightEvents = serverLatencyEvents.filter((event) =>
+    event.dimensions?.requestKind === "cors_preflight" || event.stages?.cors_preflight);
+  const postServerEvents = serverLatencyEvents.filter((event) => !preflightEvents.includes(event));
+  const correlatedServerEvents = postServerEvents.filter((event) => event.runId);
+  const uncorrelatedServerEvents = postServerEvents.filter((event) => !event.runId);
+  const correlatedServers = uniqueBy(correlatedServerEvents, "runId");
+  // An uncorrelated summary still represents an HTTP attempt. It cannot be
+  // safely deduplicated, so retain every one in coverage and stage statistics.
+  const servers = [...correlatedServers, ...uncorrelatedServerEvents];
+  const serverByRun = new Map(correlatedServers.map((event) => [event.runId, event]));
   const caseByClient = new Map(cases.map((item) => [item.clientTurnId, item]));
   const referencedRuns = new Set(clients.flatMap((event) => event.attemptRunIds || []));
 
@@ -67,15 +73,17 @@ export function analyzeChatLatency({ clientEvents = [], serverEvents = [], cases
         server,
         workloadType: benchmarkCase.workloadType || "unknown",
         historyBucket: benchmarkCase.historyBucket || "unknown",
-        temperature: server.dimensions?.coldInstance ? "cold" : "warm",
+        instanceWarmth: server.dimensions?.coldInstance ? "cold" : "warm",
       };
     })
     .filter(Boolean);
 
   const stageValues = {};
   const outcomeGroups = {};
-  for (const client of clients) (outcomeGroups[client.outcome || "unknown"] ||= []).push(client);
-  for (const { server } of matchedRows) {
+  for (const { client } of matchedRows) {
+    (outcomeGroups[client.outcome || "unknown"] ||= []).push(client);
+  }
+  for (const server of servers) {
     for (const [stage, measurement] of Object.entries(server.stages || {})) {
       if (Number.isFinite(measurement?.durationMs)) (stageValues[stage] ||= []).push(measurement.durationMs);
     }
@@ -87,16 +95,26 @@ export function analyzeChatLatency({ clientEvents = [], serverEvents = [], cases
     coverage: {
       uniqueClientTurns: clients.length,
       uniqueServerAttempts: servers.length,
+      serverSummaries: serverLatencyEvents.length,
+      postServerSummaries: postServerEvents.length,
+      corsPreflightSummaries: preflightEvents.length,
       matchedClientTurns: matchedRows.length,
       clientTurnsMissingServer: clients.length - matchedRows.length,
-      serverAttemptsMissingClient: servers.filter((event) => !referencedRuns.has(event.runId)).length,
+      clientAttemptsMissingServer: [...referencedRuns]
+        .filter((runId) => !serverByRun.has(runId)).length,
+      serverAttemptsMissingClient: correlatedServers
+        .filter((event) => !referencedRuns.has(event.runId)).length + uncorrelatedServerEvents.length,
+      uncorrelatedServerAttempts: uncorrelatedServerEvents.length,
       duplicateClientDeliveries: clientLatencyEvents.length - clients.length,
+      duplicateServerSummaries: correlatedServerEvents.length - correlatedServers.length,
     },
     overall: clientDistribution(matchedRows.map((row) => row.client)),
     serverStages: Object.fromEntries(Object.entries(stageValues).map(([name, values]) => [name, latencyStats(values)])),
+    corsPreflight: latencyStats(preflightEvents
+      .map((event) => event.stages?.cors_preflight?.durationMs)),
     byWorkload: groupDistribution(matchedRows, "workloadType"),
     byHistoryBucket: groupDistribution(matchedRows, "historyBucket"),
-    byTemperature: groupDistribution(matchedRows, "temperature"),
+    byInstanceWarmth: groupDistribution(matchedRows, "instanceWarmth"),
     byOutcome: Object.fromEntries(Object.entries(outcomeGroups)
       .map(([outcome, turns]) => [outcome, clientDistribution(turns)])),
   };

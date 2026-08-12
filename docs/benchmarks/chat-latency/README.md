@@ -7,6 +7,8 @@ This package is the reproducible measurement contract for GitHub issue #234. It 
 - Primary: browser Send → first answer text visibly painted.
 - Secondary: browser Send → terminal event.
 - Server: every versioned stage emitted by `chat_server_latency`.
+- Bytes: `providerResponseBytes` measures encoded bytes read from OpenRouter;
+  `sseResponseBytes` measures encoded SSE records written by the server.
 - Percentiles: nearest-rank p50 and p95, plus count, minimum, and maximum.
 
 ## Workload
@@ -58,7 +60,7 @@ Run:
 node scripts/ops/analyze-chat-latency.mjs /path/to/combined-export.json
 ```
 
-After the production run, commit the sanitized combined export as `baseline.v1.json` and the interpreted findings as `baseline-report.md`. The report must include coverage gaps, the stage waterfall, workload and warm/cold breakdowns, failures, and ranked bottlenecks for #235.
+After the production run, commit the sanitized combined export as `baseline.v1.json` and the interpreted findings as `baseline-report.md`. The report must include coverage gaps, the stage waterfall, workload and `byInstanceWarmth` cold/warm instance breakdowns, failures, and ranked bottlenecks for #235.
 
 ## Required coverage checks
 
@@ -66,4 +68,6 @@ After the production run, commit the sanitized combined export as `baseline.v1.j
 - Client/server correlation for every successful benchmark turn.
 - Duplicate client deliveries reported and deduplicated by `eventId`.
 - Missing client or server records explicitly counted.
+- Client percentile breakdowns use the same client/server-matched population as
+  the overall distribution; unmatched attempts remain visible in coverage.
 - No real chat, observation, prompt, student, teacher, classroom, tool-argument, or tool-result content.

@@ -33,6 +33,15 @@ function turnRef(db, studentId, chatId, turnId) {
   return chatRef(db, studentId, chatId).collection("turns").doc(turnId);
 }
 
+async function measuredRead(telemetry, name, operation) {
+  const end = telemetry?.startStage?.(name) || (() => {});
+  try {
+    return await operation();
+  } finally {
+    end();
+  }
+}
+
 export class ChatPersistenceError extends Error {
   constructor(code, message) {
     super(message);
@@ -158,6 +167,7 @@ export async function acquireChatTurn({
   authorId,
   authorName = null,
   classroomId,
+  telemetry,
 }) {
   const normalizedContent = String(content).trim();
   const chat = chatRef(db, studentId, chatId);
@@ -170,7 +180,7 @@ export async function acquireChatTurn({
 
   await db.runTransaction(async (tx) => {
     const [chatSnap, messageSnap, turnSnap, assistantSnap] = await Promise.all([
-      tx.get(chat),
+      measuredRead(telemetry, "chat_document_load", () => tx.get(chat)),
       tx.get(message),
       tx.get(turn),
       tx.get(assistant),

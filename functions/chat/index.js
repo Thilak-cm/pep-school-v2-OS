@@ -17,11 +17,12 @@ import {
   finalizeChatTurn,
   startChatTurn,
 } from "./chatRepository.js";
-import { parseChatRequest } from "./chatRequest.js";
-import { encodeSseEvent } from "./streamProtocol.js";
+import { parseChatCorrelation, parseChatRequest } from "./chatRequest.js";
+import { writeSseEvent } from "./streamProtocol.js";
 import { runStreamingAgentLoop } from "./openrouterStream.js";
 import { buildChatMessages } from "./chatContext.js";
-import { ChatLatencyRecorder } from "./chatTelemetry.js";
+import { ChatLatencyRecorder, jsonUtf8ByteLength } from "./chatTelemetry.js";
+import { validateTelemetryErrorCategory } from "../config/chatTelemetry.js";
 
 const LANGFUSE_SECRET_KEY = defineSecret("LANGFUSE_SECRET_KEY");
 const LANGFUSE_PUBLIC_KEY = defineSecret("LANGFUSE_PUBLIC_KEY");
@@ -41,19 +42,21 @@ function configureSse(req, res) {
   res.flushHeaders?.();
 }
 
-function sendEvent(res, event, data) {
-  if (!res.writableEnded) res.write(encodeSseEvent(event, data));
+function sendEvent(res, event, data, telemetry) {
+  writeSseEvent(res, event, data, telemetry);
 }
 
 async function verifyRequest(req, telemetry) {
   const header = req.headers.authorization || "";
   const token = header.startsWith("Bearer ") ? header.slice(7) : null;
-  if (!token) throw new Error("Authentication required");
+  if (!token) throw runtimeError("auth/unauthenticated", "Authentication required");
 
   const endToken = telemetry?.startStage?.("auth_token_verify") || (() => {});
   let decoded;
   try {
     decoded = await auth.verifyIdToken(token);
+  } catch {
+    throw runtimeError("auth/unauthenticated", "Authentication required");
   } finally {
     endToken();
   }
@@ -64,7 +67,7 @@ async function verifyRequest(req, telemetry) {
   } finally {
     endUser();
   }
-  if (!userSnap.exists) throw new Error("User profile not found");
+  if (!userSnap.exists) throw runtimeError("auth/user-profile-missing", "User profile not found");
   return { decoded, user: userSnap.data() || {} };
 }
 
@@ -76,7 +79,7 @@ async function verifyStudentAccess(uid, user, studentId, telemetry) {
   } finally {
     endStudent();
   }
-  if (!studentSnap.exists) throw new Error("Student not found");
+  if (!studentSnap.exists) throw runtimeError("chat/student-not-found", "Student not found");
   const student = studentSnap.data() || {};
   const classroomId = student.classroomId;
   const endClassroom = telemetry?.startStage?.("classroom_lookup") || (() => {});
@@ -88,10 +91,16 @@ async function verifyStudentAccess(uid, user, studentId, telemetry) {
   }
   const classroom = classroomSnap?.data() || {};
 
-  const allowed = user.role === "superadmin"
-    || classroom.teacherIds?.includes(uid)
-    || (user.role === "classroomadmin" && user.manageableClassrooms?.includes(classroomId));
-  if (!allowed) throw new Error("You do not have access to this student");
+  const endAccessDecision = telemetry?.startStage?.("access_decision") || (() => {});
+  let allowed;
+  try {
+    allowed = user.role === "superadmin"
+      || classroom.teacherIds?.includes(uid)
+      || (user.role === "classroomadmin" && user.manageableClassrooms?.includes(classroomId));
+  } finally {
+    endAccessDecision();
+  }
+  if (!allowed) throw runtimeError("auth/permission-denied", "You do not have access to this student");
   return { classroomId, programId: classroom.programId || "primary" };
 }
 
@@ -130,7 +139,13 @@ function runtimeError(code, message) {
 
 function errorCode(error, interrupted = false) {
   if (interrupted) return "chat/client-disconnect";
-  if (typeof error?.code === "string") return error.code;
+  if (typeof error?.code === "string") {
+    try {
+      return validateTelemetryErrorCategory(error.code);
+    } catch {
+      return "chat/internal-error";
+    }
+  }
   if (String(error?.message || "").startsWith("OpenRouter error:")) {
     return "chat/provider-error";
   }
@@ -139,7 +154,16 @@ function errorCode(error, interrupted = false) {
 
 function sendTerminalReplay(res, acquisition, telemetry) {
   const { turn, assistantMessage } = acquisition;
-  if (assistantMessage?.content) sendEvent(res, "token", { text: assistantMessage.content, replay: true });
+  if (turn.status === "completed") {
+    telemetry.setOutcome("completed");
+  } else if (turn.status === "interrupted") {
+    telemetry.setOutcome("interrupted", turn.errorCode || "chat/replay-interrupted");
+  } else {
+    telemetry.setOutcome("failed", turn.errorCode || "chat/turn-failed");
+  }
+  if (assistantMessage?.content) {
+    sendEvent(res, "token", { text: assistantMessage.content, replay: true }, telemetry);
+  }
   if (turn.status === "failed") {
     sendEvent(res, "error", {
       code: turn.errorCode || "chat/turn-failed",
@@ -147,7 +171,7 @@ function sendTerminalReplay(res, acquisition, telemetry) {
       status: turn.status,
       replay: true,
       timing: telemetry.snapshot(),
-    });
+    }, telemetry);
     return;
   }
   sendEvent(res, "complete", {
@@ -155,7 +179,7 @@ function sendTerminalReplay(res, acquisition, telemetry) {
     status: turn.status === "completed" ? "complete" : turn.status,
     replay: true,
     timing: telemetry.snapshot(),
-  });
+  }, telemetry);
 }
 
 export const childChatStream = functions
@@ -171,7 +195,9 @@ export const childChatStream = functions
     const telemetry = new ChatLatencyRecorder({ coldInstance });
     telemetry.setDimensions({
       functionRegion: "asia-south1",
-      requestBytes: JSON.stringify(req.body || {}).length,
+      requestBytes: jsonUtf8ByteLength(req.body || {}),
+      requestKind: req.method === "OPTIONS" ? "cors_preflight" :
+        (req.method === "POST" ? "chat_post" : "unsupported_method"),
     });
     if (req.method === "OPTIONS") {
       const endPreflight = telemetry.startStage("cors_preflight");
@@ -182,6 +208,7 @@ export const childChatStream = functions
       endPreflight({ httpStatus: 204 });
       telemetry.setDimensions({ httpStatus: 204 });
       telemetry.setOutcome("completed");
+      telemetry.mark("request_complete");
       telemetry.emit(functions.logger);
       return;
     }
@@ -189,6 +216,7 @@ export const childChatStream = functions
       res.status(405).json({ error: "Method not allowed" });
       telemetry.setDimensions({ httpStatus: 405 });
       telemetry.setOutcome("failed", "chat/method-not-allowed");
+      telemetry.mark("request_complete");
       telemetry.emit(functions.logger);
       return;
     }
@@ -198,8 +226,15 @@ export const childChatStream = functions
     endSseHeaders();
     let finished = false;
     const abortController = new AbortController();
+    let disconnectRecorded = false;
     const abortOnDisconnect = () => {
-      if (!finished) abortController.abort(new Error("client_disconnect"));
+      if (!finished && !disconnectRecorded) {
+        disconnectRecorded = true;
+        const endDisconnect = telemetry.startStage("disconnect_abort_handling");
+        telemetry.mark("client_disconnect");
+        abortController.abort(new Error("client_disconnect"));
+        endDisconnect();
+      }
     };
     // `req.close` also fires after a normal POST body has been fully read, while
     // the SSE response is still open. Treating that as a disconnect aborts every
@@ -219,6 +254,17 @@ export const childChatStream = functions
     let terminalStatus = null;
     let model = null;
     try {
+      const endCorrelation = telemetry.startStage("correlation_parsing");
+      let correlation;
+      try {
+        correlation = parseChatCorrelation(
+          req.body,
+          (runCorrelation) => telemetry.setCorrelation(runCorrelation),
+        );
+      } finally {
+        endCorrelation();
+      }
+      telemetry.setCorrelation(correlation);
       const { decoded, user } = await verifyRequest(req, telemetry);
       const endValidation = telemetry.startStage("request_validation");
       try {
@@ -226,7 +272,6 @@ export const childChatStream = functions
       } finally {
         endValidation();
       }
-      telemetry.setCorrelation({ runId: request.runId, clientTurnId: request.clientTurnId });
       context = await verifyStudentAccess(decoded.uid, user, request.studentId, telemetry);
       telemetry.setDimensions({ programId: context.programId });
 
@@ -244,13 +289,13 @@ export const childChatStream = functions
           authorId: decoded.uid,
           authorName: user.displayName || decoded.name || null,
           classroomId: context.classroomId,
+          telemetry,
         });
       } finally {
         endAcquisition();
       }
       if (acquisition.disposition === "terminal") {
         terminalStatus = acquisition.turn.status;
-        telemetry.setOutcome(terminalStatus === "completed" ? "completed" : terminalStatus);
         sendTerminalReplay(res, acquisition, telemetry);
         finished = true;
         res.end();
@@ -258,13 +303,14 @@ export const childChatStream = functions
       }
       if (acquisition.disposition === "active") {
         terminalStatus = acquisition.turn.status;
+        telemetry.setOutcome("failed", "chat/turn-active");
         sendEvent(res, "error", {
           code: "chat/turn-active",
           error: "This chat turn is already in progress",
           status: acquisition.turn.status,
           retryable: true,
           timing: telemetry.snapshot(),
-        });
+        }, telemetry);
         finished = true;
         res.end();
         return;
@@ -325,19 +371,25 @@ export const childChatStream = functions
       }
       if (!started.started) {
         terminalStatus = started.turn.status;
+        telemetry.setOutcome("interrupted", "chat/turn-superseded");
         sendEvent(res, "error", {
           code: "chat/turn-superseded",
           error: "This chat turn was interrupted by a newer request",
           status: terminalStatus,
           timing: telemetry.snapshot(),
-        });
+        }, telemetry);
         finished = true;
         res.end();
         return;
       }
 
       const endStartedEvent = telemetry.startStage("started_sse_emit");
-      sendEvent(res, "started", { chatId: request.chatId, turnId: request.turnId, runId: request.runId });
+      sendEvent(
+        res,
+        "started",
+        { chatId: request.chatId, turnId: request.turnId, runId: request.runId },
+        telemetry,
+      );
       endStartedEvent();
       const endTools = telemetry.startStage("tool_schema_construction");
       const selectedTools = getTools(chatConfig.allowedTools, ["student"]);
@@ -381,10 +433,10 @@ export const childChatStream = functions
         telemetry,
         onChunk: (text) => {
           streamedContent += text;
-          sendEvent(res, "token", { text });
+          sendEvent(res, "token", { text }, telemetry);
         },
         onToolCalls: (names) => {
-          sendEvent(res, "tool_calls", { names });
+          sendEvent(res, "tool_calls", { names }, telemetry);
         },
       });
       const content = agentResult.content;
@@ -393,6 +445,7 @@ export const childChatStream = functions
       const finishReason = interrupted ? "client_disconnect" : agentResult.finishReason;
       telemetry.setDimensions({ finishReason, clientDisconnected: interrupted });
       const endFinalize = telemetry.startStage("final_persistence_transaction");
+      const endAssistantPersistence = telemetry.startStage("assistant_message_persistence");
       let finalized;
       try {
         finalized = await finalizeChatTurn({
@@ -408,17 +461,23 @@ export const childChatStream = functions
           langfuseTraceId: request.runId,
         });
       } finally {
+        endAssistantPersistence(finalized ? {
+          count: Number(finalized.assistantMessageCreated),
+        } : {});
         endFinalize();
       }
       terminalStatus = finalized.turn.status;
-      telemetry.setOutcome(interrupted ? "interrupted" : "completed");
+      telemetry.setOutcome(
+        interrupted ? "interrupted" : "completed",
+        interrupted ? "chat/client-disconnect" : null,
+      );
 
       const endTerminal = telemetry.startStage("terminal_sse_emit");
       sendEvent(res, "complete", {
         messageId: finalized.turn.assistantMessageId,
         status: terminalStatus === "completed" ? "complete" : terminalStatus,
         timing: telemetry.snapshot(),
-      });
+      }, telemetry);
       endTerminal();
       telemetry.mark("terminal_sse");
       finished = true;
@@ -431,6 +490,7 @@ export const childChatStream = functions
       if (request && context && acquired) {
         try {
           const endFailurePersistence = telemetry.startStage("failure_persistence_transaction");
+          const endAssistantPersistence = telemetry.startStage("assistant_message_persistence");
           let finalized;
           try {
             finalized = await finalizeChatTurn({
@@ -450,6 +510,9 @@ export const childChatStream = functions
               langfuseTraceId: trace ? request.runId : null,
             });
           } finally {
+            endAssistantPersistence(finalized ? {
+              count: Number(finalized.assistantMessageCreated),
+            } : {});
             endFailurePersistence();
           }
           terminalStatus = finalized.turn.status;
@@ -464,7 +527,7 @@ export const childChatStream = functions
         retryable: code !== "chat/idempotency-conflict" && code !== "chat/deleted",
         persisted: acquired,
         timing: telemetry.snapshot(),
-      });
+      }, telemetry);
       telemetry.mark("terminal_sse");
       finished = true;
       res.end();
@@ -486,6 +549,7 @@ export const childChatStream = functions
       } catch (flushError) {
         console.error("[childChatStream] Langfuse flush failed", flushError);
       } finally {
+        telemetry.mark("request_complete");
         telemetry.setDimensions({
           httpStatus: res.statusCode || 200,
           streamedChars: streamedContent.length,

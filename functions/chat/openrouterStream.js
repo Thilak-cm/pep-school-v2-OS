@@ -41,18 +41,39 @@ export async function streamOpenRouterResponse({
   return result.content;
 }
 
-function normalizeToolCalls(toolCallParts) {
+function normalizeToolCalls(toolCallParts, canonicalToolNames) {
   return [...toolCallParts.entries()]
     .sort(([a], [b]) => a - b)
     .map(([, tc]) => ({
       id: tc.id,
       type: tc.type || "function",
       function: {
-        name: tc.function?.name || "",
+        name: canonicalToolNames.has(tc.function?.name)
+          ? tc.function.name
+          : "unknown_tool",
         arguments: tc.function?.arguments || "",
       },
     }))
-    .filter((tc) => tc.id && tc.function.name);
+    .filter((tc) => tc.id);
+}
+
+function langfuseUsage(providerUsage) {
+  if (!providerUsage) return null;
+  const usage = {
+    ...(Number.isFinite(providerUsage.inputTokens) ? { input: providerUsage.inputTokens } : {}),
+    ...(Number.isFinite(providerUsage.outputTokens) ? { output: providerUsage.outputTokens } : {}),
+  };
+  return Object.keys(usage).length ? usage : null;
+}
+
+function persistGenerationUsage({ generation, payload, providerUsage, telemetry, iteration }) {
+  const usage = langfuseUsage(providerUsage);
+  const endUsage = telemetry?.startStage?.("usage_recording", { iteration }) || (() => {});
+  try {
+    generation.end({ ...payload, ...(usage ? { usage } : {}) });
+  } finally {
+    endUsage({ count: usage ? 1 : 0 });
+  }
 }
 
 export async function streamOpenRouterTurn({
@@ -67,8 +88,10 @@ export async function streamOpenRouterTurn({
   signal,
   onChunk = () => {},
   telemetry,
+  iteration = null,
 }) {
-  const endHeaders = telemetry?.startStage?.("openrouter_request_headers") || (() => {});
+  const iterationMetadata = Number.isFinite(iteration) ? { iteration } : {};
+  const endHeaders = telemetry?.startStage?.("openrouter_request_headers", iterationMetadata) || (() => {});
   let response;
   try {
     response = await fetchImpl(endpoint, {
@@ -102,6 +125,9 @@ export async function streamOpenRouterTurn({
 
   const reader = response.body.getReader();
   const decoder = new TextDecoder();
+  const canonicalToolNames = new Set((tools || [])
+    .map((tool) => tool?.function?.name)
+    .filter((name) => typeof name === "string" && name));
   let buffer = "";
   let content = "";
   let finishReason = null;
@@ -110,6 +136,13 @@ export async function streamOpenRouterTurn({
   let sawReasoning = false;
   let sawText = false;
   let responseBytes = 0;
+  let providerUsage = null;
+  const endFirstProviderEvent = telemetry?.startStage?.(
+    "provider_headers_to_first_event",
+    iterationMetadata,
+  ) || (() => {});
+  let endFirstReasoningEvent = null;
+  let endFirstTextToken = null;
 
   try {
     while (true) {
@@ -126,8 +159,9 @@ export async function streamOpenRouterTurn({
         if (payload === "[DONE]") {
           return {
             content,
-            toolCalls: normalizeToolCalls(toolCallParts),
+            toolCalls: normalizeToolCalls(toolCallParts, canonicalToolNames),
             finishReason,
+            providerUsage,
           };
         }
         let json;
@@ -138,23 +172,33 @@ export async function streamOpenRouterTurn({
         }
         if (!sawProviderEvent) {
           sawProviderEvent = true;
-          telemetry?.mark?.("first_provider_event");
+          endFirstProviderEvent({ count: 1 });
+          telemetry?.mark?.("first_provider_event", { repeat: true, ...iterationMetadata });
+          endFirstReasoningEvent = telemetry?.startStage?.(
+            "provider_first_event_to_reasoning",
+            iterationMetadata,
+          ) || null;
+          endFirstTextToken = telemetry?.startStage?.(
+            "provider_first_event_to_text",
+            iterationMetadata,
+          ) || null;
         }
         if (typeof json?.provider === "string") telemetry?.setDimensions?.({ provider: json.provider });
         if (json?.usage && typeof json.usage === "object") {
-          telemetry?.setDimensions?.({
+          providerUsage = {
             inputTokens: json.usage.prompt_tokens,
             outputTokens: json.usage.completion_tokens,
             reasoningTokens: json.usage.completion_tokens_details?.reasoning_tokens,
             cacheTokens: json.usage.prompt_tokens_details?.cached_tokens,
-          });
+          };
         }
         const choice = json?.choices?.[0] || {};
         finishReason = choice.finish_reason || finishReason;
         const delta = choice.delta || {};
         if (!sawReasoning && typeof delta.reasoning === "string" && delta.reasoning) {
           sawReasoning = true;
-          telemetry?.mark?.("first_reasoning_event");
+          endFirstReasoningEvent?.();
+          telemetry?.mark?.("first_reasoning_event", { repeat: true, ...iterationMetadata });
         }
         const toolCalls = Array.isArray(delta.tool_calls) ? delta.tool_calls : [];
         for (const part of toolCalls) {
@@ -175,7 +219,8 @@ export async function streamOpenRouterTurn({
         if (typeof contentDelta === "string" && contentDelta) {
           if (!sawText) {
             sawText = true;
-            telemetry?.mark?.("first_text_token");
+            endFirstTextToken?.();
+            telemetry?.mark?.("first_text_token", { repeat: true, ...iterationMetadata });
           }
           content += contentDelta;
           onChunk(contentDelta);
@@ -184,7 +229,9 @@ export async function streamOpenRouterTurn({
     }
   } finally {
     reader.releaseLock?.();
-    telemetry?.setDimensions?.({ responseBytes });
+    if (!sawProviderEvent) endFirstProviderEvent({ count: 0 });
+    telemetry?.incrementDimensions?.({ providerResponseBytes: responseBytes });
+    if (providerUsage) telemetry?.incrementDimensions?.(providerUsage);
   }
 
   if (!TERMINAL_FINISH_REASONS.has(finishReason)) {
@@ -195,8 +242,9 @@ export async function streamOpenRouterTurn({
 
   return {
     content,
-    toolCalls: normalizeToolCalls(toolCallParts),
+    toolCalls: normalizeToolCalls(toolCallParts, canonicalToolNames),
     finishReason,
+    providerUsage,
   };
 }
 
@@ -210,7 +258,7 @@ function parseToolArgs(rawArgs) {
 
 function safeJsonSize(value) {
   try {
-    return JSON.stringify(value).length;
+    return Buffer.byteLength(JSON.stringify(value), "utf8");
   } catch {
     return 0;
   }
@@ -281,7 +329,7 @@ export async function executeToolCallBatch({
     });
   }
 
-  telemetry?.setDimensions?.({ toolLayerCount: layer });
+  telemetry?.incrementDimensions?.({ toolLayerCount: layer });
   return orderedResults;
 }
 
@@ -339,6 +387,7 @@ export async function runStreamingAgentLoop({
           onChunk(text);
         },
         telemetry,
+        iteration: iterations,
       });
     } catch (error) {
       endIteration({ streamedChars: content.length });
@@ -357,11 +406,17 @@ export async function runStreamingAgentLoop({
     endIteration({ streamedChars: turn.content.length });
 
     if (!turn.toolCalls.length) {
-      generation?.end({
+      persistGenerationUsage({
+        generation,
+        telemetry,
+        iteration: iterations,
+        providerUsage: turn.providerUsage,
+        payload: {
         output: content,
         metadata: {
           finishReason: turn.finishReason || "stop",
           streamedChars: content.length,
+        },
         },
       });
       telemetry?.setDimensions?.({
@@ -379,9 +434,15 @@ export async function runStreamingAgentLoop({
     };
     messages.push(assistantMessage);
     onToolCalls(turn.toolCalls.map((tc) => tc.function.name));
-    generation?.end({
-      output: { toolCalls: turn.toolCalls.map((tc) => tc.function.name) },
-      metadata: { finishReason: turn.finishReason || "tool_calls" },
+    persistGenerationUsage({
+      generation,
+      telemetry,
+      iteration: iterations,
+      providerUsage: turn.providerUsage,
+      payload: {
+        output: { toolCalls: turn.toolCalls.map((tc) => tc.function.name) },
+        metadata: { finishReason: turn.finishReason || "tool_calls" },
+      },
     });
 
     const results = await executeToolCallBatch({

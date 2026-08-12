@@ -1,5 +1,6 @@
 import test from "node:test";
 import assert from "node:assert/strict";
+import { Buffer } from "node:buffer";
 import { TextEncoder } from "node:util";
 
 import {
@@ -81,7 +82,10 @@ test("runStreamingAgentLoop executes same-turn tool calls concurrently and prese
     endpoint: "https://example.test",
     messages: [{ role: "user", content: "question" }],
     model: "test-model",
-    tools: [{ type: "function", function: { name: "fetch_observations" } }],
+    tools: [
+      { type: "function", function: { name: "fetch_observations" } },
+      { type: "function", function: { name: "fetch_interviews" } },
+    ],
     toolExecutor: async (name) => {
       executionOrder.push(`start:${name}`);
       if (executionOrder.length === 2) resolveBothStarted();
@@ -137,6 +141,30 @@ test("executeToolCallBatch waits for prerequisites and preserves model output or
   const results = await batch;
   assert.equal(executionOrder.at(-2), "start:fetch_snapshot_history");
   assert.deepEqual(results.map(({ tc }) => tc.id), ["dependent", "prerequisite", "independent"]);
+});
+
+test("executeToolCallBatch records multibyte tool result sizes in UTF-8 bytes", async () => {
+  const result = { message: "Pep 🌶️" };
+  const toolEnds = [];
+  const spanEnds = [];
+
+  await executeToolCallBatch({
+    toolCalls: [{ id: "multibyte", function: { name: "fetch_observations", arguments: "{}" } }],
+    toolExecutor: async () => result,
+    trace: { span: () => ({ end: (metadata) => spanEnds.push(metadata) }) },
+    telemetry: {
+      startStage: (name) => (metadata = {}) => {
+        if (name === "tool_execution") toolEnds.push(metadata);
+      },
+      incrementDimensions: () => {},
+    },
+  });
+
+  const serialized = JSON.stringify(result);
+  const expectedBytes = Buffer.byteLength(serialized, "utf8");
+  assert.equal(expectedBytes > serialized.length, true);
+  assert.equal(toolEnds[0].resultSizeBytes, expectedBytes);
+  assert.equal(spanEnds[0].metadata.resultSizeBytes, expectedBytes);
 });
 
 test("runStreamingAgentLoop records Langfuse generations and tool spans", async () => {
@@ -206,6 +234,7 @@ test("runStreamingAgentLoop records model iterations, tool layers, and tool dura
     },
     mark: () => {},
     setDimensions: (metadata) => dimensions.push(metadata),
+    incrementDimensions: (metadata) => dimensions.push(metadata),
   };
 
   await runStreamingAgentLoop({
@@ -224,6 +253,125 @@ test("runStreamingAgentLoop records model iterations, tool layers, and tool dura
   assert.equal(stages.some(({ name }) => name === "tool_layer"), true);
   assert.equal(stages.some(({ name, metadata }) => name === "tool_execution" && metadata.toolName === "fetch_observations"), true);
   assert.equal(dimensions.some((value) => value.modelIterationCount === 2), true);
+});
+
+test("runStreamingAgentLoop accumulates tool layers across model iterations", async () => {
+  const fetchResponses = [
+    responseFromChunks([
+      'data: {"choices":[{"delta":{"tool_calls":[{"index":0,"id":"tc_first","type":"function","function":{"name":"fetch_observations","arguments":"{}"}}]},"finish_reason":"tool_calls"}]}\n\n',
+      "data: [DONE]\n\n",
+    ]),
+    responseFromChunks([
+      'data: {"choices":[{"delta":{"tool_calls":[{"index":0,"id":"tc_dependent","type":"function","function":{"name":"fetch_snapshot_history","arguments":"{}"}},{"index":1,"id":"tc_prerequisite","type":"function","function":{"name":"fetch_weekly_snapshot","arguments":"{}"}}]},"finish_reason":"tool_calls"}]}\n\n',
+      "data: [DONE]\n\n",
+    ]),
+    responseFromChunks([
+      'data: {"choices":[{"delta":{"content":"Done"},"finish_reason":"stop"}]}\n\n',
+      "data: [DONE]\n\n",
+    ]),
+  ];
+  const recorder = new (await import("./chatTelemetry.js")).ChatLatencyRecorder();
+
+  await runStreamingAgentLoop({
+    fetchImpl: async () => fetchResponses.shift(),
+    apiKey: "secret",
+    endpoint: "https://example.test",
+    messages: [{ role: "user", content: "question" }],
+    model: "test-model",
+    tools: [
+      { type: "function", function: { name: "fetch_observations" } },
+      { type: "function", function: { name: "fetch_snapshot_history" } },
+      { type: "function", function: { name: "fetch_weekly_snapshot" } },
+    ],
+    toolPrerequisites: { fetch_snapshot_history: ["fetch_weekly_snapshot"] },
+    toolExecutor: async (name) => ({ name }),
+    trace: noOpTrace(),
+    telemetry: recorder,
+  });
+
+  assert.equal(recorder.snapshot().dimensions.toolLayerCount, 3);
+});
+
+test("runStreamingAgentLoop preserves per-iteration provider milestones and accumulates usage", async () => {
+  const fetchResponses = [
+    responseFromChunks([
+      'data: {"usage":{"prompt_tokens":10,"completion_tokens":2},"choices":[{"delta":{"tool_calls":[{"index":0,"id":"tc_a","type":"function","function":{"name":"fetch_observations","arguments":"{}"}}]},"finish_reason":"tool_calls"}]}\n\n',
+      "data: [DONE]\n\n",
+    ]),
+    responseFromChunks([
+      'data: {"usage":{"prompt_tokens":20,"completion_tokens":4},"choices":[{"delta":{"content":"Done"},"finish_reason":"stop"}]}\n\n',
+      "data: [DONE]\n\n",
+    ]),
+  ];
+  const generationEnds = [];
+  const recorder = new (await import("./chatTelemetry.js")).ChatLatencyRecorder({
+    now: (() => { let tick = 0; return () => tick++; })(),
+    wallNow: () => 1_700_000_000_000,
+  });
+
+  await runStreamingAgentLoop({
+    fetchImpl: async () => fetchResponses.shift(),
+    apiKey: "secret",
+    endpoint: "https://example.test",
+    messages: [{ role: "user", content: "question" }],
+    model: "test-model",
+    tools: [{ type: "function", function: { name: "fetch_observations" } }],
+    toolExecutor: async () => ({ observations: 1 }),
+    trace: {
+      generation: () => ({ end: (value) => generationEnds.push(value) }),
+      span: () => ({ end: () => {} }),
+    },
+    telemetry: recorder,
+  });
+
+  const summary = recorder.snapshot();
+  assert.equal(summary.milestones.first_provider_event.iteration, 1);
+  assert.equal(summary.milestones.first_provider_event_2.iteration, 2);
+  assert.equal(summary.milestones.first_text_token.iteration, 2);
+  assert.equal(summary.dimensions.inputTokens, 30);
+  assert.equal(summary.dimensions.outputTokens, 6);
+  assert.equal(summary.dimensions.providerResponseBytes > 0, true);
+  assert.equal(summary.stages.usage_recording.count, 1);
+  assert.equal(summary.stages.usage_recording_2.count, 1);
+  assert.deepEqual(generationEnds.map((value) => value.usage), [
+    { input: 10, output: 2 },
+    { input: 20, output: 4 },
+  ]);
+  assert.equal(summary.stages.provider_headers_to_first_event.iteration, 1);
+  assert.equal(summary.stages.provider_headers_to_first_event_2.iteration, 2);
+});
+
+test("provider tool names outside the selected registry become unknown_tool everywhere", async () => {
+  const executed = [];
+  const emitted = [];
+  const dimensions = [];
+  const result = await runStreamingAgentLoop({
+    fetchImpl: async () => responseFromChunks([
+      'data: {"choices":[{"delta":{"tool_calls":[{"index":0,"id":"tc_bad","type":"function","function":{"name":"Private teacher content","arguments":"{}"}}]},"finish_reason":"tool_calls"}]}\n\n',
+      "data: [DONE]\n\n",
+    ]),
+    apiKey: "secret",
+    endpoint: "https://example.test",
+    messages: [{ role: "user", content: "question" }],
+    model: "test-model",
+    tools: [{ type: "function", function: { name: "fetch_observations" } }],
+    toolExecutor: async (name) => { executed.push(name); return { error: "disabled" }; },
+    trace: noOpTrace(),
+    maxIterations: 1,
+    onToolCalls: (names) => emitted.push(...names),
+    telemetry: {
+      startStage: () => () => {},
+      mark: () => {},
+      setDimensions: (value) => dimensions.push(value),
+      incrementDimensions: () => {},
+    },
+  }).catch((error) => error);
+
+  assert.match(result.message, /exceeded max iterations/);
+  assert.deepEqual(executed, ["unknown_tool"]);
+  assert.deepEqual(emitted, ["unknown_tool"]);
+  assert.equal(JSON.stringify(dimensions).includes("Private teacher content"), false);
+  assert.equal(dimensions.some((value) => value.toolNames?.includes("unknown_tool")), true);
 });
 
 test("runStreamingAgentLoop refuses model execution without Langfuse", async () => {

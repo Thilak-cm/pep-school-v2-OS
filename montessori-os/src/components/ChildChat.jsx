@@ -469,12 +469,6 @@ export default function ChildChat({ student, currentUser, userRole, manageableCl
   const handleSend = async (retryAssistantMessage = null, explicitMessage = '') => {
     const studentId = student?.id;
     if (!studentId || loading) return;
-    const firebaseUser = auth.currentUser;
-    if (!firebaseUser?.uid) {
-      setError('You must be signed in to chat.');
-      return;
-    }
-
     const generatedIds = createChatIds();
     const retryRequest = retryAssistantMessage ? buildRetryRequest({
       messages,
@@ -488,6 +482,22 @@ export default function ChildChat({ student, currentUser, userRole, manageableCl
       input,
     });
     if (!message || (retryAssistantMessage && !retryRequest)) return;
+    // A valid Send is part of the coverage contract even when local auth state
+    // rejects it before an HTTP attempt can begin. Persist its terminal event
+    // now so the next authenticated mount can deliver the queued record.
+    const turnTelemetry = new ChatTurnTelemetry({
+      endpoint: import.meta.env.VITE_CHAT_TELEMETRY_URL || defaultTelemetryUrl,
+      getToken: () => auth.currentUser?.getIdToken?.() || null,
+      programId: student?.programId || student?.program || 'unknown',
+    });
+    const firebaseUser = auth.currentUser;
+    if (!firebaseUser?.uid) {
+      turnTelemetry.finish('failed', 'auth/unauthenticated');
+      void turnTelemetry.deliver();
+      setError('You must be signed in to chat.');
+      return;
+    }
+
     const canRetry = Boolean(retryRequest);
     const ids = retryRequest?.ids || generatedIds;
     const chatId = selectedChatId || ids.chatId;
@@ -496,11 +506,6 @@ export default function ChildChat({ student, currentUser, userRole, manageableCl
     const controller = new AbortController();
     presentationRef.current?.clear();
     pendingAssistantSnapshotRef.current = null;
-    const turnTelemetry = new ChatTurnTelemetry({
-      endpoint: import.meta.env.VITE_CHAT_TELEMETRY_URL || defaultTelemetryUrl,
-      getToken: () => firebaseUser.getIdToken(),
-      programId: student?.programId || student?.program || 'unknown',
-    });
     activeTelemetryRef.current = turnTelemetry;
     abortRef.current = controller;
     activeTurnRef.current = {
