@@ -1,7 +1,7 @@
 # Pep OS Overview
 
-Generated: 2026-08-07T01:41:11.896Z
-App version: 12.2.2
+Generated: 2026-08-12T03:50:07.594Z
+App version: 12.3.0
 
 ## App Snapshot
 
@@ -95,8 +95,8 @@ App version: 12.2.2
 - `montessori-os/src/components/UsersAccessPage.jsx`
 
 ### Settings, Feedback, and App Shell (`settings-feedback-shell`)
-- Count: 49
-- Components: `App`, `AppFooter`, `AppHeader`, `BroadcastComposer`, `BroadcastComposer.test`, `BulkUploadPage`, `BulkUploadPage.helpers`, `BulkUploadPage.test`, `ChatMaintenance`, `ChatMaintenance.test`, `ClassroomNoteCard`, `ClassroomStudentCard`, `CopyToClipboardButton`, `DynamicIslandPill`, `DynamicIslandPill.test`, `FeedbackPage`, `GroupedNoteCard`, `GroupedNoteDialog`, `InlineVoiceOverlay`, `InterviewsPage`, `InterviewsPage.helpers`, `InterviewsPage.test`, `LandingPage`, `LandingPage.test`, `MonthlyPlanTab`, `MonthlyPlanTab.test`, `NoteBottomSheet.structure.test`, `NotesOverTimeDrawer`, `PlanFeedbackDialog`, `PlanFeedbackDialog.test`, `ProfilePage`, `QuestionDeck`, `QuestionDeck.test`, `ReadinessCheckDialog`, `ReportGenerateDialog`, `ReportPreviewDialog`, `ReportsCard`, `ReportsPage`, `ReportsPage.test`, `ReportTypeLandingPage`, `ReportTypeLandingPage.test`, `ReviewClassroomNotes`, `SettingsPage`, `SettingsPage.test`, `SnapshotBody`, `SnapshotCard`, `VersionBadge`, `WritingAnalysisTab`, `WritingAnalysisTab.test`
+- Count: 50
+- Components: `App`, `AppFooter`, `AppHeader`, `BroadcastComposer`, `BroadcastComposer.test`, `BulkUploadPage`, `BulkUploadPage.helpers`, `BulkUploadPage.test`, `ChatMaintenance`, `ChatMaintenance.test`, `ClassroomNoteCard`, `ClassroomStudentCard`, `CopyToClipboardButton`, `DynamicIslandPill`, `DynamicIslandPill.test`, `FeedbackPage`, `GroupedNoteCard`, `GroupedNoteDialog`, `InlineVoiceOverlay`, `InterviewsPage`, `InterviewsPage.helpers`, `InterviewsPage.test`, `LandingPage`, `LandingPage.test`, `MonthlyPlanTab`, `MonthlyPlanTab.test`, `NoteBottomSheet.structure.test`, `NotesOverTimeDrawer`, `PlanFeedbackDialog`, `PlanFeedbackDialog.test`, `ProfilePage`, `QuestionDeck`, `QuestionDeck.test`, `ReadinessCheckDialog`, `ReportGenerateDialog`, `ReportPreviewDialog`, `ReportsCard`, `ReportsPage`, `ReportsPage.test`, `ReportTypeLandingPage`, `ReportTypeLandingPage.test`, `ReviewClassroomNotes`, `SettingsPage`, `SettingsPage.test`, `SnapshotBody`, `SnapshotCard`, `VersionBadge`, `VersionBadge.test`, `WritingAnalysisTab`, `WritingAnalysisTab.test`
 - Representative paths:
 - `montessori-os/src/App.jsx`
 - `montessori-os/src/AppFooter.jsx`
@@ -152,6 +152,10 @@ App version: 12.2.2
 
 ## Recent Changes
 
+### 12.3.0 (2026-08-12)
+- End-to-end Coach Pepper chat latency telemetry with correlated client/server attempts, genuine first-paint timing, privacy-safe structured stages, reliable delivery retries, and benchmark analysis primitives (#234).
+- Coach Pepper fallback and seeded history defaults now retain 30 recent messages, and the displayed PWA version derives from package metadata (#234).
+
 ### 12.2.2 (2026-08-06)
 - Coach Pepper chat now gives clearer startup guidance, teacher-friendly tool progress, smoother streamed responses, and standard Markdown list-formatting guidance.
 - Empty-chat cleanup now revalidates candidates transactionally before deletion, and chat streaming/persistence edge cases have expanded test coverage.
@@ -166,7 +170,3 @@ App version: 12.2.2
 - Classroom directory, Firestore auth-boundary, and precise 48-hour edit/delete boundary coverage in the rules emulator suite (#207).
 - Coach Pepper now streams responses progressively through a durable, server-orchestrated chat session (#220).
 
-### 12.1.0 (2026-07-23)
-- Timeline pagination: classroom and student timelines now load 20 notes at a time with cursor-based "Show More" instead of fetching all notes at once (#221)
-- Timeline stats (notes overall, 7-day count, student count) now read from statsCache instead of being derived from loaded notes (#221)
-- Media observations merged into unified `observations` subcollection - single sorted stream replaces the previous two-collection k-way merge (#221)
