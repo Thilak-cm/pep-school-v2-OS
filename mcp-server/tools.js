@@ -643,6 +643,32 @@ export const TOOL_DEFINITIONS = [
       },
     },
   },
+  {
+    name: "export_chat_latency_events",
+    description: "Export privacy-safe Coach Pepper client, server, and CORS preflight latency events from the fixed Cloud Logging boundary.",
+    inputSchema: {
+      type: "object",
+      properties: {
+        startTime: { type: "string" }, endTime: { type: "string" }, lookbackMinutes: { type: "number" },
+        pageSize: { type: "number" }, pageToken: { type: "string" }, eventTypes: { type: "array", items: { enum: ["client", "server", "preflight"] } },
+      },
+    },
+  },
+  {
+    name: "get_chat_latency_correlation",
+    description: "Correlate Coach Pepper latency client turns to server attempts by clientTurnId and runId, retaining retries and unmatched records.",
+    inputSchema: { type: "object", properties: { startTime: { type: "string" }, endTime: { type: "string" }, lookbackMinutes: { type: "number" }, pageSize: { type: "number" }, pageToken: { type: "string" } } },
+  },
+  {
+    name: "check_chat_latency_coverage",
+    description: "Check Coach Pepper latency telemetry coverage for duplicates, missing run IDs, orphan server events, missing client turns, and CORS preflights.",
+    inputSchema: { type: "object", properties: { startTime: { type: "string" }, endTime: { type: "string" }, lookbackMinutes: { type: "number" }, pageSize: { type: "number" }, pageToken: { type: "string" } } },
+  },
+  {
+    name: "get_chat_latency_schema",
+    description: "Return the versioned, privacy-safe Coach Pepper latency event schema and query contract.",
+    inputSchema: { type: "object", properties: {} },
+  },
 ];
 
 // ────────────────────────────────────────────
@@ -1411,6 +1437,22 @@ export async function handleListDigestHistory(db, params) {
   });
 
   return results;
+}
+
+export async function handleExportChatLatencyEvents(adapter, params) {
+  return adapter.exportChatLatencyEvents(params);
+}
+
+export async function handleGetChatLatencyCorrelation(adapter, params) {
+  return adapter.getChatLatencyCorrelation(params);
+}
+
+export async function handleCheckChatLatencyCoverage(adapter, params) {
+  return adapter.checkChatLatencyCoverage(params);
+}
+
+export async function handleGetChatLatencySchema(adapter) {
+  return adapter.getChatLatencySchema();
 }
 
 export async function handleListConfig(db) {
