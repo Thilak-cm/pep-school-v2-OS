@@ -41,6 +41,7 @@ export function buildMediaDocData(payload, mediaId, storagePath) {
       handwritten: payload.handwritten === true,
       curriculumArea: payload.curriculumArea || null,
       materialsIdentified: Array.isArray(payload.materialsIdentified) ? payload.materialsIdentified : [],
+      imageEdited: payload.imageEdited === true,
     } : {}),
     ...(Array.isArray(payload.linkedLessonObservationId) && payload.linkedLessonObservationId.length > 0
       ? { linkedLessonObservationId: payload.linkedLessonObservationId } : {}),

@@ -10,7 +10,7 @@
  *   - student:   direct subcollection query under students/{studentId}
  */
 
-import { useState, useEffect, useCallback } from 'react';
+import { useState, useEffect, useCallback, useRef } from 'react';
 import {
   collection, collectionGroup, query, where, orderBy,
   getDocs, getDoc, doc, limit, startAfter,
@@ -26,6 +26,7 @@ const {
   fetchActiveClassroomStudents,
   fetchClassroomTimelineNotes,
   fetchStudentTimelineNotes,
+  fetchStudentBatchObservations,
 } = createTimelineQueries({
   db,
   firestore: {
@@ -65,6 +66,32 @@ export default function useTimelineData({ scope, id, classroom, userRole, manage
   // in practice - users can refresh to see any skipped doc.
   const [cursor, setCursor] = useState(null);
   const [refreshTick, setRefreshTick] = useState(0);
+  const fetchedBatchIdsRef = useRef(new Set());
+
+  useEffect(() => {
+    if (scope !== 'student' || !id) return;
+    const batchIds = [...new Set(notes.map((note) => note.batchId).filter(Boolean))]
+      .filter((batchId) => !fetchedBatchIdsRef.current.has(batchId));
+    if (!batchIds.length) return;
+    let cancelled = false;
+    batchIds.forEach((batchId) => fetchedBatchIdsRef.current.add(batchId));
+    Promise.all(batchIds.map((batchId) => fetchStudentBatchObservations({ studentId: id, batchId })))
+      .then((groups) => {
+        if (cancelled) return;
+        const additions = groups.flat();
+        setNotes((previous) => {
+          const byId = new Map(previous.map((note) => [note.id, note]));
+          additions.forEach((note) => byId.set(note.id, note));
+          return [...byId.values()].sort((a, b) => {
+            const aTime = a.observedAt?.toMillis?.() || a.observedAt?.seconds * 1000 || 0;
+            const bTime = b.observedAt?.toMillis?.() || b.observedAt?.seconds * 1000 || 0;
+            return bTime - aTime;
+          });
+        });
+      })
+      .catch((err) => reportCaughtError(err, 'useTimelineData', 'student batch siblings fetch'));
+    return () => { cancelled = true; };
+  }, [scope, id, notes]);
 
   // Access check (classroom scope only)
   const hasAccess = scope === 'student' || !id
@@ -79,6 +106,7 @@ export default function useTimelineData({ scope, id, classroom, userRole, manage
       setTeachers([]);
       setLoading(false);
       setHasMore(false);
+      fetchedBatchIdsRef.current.clear();
       return;
     }
 
