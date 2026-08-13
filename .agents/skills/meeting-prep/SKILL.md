@@ -29,6 +29,8 @@ Separate facts from inference. Do not claim a PR is merged, an issue is closed, 
 ## P1-first Next logic
 
 - Find open P1 issues first, then active P2/P3/P4 work that should be escalated or that blocks P1 work.
+- Explicitly state the priority whenever mentioning an issue or PR number, using the repository's canonical label (for example, `P1`, `P1-urgent`, `P2-high`, `P3-normal`, or `P4-low`). Never drop an issue number without its priority.
+- Make the P1 basis visible in `Next`: identify which recommendations are P1 items, and describe any lower-priority item as a dependency, escalation candidate, or deferred follow-up rather than presenting it as equivalent to P1 work.
 - Apply the user's operating strategy: P4 → P3, P3 → P2, P2 → P1 over time. Treat this as a recommendation framework, not permission to edit labels.
 - Recommend a priority promotion only when evidence supports urgency, impact, dependency, or staleness. Keep the existing priority visible when recommending a change.
 - Never change GitHub labels, project fields, issue state, branches, or code during this skill. If the user later explicitly asks to promote or update an issue, hand off to the appropriate workflow.
@@ -44,11 +46,11 @@ Return only these four sections, in this order:
 
 ### Being done
 
-- Current branches, open PRs, in-progress issues, or active implementation. Include concrete status and immediate state, not a chronology.
+- Current branches, open PRs, in-progress issues, or active implementation. Include concrete status and immediate state, not a chronology. State the priority beside every issue or PR reference.
 
 ### Next
 
-- The smallest set of recommended next actions, led by P1 issues and dependencies. Include issue/PR links inline when useful.
+- The smallest set of recommended next actions, led by P1 issues and dependencies. Explicitly identify each item's priority beside its issue/PR link; make clear whether it is P1 work, a dependency for P1 work, or a lower-priority recommendation.
 
 ### Talk points
 
