@@ -56,6 +56,12 @@ Fan-out per student: one observation doc per student at `students/{studentId}/ob
 - Shared constants between frontend and functions live in `functions/config/` (Vite `fs.allow` permits cross-boundary imports)
 - App version tracked in `montessori-os/package.json` and `VERSION` file at root; service worker version updated at prebuild
 
+### Firestore Mutation Scripts
+
+- Any script that can create, update, or delete Firestore data must be dry-run by default and require an explicit `--yes` flag before applying writes.
+- Always execute and inspect the dry run first, in the same task, before running the script with `--yes`. Prior approval to perform the migration does not replace this dry-run step.
+- Dry-run output must identify the exact documents and fields that would change without exposing sensitive field values.
+
 ### Commit Message Conventions
 
 Write commit messages as durable change records, not terse labels. Every non-merge commit should:

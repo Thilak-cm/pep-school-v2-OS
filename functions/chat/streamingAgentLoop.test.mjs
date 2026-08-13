@@ -207,6 +207,10 @@ test("runStreamingAgentLoop records Langfuse generations and tool spans", async 
 
   assert.equal(generations.length, 2);
   assert.equal(generations[0].input.name, "chat-stream-iteration-1");
+  assert.deepEqual(generations[0].input.input.messages, [{ role: "user", content: "question" }]);
+  assert.equal(generations[0].input.input.tools[0].function.name, "fetch_observations");
+  assert.equal(generations[0].input.input.model, "test-model");
+  assert.equal(generations[0].input.metadata.inputMessageCount, 1);
   assert.deepEqual(generations[0].endCalls[0].output, { toolCalls: ["fetch_observations"] });
   assert.equal(generations[1].endCalls[0].output, "Done");
   assert.equal(spans.length, 1);

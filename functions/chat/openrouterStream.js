@@ -364,8 +364,14 @@ export async function runStreamingAgentLoop({
     const generation = trace?.generation({
       name: `chat-stream-iteration-${iterations}`,
       model,
-      input: messages[messages.length - 1],
-      metadata: { toolCount: tools.length, stream: true },
+      input: {
+        messages: structuredClone(messages),
+        tools: structuredClone(tools),
+        model,
+        temperature,
+        maxTokens,
+      },
+      metadata: { toolCount: tools.length, stream: true, inputMessageCount: messages.length },
     });
     if (typeof generation?.end !== "function") {
       throw new Error("Langfuse generation could not be created");

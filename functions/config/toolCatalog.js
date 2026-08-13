@@ -7,36 +7,21 @@
 
 export const TOOL_CATALOG_META = [
   {
-    id: "fetch_weekly_snapshot",
+    id: "fetch_weekly_snapshots",
     scope: "student",
     label: "Weekly Snapshot",
     description: "Full narrative summary for a student's current weekly snapshot",
     defaultEnabled: true,
   },
   {
-    id: "fetch_snapshot_history",
-    scope: "student",
-    label: "Snapshot History",
-    description: "Previous weekly snapshots for trend analysis",
-    prerequisites: ["fetch_weekly_snapshot"],
-    defaultEnabled: true,
-  },
-  {
-    id: "fetch_soul",
-    scope: "student",
-    label: "Soul Narrative",
-    description: "AI-generated holistic description of who the child is",
-    defaultEnabled: false,
-  },
-  {
-    id: "fetch_monthly_plan",
+    id: "fetch_monthly_plans",
     scope: "student",
     label: "Monthly Plan",
     description: "Current monthly prescribed activities and goals",
     defaultEnabled: true,
   },
   {
-    id: "fetch_writing_analysis",
+    id: "fetch_writing_analyses",
     scope: "student",
     label: "Writing Analysis",
     description: "Latest handwriting assessment and progression",
