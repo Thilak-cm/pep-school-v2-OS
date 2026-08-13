@@ -180,6 +180,21 @@ test("correlation requires an opaque client or server identifier and returns the
   assert.equal(mismatch.logicalClientTurn, null);
 });
 
+test("correlation returns server summaries when client delivery is delayed or absent", async () => {
+  const adapter = createCloudLoggingAdapter({
+    entries: async () => [[
+      { insertId: "server-1", timestamp: "2026-08-12T02:58:00.000Z", resource: { labels: { function_name: "childChatStream" } }, jsonPayload: { eventName: "chat_server_latency", clientTurnId: "turn-delayed", runId: "run-delayed", outcome: "completed", stages: { model_iteration: { durationMs: 10 } } } },
+    ], null],
+  });
+  const result = await adapter.getChatLatencyCorrelation({ runId: "run-delayed", lookbackMinutes: 5 }, NOW);
+  assert.equal(result.logicalClientTurn, null);
+  assert.deepEqual(result.attempts, ["run-delayed"]);
+  assert.equal(result.matchingServerSummaries[0].runId, "run-delayed");
+  assert.equal(result.terminalAttempt.runId, "run-delayed");
+  const byTurn = await adapter.getChatLatencyCorrelation({ clientTurnId: "turn-delayed", lookbackMinutes: 5 }, NOW);
+  assert.equal(byTurn.matchingServerSummaries[0].clientTurnId, "turn-delayed");
+});
+
 test("coverage reports duplicates, missing run IDs, orphans, and CORS preflights", () => {
   const result = checkLatencyCoverage({
     clientEvents: [

@@ -333,8 +333,10 @@ export function createCloudLoggingAdapter({ entries }) {
         ...params,
         clientTurnIds: identifiers.clientTurnId ? [identifiers.clientTurnId] : undefined,
         // A run ID is stored on server events, while the client event stores
-        // the related IDs in attemptRunIds/finalRunId. Applying runIds to the
-        // Logging query would discard that client event before correlation.
+        // the related IDs in attemptRunIds/finalRunId. Use the exact server
+        // filter for run-only lookups; when both identifiers are supplied,
+        // keep the client-turn query so both sides remain available.
+        runIds: identifiers.runId && !identifiers.clientTurnId ? [identifiers.runId] : undefined,
       }, now);
       const correlation = correlateLatencyEvents({
         clientEvents: exported.events.client,
@@ -342,6 +344,14 @@ export function createCloudLoggingAdapter({ entries }) {
         ...identifiers,
       });
       const logicalClientTurn = exported.events.client.find((event) => !identifiers.clientTurnId || event.clientTurnId === identifiers.clientTurnId) || null;
+      const matchingServerSummaries = exported.events.server
+        .filter((event) => (identifiers.runId && event.runId === identifiers.runId)
+          || (identifiers.clientTurnId && event.clientTurnId === identifiers.clientTurnId)
+          || (logicalClientTurn && (logicalClientTurn.attemptRunIds || []).includes(event.runId)))
+        .sort((a, b) => {
+          const attemptRunIds = logicalClientTurn?.attemptRunIds || [];
+          return attemptRunIds.indexOf(a.runId) - attemptRunIds.indexOf(b.runId);
+        });
       if (identifiers.runId && logicalClientTurn && ![logicalClientTurn.finalRunId, ...(logicalClientTurn.attemptRunIds || [])].includes(identifiers.runId)) {
         return {
           ...exported,
@@ -353,16 +363,19 @@ export function createCloudLoggingAdapter({ entries }) {
         };
       }
       const attemptRunIds = logicalClientTurn?.attemptRunIds || [];
-      const matchingServerSummaries = exported.events.server
-        .filter((event) => attemptRunIds.includes(event.runId) || (identifiers.runId && event.runId === identifiers.runId))
-        .sort((a, b) => attemptRunIds.indexOf(a.runId) - attemptRunIds.indexOf(b.runId));
+      const resolvedAttemptRunIds = attemptRunIds.length
+        ? attemptRunIds
+        : matchingServerSummaries.map((event) => event.runId).filter(Boolean);
       return {
         ...exported,
         correlation,
         logicalClientTurn,
-        attempts: attemptRunIds,
+        attempts: resolvedAttemptRunIds,
         matchingServerSummaries,
-        terminalAttempt: matchingServerSummaries.find((event) => event.runId === logicalClientTurn?.finalRunId) || null,
+        terminalAttempt: matchingServerSummaries.find((event) => event.runId === logicalClientTurn?.finalRunId)
+          || (identifiers.runId && matchingServerSummaries.find((event) => event.runId === identifiers.runId))
+          || matchingServerSummaries.at(-1)
+          || null,
       };
     },
     async checkChatLatencyCoverage(params = {}, now = new Date()) {
