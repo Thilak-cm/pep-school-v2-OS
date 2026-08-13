@@ -18,6 +18,7 @@ import {
   CallToolRequestSchema,
 } from "@modelcontextprotocol/sdk/types.js";
 import admin from "firebase-admin";
+import { Logging } from "@google-cloud/logging";
 import { existsSync, readFileSync } from "fs";
 import { resolve, dirname } from "path";
 import { fileURLToPath } from "url";
@@ -54,7 +55,12 @@ import {
   handleListAlerts,
   handleGetDigest,
   handleListDigestHistory,
+  handleExportChatLatencyEvents,
+  handleGetChatLatencyCorrelation,
+  handleCheckChatLatencyCoverage,
+  handleGetChatLatencySchema,
 } from "./tools.js";
+import { createCloudLoggingAdapter } from "./cloudLogging.js";
 
 const __dirname = dirname(fileURLToPath(import.meta.url));
 const SERVICE_ACCOUNT_PATH = resolve(__dirname, "../firebase-service-account.json");
@@ -81,6 +87,23 @@ function initFirebase() {
 }
 
 const db = initFirebase();
+
+function initCloudLogging() {
+  const options = { projectId: PROJECT_ID };
+  if (existsSync(SERVICE_ACCOUNT_PATH)) options.keyFilename = SERVICE_ACCOUNT_PATH;
+  const logging = new Logging(options);
+  return createCloudLoggingAdapter({
+    entries: (filter, options = {}) => logging.getEntries({
+      filter,
+      pageSize: options.pageSize,
+      pageToken: options.pageToken,
+      orderBy: "timestamp desc",
+      autoPaginate: false,
+    }),
+  });
+}
+
+const cloudLogging = initCloudLogging();
 
 // --- MCP Server ---
 
@@ -125,6 +148,10 @@ const HANDLERS = {
   list_alerts: (p) => handleListAlerts(db, p),
   get_digest: (p) => handleGetDigest(db, p),
   list_digest_history: (p) => handleListDigestHistory(db, p),
+  export_chat_latency_events: (p) => handleExportChatLatencyEvents(cloudLogging, p),
+  get_chat_latency_correlation: (p) => handleGetChatLatencyCorrelation(cloudLogging, p),
+  check_chat_latency_coverage: (p) => handleCheckChatLatencyCoverage(cloudLogging, p),
+  get_chat_latency_schema: () => handleGetChatLatencySchema(cloudLogging),
 };
 
 server.setRequestHandler(CallToolRequestSchema, async (request) => {
