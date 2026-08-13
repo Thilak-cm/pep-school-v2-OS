@@ -16,6 +16,7 @@ Pep OS (Montessori OS) - a mobile-first React PWA for Montessori teachers to cap
 - `brain/` - Knowledge base content synced to Firestore
 - `firestore.rules` / `storage.rules` - Security rules
 - `DATA_STRUCTURE.md` - Complete Firestore schema reference
+- `docs/SCHEDULED_CLOUD_FUNCTIONS.md` - Canonical inventory of cron-triggered Cloud Functions, timing, and dispatcher/worker relationships
 
 Explore the tree directly for current structure - it changes often.
 
@@ -30,6 +31,11 @@ Deploy: run from root - `npm run deploy`, `deploy:functions`, `deploy:hosting`, 
 Ops: `node scripts/ops/create-classroom.mjs` (interactive or `--name --branch --program --user --dry-run/--yes` for agents), `npm run push-brain`.
 
 ## Architecture
+
+### Scheduled Cloud Functions
+For the complete cron inventory, grouped by daily, weekly, and monthly cadence,
+read `docs/SCHEDULED_CLOUD_FUNCTIONS.md`. Keep that document synchronized with
+`.pubsub.schedule(...)` declarations whenever scheduled jobs change.
 
 ### Roles & Access Control
 Three roles stored on Firestore user docs: `superadmin`, `classroomadmin`, `teacher`.
