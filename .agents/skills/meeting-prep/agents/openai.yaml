@@ -1,0 +1,4 @@
+interface:
+  display_name: "Meeting Prep"
+  short_description: "Concise Done, Doing, Next meeting brief"
+  default_prompt: "Use $meeting-prep to prepare a terse Done, Being done, Next, and Talk points brief."
