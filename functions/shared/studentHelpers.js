@@ -11,7 +11,6 @@ const normalizeTimestampValue = (ts) => {
 
 const chooseObservationTimestamp = (obs) => {
   return normalizeTimestampValue(obs?.observedAt) ||
-    normalizeTimestampValue(obs?.timestamp) ||
     normalizeTimestampValue(obs?.createdAt) ||
     null;
 };
@@ -51,8 +50,6 @@ async function fetchStudentNotesForWindow(studentId, windowDays) {
 
   await collect("observedAt");
   await collect("createdAt");
-  await collect("timestamp");
-
   const notes = Array.from(notesMap.values()).filter((n) => {
     const ts = chooseObservationTimestamp(n);
     return ts && ts >= cutoff;

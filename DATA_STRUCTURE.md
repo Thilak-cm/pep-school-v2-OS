@@ -691,6 +691,13 @@ interface Observation {
 }
 
 ```
+
+Observation timestamp compatibility:
+- Observations have no legacy `timestamp` field. Readers use `observedAt` as the
+  event time and may fall back to `createdAt` when `observedAt` is absent.
+- The separate optional `timestamp` field on legacy Coach Pepper chat messages
+  is unrelated and remains supported by chat transcript readers.
+
 Why fan-out per student?
 - Student timeline = 1 query
 - Classroom, teacher, and admin analytics = collection group queries
@@ -775,7 +782,7 @@ Current documents
 - `text_summarizer` — prompts + model config for the Text Cleanup feature
 - `voice_transcriber` — context string for Whisper speech-to-text
 - `coach_{program}` — per-program Coach nudge configuration (program ∈ toddler | primary | elementary | adolescent)
-- `chat_{program}` — per-program AI chat configuration. Shape: `{ systemPrompt: string, model: string, temperature: number, max_tokens: number, chatMessageLimit: number, observationLimit: number | 'all', allowedTools?: string[] }`. `observationLimit` controls how many recent observations are included in server-built chat context.
+- `chat_{program}` — per-program AI chat configuration. Shape: `{ systemPrompt: string, model: string, temperature: number, max_tokens: number, chatMessageLimit: number, observationWindowDays: number, allowedTools: string[] }`. `observationWindowDays` controls the date window for observations included in server-built chat context.
 - `report_{program}` — per-program parent progress report prompts + model config
 - `soul_guidelines_{program}` — per-program developmental guidelines markdown (areas, skill areas, benchmarks from report cards). Shape: `{ markdown: string, programId: ProgramId, benchmarkCount: number, updatedBy: string, updatedAt: Timestamp }`.
 - `soul_generation_{program}` — program-specific soul generation instruction prompt + model config (PEP-163). Doc IDs: `soul_generation_toddler`, `soul_generation_primary`, `soul_generation_elementary`, `soul_generation_adolescent`. Shape: `{ systemPrompt: string, model: string, temperature: number, max_tokens: number, description?: string }`. The production soul generator reads this first, then falls back to legacy `config/soul_generation`, then to hardcoded defaults in `functions/utils/soulHelpers.js:SOUL_DEFAULTS`. Prompt templates may use `{{guidelinesContent}}` or `${guidelinesContent}` as the guidelines placeholder.
@@ -788,6 +795,29 @@ Current documents
 - `monthly_plan` — prompts + model config for monthly plan generation (PEP-260). Shape: `{ systemPrompt: string, model: string, temperature: number, max_tokens: number, description: string, createdAt: Timestamp, updatedAt: Timestamp }`. Seeded by `scripts/admin/seed-monthly-plan-config.mjs`.
 - `telegram_bot` — Telegram bot configuration. Shape: `{ alertChatIds: number[] }`. `alertChatIds` lists Telegram chat IDs that receive daily data integrity check alerts from the `dataIntegrityChecks` scheduled CF (#161). Seeded by `scripts/admin/seed-telegram-alert-chatid.mjs`.
 - `weekly_digest` — weekly digest agent config (PEP-297). Shape: `{ classroomPrompt: string, superadminPrompt: string, model: string, temperature: number, max_tokens: number, allowedTools: string[], allowedToolScopes: string[], contextualNotes: string[], superadminClassroomOverrides: Record<string, string[]>, testOverrideEmails: string[], enableTestTrigger: boolean }`. Seeded by `scripts/admin/seed-digest-config.mjs`. `contextualNotes` managed via PEP-324 UI editor. `testOverrideEmails` and `enableTestTrigger` are dev/test infrastructure.
+
+### Coach Pepper prompt stack (#239)
+
+```text
+OPENROUTER REQUEST
+|
++-- SYSTEM MESSAGE
+|   |
+|   +-- 1. ROLE AND PURPOSE                    [Firestore systemPrompt]
+|   +-- 2. COACHING INSTRUCTIONS               [Firestore systemPrompt]
+|   +-- 3. RESPONSE FORMAT                     [Firestore systemPrompt]
+|   +-- 4. STUDENT BOUNDARY                    [Firestore systemPrompt]
+|   +-- 5. EVIDENCE RULES                      [Firestore systemPrompt]
+|   +-- 6. AUTHORITATIVE STUDENT PROFILE       [Firestore data -> template variable]
+|   +-- 7. DEVELOPMENT SUMMARY                 [Firestore data -> template variable]
+|   `-- 8. RECENT OBSERVATIONS                 [Firestore data -> template variable]
+|
++-- RECENT CHAT HISTORY                        [Separate messages]
++-- CURRENT TEACHER MESSAGE                    [User message]
+`-- AVAILABLE TOOLS                            [Top-level API tools]
+```
+
+All prompt prose lives in the per-program Firestore `systemPrompt` template. Code validates the template and renders Firestore-backed variables; an equivalent hardcoded template exists only as an observable fallback when the Firestore template is unavailable or invalid.
 
 **Promotion metadata (PEP-326):** Config docs promoted via the test bench `promoteTestBenchConfig` CF gain these additional fields: `_promotionHistory: Array<{ snapshot: Record<string, any>, replacedAt: Timestamp, replacedBy: { uid: string, name: string }, promotedFromRun: string | null, featureId: string }>` (capped at 10 entries, most recent first), `updatedAt: Timestamp`, `updatedBy: "testbench:{uid}"`. These fields are added via `set({ merge: true })` and do not affect production config consumers. Promotable docs: `writing_analysis_{programId}`, `soul_generation`, `soul_guidelines_{programId}`, `monthly_plan`, `weekly_digest`, `term_report_{programId}`, `baseline_report_{programId}`.
 

@@ -8,7 +8,7 @@ import {
   CHAT_MODEL_INFO,
   CHAT_SYSTEM_PROMPT,
   DEFAULT_CHAT_MESSAGE_LIMIT,
-  DEFAULT_OBSERVATION_LIMIT,
+  DEFAULT_OBSERVATION_WINDOW_DAYS,
 } from "../config/chatConstants.js";
 import { DEFAULT_CHAT_TOOL_IDS } from "../config/toolCatalog.js";
 import { createToolExecutor, getToolDefinitions, getTools } from "../shared/toolRegistry.js";
@@ -23,6 +23,7 @@ import { runStreamingAgentLoop } from "./openrouterStream.js";
 import { buildChatMessages } from "./chatContext.js";
 import { ChatLatencyRecorder, jsonUtf8ByteLength } from "./chatTelemetry.js";
 import { validateTelemetryErrorCategory } from "../config/chatTelemetry.js";
+import { validateSystemPromptTemplate } from "./promptAssembly.js";
 
 const LANGFUSE_SECRET_KEY = defineSecret("LANGFUSE_SECRET_KEY");
 const LANGFUSE_PUBLIC_KEY = defineSecret("LANGFUSE_PUBLIC_KEY");
@@ -116,17 +117,21 @@ async function loadChatConfig(programId, telemetry) {
   }
   endConfig();
   const data = snap.exists ? snap.data() || {} : {};
+  const configuredPrompt = typeof data.systemPrompt === "string" ? data.systemPrompt : "";
+  const systemPrompt = validateSystemPromptTemplate(configuredPrompt).valid
+    ? configuredPrompt
+    : CHAT_SYSTEM_PROMPT;
   return {
     model: typeof data.model === "string" ? data.model : CHAT_MODEL_INFO.model,
     temperature: Number.isFinite(data.temperature) ? data.temperature : CHAT_MODEL_INFO.temperature,
     maxTokens: Number.isFinite(data.max_tokens) ? data.max_tokens : CHAT_MODEL_INFO.max_tokens,
-    systemPrompt: typeof data.systemPrompt === "string" ? data.systemPrompt : CHAT_SYSTEM_PROMPT,
+    systemPrompt,
     historyLimit: Number.isFinite(data.chatMessageLimit)
       ? data.chatMessageLimit
       : DEFAULT_CHAT_MESSAGE_LIMIT,
-    observationLimit: data.observationLimit === "all" || Number.isFinite(data.observationLimit)
-      ? data.observationLimit
-      : DEFAULT_OBSERVATION_LIMIT,
+    observationWindowDays: Number.isFinite(data.observationWindowDays)
+      ? data.observationWindowDays
+      : DEFAULT_OBSERVATION_WINDOW_DAYS,
     allowedTools: Array.isArray(data.allowedTools) ? data.allowedTools : DEFAULT_CHAT_TOOL_IDS,
   };
 }
@@ -411,7 +416,7 @@ export const childChatStream = functions
         userMessageId: request.userMessageId,
         basePrompt: chatConfig.systemPrompt,
         historyLimit: chatConfig.historyLimit,
-        observationLimit: chatConfig.observationLimit,
+        observationWindowDays: chatConfig.observationWindowDays,
         telemetry,
       });
 

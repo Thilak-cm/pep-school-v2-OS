@@ -7,23 +7,17 @@ import {
   loadObservationContext,
 } from "./chatContext.js";
 
-test("buildScopedSystemPrompt steers teacher-friendly boundary language", () => {
+test("buildScopedSystemPrompt renders the configured template", () => {
   const prompt = buildScopedSystemPrompt({
-    basePrompt: "Base prompt.",
+    basePrompt: "Role {{studentName}}\nProfile {{studentProfile}}\nSoul {{developmentSummary}}\nObs {{recentObservations}}\nWindow {{observationWindowDays}}",
     student: { name: "Aadya" },
     studentId: "student-a",
     soul: "Aadya loves bead chains.",
   });
 
-  assert.match(prompt, /^Communication style:/);
-  assert.match(prompt, /simple, warm, non-technical English/);
-  assert.match(prompt, /Ordered lists must use `1\.` markers, never `1\)`/);
-  assert.match(prompt, /Indent nested bullets under their numbered item/);
-  assert.match(prompt, /only about Aadya/);
-  assert.match(prompt, /Please open that child's chat/);
-  assert.doesNotMatch(prompt, /permanently scoped/);
-  assert.doesNotMatch(prompt, /tools are fixed/);
-  assert.match(prompt, /Aadya loves bead chains/);
+  assert.match(prompt, /Role Aadya/);
+  assert.match(prompt, /Profile Name: Aadya/);
+  assert.match(prompt, /Soul Aadya loves bead chains/);
 });
 
 test("loadChatMessages returns chronological recent transcript without pending turn duplicates", async () => {
@@ -105,7 +99,7 @@ test("loadObservationContext applies the configured numeric limit", async () => 
   };
   const db = { collection: () => ({ doc: () => ({ collection: () => query }) }) };
 
-  await loadObservationContext({ db, studentId: "s1", limit: 30 });
+  await loadObservationContext({ db, studentId: "s1", limit: 30, windowDays: null });
 
   assert.equal(appliedLimit, 30);
 });
@@ -132,7 +126,7 @@ test("context loaders report query stages and aggregate sizes without content", 
   };
   const db = { collection: () => ({ doc: () => ({ collection: () => query }) }) };
 
-  const result = await loadObservationContext({ db, studentId: "s1", limit: 20, telemetry });
+  const result = await loadObservationContext({ db, studentId: "s1", limit: 20, windowDays: null, telemetry });
 
   assert.match(result, /Private observation/);
   assert.ok(stages.includes("observation_query"));
@@ -141,7 +135,7 @@ test("context loaders report query stages and aggregate sizes without content", 
   assert.equal(JSON.stringify(dimensions).includes("Private observation"), false);
 });
 
-test("observation telemetry distinguishes fetched observations from fully included observations", async () => {
+test("observation context includes every fetched observation without character truncation", async () => {
   const dimensions = [];
   const telemetry = {
     startStage: () => () => {},
@@ -159,10 +153,35 @@ test("observation telemetry distinguishes fetched observations from fully includ
   };
   const db = { collection: () => ({ doc: () => ({ collection: () => query }) }) };
 
-  await loadObservationContext({ db, studentId: "s1", limit: 20, telemetry });
+  const result = await loadObservationContext({ db, studentId: "s1", limit: 20, windowDays: null, telemetry });
 
   assert.equal(dimensions.some((value) => value.observationsFetched === 2
-    && value.observationsIncluded === 1
-    && value.observationsDiscarded === 1
-    && value.observationTruncationReason === "character_limit"), true);
+    && value.observationsIncluded === 2
+    && value.observationsDiscarded === 0
+    && value.observationTruncationReason === "none"), true);
+  assert.deepEqual(JSON.parse(result).map(({ text }) => text.length), [7000, 7000]);
+});
+
+test("loadChatMessages preserves complete message content", async () => {
+  const longContent = "x".repeat(5000);
+  const messagesRef = {
+    orderBy: () => ({
+      limit: () => ({
+        get: async () => ({
+          docs: [{ id: "long", data: () => ({ role: "user", content: longContent, createdAt: 1 }) }],
+        }),
+      }),
+    }),
+  };
+  const db = {
+    collection: () => ({
+      doc: () => ({
+        collection: () => ({ doc: () => ({ collection: () => messagesRef }) }),
+      }),
+    }),
+  };
+
+  const messages = await loadChatMessages({ db, studentId: "s1", chatId: "c1", limit: 10 });
+
+  assert.equal(messages[0].content.length, 5000);
 });

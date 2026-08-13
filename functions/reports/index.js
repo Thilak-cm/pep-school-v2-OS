@@ -111,8 +111,6 @@ function fetchStudentNotesForDateRange(studentId, startDate, endDate) {
   return (async () => {
     await collect("observedAt");
     await collect("createdAt");
-    await collect("timestamp");
-
     const notes = Array.from(notesMap.values()).filter((n) => {
       const ts = chooseObservationTimestamp(n);
       return ts && ts >= startDate && ts <= endDate;

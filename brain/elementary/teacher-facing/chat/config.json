@@ -3,6 +3,6 @@
   "temperature": 0.7,
   "max_tokens": 2000,
   "chatMessageLimit": 30,
-  "observationLimit": "all",
-  "seed": true
+  "observationWindowDays": 30,
+  "allowedTools": ["fetch_weekly_snapshots", "fetch_monthly_plans", "fetch_writing_analyses", "fetch_interviews", "fetch_observations", "fetch_media", "fetch_term_reports", "fetch_baseline_reports", "fetch_placements", "fetch_chat_history"]
 }

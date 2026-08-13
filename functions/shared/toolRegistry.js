@@ -8,7 +8,7 @@
  *
  * Usage:
  *   import { getTools, createToolExecutor } from "../shared/toolRegistry.js";
- *   const tools = getTools(["fetch_weekly_snapshot", "fetch_soul"]);
+ *   const tools = getTools(["fetch_weekly_snapshots"]);
  *   const executor = createToolExecutor(tools);
  *   const result = await runAgentLoop({ tools: tools.map(t => t.definition), toolExecutor: executor, ... });
  */
@@ -44,7 +44,7 @@ export function mergeChronologicalChatMessages(messageGroups, limit) {
 
 const TOOL_CATALOG = [
   {
-    id: "fetch_weekly_snapshot",
+    id: "fetch_weekly_snapshots",
     scope: "student",
     label: "Weekly Snapshot",
     description: "Full narrative summary for a student's current weekly snapshot",
@@ -52,12 +52,16 @@ const TOOL_CATALOG = [
     definition: {
       type: "function",
       function: {
-        name: "fetch_weekly_snapshot",
+        name: "fetch_weekly_snapshots",
         description: "Fetch the full narrative summary for a student's weekly snapshot. Severity, flags, and coverage gaps are already in your input — use this tool when you need the detailed behavioral narrative to understand WHY a student has a particular severity or flag. Must be called before accessing snapshot history.",
         parameters: {
           type: "object",
-          properties: { studentId: { type: "string", description: "The student document ID" } },
-          required: ["studentId"],
+          properties: {
+            week: { type: "string", description: "Exact YYYY-Www week, optional" },
+            sinceWeek: { type: "string", description: "Return snapshots since this YYYY-Www week, optional" },
+            limit: { type: "number", description: "Number of snapshots, optional" },
+          },
+          required: [],
         },
       },
     },
@@ -66,68 +70,12 @@ const TOOL_CATALOG = [
       if (!snap.exists) return { error: "No weekly snapshot found" };
       const d = snap.data();
       return {
-        studentId: args.studentId,
         summary: d.summary || null,
       };
     },
   },
   {
-    id: "fetch_snapshot_history",
-    scope: "student",
-    label: "Snapshot History",
-    description: "Previous weekly snapshots for trend analysis",
-    prerequisites: ["fetch_weekly_snapshot"],
-    definition: {
-      type: "function",
-      function: {
-        name: "fetch_snapshot_history",
-        description: "Fetch previous weekly snapshots for a student to analyze trends. REQUIRES fetch_weekly_snapshot to be called first for this student.",
-        parameters: {
-          type: "object",
-          properties: {
-            studentId: { type: "string", description: "The student document ID" },
-            limit: { type: "number", description: "Number of historical weeks to fetch (default 4, max 12)" },
-          },
-          required: ["studentId"],
-        },
-      },
-    },
-    execute: async (args) => {
-      const limit = Math.min(args.limit || 4, 12);
-      const snap = await db
-        .collection(`students/${args.studentId}/ai_summaries/weekly_snapshot/history`)
-        .orderBy("__name__", "desc")
-        .limit(limit)
-        .get();
-      return snap.docs.map((d) => ({ weekKey: d.id, ...d.data() }));
-    },
-  },
-  {
-    id: "fetch_soul",
-    scope: "student",
-    label: "Soul Narrative",
-    description: "AI-generated holistic prose description of who the child is",
-    prerequisites: [],
-    definition: {
-      type: "function",
-      function: {
-        name: "fetch_soul",
-        description: "Fetch the AI-generated soul narrative for a student — a holistic prose description of who the child is.",
-        parameters: {
-          type: "object",
-          properties: { studentId: { type: "string", description: "The student document ID" } },
-          required: ["studentId"],
-        },
-      },
-    },
-    execute: async (args) => {
-      const snap = await db.doc(`students/${args.studentId}/ai_summaries/soul`).get();
-      if (!snap.exists) return { error: "No soul document found" };
-      return { studentId: args.studentId, content: snap.data().content };
-    },
-  },
-  {
-    id: "fetch_monthly_plan",
+    id: "fetch_monthly_plans",
     scope: "student",
     label: "Monthly Plan",
     description: "Current monthly prescribed activities and goals",
@@ -135,7 +83,7 @@ const TOOL_CATALOG = [
     definition: {
       type: "function",
       function: {
-        name: "fetch_monthly_plan",
+        name: "fetch_monthly_plans",
         description: "Fetch the current monthly plan for a student — prescribed activities and goals.",
         parameters: {
           type: "object",
@@ -152,7 +100,7 @@ const TOOL_CATALOG = [
     },
   },
   {
-    id: "fetch_writing_analysis",
+    id: "fetch_writing_analyses",
     scope: "student",
     label: "Writing Analysis",
     description: "Latest handwriting assessment and progression",
@@ -160,7 +108,7 @@ const TOOL_CATALOG = [
     definition: {
       type: "function",
       function: {
-        name: "fetch_writing_analysis",
+        name: "fetch_writing_analyses",
         description: "Fetch the latest writing analysis for a student — handwriting assessment and progression.",
         parameters: {
           type: "object",
@@ -203,8 +151,8 @@ const TOOL_CATALOG = [
       return snap.docs.map((d) => {
         const data = d.data();
         return {
-          id: d.id, createdAt: data.createdAt, teacherName: data.teacherName,
-          turns: (data.turns || []).map((t) => ({ role: t.role, content: typeof t.content === "string" ? t.content.slice(0, 500) : t.content })),
+          observedOn: data.conductedAt || data.createdAt || null, teacherName: data.teacherName,
+          turns: (data.turns || []).map((t) => ({ role: t.role, content: t.content })),
         };
       });
     },
@@ -236,7 +184,7 @@ const TOOL_CATALOG = [
       if (snap.empty) return { error: "No observations found" };
       return snap.docs.map((d) => {
         const data = d.data();
-        return { id: d.id, type: data.type, text: (data.text || "").slice(0, 500), createdBy: data.createdBy, createdAt: data.createdAt };
+        return { type: data.type, text: data.text || data.description || "", observedAt: data.observedAt || data.createdAt || null };
       });
     },
   },
@@ -266,9 +214,9 @@ const TOOL_CATALOG = [
       // #221: media docs migrated to observations subcollection
       const snap = await db.collection(`students/${args.studentId}/observations`).where("type", "==", "media").where("status", "==", "ready").orderBy("createdAt", "desc").limit(limit).get();
       if (snap.empty) return { error: "No media found" };
-      return snap.docs.map((d) => {
-        const data = d.data();
-        return { id: d.id, type: data.type, title: data.title, description: data.description, createdAt: data.createdAt };
+        return snap.docs.map((d) => {
+          const data = d.data();
+        return { type: data.type, title: data.title, description: data.description, observedAt: data.observedAt || data.createdAt || null };
       });
     },
   },
@@ -304,14 +252,13 @@ const TOOL_CATALOG = [
         const reportType = data.reportType === "monthly" ? "baseline" : (data.reportType || "term");
         if (reportType !== "term") return;
         reports.push({
-          id,
           reportType,
           generatedAt: data.generatedAt,
           dateRangeStart: data.dateRangeStart,
           dateRangeEnd: data.dateRangeEnd,
           noteCount: data.noteCount ?? null,
           status: data.status || null,
-          reportText: (data.reportText || "").slice(0, 4000),
+          reportText: data.reportText || "",
         });
       });
       reports.sort((a, b) => String(b.generatedAt || "").localeCompare(String(a.generatedAt || "")));
@@ -348,7 +295,6 @@ const TOOL_CATALOG = [
         if (!id.startsWith("baseline_report_") || id.endsWith("_readiness")) return;
         const data = doc.data() || {};
         reports.push({
-          id,
           reportType: data.reportType === "monthly" ? "baseline" : (data.reportType || "baseline"),
           generatedAt: data.generatedAt,
           dateRangeStart: data.dateRangeStart,
@@ -356,7 +302,7 @@ const TOOL_CATALOG = [
           noteCount: data.noteCount ?? null,
           status: data.status || null,
           reportEval: data.reportEval || null,
-          reportText: (data.reportText || "").slice(0, 4000),
+          reportText: data.reportText || "",
         });
       });
       reports.sort((a, b) => String(b.generatedAt || "").localeCompare(String(a.generatedAt || "")));
@@ -392,7 +338,7 @@ const TOOL_CATALOG = [
         .limit(limit)
         .get();
       if (snap.empty) return { error: "No placement history found" };
-      return snap.docs.map((d) => ({ id: d.id, ...d.data() }));
+      return snap.docs.map((d) => ({ classroomName: d.data().classroomName, startDate: d.data().startDate, endDate: d.data().endDate, notes: d.data().notes }));
     },
   },
   {

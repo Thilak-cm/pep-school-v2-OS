@@ -10,7 +10,7 @@ import { doc, getDoc, updateDoc, serverTimestamp } from 'firebase/firestore';
 import { db } from '../firebase';
 import useNotify from '../notifications/useNotify';
 import { isSuperAdmin } from '../utils/roleUtils';
-import { CHAT_MODEL_INFO, DEFAULT_CHAT_MESSAGE_LIMIT, DEFAULT_OBSERVATION_LIMIT, CHAT_SYSTEM_PROMPT } from '../../../functions/config/chatConstants';
+import { CHAT_MODEL_INFO, DEFAULT_CHAT_MESSAGE_LIMIT, DEFAULT_OBSERVATION_WINDOW_DAYS, CHAT_SYSTEM_PROMPT } from '../../../functions/config/chatConstants';
 import { AVAILABLE_MODELS } from '../../../scripts/config/modelConstants';
 import { DEFAULT_CHAT_TOOL_IDS } from '../../../functions/config/toolCatalog.js';
 import {
@@ -44,7 +44,7 @@ export default function ChatCommandCentreEditor({ currentUser, userRole }) {
   const [temperature, setTemperature] = useState(CHAT_MODEL_INFO.temperature);
   const [maxTokens, setMaxTokens] = useState(CHAT_MODEL_INFO.max_tokens);
   const [chatMessageLimit, setChatMessageLimit] = useState(DEFAULT_CHAT_MESSAGE_LIMIT);
-  const [observationLimit, setObservationLimit] = useState('all');
+  const [observationWindowDays, setObservationWindowDays] = useState(DEFAULT_OBSERVATION_WINDOW_DAYS);
   const [systemPrompt, setSystemPrompt] = useState(CHAT_SYSTEM_PROMPT);
   const [allowedTools, setAllowedTools] = useState(() => [...DEFAULT_CHAT_TOOL_IDS]);
 
@@ -74,7 +74,7 @@ export default function ChatCommandCentreEditor({ currentUser, userRole }) {
           setTemperature(Number.isFinite(data.temperature) ? data.temperature : CHAT_MODEL_INFO.temperature);
           setMaxTokens(Number.isFinite(data.max_tokens) ? data.max_tokens : CHAT_MODEL_INFO.max_tokens);
           setChatMessageLimit(Number.isFinite(data.chatMessageLimit) ? data.chatMessageLimit : DEFAULT_CHAT_MESSAGE_LIMIT);
-          setObservationLimit(data.observationLimit === 'all' ? 'all' : (Number.isFinite(data.observationLimit) ? data.observationLimit : DEFAULT_OBSERVATION_LIMIT));
+          setObservationWindowDays(Number.isFinite(data.observationWindowDays) ? data.observationWindowDays : DEFAULT_OBSERVATION_WINDOW_DAYS);
           setSystemPrompt(data.systemPrompt || CHAT_SYSTEM_PROMPT);
           setAllowedTools(nextAllowedTools);
           if (Array.isArray(data.allowedTools) && !isValidChatAllowedTools(data.allowedTools)) {
@@ -86,7 +86,7 @@ export default function ChatCommandCentreEditor({ currentUser, userRole }) {
             temperature: Number.isFinite(data.temperature) ? data.temperature : CHAT_MODEL_INFO.temperature,
             max_tokens: Number.isFinite(data.max_tokens) ? data.max_tokens : CHAT_MODEL_INFO.max_tokens,
             chatMessageLimit: Number.isFinite(data.chatMessageLimit) ? data.chatMessageLimit : DEFAULT_CHAT_MESSAGE_LIMIT,
-            observationLimit: data.observationLimit === 'all' ? 'all' : (Number.isFinite(data.observationLimit) ? data.observationLimit : DEFAULT_OBSERVATION_LIMIT),
+            observationWindowDays: Number.isFinite(data.observationWindowDays) ? data.observationWindowDays : DEFAULT_OBSERVATION_WINDOW_DAYS,
             systemPrompt: data.systemPrompt || CHAT_SYSTEM_PROMPT,
             allowedTools: nextAllowedTools,
           });
@@ -96,7 +96,7 @@ export default function ChatCommandCentreEditor({ currentUser, userRole }) {
           setTemperature(CHAT_MODEL_INFO.temperature);
           setMaxTokens(CHAT_MODEL_INFO.max_tokens);
           setChatMessageLimit(DEFAULT_CHAT_MESSAGE_LIMIT);
-          setObservationLimit('all');
+          setObservationWindowDays(DEFAULT_OBSERVATION_WINDOW_DAYS);
           setSystemPrompt(CHAT_SYSTEM_PROMPT);
           setAllowedTools([...DEFAULT_CHAT_TOOL_IDS]);
           
@@ -105,7 +105,7 @@ export default function ChatCommandCentreEditor({ currentUser, userRole }) {
             temperature: CHAT_MODEL_INFO.temperature,
             max_tokens: CHAT_MODEL_INFO.max_tokens,
             chatMessageLimit: DEFAULT_CHAT_MESSAGE_LIMIT,
-            observationLimit: 'all',
+            observationWindowDays: DEFAULT_OBSERVATION_WINDOW_DAYS,
             systemPrompt: CHAT_SYSTEM_PROMPT,
             allowedTools: [...DEFAULT_CHAT_TOOL_IDS],
           });
@@ -125,11 +125,11 @@ export default function ChatCommandCentreEditor({ currentUser, userRole }) {
       temperature !== originalState.temperature ||
       maxTokens !== originalState.max_tokens ||
       chatMessageLimit !== originalState.chatMessageLimit ||
-      observationLimit !== originalState.observationLimit ||
+      observationWindowDays !== originalState.observationWindowDays ||
       systemPrompt !== originalState.systemPrompt ||
       !sameChatAllowedTools(allowedTools, originalState.allowedTools)
     );
-  }, [model, temperature, maxTokens, chatMessageLimit, observationLimit, systemPrompt, allowedTools, originalState]);
+  }, [model, temperature, maxTokens, chatMessageLimit, observationWindowDays, systemPrompt, allowedTools, originalState]);
 
   const handleSave = async () => {
     if (!isValidChatAllowedTools(allowedTools)) {
@@ -153,7 +153,7 @@ export default function ChatCommandCentreEditor({ currentUser, userRole }) {
         temperature: Number(temperature),
         max_tokens: Number(maxTokens),
         chatMessageLimit: Number(chatMessageLimit),
-        observationLimit: observationLimit === 'all' ? 'all' : Number(observationLimit),
+        observationWindowDays: Number(observationWindowDays),
         systemPrompt: systemPrompt.trim(),
         allowedTools: [...allowedTools],
         updatedAt: serverTimestamp(),
@@ -175,7 +175,7 @@ export default function ChatCommandCentreEditor({ currentUser, userRole }) {
           temperature,
           max_tokens: maxTokens,
           chatMessageLimit,
-          observationLimit,
+          observationWindowDays,
           systemPrompt,
           allowedTools: [...allowedTools],
         });
@@ -197,7 +197,7 @@ export default function ChatCommandCentreEditor({ currentUser, userRole }) {
     setTemperature(originalState.temperature);
     setMaxTokens(originalState.max_tokens);
     setChatMessageLimit(originalState.chatMessageLimit);
-    setObservationLimit(originalState.observationLimit);
+    setObservationWindowDays(originalState.observationWindowDays);
     setSystemPrompt(originalState.systemPrompt);
     setAllowedTools([...originalState.allowedTools]);
   };
@@ -345,21 +345,20 @@ export default function ChatCommandCentreEditor({ currentUser, userRole }) {
                     helperText="Number of recent chat messages to include in context"
                   />
                   <FormControl fullWidth size="small">
-                    <InputLabel id="observation-limit-label">Observation Limit</InputLabel>
+                    <InputLabel id="observation-window-label">Observation Window (days)</InputLabel>
                     <Select
-                      labelId="observation-limit-label"
-                      id="observation-limit-select"
-                      value={observationLimit}
-                      label="Observation Limit"
-                      onChange={(e) => setObservationLimit(e.target.value)}
+                      labelId="observation-window-label"
+                      id="observation-window-select"
+                      value={observationWindowDays}
+                      label="Observation Window (days)"
+                      onChange={(e) => setObservationWindowDays(Number(e.target.value))}
                       disabled={saving}
                     >
-                      <MenuItem value="all">All observations</MenuItem>
-                      <MenuItem value={10}>10 observations</MenuItem>
-                      <MenuItem value={20}>20 observations</MenuItem>
-                      <MenuItem value={30}>30 observations</MenuItem>
-                      <MenuItem value={50}>50 observations</MenuItem>
-                      <MenuItem value={100}>100 observations</MenuItem>
+                      <MenuItem value={7}>Past 7 days</MenuItem>
+                      <MenuItem value={14}>Past 14 days</MenuItem>
+                      <MenuItem value={30}>Past 30 days</MenuItem>
+                      <MenuItem value={60}>Past 60 days</MenuItem>
+                      <MenuItem value={90}>Past 90 days</MenuItem>
                     </Select>
                   </FormControl>
                 </Box>
