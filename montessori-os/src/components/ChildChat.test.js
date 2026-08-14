@@ -184,5 +184,5 @@ test('ChildChat records a valid Send rejected by local unauthenticated state', a
 
 test('ChildChat has no frontend UID allowlist gate', async () => {
   const source = await readFile(new URL('./ChildChat.jsx', import.meta.url), 'utf8');
-  assert.doesNotMatch(source, /isChatAllowed|CHAT_ALLOWED_UIDS|ChatMaintenance/);
+  assert.doesNotMatch(source, /isAuthorizedTester|isChatAllowed|CHAT_ALLOWED_UIDS|ChatMaintenance/);
 });

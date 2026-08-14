@@ -233,7 +233,7 @@ export default function ChildChat({ student, currentUser, userRole, manageableCl
   }, [student?.id]);
 
   useEffect(() => {
-    if (!isAuthorizedTester || !student?.id) return undefined;
+    if (!student?.id) return undefined;
     let active = true;
     setChatsLoading(true);
     loadChats()
@@ -244,10 +244,10 @@ export default function ChildChat({ student, currentUser, userRole, manageableCl
         if (active) setChatsLoading(false);
       });
     return () => { active = false; };
-  }, [isAuthorizedTester, loadChats, student?.id]);
+  }, [loadChats, student?.id]);
 
   useEffect(() => {
-    if (!isAuthorizedTester || !student?.id || !selectedChatId) {
+    if (!student?.id || !selectedChatId) {
       persistedMessageIdsRef.current = new Set();
       turnDocsRef.current = [];
       setMessages([]);
@@ -341,7 +341,7 @@ export default function ChildChat({ student, currentUser, userRole, manageableCl
       unsubscribeMessages?.();
       unsubscribeTurns?.();
     };
-  }, [isAuthorizedTester, selectedChatId, student?.id]);
+  }, [selectedChatId, student?.id]);
 
   useLayoutEffect(() => {
     if (!messages.length) return;
