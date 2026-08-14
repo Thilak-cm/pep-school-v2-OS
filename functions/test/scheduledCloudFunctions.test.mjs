@@ -1,10 +1,18 @@
 import { readdir, readFile } from "node:fs/promises";
 import path from "node:path";
 import { test } from "node:test";
+import { fileURLToPath } from "node:url";
 import assert from "node:assert/strict";
 
-const FUNCTIONS_ROOT = path.resolve("functions");
-const INVENTORY_PATH = path.resolve("docs/SCHEDULED_CLOUD_FUNCTIONS.md");
+const REPOSITORY_ROOT = path.resolve(
+  path.dirname(fileURLToPath(import.meta.url)),
+  "../..",
+);
+const FUNCTIONS_ROOT = path.resolve(REPOSITORY_ROOT, "functions");
+const INVENTORY_PATH = path.resolve(
+  REPOSITORY_ROOT,
+  "docs/SCHEDULED_CLOUD_FUNCTIONS.md",
+);
 
 async function listJavaScriptFiles(directory) {
   const entries = await readdir(directory, { withFileTypes: true });
@@ -35,7 +43,7 @@ async function readScheduledDeclarations() {
       declarations.push({
         functionName: match[1],
         cron: match[2],
-        source: path.relative(path.resolve("."), filePath),
+        source: path.relative(REPOSITORY_ROOT, filePath),
       });
     }
   }
