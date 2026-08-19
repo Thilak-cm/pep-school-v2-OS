@@ -372,6 +372,7 @@ function AddNoteModal({
   const pdfWorkerSetupRef = useRef(false);
   const [photoAnalysisLoading, setPhotoAnalysisLoading] = useState(false);
   const photoAnalysisFailedRef = useRef(new Set());
+  const activePhotoAnalysisRef = useRef(new Set());
   const photoStudentPickerRef = useRef(null);
 
   // Coach UI state (Duration-only MVP)
@@ -1335,6 +1336,8 @@ function AddNoteModal({
     if (photoItems.length === 0) return;
     const isEditedReanalysis = photoItems.some((item) => item.imageEdited === true);
     const revisions = new Map(photoItems.map((item) => [item.id, photoRevisionRef.current[item.id] || 0]));
+    const requestId = Symbol('photo-analysis');
+    activePhotoAnalysisRef.current.add(requestId);
     setPhotoAnalysisLoading(true);
 
     const vlmFn = httpsCallable(cloudFunctions, 'analyzePhotoVLM');
@@ -1373,7 +1376,8 @@ function AddNoteModal({
       });
       notify.warning('Could not analyze photos.');
     }
-    setPhotoAnalysisLoading(false);
+    activePhotoAnalysisRef.current.delete(requestId);
+    setPhotoAnalysisLoading(activePhotoAnalysisRef.current.size > 0);
   };
 
   const selectedPhotoEditorItem = mediaItems.find((item) => item.id === photoEditorItemId) || null;
@@ -1406,7 +1410,6 @@ function AddNoteModal({
       applied_session: 'media_note',
       reanalysis_count: 1,
     });
-    await runPhotoAnalysis([updated]);
   };
 
   const handleOpenPhotoEditor = (item) => {

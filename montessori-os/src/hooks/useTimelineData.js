@@ -68,30 +68,28 @@ export default function useTimelineData({ scope, id, classroom, userRole, manage
   const [refreshTick, setRefreshTick] = useState(0);
   const fetchedBatchIdsRef = useRef(new Set());
 
-  useEffect(() => {
-    if (scope !== 'student' || !id) return;
-    const batchIds = [...new Set(notes.map((note) => note.batchId).filter(Boolean))]
+  const hydrateStudentBatch = useCallback(async (studentId, page) => {
+    if (scope !== 'student' || !studentId) return page;
+    const batchIds = [...new Set(page.map((note) => note.batchId).filter(Boolean))]
       .filter((batchId) => !fetchedBatchIdsRef.current.has(batchId));
-    if (!batchIds.length) return;
-    let cancelled = false;
+    if (!batchIds.length) return page;
     batchIds.forEach((batchId) => fetchedBatchIdsRef.current.add(batchId));
-    Promise.all(batchIds.map((batchId) => fetchStudentBatchObservations({ studentId: id, batchId })))
-      .then((groups) => {
-        if (cancelled) return;
-        const additions = groups.flat();
-        setNotes((previous) => {
-          const byId = new Map(previous.map((note) => [note.id, note]));
-          additions.forEach((note) => byId.set(note.id, note));
-          return [...byId.values()].sort((a, b) => {
-            const aTime = a.observedAt?.toMillis?.() || a.observedAt?.seconds * 1000 || 0;
-            const bTime = b.observedAt?.toMillis?.() || b.observedAt?.seconds * 1000 || 0;
-            return bTime - aTime;
-          });
-        });
-      })
-      .catch((err) => reportCaughtError(err, 'useTimelineData', 'student batch siblings fetch'));
-    return () => { cancelled = true; };
-  }, [scope, id, notes]);
+    const results = await Promise.allSettled(
+      batchIds.map((batchId) => fetchStudentBatchObservations({ studentId, batchId })),
+    );
+    const additions = [];
+    results.forEach((result) => {
+      if (result.status === 'fulfilled') additions.push(...result.value);
+      else reportCaughtError(result.reason, 'useTimelineData', 'student batch siblings fetch');
+    });
+    const byId = new Map(page.map((note) => [note.id, note]));
+    additions.forEach((note) => byId.set(note.id, note));
+    return [...byId.values()].sort((a, b) => {
+      const aTime = a.observedAt?.toMillis?.() || a.observedAt?.seconds * 1000 || 0;
+      const bTime = b.observedAt?.toMillis?.() || b.observedAt?.seconds * 1000 || 0;
+      return bTime - aTime;
+    });
+  }, [scope]);
 
   // Access check (classroom scope only)
   const hasAccess = scope === 'student' || !id
@@ -116,6 +114,8 @@ export default function useTimelineData({ scope, id, classroom, userRole, manage
       setRefreshing(true);
     } else {
       setLoading(true);
+      setNotes([]);
+      fetchedBatchIdsRef.current.clear();
     }
 
     (async () => {
@@ -146,7 +146,9 @@ export default function useTimelineData({ scope, id, classroom, userRole, manage
           });
           if (cancelled) return;
 
-          setNotes(page);
+          const hydratedPage = await hydrateStudentBatch(id, page);
+          if (cancelled) return;
+          setNotes(hydratedPage);
           setHasMore(page.length >= PAGE_SIZE);
           setCursor(page.length > 0 ? page[page.length - 1].observedAt : null);
         } else {
@@ -157,7 +159,9 @@ export default function useTimelineData({ scope, id, classroom, userRole, manage
           });
           if (cancelled) return;
 
-          setNotes(page);
+          const hydratedPage = await hydrateStudentBatch(id, page);
+          if (cancelled) return;
+          setNotes(hydratedPage);
           setHasMore(page.length >= PAGE_SIZE);
           setCursor(page.length > 0 ? page[page.length - 1].observedAt : null);
         }
@@ -176,7 +180,7 @@ export default function useTimelineData({ scope, id, classroom, userRole, manage
     })();
 
     return () => { cancelled = true; };
-  }, [scope, id, hasAccess, classroom?.teacherIds?.length, refreshTick]);
+  }, [scope, id, hasAccess, classroom?.teacherIds?.length, refreshTick, hydrateStudentBatch]);
 
   // Load more - fetch next page using cursor
   const loadMore = useCallback(async () => {
@@ -196,7 +200,16 @@ export default function useTimelineData({ scope, id, classroom, userRole, manage
           cursor,
         });
 
-      setNotes(prev => [...prev, ...page]);
+      const hydratedPage = await hydrateStudentBatch(id, page);
+      setNotes(prev => {
+        const byId = new Map(prev.map((note) => [note.id, note]));
+        hydratedPage.forEach((note) => byId.set(note.id, note));
+        return [...byId.values()].sort((a, b) => {
+          const aTime = a.observedAt?.toMillis?.() || a.observedAt?.seconds * 1000 || 0;
+          const bTime = b.observedAt?.toMillis?.() || b.observedAt?.seconds * 1000 || 0;
+          return bTime - aTime;
+        });
+      });
       setHasMore(page.length >= PAGE_SIZE);
       setCursor(page.length > 0 ? page[page.length - 1].observedAt : null);
     } catch (err) {
@@ -204,7 +217,7 @@ export default function useTimelineData({ scope, id, classroom, userRole, manage
     } finally {
       setIsLoadingMore(false);
     }
-  }, [scope, id, hasAccess, cursor, hasMore, isLoadingMore]);
+  }, [scope, id, hasAccess, cursor, hasMore, isLoadingMore, hydrateStudentBatch]);
 
   // Refresh - reset to page 1
   const refresh = useCallback(() => {

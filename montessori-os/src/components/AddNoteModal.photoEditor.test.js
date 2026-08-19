@@ -12,10 +12,20 @@ test('MediaNote photo cards expose an Edit action and exclude non-photos', () =>
 
 test('edited photos clear classification and trigger isolated reanalysis', () => {
   assert.match(source, /analyzed: false/);
-  assert.match(source, /runPhotoAnalysis\(\[updated\]\)/);
+  assert.match(source, /runPhotoAnalysis\(unanalyzed\)/);
   assert.match(source, /Photo analysis done for newly edited image/);
   assert.match(source, /photo_editor_applied/);
   assert.match(source, /imageEdited: item\.imageEdited === true/);
+});
+
+test('photo analysis loading remains active until overlapping requests finish', () => {
+  assert.match(source, /activePhotoAnalysisRef/);
+  assert.match(source, /activePhotoAnalysisRef\.current\.size > 0/);
+});
+
+test('editing does not analyze until the student-selection effect is eligible', () => {
+  assert.doesNotMatch(source, /runPhotoAnalysis\(\[updated\]\)/);
+  assert.match(source, /selectedStudents\.length !== 1/);
 });
 
 test('MediaNote analytics uses privacy-safe aggregate fields', () => {

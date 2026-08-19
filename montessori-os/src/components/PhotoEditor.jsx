@@ -96,6 +96,16 @@ export default function PhotoEditor({ open, item, onApply, onApplyFailed, onCanc
               sx={{ width: '100%', height: '100%', objectFit: 'fill', transform: `rotate(${state.rotation}deg) scaleX(${state.flipX ? -1 : 1}) scaleY(${state.flipY ? -1 : 1})`, transition: 'transform 180ms ease' }}
             />
           )}
+          {item?.previewUrl && (
+            <Box sx={{ position: 'absolute', left: `${(state.crop.x / state.originalWidth) * 100}%`, top: `${(state.crop.y / state.originalHeight) * 100}%`, width: `${(state.crop.width / state.originalWidth) * 100}%`, height: `${(state.crop.height / state.originalHeight) * 100}%`, overflow: 'hidden', pointerEvents: 'none' }}>
+              <Box
+                component="img"
+                src={item.previewUrl}
+                alt="Edited photo crop preview"
+                sx={{ position: 'absolute', left: `${(-state.crop.x / state.crop.width) * 100}%`, top: `${(-state.crop.y / state.crop.height) * 100}%`, width: `${(state.originalWidth / state.crop.width) * 100}%`, height: `${(state.originalHeight / state.crop.height) * 100}%`, maxWidth: 'none', transform: `rotate(${state.rotation}deg) scaleX(${state.flipX ? -1 : 1}) scaleY(${state.flipY ? -1 : 1})`, transformOrigin: 'center', transition: 'transform 180ms ease' }}
+              />
+            </Box>
+          )}
           <Box sx={{ position: 'absolute', left: `${(state.crop.x / state.originalWidth) * 100}%`, top: `${(state.crop.y / state.originalHeight) * 100}%`, width: `${(state.crop.width / state.originalWidth) * 100}%`, height: `${(state.crop.height / state.originalHeight) * 100}%`, border: '1px solid rgba(255,255,255,0.9)', boxShadow: '0 0 0 9999px rgba(0,0,0,0.52)', cursor: 'move' }}>
             {[['top-left', { top: -2, left: -2, borderTop: '4px solid white', borderLeft: '4px solid white' }], ['top-right', { top: -2, right: -2, borderTop: '4px solid white', borderRight: '4px solid white' }], ['bottom-left', { bottom: -2, left: -2, borderBottom: '4px solid white', borderLeft: '4px solid white' }], ['bottom-right', { bottom: -2, right: -2, borderBottom: '4px solid white', borderRight: '4px solid white' }]].map(([edge, position]) => (
               <Box key={`corner-${edge}`} sx={{ position: 'absolute', width: 24, height: 24, pointerEvents: 'none', ...position }} />

@@ -952,6 +952,7 @@ function StudentTimeline({ student, currentUser, userRole, noteTypeFilter = null
         carouselList={mediaPreview?.carouselList}
         carouselIndex={mediaPreview?.carouselIndex}
         onCarouselNavigate={(direction) => navigateMediaPreview(direction)}
+        onObservationDeleted={() => refresh()}
       />
 
       {/* Media Dialog */}

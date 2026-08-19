@@ -73,6 +73,8 @@ export async function exportEditedPhoto(source, state, { maxDimension = MAX_PHOT
       canvas.width = width;
       canvas.height = height;
       context.save();
+      const unrotatedWidth = Math.max(1, Math.round(state.crop.width * scale));
+      const unrotatedHeight = Math.max(1, Math.round(state.crop.height * scale));
       context.translate(width / 2, height / 2);
       context.rotate((state.rotation * Math.PI) / 180);
       context.scale(state.flipX ? -1 : 1, state.flipY ? -1 : 1);
@@ -82,10 +84,10 @@ export async function exportEditedPhoto(source, state, { maxDimension = MAX_PHOT
         state.crop.y,
         state.crop.width,
         state.crop.height,
-        -width / 2,
-        -height / 2,
-        width,
-        height,
+        -unrotatedWidth / 2,
+        -unrotatedHeight / 2,
+        unrotatedWidth,
+        unrotatedHeight,
       );
       context.restore();
       return new Promise((resolve) => canvas.toBlob(resolve, 'image/webp', quality));

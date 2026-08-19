@@ -14,3 +14,7 @@ test('carousel navigation supports media items fetched as batch siblings', () =>
   assert.match(source, /itemOrObservation/);
   assert.match(source, /itemOrObservation\?\.sourceObservation/);
 });
+
+test('timeline refreshes after a carousel item is deleted', () => {
+  assert.match(source, /onObservationDeleted=\{\(\) => refresh\(\)\}/);
+});
