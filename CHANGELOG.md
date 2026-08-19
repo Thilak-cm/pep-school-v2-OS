@@ -1,5 +1,11 @@
 # Changelog
 
+# 12.4.1 — 2026-08-19
+
+### Fixed
+- MediaNote photo editing now respects student-gated analysis, preserves corrected crop/rotation output, and keeps per-photo analysis revisions isolated (#236).
+- Student Timeline media batches hydrate complete sibling sets and support swipe navigation and refresh-after-delete behavior; the remaining carousel regression follow-up is tracked in #249.
+
 # 12.4.0 — 2026-08-12
 
 ### Added

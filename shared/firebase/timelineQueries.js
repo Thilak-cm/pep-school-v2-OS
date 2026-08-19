@@ -59,6 +59,19 @@ export function createTimelineQueries({ db, firestore }) {
     }));
   }
 
+  async function fetchStudentBatchObservations({ studentId, batchId }) {
+    if (!studentId || !batchId) return [];
+    const snapshot = await getDocs(query(
+      collection(db, 'students', studentId, 'observations'),
+      where('batchId', '==', batchId),
+    ));
+    return snapshot.docs.map((documentSnapshot) => ({
+      id: documentSnapshot.id,
+      studentId,
+      ...documentSnapshot.data(),
+    }));
+  }
+
   async function fetchActiveClassroomStudents(classroomId) {
     const snapshot = await getDocs(
       query(collection(db, 'students'), where('classroomId', '==', classroomId)),
@@ -76,5 +89,6 @@ export function createTimelineQueries({ db, firestore }) {
     fetchActiveClassroomStudents,
     fetchClassroomTimelineNotes,
     fetchStudentTimelineNotes,
+    fetchStudentBatchObservations,
   };
 }

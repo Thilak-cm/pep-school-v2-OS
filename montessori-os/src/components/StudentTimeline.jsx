@@ -490,7 +490,7 @@ function StudentTimeline({ student, currentUser, userRole, noteTypeFilter = null
   };
 
   const handleMediaClick = (observation, list = null, index = -1) => {
-    const firstItem = buildMediaItemsForObservation(observation)[0] || null;
+    const firstItem = (list?.[index >= 0 ? index : 0]) || buildMediaItemsForObservation(observation)[0] || null;
     const sourceObservation = firstItem?.sourceObservation || observation;
     if (!sourceObservation) return;
     const path = firstItem?.storagePath || sourceObservation.media?.[0]?.storagePath;
@@ -513,8 +513,11 @@ function StudentTimeline({ student, currentUser, userRole, noteTypeFilter = null
     if (!mediaPreview?.carouselList) return;
     const newIndex = mediaPreview.carouselIndex + direction;
     if (newIndex < 0 || newIndex >= mediaPreview.carouselList.length) return;
-    const obs = mediaPreview.carouselList[newIndex];
-    const firstItem = buildMediaItemsForObservation(obs)[0] || null;
+    const itemOrObservation = mediaPreview.carouselList[newIndex];
+    const firstItem = itemOrObservation?.sourceObservation
+      ? itemOrObservation
+      : buildMediaItemsForObservation(itemOrObservation)[0] || null;
+    const obs = firstItem?.sourceObservation || itemOrObservation;
     const sourceObservation = firstItem?.sourceObservation || obs;
     if (!sourceObservation) return;
     const path = firstItem?.storagePath || sourceObservation.media?.[0]?.storagePath;
@@ -874,20 +877,7 @@ function StudentTimeline({ student, currentUser, userRole, noteTypeFilter = null
                     classroomTeachers={classroomTeachers}
                     onNoteClick={() => {
                       if (mediaItems.length > 0) {
-                        const item = mediaItems[0];
-                        const sourceObservation = item?.sourceObservation || obs;
-                        const path = item?.storagePath || sourceObservation?.media?.[0]?.storagePath;
-                        const url = path ? mediaUrls[path] : null;
-                        setMediaPreview({
-                          observation: {
-                            ...sourceObservation,
-                            mediaKind: item?.mediaKind || sourceObservation?.mediaKind,
-                            status: item?.status || sourceObservation?.status,
-                            media: path ? [{ storagePath: path }] : (Array.isArray(sourceObservation?.media) ? sourceObservation.media : []),
-                          },
-                          url: url || null,
-                          fullscreen: true,
-                        });
+                        handleMediaClick(obs, mediaItems, 0);
                       }
                     }}
                     mediaUrls={mediaUrls}
@@ -962,6 +952,7 @@ function StudentTimeline({ student, currentUser, userRole, noteTypeFilter = null
         carouselList={mediaPreview?.carouselList}
         carouselIndex={mediaPreview?.carouselIndex}
         onCarouselNavigate={(direction) => navigateMediaPreview(direction)}
+        onObservationDeleted={() => refresh()}
       />
 
       {/* Media Dialog */}

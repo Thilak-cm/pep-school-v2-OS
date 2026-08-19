@@ -587,6 +587,7 @@ interface MediaDoc {
 
   // Per-image metadata (photos only)
   copied?: boolean;              // Teacher-set: true if student work is copied (default false)
+  imageEdited?: boolean;         // true when final uploaded photo pixels differ from the selected image (default false)
   handwritten?: boolean;         // VLM classification: true if image contains handwriting (default false)
   curriculumArea?: string | null; // VLM classification: broad Montessori curriculum area (freeform string)
   materialsIdentified?: string[]; // VLM classification: Montessori materials visible in photo (PEP-37, deduplicated at write-time)
@@ -611,6 +612,7 @@ Notes
 - Media ID format: `media_<itemId>` where `itemId` is generated client-side.
 - Photos are converted to WebP client-side before upload.
 - `copied` is a teacher-set boolean toggle per photo (default `false`). Set during media upload.
+- `imageEdited` is true only when the final uploaded photo pixels differ from the initially selected image; missing legacy values are treated as `false`.
 - `handwritten` and `curriculumArea` are set by the per-photo classification VLM call (gpt-5.4-nano) on every photo upload (PEP-146). Each photo in a batch gets its own independent classification via parallel calls.
 - `handwritten` flags photos for downstream batch handwriting analysis at weekly plan generation time (PEP-132). No per-upload handwriting analysis is performed.
 

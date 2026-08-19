@@ -85,6 +85,7 @@ export default function NoteBottomSheet({
   carouselList,
   carouselIndex,
   onCarouselNavigate,
+  onObservationDeleted,
   classroomTeachers = [],
 }) {
   const notify = useNotify();
@@ -291,6 +292,7 @@ export default function NoteBottomSheet({
             studentId: parentId,
             observationId: obs.id,
           });
+          onObservationDeleted?.(obs);
           notify.success('Note deleted successfully', { id: notifId, duration: 2500 });
         } catch { notify.error('Error deleting note. Please try again.', { id: notifId, duration: 3500 }); }
       },

@@ -39,6 +39,8 @@ import useTranscriptStudentSuggestions from '../hooks/useTranscriptStudentSugges
 import LessonNoteTagDialog from './LessonNoteTagDialog';
 import { reportCaughtError } from '../utils/reportCaughtError.js';
 import { mapVLMResultsToMediaItems } from '../utils/photoAnalysis.js';
+import PhotoEditor from './PhotoEditor.jsx';
+import { hasPixelChanges } from '../utils/photoEditorTransforms.js';
 import { createObservationOperations } from '../../../shared/firebase/observationOperations.js';
 
 // Confetti Animation Component
@@ -342,6 +344,8 @@ function AddNoteModal({
   // Media note state
   const [mediaMode, setMediaMode] = useState(null); // 'photo' | 'pdf'
   const [mediaItems, setMediaItems] = useState([]); // [{ id, kind, source, previewUrl, teacherComment }]
+  const [photoEditorItemId, setPhotoEditorItemId] = useState(null);
+  const photoRevisionRef = useRef({});
   const [pdfSource, setPdfSource] = useState(null); // { file, size, contentType, extension, originalName }
   const [mediaTeacherComment, setMediaTeacherComment] = useState(''); // PDF comment only
   const [mediaItemCommentCleaning, setMediaItemCommentCleaning] = useState({});
@@ -368,6 +372,7 @@ function AddNoteModal({
   const pdfWorkerSetupRef = useRef(false);
   const [photoAnalysisLoading, setPhotoAnalysisLoading] = useState(false);
   const photoAnalysisFailedRef = useRef(new Set());
+  const activePhotoAnalysisRef = useRef(new Set());
   const photoStudentPickerRef = useRef(null);
 
   // Coach UI state (Duration-only MVP)
@@ -1329,6 +1334,10 @@ function AddNoteModal({
   const runPhotoAnalysis = async (items) => {
     const photoItems = items.filter((it) => it.kind === 'photo' && it.source?.blob);
     if (photoItems.length === 0) return;
+    const isEditedReanalysis = photoItems.some((item) => item.imageEdited === true);
+    const revisions = new Map(photoItems.map((item) => [item.id, photoRevisionRef.current[item.id] || 0]));
+    const requestId = Symbol('photo-analysis');
+    activePhotoAnalysisRef.current.add(requestId);
     setPhotoAnalysisLoading(true);
 
     const vlmFn = httpsCallable(cloudFunctions, 'analyzePhotoVLM');
@@ -1348,14 +1357,83 @@ function AddNoteModal({
       // Response contains per-photo classification results (PEP-146)
       const data = res.data || {};
       const results = Array.isArray(data.results) ? data.results : [];
-      setMediaItems((prev) => mapVLMResultsToMediaItems(results, prev));
-      notify.success('Photo analysis complete! You may save the note now.');
+      const currentIds = new Set(photoItems
+        .filter((item) => (photoRevisionRef.current[item.id] || 0) === revisions.get(item.id))
+        .map((item) => item.id));
+      setMediaItems((prev) => mapVLMResultsToMediaItems(
+        results.filter((result) => currentIds.has(result.itemId)),
+        prev,
+      ));
+      notify.success(isEditedReanalysis
+        ? 'Photo analysis done for newly edited image. You may save the note now.'
+        : 'Photo analysis complete! You may save the note now.');
     } catch (err) {
       reportCaughtError(err, 'AddNoteModal', 'runPhotoAnalysis VLM call failed');
-      photoItems.forEach((it) => photoAnalysisFailedRef.current.add(it.id));
+      photoItems.forEach((it) => {
+        if ((photoRevisionRef.current[it.id] || 0) === revisions.get(it.id)) {
+          photoAnalysisFailedRef.current.add(it.id);
+        }
+      });
       notify.warning('Could not analyze photos.');
     }
-    setPhotoAnalysisLoading(false);
+    activePhotoAnalysisRef.current.delete(requestId);
+    setPhotoAnalysisLoading(activePhotoAnalysisRef.current.size > 0);
+  };
+
+  const selectedPhotoEditorItem = mediaItems.find((item) => item.id === photoEditorItemId) || null;
+
+  const handleApplyPhotoEdit = async ({ blob, width, height, editorState }) => {
+    const item = mediaItems.find((entry) => entry.id === photoEditorItemId);
+    if (!item) return;
+    const previousPreview = item.previewUrl;
+    const previewUrl = URL.createObjectURL(blob);
+    const nextRevision = (photoRevisionRef.current[item.id] || 0) + 1;
+    photoRevisionRef.current[item.id] = nextRevision;
+    const updated = {
+      ...item,
+      previewUrl,
+      analyzed: false,
+      handwritten: false,
+      curriculumArea: null,
+      materialsIdentified: [],
+      imageEdited: hasPixelChanges(editorState),
+      source: { ...item.source, blob, size: blob.size, width, height, contentType: 'image/webp', extension: 'webp' },
+    };
+    setMediaItems((prev) => prev.map((entry) => entry.id === item.id ? updated : entry));
+    revokeMediaPreview({ previewUrl: previousPreview });
+    setPhotoEditorItemId(null);
+    trackEvent('photo_editor_applied', {
+      operation: 'transform',
+      duration_bucket: 'unknown',
+      media_count: mediaItems.length,
+      edited_photo_count: mediaItems.filter((entry) => entry.imageEdited).length + 1,
+      applied_session: 'media_note',
+      reanalysis_count: 1,
+    });
+  };
+
+  const handleOpenPhotoEditor = (item) => {
+    setPhotoEditorItemId(item.id);
+    trackEvent('photo_editor_opened', {
+      operation: 'open', media_count: mediaItems.length, edited_photo_count: mediaItems.filter((entry) => entry.imageEdited).length,
+      applied_session: 'media_note', reanalysis_count: 0,
+    });
+  };
+
+  const handleCancelPhotoEditor = () => {
+    trackEvent('photo_editor_cancelled', {
+      operation: 'cancel', media_count: mediaItems.length, edited_photo_count: mediaItems.filter((entry) => entry.imageEdited).length,
+      applied_session: 'media_note', reanalysis_count: 0,
+    });
+    setPhotoEditorItemId(null);
+  };
+
+  const handlePhotoEditorApplyFailed = () => {
+    trackEvent('photo_editor_apply_failed', {
+      operation: 'transform', media_count: mediaItems.length,
+      edited_photo_count: mediaItems.filter((entry) => entry.imageEdited).length,
+      applied_session: 'media_note', reanalysis_count: 0,
+    });
   };
 
   const createMediaItemId = () =>
@@ -1678,6 +1756,7 @@ function AddNoteModal({
               handwritten: item.handwritten === true,
               curriculumArea: item.curriculumArea || null,
               materialsIdentified: Array.isArray(item.materialsIdentified) ? item.materialsIdentified : [],
+              imageEdited: item.imageEdited === true,
             } : {}),
             ...(canTagMediaLesson ? { linkedLessonObservationId: mediaTaggedLessonIds } : {}),
             createdBy: currentUser.uid,
@@ -1754,6 +1833,11 @@ function AddNoteModal({
           students: studentDataMap,
         });
       }
+      trackEvent('media_note_created', {
+        operation: 'save', media_count: itemsToUpload.length,
+        edited_photo_count: itemsToUpload.filter((item) => item.kind === 'photo' && item.imageEdited).length,
+        applied_session: 'media_note', reanalysis_count: itemsToUpload.filter((item) => item.kind === 'photo').length,
+      });
 
       notify.success('Note saved', {
         actionLabel: 'View',
@@ -2350,6 +2434,17 @@ function AddNoteModal({
                                 >
                                   <Close size={16} />
                                 </IconButton>
+                                {item.kind === 'photo' && (
+                                  <Button
+                                    size="small"
+                                    variant="contained"
+                                    aria-label="Edit photo"
+                                    onClick={() => handleOpenPhotoEditor(item)}
+                                    sx={{ position: 'absolute', top: 8, left: 8, textTransform: 'none' }}
+                                  >
+                                    Edit
+                                  </Button>
+                                )}
                                 {/* Own work / Copied pill toggle overlay */}
                                 {item.kind === 'photo' && (
                                   <Box
@@ -3060,6 +3155,14 @@ function AddNoteModal({
           </Box>
         </Box>
       </Dialog>
+      <PhotoEditor
+        open={!!selectedPhotoEditorItem}
+        item={selectedPhotoEditorItem}
+        onApply={handleApplyPhotoEdit}
+        onApplyFailed={handlePhotoEditorApplyFailed}
+        onCancel={handleCancelPhotoEditor}
+        onClose={handleCancelPhotoEditor}
+      />
       {/* Exit confirmation dialog */}
       <Dialog
         open={confirmOpen}

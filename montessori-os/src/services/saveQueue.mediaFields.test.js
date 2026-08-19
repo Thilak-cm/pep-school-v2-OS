@@ -22,6 +22,13 @@ test('buildMediaDocData includes copied=false by default for photos', () => {
   assert.equal(doc.copied, false, 'copied should default to false');
 });
 
+test('buildMediaDocData persists imageEdited for photos and defaults legacy values to false', () => {
+  const edited = buildMediaDocData({ mediaKind: 'photo', imageEdited: true, source: { contentType: 'image/webp' } }, 'm1', 'path');
+  const legacy = buildMediaDocData({ mediaKind: 'photo', source: { contentType: 'image/webp' } }, 'm2', 'path');
+  assert.equal(edited.imageEdited, true);
+  assert.equal(legacy.imageEdited, false);
+});
+
 test('buildMediaDocData includes copied=true when payload sets it', () => {
   const doc = buildMediaDocData({
     studentId: 'stu1',

@@ -1,5 +1,8 @@
+import { useRef } from 'react';
 import { Box, Typography, Chip, Skeleton, IconButton, TextField } from '@mui/material';
 import { ChevronLeft, ChevronRight, Sparkles as AutoAwesome, MessageCircle } from '../../icons';
+
+const SWIPE_THRESHOLD = 40;
 
 export default function MediaContent({
   observation,
@@ -16,12 +19,23 @@ export default function MediaContent({
   onEditCommentChange,
   mediaEditSaving,
 }) {
+  const touchStartXRef = useRef(null);
   if (!observation) return null;
 
   const mediaKind = (observation.mediaKind || '').toLowerCase();
   const isPhoto = mediaKind === 'photo';
   const isVideo = mediaKind === 'video';
   const hasCarousel = Array.isArray(carouselList) && carouselList.length > 1;
+  const handleTouchStart = (event) => {
+    if (hasCarousel) touchStartXRef.current = event.touches[0]?.clientX ?? null;
+  };
+  const handleTouchEnd = (event) => {
+    if (!hasCarousel || touchStartXRef.current == null) return;
+    const deltaX = event.changedTouches[0]?.clientX - touchStartXRef.current;
+    touchStartXRef.current = null;
+    if (Math.abs(deltaX) < SWIPE_THRESHOLD) return;
+    onCarouselNavigate?.(deltaX < 0 ? 1 : -1);
+  };
 
   // Extract filename from media metadata
   const media0 = observation.media?.[0] || {};
@@ -30,7 +44,7 @@ export default function MediaContent({
   return (
     <Box sx={{ display: 'flex', flexDirection: 'column', gap: 1.5 }}>
       {/* Hero image / video */}
-      <Box sx={{ position: 'relative', borderRadius: 'var(--radius-md)', overflow: 'hidden' }}>
+      <Box onTouchStart={handleTouchStart} onTouchEnd={handleTouchEnd} sx={{ position: 'relative', borderRadius: 'var(--radius-md)', overflow: 'hidden', touchAction: hasCarousel ? 'pan-y' : undefined }}>
         {isPhoto && mediaUrl && (
           <>
             {!mediaImageLoaded && (
