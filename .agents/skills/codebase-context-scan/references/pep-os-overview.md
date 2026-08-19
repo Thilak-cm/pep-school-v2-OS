@@ -1,7 +1,7 @@
 # Pep OS Overview
 
-Generated: 2026-08-13T19:41:18.458Z
-App version: 12.4.0
+Generated: 2026-08-19T19:50:10.005Z
+App version: 12.4.1
 
 ## App Snapshot
 
@@ -31,21 +31,21 @@ App version: 12.4.0
 ## Existing Pages and Components
 
 ### Observation Capture (`observation-capture`)
-- Count: 14
-- Components: `AddNoteFab`, `AddNoteFab.test`, `AddNoteModal`, `AddNoteModal.photoUX.test`, `AddNoteModal.saveButton.test`, `AddNoteModal.syncSave.test`, `AddNoteModal.versionGate.test`, `ClassroomStudentPicker`, `LessonNoteConfigEditor`, `LessonNotes`, `LessonNotesPage`, `LessonNoteTagDialog`, `MentionTextArea`, `VoiceRecorder`
+- Count: 15
+- Components: `AddNoteFab`, `AddNoteFab.test`, `AddNoteModal`, `AddNoteModal.photoEditor.test`, `AddNoteModal.photoUX.test`, `AddNoteModal.saveButton.test`, `AddNoteModal.syncSave.test`, `AddNoteModal.versionGate.test`, `ClassroomStudentPicker`, `LessonNoteConfigEditor`, `LessonNotes`, `LessonNotesPage`, `LessonNoteTagDialog`, `MentionTextArea`, `VoiceRecorder`
 - Representative paths:
 - `montessori-os/src/components/AddNoteFab.jsx`
 - `montessori-os/src/components/AddNoteFab.test.js`
 - `montessori-os/src/components/AddNoteModal.jsx`
+- `montessori-os/src/components/AddNoteModal.photoEditor.test.js`
 - `montessori-os/src/components/AddNoteModal.photoUX.test.js`
 - `montessori-os/src/components/AddNoteModal.saveButton.test.js`
 - `montessori-os/src/components/AddNoteModal.syncSave.test.js`
 - `montessori-os/src/components/AddNoteModal.versionGate.test.js`
-- `montessori-os/src/components/ClassroomStudentPicker.jsx`
 
 ### Timelines and Media (`timelines-and-media`)
-- Count: 10
-- Components: `ClassroomList`, `ClassroomTimeline`, `classroomTimelineUtils`, `classroomTimelineUtils.extraction.test`, `ExportWizard`, `FeedbackTimeline`, `FilterPanel`, `StudentDashboard`, `StudentDashboard.test`, `StudentTimeline`
+- Count: 11
+- Components: `ClassroomList`, `ClassroomTimeline`, `classroomTimelineUtils`, `classroomTimelineUtils.extraction.test`, `ExportWizard`, `FeedbackTimeline`, `FilterPanel`, `StudentDashboard`, `StudentDashboard.test`, `StudentTimeline`, `StudentTimeline.batchMedia.test`
 - Representative paths:
 - `montessori-os/src/components/ClassroomList.jsx`
 - `montessori-os/src/components/ClassroomTimeline.jsx`
@@ -95,8 +95,8 @@ App version: 12.4.0
 - `montessori-os/src/components/UsersAccessPage.jsx`
 
 ### Settings, Feedback, and App Shell (`settings-feedback-shell`)
-- Count: 50
-- Components: `App`, `AppFooter`, `AppHeader`, `BroadcastComposer`, `BroadcastComposer.test`, `BulkUploadPage`, `BulkUploadPage.helpers`, `BulkUploadPage.test`, `ChatMaintenance`, `ChatMaintenance.test`, `ClassroomNoteCard`, `ClassroomStudentCard`, `CopyToClipboardButton`, `DynamicIslandPill`, `DynamicIslandPill.test`, `FeedbackPage`, `GroupedNoteCard`, `GroupedNoteDialog`, `InlineVoiceOverlay`, `InterviewsPage`, `InterviewsPage.helpers`, `InterviewsPage.test`, `LandingPage`, `LandingPage.test`, `MonthlyPlanTab`, `MonthlyPlanTab.test`, `NoteBottomSheet.structure.test`, `NotesOverTimeDrawer`, `PlanFeedbackDialog`, `PlanFeedbackDialog.test`, `ProfilePage`, `QuestionDeck`, `QuestionDeck.test`, `ReadinessCheckDialog`, `ReportGenerateDialog`, `ReportPreviewDialog`, `ReportsCard`, `ReportsPage`, `ReportsPage.test`, `ReportTypeLandingPage`, `ReportTypeLandingPage.test`, `ReviewClassroomNotes`, `SettingsPage`, `SettingsPage.test`, `SnapshotBody`, `SnapshotCard`, `VersionBadge`, `VersionBadge.test`, `WritingAnalysisTab`, `WritingAnalysisTab.test`
+- Count: 51
+- Components: `App`, `AppFooter`, `AppHeader`, `BroadcastComposer`, `BroadcastComposer.test`, `BulkUploadPage`, `BulkUploadPage.helpers`, `BulkUploadPage.test`, `ChatMaintenance`, `ChatMaintenance.test`, `ClassroomNoteCard`, `ClassroomStudentCard`, `CopyToClipboardButton`, `DynamicIslandPill`, `DynamicIslandPill.test`, `FeedbackPage`, `GroupedNoteCard`, `GroupedNoteDialog`, `InlineVoiceOverlay`, `InterviewsPage`, `InterviewsPage.helpers`, `InterviewsPage.test`, `LandingPage`, `LandingPage.test`, `MonthlyPlanTab`, `MonthlyPlanTab.test`, `NoteBottomSheet.structure.test`, `NotesOverTimeDrawer`, `PhotoEditor`, `PlanFeedbackDialog`, `PlanFeedbackDialog.test`, `ProfilePage`, `QuestionDeck`, `QuestionDeck.test`, `ReadinessCheckDialog`, `ReportGenerateDialog`, `ReportPreviewDialog`, `ReportsCard`, `ReportsPage`, `ReportsPage.test`, `ReportTypeLandingPage`, `ReportTypeLandingPage.test`, `ReviewClassroomNotes`, `SettingsPage`, `SettingsPage.test`, `SnapshotBody`, `SnapshotCard`, `VersionBadge`, `VersionBadge.test`, `WritingAnalysisTab`, `WritingAnalysisTab.test`
 - Representative paths:
 - `montessori-os/src/App.jsx`
 - `montessori-os/src/AppFooter.jsx`
@@ -152,6 +152,10 @@ App version: 12.4.0
 
 ## Recent Changes
 
+### 12.4.1 (2026-08-19)
+- MediaNote photo editing now respects student-gated analysis, preserves corrected crop/rotation output, and keeps per-photo analysis revisions isolated (#236).
+- Student Timeline media batches hydrate complete sibling sets and support swipe navigation and refresh-after-delete behavior; the remaining carousel regression follow-up is tracked in #249.
+
 ### 12.4.0 (2026-08-12)
 - Four privacy-safe MCP tools for bounded Coach Pepper Cloud Logging export, correlation, coverage checks, and schema discovery (#244).
 
@@ -162,9 +166,4 @@ App version: 12.4.0
 ### 12.2.2 (2026-08-06)
 - Coach Pepper chat now gives clearer startup guidance, teacher-friendly tool progress, smoother streamed responses, and standard Markdown list-formatting guidance.
 - Empty-chat cleanup now revalidates candidates transactionally before deletion, and chat streaming/persistence edge cases have expanded test coverage.
-
-### 12.2.1 (2026-08-06)
-- Coach Pepper chat now uses a bounded phone-sized conversation viewport with a connected session selector, safe Markdown rendering, reliable follow-mode scrolling, and composer behavior that stays editable during streaming (#217).
-- User timestamps and copy actions, plus completed assistant copy and Helpful actions, remain permanently visible without hover or touch reveal (#217).
-- Conversation controls, messages, errors, and the composer remain correctly separated across safe-area, virtual-keyboard, dropdown, retry, and streaming-scroll states (#217).
 
