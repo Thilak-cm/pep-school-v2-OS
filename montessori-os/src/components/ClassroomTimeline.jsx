@@ -20,6 +20,7 @@ import { fuzzySearchStudents } from '../utils/fuzzySearch';
 import ReportPreviewDialog from './ReportPreviewDialog';
 import FilterPanel from './FilterPanel';
 import ClassroomNoteCard from './ClassroomNoteCard';
+import GroupedMediaCard from './GroupedMediaCard';
 import GroupedNoteCard from './GroupedNoteCard';
 import GroupedNoteDialog from './GroupedNoteDialog';
 import ClassroomStudentCard from './ClassroomStudentCard';
@@ -30,6 +31,7 @@ import useSwipeTabs from '../hooks/useSwipeTabs';
 import useTimelineData from '../hooks/useTimelineData';
 import useTimelineStats from '../hooks/useTimelineStats';
 import { toDate, groupByCalendarDay } from './classroomTimelineUtils.js';
+import { groupMediaObservations } from './groupedMediaUtils.js';
 import { HFTabs, DayHeader, HFSearchInput, HFFilterChip } from './ui';
 import { trackEvent } from '../utils/analytics';
 
@@ -37,6 +39,7 @@ function ClassroomTimeline({ classroom, currentUser, userRole, manageableClassro
   const notify = useNotify();
   const [activeTab, setActiveTab] = useState(0); // 0 = Notes, 1 = Students
   const [selectedNote, setSelectedNote] = useState(null); // for text/voice/lesson expansion
+  const [selectedMediaIndex, setSelectedMediaIndex] = useState(0);
   const [selectedGroupNote, setSelectedGroupNote] = useState(null); // for grouped note expansion
   const [searchQuery, setSearchQuery] = useState('');
   const [mediaUrls, setMediaUrls] = useState({});
@@ -322,7 +325,7 @@ function ClassroomTimeline({ classroom, currentUser, userRole, manageableClassro
     const groupMap = new Map();
     const ungrouped = [];
 
-    displayedObservations.forEach((note) => {
+    groupMediaObservations(displayedObservations).forEach((note) => {
       if (note.groupId) {
         if (!groupMap.has(note.groupId)) {
           groupMap.set(note.groupId, []);
@@ -497,6 +500,33 @@ function ClassroomTimeline({ classroom, currentUser, userRole, manageableClassro
         />
       );
     }
+    if (item.type === 'media') {
+      return (
+        <GroupedMediaCard
+          key={item.id}
+          note={item}
+          studentName={getStudentName(item)}
+          isTransferred={transferredStudents.has(item.studentId)}
+          transferredToClassroomName={transferredStudents.get(item.studentId)?.transferredToClassroomName}
+          classroomTeachers={classroomTeachers}
+          onStudentClick={() => {
+            const student = classroomStudents.find(s => s.id === item.studentId) || transferredStudents.get(item.studentId);
+            if (student) onNavigateToStudent(student);
+          }}
+          onNoteClick={() => {
+            setSelectedMediaIndex(0);
+            setSelectedNote(item);
+          }}
+          onMediaOpen={(index) => {
+            const mediaItem = item.mediaItems?.[index];
+            if (!mediaItem) return;
+            setSelectedMediaIndex(index);
+            setSelectedNote({ ...mediaItem.sourceObservation, mediaItems: item.mediaItems, mediaCount: item.mediaItems.length });
+          }}
+          mediaUrls={mediaUrls}
+        />
+      );
+    }
     return (
       <ClassroomNoteCard
         key={item.id}
@@ -523,7 +553,19 @@ function ClassroomTimeline({ classroom, currentUser, userRole, manageableClassro
   };
 
   const handleNoteClick = (note) => {
+    setSelectedMediaIndex(0);
     setSelectedNote(note);
+  };
+
+  const handleMediaNavigate = (direction) => {
+    const list = selectedNote?.mediaItems;
+    if (!Array.isArray(list)) return;
+    const nextIndex = selectedMediaIndex + direction;
+    if (nextIndex < 0 || nextIndex >= list.length) return;
+    const item = list[nextIndex];
+    const source = item?.sourceObservation || selectedNote;
+    setSelectedMediaIndex(nextIndex);
+    setSelectedNote({ ...source, mediaItems: list, mediaCount: list.length });
   };
 
   if (loading) {
@@ -757,7 +799,7 @@ function ClassroomTimeline({ classroom, currentUser, userRole, manageableClassro
       {/* Note expansion bottom sheet (all types) */}
       <NoteBottomSheet
         open={!!selectedNote}
-        onClose={() => setSelectedNote(null)}
+        onClose={() => { setSelectedNote(null); setSelectedMediaIndex(0); }}
         observation={selectedNote}
         student={selectedNote ? (classroomStudents.find(s => s.id === selectedNote.studentId) || transferredStudents.get(selectedNote.studentId) || null) : null}
         currentUser={currentUser}
@@ -766,6 +808,9 @@ function ClassroomTimeline({ classroom, currentUser, userRole, manageableClassro
         onNavigateToStudent={onNavigateToStudent}
         classroomTeachers={classroomTeachers}
         mediaUrl={selectedNote?.type === 'media' ? mediaUrls[selectedNote.media?.[0]?.storagePath ?? selectedNote.mediaItems?.[0]?.storagePath] : undefined}
+        carouselList={selectedNote?.type === 'media' && selectedNote.mediaItems?.length > 1 ? selectedNote.mediaItems : undefined}
+        carouselIndex={selectedMediaIndex}
+        onCarouselNavigate={handleMediaNavigate}
       />
 
       {/* Grouped note expansion dialog */}

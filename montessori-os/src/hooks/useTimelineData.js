@@ -24,6 +24,7 @@ const PAGE_SIZE = 20;
 
 const {
   fetchActiveClassroomStudents,
+  fetchClassroomBatchObservations,
   fetchClassroomTimelineNotes,
   fetchStudentTimelineNotes,
   fetchStudentBatchObservations,
@@ -68,19 +69,21 @@ export default function useTimelineData({ scope, id, classroom, userRole, manage
   const [refreshTick, setRefreshTick] = useState(0);
   const fetchedBatchIdsRef = useRef(new Set());
 
-  const hydrateStudentBatch = useCallback(async (studentId, page) => {
-    if (scope !== 'student' || !studentId) return page;
+  const hydrateMediaBatches = useCallback(async (ownerId, page) => {
+    if (!ownerId) return page;
     const batchIds = [...new Set(page.map((note) => note.batchId).filter(Boolean))]
       .filter((batchId) => !fetchedBatchIdsRef.current.has(batchId));
     if (!batchIds.length) return page;
     batchIds.forEach((batchId) => fetchedBatchIdsRef.current.add(batchId));
     const results = await Promise.allSettled(
-      batchIds.map((batchId) => fetchStudentBatchObservations({ studentId, batchId })),
+      batchIds.map((batchId) => scope === 'classroom'
+        ? fetchClassroomBatchObservations({ classroomId: ownerId, batchId })
+        : fetchStudentBatchObservations({ studentId: ownerId, batchId })),
     );
     const additions = [];
     results.forEach((result) => {
       if (result.status === 'fulfilled') additions.push(...result.value);
-      else reportCaughtError(result.reason, 'useTimelineData', 'student batch siblings fetch');
+      else reportCaughtError(result.reason, 'useTimelineData', 'media batch siblings fetch');
     });
     const byId = new Map(page.map((note) => [note.id, note]));
     additions.forEach((note) => byId.set(note.id, note));
@@ -112,6 +115,7 @@ export default function useTimelineData({ scope, id, classroom, userRole, manage
     const isRefresh = refreshTick > 0;
     if (isRefresh) {
       setRefreshing(true);
+      fetchedBatchIdsRef.current.clear();
     } else {
       setLoading(true);
       setNotes([]);
@@ -146,7 +150,7 @@ export default function useTimelineData({ scope, id, classroom, userRole, manage
           });
           if (cancelled) return;
 
-          const hydratedPage = await hydrateStudentBatch(id, page);
+          const hydratedPage = await hydrateMediaBatches(id, page);
           if (cancelled) return;
           setNotes(hydratedPage);
           setHasMore(page.length >= PAGE_SIZE);
@@ -159,7 +163,7 @@ export default function useTimelineData({ scope, id, classroom, userRole, manage
           });
           if (cancelled) return;
 
-          const hydratedPage = await hydrateStudentBatch(id, page);
+          const hydratedPage = await hydrateMediaBatches(id, page);
           if (cancelled) return;
           setNotes(hydratedPage);
           setHasMore(page.length >= PAGE_SIZE);
@@ -180,7 +184,7 @@ export default function useTimelineData({ scope, id, classroom, userRole, manage
     })();
 
     return () => { cancelled = true; };
-  }, [scope, id, hasAccess, classroom?.teacherIds?.length, refreshTick, hydrateStudentBatch]);
+  }, [scope, id, hasAccess, classroom?.teacherIds?.length, refreshTick, hydrateMediaBatches]);
 
   // Load more - fetch next page using cursor
   const loadMore = useCallback(async () => {
@@ -200,7 +204,7 @@ export default function useTimelineData({ scope, id, classroom, userRole, manage
           cursor,
         });
 
-      const hydratedPage = await hydrateStudentBatch(id, page);
+      const hydratedPage = await hydrateMediaBatches(id, page);
       setNotes(prev => {
         const byId = new Map(prev.map((note) => [note.id, note]));
         hydratedPage.forEach((note) => byId.set(note.id, note));
@@ -217,7 +221,7 @@ export default function useTimelineData({ scope, id, classroom, userRole, manage
     } finally {
       setIsLoadingMore(false);
     }
-  }, [scope, id, hasAccess, cursor, hasMore, isLoadingMore, hydrateStudentBatch]);
+  }, [scope, id, hasAccess, cursor, hasMore, isLoadingMore, hydrateMediaBatches]);
 
   // Refresh - reset to page 1
   const refresh = useCallback(() => {
