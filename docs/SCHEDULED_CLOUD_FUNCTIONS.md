@@ -1,0 +1,53 @@
+# Scheduled Cloud Functions
+
+Canonical inventory of cron-triggered Cloud Functions. Keep this document in
+sync with the `.pubsub.schedule(...)` declarations under `functions/`.
+
+All schedules use the `Asia/Kolkata` timezone unless noted otherwise. These are
+Firebase Functions v1 Pub/Sub schedules and use asynchronous `onRun` handlers.
+
+## Daily
+
+| IST schedule | Function | Module | Execution pattern | Purpose |
+|---|---|---|---|---|
+| Every day at 06:00 | `dataIntegrityChecks` | `functions/integrity/index.js` | Direct async work | Runs registered data-integrity checks and sends pass/failure results to configured Telegram chats. |
+
+## Weekly
+
+| IST schedule | Function | Module | Execution pattern | Purpose |
+|---|---|---|---|---|
+| Sunday at 00:00 | `generateBaseballCards` | `functions/ai/baseballCard.js` | Direct async work | Generates baseball-card summaries for active students and rebuilds the heatmap cache. |
+| Sunday at 18:00 | `weeklyDigestClassroomAdmin` | `functions/digest/index.js` | Direct async work | Generates, stores, and emails classroom-admin weekly digests. |
+| Sunday at 18:45 | `weeklyDigestSuperadmin` | `functions/digest/index.js` | Direct async work | Generates and emails a consolidated superadmin digest from classroom digests. The 45-minute offset is not a guaranteed completion dependency on the first digest job. |
+| Monday at 00:00 | `generateWritingAnalysis` | `functions/ai/handwriting.js` | Direct async work | Runs writing analysis for all active students and archives prior scheduled results. |
+
+## Monthly
+
+| IST schedule | Function | Module | Execution pattern | Purpose |
+|---|---|---|---|---|
+| Day 1 at 00:00 | `cleanupDeletedChats` | `functions/chat/cleanupDeletedChats.js` | Direct async work | Hard-deletes soft-deleted chats older than 31 days, including subcollections. |
+| Day 1 at 02:00 | `regenerateSoulsMonthly` | `functions/students/soul.js` | Async dispatcher | Finds active students and publishes batches to the `soul-workers` Pub/Sub topic. Actual generation runs in `soulWorker`, which is Pub/Sub-triggered rather than cron-triggered. |
+| Last day at 00:00 | `batchGenerateMonthlyPlans` | `functions/monthlyPlan/index.js` | Async dispatcher | Cron expression fires on days 28–31; an IST runtime guard allows processing only on the actual last day. Publishes eligible students to the monthly-plan worker topic. Actual generation and Drive export run in `monthlyPlanWorker`, which is Pub/Sub-triggered rather than cron-triggered. |
+
+## Source-of-truth details
+
+| Function | Cron expression | Source |
+|---|---|---|
+| `dataIntegrityChecks` | `0 6 * * *` | `functions/integrity/index.js` |
+| `generateBaseballCards` | `0 0 * * 0` | `functions/ai/baseballCard.js` |
+| `weeklyDigestClassroomAdmin` | `0 18 * * 0` | `functions/digest/index.js` |
+| `weeklyDigestSuperadmin` | `45 18 * * 0` | `functions/digest/index.js` |
+| `generateWritingAnalysis` | `0 0 * * 1` | `functions/ai/handwriting.js` |
+| `cleanupDeletedChats` | `0 0 1 * *` | `functions/chat/cleanupDeletedChats.js` |
+| `regenerateSoulsMonthly` | `0 2 1 * *` | `functions/students/soul.js` |
+| `batchGenerateMonthlyPlans` | `0 0 28-31 * *` | `functions/monthlyPlan/index.js` (plus last-day guard) |
+
+## Maintenance rules
+
+- When adding, removing, or changing a `.pubsub.schedule(...)` function, update
+  this inventory in the same change.
+- Verify the explicit `.timeZone(...)` declaration before changing the timezone
+  shown above. Do not infer production timing from the developer machine's
+  timezone.
+- Keep Pub/Sub workers listed separately from cron jobs unless they also have a
+  schedule trigger.

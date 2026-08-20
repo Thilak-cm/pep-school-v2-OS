@@ -36,8 +36,6 @@ import {
 } from '../services/chatTelemetryService.js';
 import useInlineVoice from '../hooks/useInlineVoice';
 import InlineVoiceOverlay from './InlineVoiceOverlay.jsx';
-import ChatMaintenance from './ChatMaintenance.jsx';
-import { isChatAllowed } from './chat/chatAccess.js';
 import { AssistantBubble, UserBubble } from './chat/MessageBubble.jsx';
 import ScrollToBottomFab from './chat/ScrollToBottomFab.jsx';
 import TypingIndicator from './chat/TypingIndicator.jsx';
@@ -100,7 +98,6 @@ function timestampMs(value) {
 }
 
 export default function ChildChat({ student, currentUser, userRole, manageableClassrooms = [] }) {
-  const isAuthorizedTester = isChatAllowed(currentUser?.uid);
   const [chats, setChats] = useState([]);
   const [selectedChatId, setSelectedChatId] = useState(null);
   const [messages, setMessages] = useState([]);
@@ -236,7 +233,7 @@ export default function ChildChat({ student, currentUser, userRole, manageableCl
   }, [student?.id]);
 
   useEffect(() => {
-    if (!isAuthorizedTester || !student?.id) return undefined;
+    if (!student?.id) return undefined;
     let active = true;
     setChatsLoading(true);
     loadChats()
@@ -247,10 +244,10 @@ export default function ChildChat({ student, currentUser, userRole, manageableCl
         if (active) setChatsLoading(false);
       });
     return () => { active = false; };
-  }, [isAuthorizedTester, loadChats, student?.id]);
+  }, [loadChats, student?.id]);
 
   useEffect(() => {
-    if (!isAuthorizedTester || !student?.id || !selectedChatId) {
+    if (!student?.id || !selectedChatId) {
       persistedMessageIdsRef.current = new Set();
       turnDocsRef.current = [];
       setMessages([]);
@@ -344,7 +341,7 @@ export default function ChildChat({ student, currentUser, userRole, manageableCl
       unsubscribeMessages?.();
       unsubscribeTurns?.();
     };
-  }, [isAuthorizedTester, selectedChatId, student?.id]);
+  }, [selectedChatId, student?.id]);
 
   useLayoutEffect(() => {
     if (!messages.length) return;
@@ -720,7 +717,6 @@ export default function ChildChat({ student, currentUser, userRole, manageableCl
     setShowScrollButton(!nearBottom);
   };
 
-  if (!isAuthorizedTester) return <ChatMaintenance currentUser={currentUser} />;
   if (!student?.id) return <Alert severity="error" sx={{ m: 2 }}>Student information is required to start a chat.</Alert>;
 
   const isLanding = selectedChatId === null;
