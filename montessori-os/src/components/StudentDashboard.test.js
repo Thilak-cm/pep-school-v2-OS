@@ -154,7 +154,7 @@ describe('StudentDashboard quick jumps', () => {
     const src = await readFile(dashboardPath, 'utf8');
     assert.match(src, /import NewFeaturePill from '\.\/NewFeaturePill'/);
     assert.match(src, /label="Assessments"[\s\S]*?notify\.info\('Assessments are coming soon\.'\)/);
-    assert.match(src, /label="Assessments"[\s\S]*?<NewFeaturePill[\s\S]*?label="New"[\s\S]*?showIcon=\{false\}/);
+    assert.match(src, /label="Assessments"[\s\S]*?<NewFeaturePill[\s\S]*?label="Coming Soon"[\s\S]*?showIcon=\{false\}/);
   });
 });
 

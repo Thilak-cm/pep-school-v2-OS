@@ -471,13 +471,14 @@ function App() {
                     onLesson={() => openLessonNotesScreen()}
                     onMedia={() => { setAddNoteInitialStep('media'); setAddNoteOpen(true); }}
                     sx={{
-                      // Align the global control with the third quick-jump column.
+                      // Align the global control with the third quick-jump column
+                      // and the vertical center of the dashboard's second action row.
                       // Keeping this app-level placement makes the FAB feel stable
                       // as teachers move between screens, while it occupies cell 6
                       // on the student dashboard's 3×3 action grid.
                       right: { xs: 52, sm: 52 },
-                      bottom: { xs: 80, sm: 80 },
-                      '@media (max-width: 599px)': { '@supports (padding: env(safe-area-inset-bottom))': { bottom: 'calc(80px + env(safe-area-inset-bottom))' } }
+                      bottom: { xs: 96, sm: 96 },
+                      '@media (max-width: 599px)': { '@supports (padding: env(safe-area-inset-bottom))': { bottom: 'calc(96px + env(safe-area-inset-bottom))' } }
                     }}
                   />
                 )}

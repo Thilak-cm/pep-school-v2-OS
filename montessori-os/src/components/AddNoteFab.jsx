@@ -1,8 +1,10 @@
 import React, { useState } from 'react';
 import { Fab, Box, Typography } from '@mui/material';
-import { Plus, Mic, BookOpen, Image } from '../icons';
+import { Plus, Mic, BookOpen, Image, ListChecks } from '../icons';
+import NewFeaturePill from './NewFeaturePill';
 
 const MENU_ITEMS = [
+  { key: 'assessments', label: 'Assessments', Icon: ListChecks, disabled: true },
   { key: 'media', label: 'Media', Icon: Image },
   { key: 'lesson', label: 'Lesson', Icon: BookOpen },
   { key: 'voice', label: 'Voice', Icon: Mic },
@@ -10,7 +12,7 @@ const MENU_ITEMS = [
 
 /**
  * Floating action button that expands into a card menu
- * with 3 note-type rows (Voice, Lesson, Media — bottom to top).
+ * with four note-type rows (Voice, Lesson, Media, Assessments — bottom to top).
  */
 const AddNoteFab = ({ onVoice, onLesson, onMedia, sx = {} }) => {
   const [open, setOpen] = useState(false);
@@ -80,19 +82,20 @@ const AddNoteFab = ({ onVoice, onLesson, onMedia, sx = {} }) => {
           {MENU_ITEMS.map((item, index) => (
             <Box
               key={item.key}
-              onClick={() => handleSelect(item.key)}
+              onClick={item.disabled ? undefined : () => handleSelect(item.key)}
               sx={{
                 display: 'flex',
                 alignItems: 'center',
                 justifyContent: 'space-between',
                 px: 2,
                 py: 1.5,
-                cursor: 'pointer',
+                cursor: item.disabled ? 'not-allowed' : 'pointer',
                 borderBottom: index < MENU_ITEMS.length - 1 ? '1px solid rgba(0,0,0,0.06)' : 'none',
-                '&:hover': {
+                opacity: item.disabled ? 0.5 : 1,
+                '&:hover': !item.disabled && {
                   backgroundColor: 'rgba(0,0,0,0.04)',
                 },
-                '&:active': {
+                '&:active': !item.disabled && {
                   backgroundColor: 'rgba(0,0,0,0.08)',
                 },
               }}
@@ -108,7 +111,10 @@ const AddNoteFab = ({ onVoice, onLesson, onMedia, sx = {} }) => {
                 {item.label}
               </Typography>
 
-              <item.Icon size={20} style={{ color: 'var(--color-text-soft)' }} />
+              <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
+                {item.disabled && <NewFeaturePill label="Coming Soon" showIcon={false} />}
+                <item.Icon size={20} style={{ color: 'var(--color-text-soft)' }} />
+              </Box>
             </Box>
           ))}
         </Box>

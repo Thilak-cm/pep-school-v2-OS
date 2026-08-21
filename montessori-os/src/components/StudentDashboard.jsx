@@ -1694,7 +1694,7 @@ function StudentDashboard({ student, onOpenTimeline, onOpenFeedback, onOpenChat,
             }}
           />
           <NewFeaturePill
-            label="New"
+            label="Coming Soon"
             showIcon={false}
             sx={{
               position: 'absolute',
