@@ -15,7 +15,7 @@ import {
   Popover,
   Tooltip
 } from '@mui/material';
-import { StickyNote as NotesIcon, MessageCircle as ChatIcon, ThumbsUp as FeedbackIcon, Info as InfoOutlined, RefreshCw as Refresh, Flag as FlagRounded, CircleCheck as CheckCircle, ClipboardList as ReportsIcon, TriangleAlert as WarningIcon, Pencil, Image as ImageIcon, X as CloseIcon, Upload as UploadIcon, Gauge, Lightbulb } from '../icons';
+import { StickyNote as NotesIcon, MessageCircle as ChatIcon, ThumbsUp as FeedbackIcon, Info as InfoOutlined, RefreshCw as Refresh, Flag as FlagRounded, CircleCheck as CheckCircle, ClipboardList as ReportsIcon, ListChecks as AssessmentsIcon, TriangleAlert as WarningIcon, Pencil, Image as ImageIcon, X as CloseIcon, Upload as UploadIcon, Gauge, Lightbulb } from '../icons';
 import { QuickJumpButton, HFTabs } from './ui';
 import useNotify from '../notifications/useNotify';
 import { collection, collectionGroup, query, getDocs, where, orderBy, doc, getDoc, Timestamp, limit } from 'firebase/firestore';
@@ -36,6 +36,7 @@ import { calculateAgeFromDob } from '../utils/dateFormat';
 import { isSuperAdmin } from '../utils/roleUtils';
 import Coachmark from '../coachmark/Coachmark';
 import useCoachmark from '../coachmark/useCoachmark';
+import NewFeaturePill from './NewFeaturePill';
 
 /* Shared chip base sx for uniform toolbar items */
 const CHIP_BASE = {
@@ -56,6 +57,16 @@ const CHIP_BASE = {
 
 const PLAN_PROGRAMS = ['toddler', 'primary'];
 const QUESTIONS_PROGRAMS = ['toddler', 'primary'];
+
+const QUICK_JUMP_CELL_SX = {
+  position: 'relative',
+  minWidth: 0,
+  '& > button': {
+    width: '100%',
+    height: '100%',
+    minWidth: 0,
+  },
+};
 
 const SNAPSHOT_TABS_WITH_PLAN = [
   { label: 'Plan', value: 'plan' },
@@ -122,9 +133,9 @@ function StudentDashboard({ student, onOpenTimeline, onOpenFeedback, onOpenChat,
   const [studentProgramId, setStudentProgramId] = useState(null);
   const [programResolved, setProgramResolved] = useState(false);
   const hasPlanTab = PLAN_PROGRAMS.includes(studentProgramId);
-  // Questions are currently limited to toddler/primary teachers and classroom
-  // admins. Keep superadmins able to inspect the feature across programs while
-  // hiding it from elementary/adolescent staff.
+  // Questions are currently available to toddler/primary teachers and classroom
+  // admins. The quick-jump stays visible for everyone so its position does not
+  // shift while the program resolves; unsupported programs receive a notice.
   const canViewQuestions = isSuperAdmin(userRole) || (
     ['teacher', 'classroomadmin'].includes(userRole) &&
     programResolved &&
@@ -1615,46 +1626,87 @@ function StudentDashboard({ student, onOpenTimeline, onOpenFeedback, onOpenChat,
       />
 
       {/* ── Quick jump buttons — pinned at bottom ── */}
-      <Box sx={{ display: 'grid', gridTemplateColumns: `repeat(${canViewQuestions ? 4 : 3}, 1fr)`, gap: 1, flexShrink: 0 }}>
-        {canViewQuestions && (
-          <Box ref={questionsButtonRef} sx={{ position: 'relative' }}>
-            <QuickJumpButton
-              icon={<Lightbulb size={22} />}
-              label="Questions"
-              iconColor="var(--color-primary)"
-              onClick={() => { trackEvent('student_dashboard_card_click', { card: 'questions', studentId }).catch(() => {}); onOpenQuestions?.(); }}
-            />
-            {!questionsCoachmark.isDismissed && (
-              <Box sx={{
-                position: 'absolute', top: 4, right: 4,
-                px: 0.75, py: 0.25, borderRadius: '8px',
-                backgroundColor: 'var(--color-primary)',
-                color: '#fff', fontSize: '0.6rem', fontWeight: 700,
-                lineHeight: 1.2, pointerEvents: 'none',
-              }}>
-                New
-              </Box>
-            )}
-          </Box>
-        )}
-        <QuickJumpButton
-          icon={<NotesIcon size={22} />}
-          label="Timeline"
-          iconColor="var(--color-primary)"
-          onClick={() => { trackEvent('student_dashboard_card_click', { card: 'timeline', studentId }).catch(() => {}); onOpenTimeline?.(initialNoteType); }}
-        />
-        <QuickJumpButton
-          icon={<ReportsIcon size={22} />}
-          label="Reports"
-          iconColor="var(--color-secondary)"
-          onClick={() => { trackEvent('student_dashboard_card_click', { card: 'reports', studentId }).catch(() => {}); onOpenReports?.(); }}
-        />
-        <QuickJumpButton
-          icon={<ChatIcon size={22} />}
-          label="Coach"
-          iconColor="var(--color-primary-light)"
-          onClick={() => { trackEvent('student_dashboard_card_click', { card: 'chat', studentId }).catch(() => {}); onOpenChat?.(); }}
-        />
+      <Box sx={{
+        display: 'grid',
+        gridTemplateColumns: 'repeat(4, minmax(0, 1fr))',
+        gridTemplateRows: 'repeat(2, 1fr)',
+        gap: 1,
+        flexShrink: 0,
+      }}>
+        <Box ref={canViewQuestions ? questionsButtonRef : null} sx={QUICK_JUMP_CELL_SX}>
+          <QuickJumpButton
+            icon={<Lightbulb size={22} />}
+            label="Questions"
+            iconColor="var(--color-primary)"
+            onClick={() => {
+              trackEvent('student_dashboard_card_click', { card: 'questions', studentId }).catch(() => {});
+              if (canViewQuestions) {
+                onOpenQuestions?.();
+              } else {
+                notify.info('Questions are not available for this program yet. Coming soon.');
+              }
+            }}
+          />
+          {canViewQuestions && !questionsCoachmark.isDismissed && (
+            <Box sx={{
+              position: 'absolute', top: 4, right: 4,
+              px: 0.75, py: 0.25, borderRadius: '8px',
+              backgroundColor: 'var(--color-primary)',
+              color: '#fff', fontSize: '0.6rem', fontWeight: 700,
+              lineHeight: 1.2, pointerEvents: 'none',
+            }}>
+              New
+            </Box>
+          )}
+        </Box>
+        <Box sx={QUICK_JUMP_CELL_SX}>
+          <QuickJumpButton
+            icon={<NotesIcon size={22} />}
+            label="Timeline"
+            iconColor="var(--color-primary)"
+            onClick={() => { trackEvent('student_dashboard_card_click', { card: 'timeline', studentId }).catch(() => {}); onOpenTimeline?.(initialNoteType); }}
+          />
+        </Box>
+        <Box sx={QUICK_JUMP_CELL_SX}>
+          <QuickJumpButton
+            icon={<ReportsIcon size={22} />}
+            label="Reports"
+            iconColor="var(--color-secondary)"
+            onClick={() => { trackEvent('student_dashboard_card_click', { card: 'reports', studentId }).catch(() => {}); onOpenReports?.(); }}
+          />
+        </Box>
+        <Box sx={QUICK_JUMP_CELL_SX}>
+          <QuickJumpButton
+            icon={<ChatIcon size={22} />}
+            label="Coach"
+            iconColor="var(--color-primary-light)"
+            onClick={() => { trackEvent('student_dashboard_card_click', { card: 'chat', studentId }).catch(() => {}); onOpenChat?.(); }}
+          />
+        </Box>
+        <Box sx={{ ...QUICK_JUMP_CELL_SX, gridColumn: 1, gridRow: 2 }}>
+          <QuickJumpButton
+            icon={<AssessmentsIcon size={22} />}
+            label="Assessments"
+            iconColor="var(--color-green-bright)"
+            onClick={() => {
+              trackEvent('student_dashboard_card_click', { card: 'assessments', studentId }).catch(() => {});
+              notify.info('Assessments are coming soon.');
+            }}
+          />
+          <NewFeaturePill
+            label="New"
+            showIcon={false}
+            sx={{
+              position: 'absolute',
+              top: 4,
+              right: 4,
+              px: 0.75,
+              py: 0.25,
+              fontSize: '0.6rem',
+              pointerEvents: 'none',
+            }}
+          />
+        </Box>
       </Box>
 
       {canViewQuestions && (
