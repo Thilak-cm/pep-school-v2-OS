@@ -28,7 +28,7 @@ import {
  */
 export const recomputeStats = functions
   .region("asia-south1")
-  .runWith({timeoutSeconds: 120, memory: "512MB"})
+  .runWith({timeoutSeconds: 120, memory: "1GB"})
   .https.onCall(async (data, context) => {
     // ── Auth gate ──────────────────────────────────────────────────
     if (!context.auth) {
