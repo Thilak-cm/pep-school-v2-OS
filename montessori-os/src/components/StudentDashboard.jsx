@@ -1628,7 +1628,7 @@ function StudentDashboard({ student, onOpenTimeline, onOpenFeedback, onOpenChat,
       {/* ── Quick jump buttons — pinned at bottom ── */}
       <Box sx={{
         display: 'grid',
-        gridTemplateColumns: 'repeat(4, minmax(0, 1fr))',
+        gridTemplateColumns: 'repeat(3, minmax(0, 1fr))',
         gridTemplateRows: 'repeat(2, 1fr)',
         gap: 1,
         flexShrink: 0,
@@ -1683,7 +1683,7 @@ function StudentDashboard({ student, onOpenTimeline, onOpenFeedback, onOpenChat,
             onClick={() => { trackEvent('student_dashboard_card_click', { card: 'chat', studentId }).catch(() => {}); onOpenChat?.(); }}
           />
         </Box>
-        <Box sx={{ ...QUICK_JUMP_CELL_SX, gridColumn: 1, gridRow: 2 }}>
+        <Box sx={{ ...QUICK_JUMP_CELL_SX, gridColumn: 2, gridRow: 2 }}>
           <QuickJumpButton
             icon={<AssessmentsIcon size={22} />}
             label="Assessments"

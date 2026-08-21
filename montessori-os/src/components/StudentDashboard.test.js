@@ -141,12 +141,12 @@ describe('StudentDashboard Questions pilot gate', () => {
 });
 
 describe('StudentDashboard quick jumps', () => {
-  it('uses a fixed two-by-four grid with equal-sized button cells', async () => {
+  it('uses a fixed three-column grid with equal-sized button cells', async () => {
     const src = await readFile(dashboardPath, 'utf8');
-    assert.match(src, /gridTemplateColumns:\s*'repeat\(4, minmax\(0, 1fr\)\)'/);
+    assert.match(src, /gridTemplateColumns:\s*'repeat\(3, minmax\(0, 1fr\)\)'/);
     assert.match(src, /gridTemplateRows:\s*'repeat\(2, 1fr\)'/);
     assert.match(src, /const QUICK_JUMP_CELL_SX = \{[\s\S]*?minWidth:\s*0[\s\S]*?width:\s*'100%'[\s\S]*?height:\s*'100%'/);
-    assert.match(src, /gridColumn:\s*1, gridRow:\s*2[\s\S]*?label="Assessments"/);
+    assert.match(src, /gridColumn:\s*2, gridRow:\s*2[\s\S]*?label="Assessments"/);
     assert.match(src, /label="Coach"[\s\S]*?label="Assessments"/);
   });
 
