@@ -7,6 +7,7 @@ areas: ["observation-capture", "timelines-and-media", "analytics-and-notificatio
 topics: ["structured-assessments", "medical-assessments", "assessment-ingestion", "weekly-digest", "brain", "stats", "coach-chat", "soul-generation", "job-monitoring", "ai-costs"]
 status: "issues-drafted"
 issue_refs: [212, 229, 241, 248, 253, 254, 255]
+takeaway_count: 4
 source: "Granola — https://notes.granola.ai/t/2ad4a9d3-2825-43e7-a23a-9ab534752907"
 ---
 
@@ -44,6 +45,46 @@ The group also discussed several operational follow-ups: dismissible red alerts;
 - If the prompt changes validate, move the Soul run from August 31 to approximately August 27–28.
 - Prepare run-level monitoring before month-end and term-report generation.
 - Report AI tokens and cost per child, broken down by major pipeline/output.
+
+## Post-Meeting Reflection
+
+These are the four explicit commitments made at the close of the meeting. They are not a restatement of every issue discussed. Meeting Prep must carry each incomplete takeaway forward until current evidence supports 100% completion or the user explicitly marks it cancelled or superseded.
+
+### Takeaway 1 — Deliver an AI cost-per-child report
+
+- **Owner:** Thilak
+- **Commitment:** Calculate tokens and monetary cost per child, broken down by major AI pipeline/output, and deliver the report for model and unit-economics decisions.
+- **Tracking refs:** #241
+- **Completion evidence:** A reviewed report based on current provider/Langfuse usage data covers Souls/Open Questions, weekly snapshots, monthly plans, baseline and term reports, readiness, writing analysis, and chat; it includes per-child and frequency-aware totals and has been delivered to the intended stakeholder.
+- **Baseline at meeting close:** 0% — the requirement was agreed, but report work had not started.
+- **Carry forward:** Yes
+
+### Takeaway 2 — Roll out improved Open Questions to all programs
+
+- **Owner:** Thilak
+- **Commitment:** Update and validate all four program-specific Soul/Open Questions prompts, then move the August Soul run to approximately August 27–28 if the prompts are ready.
+- **Tracking refs:** Soul generation prompts; August 2026 Soul run
+- **Completion evidence:** All four prompts are versioned and validated; the production Soul/Open Questions run completes for the expected students; Firestore/run logs and Langfuse confirm complete outputs; representative questions pass review.
+- **Baseline at meeting close:** 0% — prompt edits and validation were still pending.
+- **Carry forward:** Yes
+
+### Takeaway 3 — Implement Assessment notes
+
+- **Owner:** Thilak
+- **Commitment:** Ship the v1 Assessment note type with structured spreadsheet ingestion, Medical PDF upload, per-student history, a fourth Statistics category, and deliberate downstream AI integration.
+- **Tracking refs:** #248, #252; deferred follow-ups #253 and #255 are not v1 blockers
+- **Completion evidence:** The approved #248 scope is implemented, reviewed, merged, deployed, and verified in production across upload, parsing, record counts, student history, Statistics, access control, source retention, and the named downstream AI consumers.
+- **Baseline at meeting close:** 20% — product and technical specification work was underway, but implementation had not started.
+- **Carry forward:** Yes
+
+### Takeaway 4 — Implement month-end job monitoring
+
+- **Owner:** Thilak
+- **Commitment:** Add run logs and completion reconciliation for month-end Soul and monthly-plan generation so missing students are detected before teachers report gaps.
+- **Tracking refs:** #229
+- **Completion evidence:** Scheduled runs record expected, completed, skipped, failed, and missing students; internal records reconcile to aggregate monitoring; the implementation is reviewed, merged, deployed, and verified against a live month-end run without exposing student data externally.
+- **Baseline at meeting close:** 0% — the requirement was agreed, but implementation had not started.
+- **Carry forward:** Yes
 
 ## Drafted Issues
 
