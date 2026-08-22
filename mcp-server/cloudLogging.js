@@ -4,6 +4,7 @@ const FUNCTION_NAMES = {
   server: "childChatStream",
   preflight: "childChatStream",
 };
+const RECOMPUTE_STATS_FUNCTION_NAME = "recomputeStats";
 const MAX_LOOKBACK_MS = 7 * 24 * 60 * 60 * 1000;
 const DEFAULT_PAGE_SIZE = 500;
 const MAX_PAGE_SIZE = 2000;
@@ -74,6 +75,55 @@ export function normalizeTimeWindow(params = {}, now = new Date()) {
 
 function quote(value) {
   return JSON.stringify(String(value));
+}
+
+function buildRecomputeStatsLoggingFilter(params = {}) {
+  if (params.query || params.logName || params.resource) throw new Error("unsupported arbitrary logging query");
+  const window = params.startTime && params.endTime
+    ? normalizeTimeWindow(params, new Date(params.endTime))
+    : normalizeTimeWindow(params);
+  return [
+    `resource.type = "cloud_function"`,
+    `resource.labels.function_name = ${quote(RECOMPUTE_STATS_FUNCTION_NAME)}`,
+    `timestamp >= ${quote(window.startTime)}`,
+    `timestamp <= ${quote(window.endTime)}`,
+  ].join(" AND ");
+}
+
+function sanitizeRecomputeStatsLog(entry = {}) {
+  const metadata = entry.metadata || entry;
+  const resource = metadata.resource || entry.resource || {};
+  const labels = resource.labels || {};
+  const textPayload = typeof entry.data === "string"
+    ? entry.data
+    : typeof entry.data?.textPayload === "string"
+      ? entry.data.textPayload
+      : typeof entry.textPayload === "string" ? entry.textPayload : undefined;
+  const payload = entry.data?.jsonPayload || entry.jsonPayload;
+  const safePayload = payload && typeof payload === "object"
+    ? Object.fromEntries(Object.entries(payload).filter(([key]) => [
+      "event", "classroomCount", "computeTimeMs", "observationCount", "callerRole",
+    ].includes(key)))
+    : undefined;
+  const result = {
+    eventId: metadata.insertId,
+    timestamp: metadata.timestamp ? new Date(metadata.timestamp).toISOString() : undefined,
+    severity: metadata.severity || "DEFAULT",
+    executionId: metadata.labels?.execution_id,
+    functionName: labels.function_name || labels.functionName || RECOMPUTE_STATS_FUNCTION_NAME,
+    region: labels.region || null,
+  };
+  if (textPayload) result.textPayload = textPayload.slice(0, 1000);
+  if (safePayload && Object.keys(safePayload).length) result.jsonPayload = safePayload;
+  return Object.fromEntries(Object.entries(result).filter(([, value]) => value !== undefined));
+}
+
+function classifyRecomputeStatsLog(entry) {
+  const text = entry.textPayload || "";
+  if (/heap limit|out of memory/i.test(text)) return "oom";
+  if (/finished with status:/.test(text)) return /status code: [23]\d\d/.test(text) ? "completed" : "failed";
+  if (/execution started/.test(text)) return "started";
+  return "log";
 }
 
 function namedFilter(field, values, type = "string") {
@@ -298,6 +348,37 @@ export function checkLatencyCoverage({ clientEvents = [], serverEvents = [] } = 
 export function createCloudLoggingAdapter({ entries }) {
   if (typeof entries !== "function") throw new Error("Cloud Logging entries client is required");
   return {
+    async exportRecomputeStatsLogs(params = {}, now = new Date()) {
+      const window = params.startTime && params.endTime
+        ? normalizeTimeWindow(params, new Date(params.endTime))
+        : normalizeTimeWindow(params);
+      const pageSize = Math.min(Math.max(Number(params.pageSize) || DEFAULT_PAGE_SIZE, 1), MAX_PAGE_SIZE);
+      let response;
+      try {
+        response = await entries(buildRecomputeStatsLoggingFilter({ ...params, ...window }), {
+          pageSize,
+          pageToken: params.pageToken,
+        });
+      } catch (error) {
+        throw authRecoveryError(error);
+      }
+      const [rawEntries, nextQuery] = response;
+      const logs = rawEntries
+        .map(sanitizeRecomputeStatsLog)
+        .map((log) => ({ ...log, category: classifyRecomputeStatsLog(log) }))
+        .sort((a, b) => String(b.timestamp).localeCompare(String(a.timestamp)));
+      const counts = {};
+      for (const log of logs) counts[log.category] = (counts[log.category] || 0) + 1;
+      return {
+        schemaVersion: 1,
+        query: window,
+        rawEntryCount: rawEntries.length,
+        logs,
+        counts,
+        nextPageToken: nextQuery?.pageToken || undefined,
+        truncated: Boolean(nextQuery?.pageToken),
+      };
+    },
     async exportChatLatencyEvents(params = {}, now = new Date()) {
       const window = normalizeTimeWindow(params, now);
       const pageSize = Math.min(Math.max(Number(params.pageSize) || DEFAULT_PAGE_SIZE, 1), MAX_PAGE_SIZE);
