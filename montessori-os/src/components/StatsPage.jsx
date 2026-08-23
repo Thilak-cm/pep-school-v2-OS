@@ -213,23 +213,25 @@ const StatsPage = ({ user, role, manageableClassrooms = [], onBack, onNavigateTo
     // Fall back to all-time effortCounts if effortActivityByType not yet in cache docs
     const hasTypeTiers = classroomDocs.some(d => d.effortActivityByType);
     if (!hasTypeTiers) {
-      const nc = { observations: 0, lesson: 0, media: 0 };
+      const nc = { observations: 0, lesson: 0, media: 0, assessment: 0 };
       for (const doc of classroomDocs) {
         const c = doc.effortCounts || {};
         nc.observations += (c.voice || 0) + (c.text || 0);
-        nc.lesson += c.lesson || 0; nc.media += c.media || 0;
+        nc.lesson += c.lesson || 0; nc.media += c.media || 0; nc.assessment += c.assessment || 0;
       }
       return [
         { name: 'Observations', value: nc.observations, color: '#4f46e5' }, /* Recharts */
         { name: 'Lessons', value: nc.lesson, color: '#059669' }, /* Recharts */
-        { name: 'Media', value: nc.media, color: '#ec4899' } /* Recharts */
+        { name: 'Media', value: nc.media, color: '#ec4899' }, /* Recharts */
+        { name: 'Assessments', value: nc.assessment, color: '#d97706' } /* Recharts */
       ];
     }
 
     return [
       { name: 'Observations', value: sumTier('voice') + sumTier('text'), color: '#4f46e5' }, /* Recharts */
       { name: 'Lessons', value: sumTier('lesson'), color: '#059669' }, /* Recharts */
-      { name: 'Media', value: sumTier('media'), color: '#ec4899' } /* Recharts */
+      { name: 'Media', value: sumTier('media'), color: '#ec4899' }, /* Recharts */
+      { name: 'Assessments', value: sumTier('assessment'), color: '#d97706' } /* Recharts */
     ];
   }, [classroomDocs, timePeriod]);
 

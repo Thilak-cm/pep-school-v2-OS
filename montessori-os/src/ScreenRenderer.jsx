@@ -33,6 +33,8 @@ import LessonNoteConfigEditor from "./components/LessonNoteConfigEditor.jsx";
 import WeeklyDigestConfigEditor from "./components/WeeklyDigestConfigEditor.jsx";
 import QuestionDeck from "./components/QuestionDeck.jsx";
 import ChildChat from "./components/ChildChat.jsx";
+import AssessmentUploadPage from "./components/AssessmentUploadPage.jsx";
+import StudentAssessmentsPage from "./components/StudentAssessmentsPage.jsx";
 
 /**
  * Renders the correct screen component based on the current `screen` value.
@@ -45,6 +47,10 @@ export default function ScreenRenderer({ screen, ctx }) {
 
 function renderScreen(screen, ctx) {
   switch (screen) {
+    case "assessmentUpload":
+      return <AssessmentUploadPage currentUser={ctx.user} userRole={ctx.role} manageableClassrooms={ctx.manageableClassrooms} onBack={() => ctx.setScreen(ctx.assessmentReturnScreen || "settings")} />;
+    case "studentAssessments":
+      return <StudentAssessmentsPage student={ctx.selectedStudent} currentUser={ctx.user} />;
     case "landingPage":
       return (
         <LandingPage
@@ -130,6 +136,7 @@ function renderScreen(screen, ctx) {
           onOpenFeedback={ctx.openFeedbackWithMessage}
           onOpenChat={() => ctx.setScreen("childChat")}
           onOpenReports={() => ctx.setScreen("studentReportTypes")}
+          onOpenAssessments={() => { ctx.setAssessmentReturnScreen?.("studentDashboard"); ctx.setScreen("studentAssessments"); }}
           onOpenQuestions={() => ctx.setScreen("questionDeck")}
           onNavigateToManageStudent={ctx.isTeacher ? undefined : (studentId) => {
             ctx.setInitialStudentId(studentId);

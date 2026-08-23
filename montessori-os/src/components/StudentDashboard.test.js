@@ -150,11 +150,10 @@ describe('StudentDashboard quick jumps', () => {
     assert.match(src, /label="Coach"[\s\S]*?label="Assessments"/);
   });
 
-  it('uses NewFeaturePill for Assessments and explains that it is coming soon on click', async () => {
+  it('routes Assessments to the dedicated assessments page', async () => {
     const src = await readFile(dashboardPath, 'utf8');
     assert.match(src, /import NewFeaturePill from '\.\/NewFeaturePill'/);
-    assert.match(src, /label="Assessments"[\s\S]*?notify\.info\('Assessments are coming soon\.'\)/);
-    assert.match(src, /label="Assessments"[\s\S]*?<NewFeaturePill[\s\S]*?label="Coming Soon"[\s\S]*?showIcon=\{false\}/);
+    assert.match(src, /label="Assessments"[\s\S]*?onOpenAssessments\?\./);
   });
 });
 

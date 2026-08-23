@@ -51,6 +51,9 @@ async function fetchStudentNotesForWindow(studentId, windowDays) {
   await collect("observedAt");
   await collect("createdAt");
   const notes = Array.from(notesMap.values()).filter((n) => {
+    // Assessment contracts are owned by #252; keep them out of generic AI
+    // context until their labels/limits/provenance are deliberately defined.
+    if (n.type === "assessment" || n.assessmentKind) return false;
     const ts = chooseObservationTimestamp(n);
     return ts && ts >= cutoff;
   });

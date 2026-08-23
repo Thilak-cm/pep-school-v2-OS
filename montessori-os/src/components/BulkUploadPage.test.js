@@ -27,6 +27,14 @@ test('matchStudentNames returns high confidence for exact name match', () => {
   assert.equal(results[0].confidence, CONFIDENCE.HIGH);
 });
 
+test('matchStudentNames never returns inactive students', () => {
+  const results = matchStudentNames(['Aarav Kumar'], [
+    {id: 'inactive', displayName: 'Aarav Kumar', firstName: 'Aarav', lastName: 'Kumar', classroomId: 'c9', status: 'inactive'},
+    ...STUDENTS,
+  ]);
+  assert.equal(results[0].match.id, 's1');
+});
+
 test('matchStudentNames returns match for close fuzzy name', () => {
   const results = matchStudentNames(['Aarav Kumr'], STUDENTS); // typo
   assert.equal(results.length, 1);

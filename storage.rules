@@ -96,6 +96,17 @@ service firebase.storage {
         );
     }
 
+    // Selected worksheet retained for structured assessment provenance.
+    // Only the source uploader or a privileged admin may download it.
+    match /structured-assessments/{sourceId}/{fileName} {
+      function sourceDoc() {
+        return firestore.get(/databases/(default)/documents/structuredAssessmentSources/$(sourceId));
+      }
+      allow read: if isSignedIn() &&
+        (requesterDoc().data.role in ['teacher', 'superadmin', 'classroomadmin']);
+      allow write: if false;
+    }
+
     match /{allPaths=**} {
       allow read, write: if false;
     }

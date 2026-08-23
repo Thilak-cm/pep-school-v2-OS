@@ -17,7 +17,10 @@ const MEDIUM_THRESHOLD = 0.45;
  * @returns {Array<{ csvName: string, match: object|null, score: number, confidence: string, candidates: object[] }>}
  */
 export function matchStudentNames(csvNames, students, filter = {}) {
-  let pool = students;
+  // Inactive, graduated, and transferred students must never be candidates
+  // for name matching. This is enforced here so every upload flow gets the
+  // same safety invariant, regardless of how its student pool was fetched.
+  let pool = (students || []).filter((student) => !student.status || student.status === 'active');
   if (filter.classroomId) {
     pool = students.filter((s) => s.classroomId === filter.classroomId);
   } else if (filter.programClassroomIds) {

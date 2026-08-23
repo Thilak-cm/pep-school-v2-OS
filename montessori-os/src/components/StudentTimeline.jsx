@@ -885,6 +885,20 @@ function StudentTimeline({ student, currentUser, userRole, noteTypeFilter = null
                 );
               }
 
+              if (obs.type === 'assessment') {
+                return (
+                  <ClassroomNoteCard
+                    key={obs.id}
+                    note={obs}
+                    variant="student"
+                    isTransferred={false}
+                    classroomTeachers={classroomTeachers}
+                    onNoteClick={() => window.dispatchEvent(new CustomEvent('navigateToStudentAssessments', {detail: {studentId: student?.id, sourceId: obs.sourceId, observationId: obs.id}}))}
+                    mediaUrls={mediaUrls}
+                  />
+                );
+              }
+
               // Text, voice, lesson notes
               return (
                 <ClassroomNoteCard

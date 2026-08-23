@@ -148,7 +148,10 @@ const TOOL_CATALOG = [
       const limit = Math.min(args.limit || 3, 10);
       const snap = await db.collection(`students/${args.studentId}/interviews`).orderBy("createdAt", "desc").limit(limit).get();
       if (snap.empty) return { error: "No interviews found" };
-      return snap.docs.map((d) => {
+      return snap.docs.filter((d) => {
+        const data = d.data() || {};
+        return data.type !== "assessment" && !data.assessmentKind;
+      }).map((d) => {
         const data = d.data();
         return {
           observedOn: data.conductedAt || data.createdAt || null, teacherName: data.teacherName,

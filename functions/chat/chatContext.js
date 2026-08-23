@@ -47,7 +47,10 @@ export async function loadObservationContext({ db, studentId, limit, windowDays 
   const cutoff = Number.isFinite(windowDays)
     ? Date.now() - windowDays * 24 * 60 * 60 * 1000
     : null;
-  const observations = snap.docs.map((doc) => {
+  const observations = snap.docs.filter((doc) => {
+    const data = doc.data() || {};
+    return data.type !== "assessment" && !data.assessmentKind;
+  }).map((doc) => {
     const data = doc.data() || {};
     return {
       type: data.type || "text",

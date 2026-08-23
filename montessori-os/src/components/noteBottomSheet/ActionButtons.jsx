@@ -12,6 +12,7 @@ export default function ActionButtons({
   canReassign,
   authorActionsExpired,
   isLessonObservation,
+  isAssessment,
   // Edit state
   editing,
   saving,
@@ -58,10 +59,11 @@ export default function ActionButtons({
   }
 
   const showViewTimeline = isClassroomContext && student;
+  const showViewAssessment = isAssessment && student;
   const showTaggedLessons = !isLessonObservation && canManageAuthorActions && hasLinkedLessons;
-  const showReassign = canReassign;
-  const showEditDelete = canManageAuthorActions;
-  const hasAnyAction = showViewTimeline || showTaggedLessons || showReassign || showEditDelete;
+  const showReassign = !isAssessment && canReassign;
+  const showEditDelete = !isAssessment && canManageAuthorActions;
+  const hasAnyAction = showViewAssessment || showViewTimeline || showTaggedLessons || showReassign || showEditDelete;
 
   if (!hasAnyAction) return null;
 
@@ -75,6 +77,18 @@ export default function ActionButtons({
       )}
 
       {/* Contextual action buttons — full-width outlined pills */}
+      {showViewAssessment && (
+        <Button
+          onClick={onViewStudentTimeline}
+          variant="outlined"
+          color="primary"
+          startIcon={<Visibility size={16} />}
+          fullWidth
+          sx={{ borderRadius: 'var(--radius-pill)', justifyContent: 'center', textTransform: 'none' }}
+        >
+          View student assessments
+        </Button>
+      )}
       {showViewTimeline && (
         <Button
           onClick={onViewStudentTimeline}

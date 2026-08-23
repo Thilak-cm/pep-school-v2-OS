@@ -126,6 +126,7 @@ export default function NoteBottomSheet({
   // ----- Derived permissions -----
   const isLessonObservation = observation?.type === 'lesson';
   const isMedia = observation?.type === 'media';
+  const isAssessment = observation?.type === 'assessment';
   const canEditCurrent = canEditObservation(observation, currentUser, userRole);
   const canDeleteCurrent = canDeleteObservation(observation, currentUser, userRole);
   const canReassignCurrent = canReassignObservation(observation, currentUser, userRole);
@@ -361,8 +362,10 @@ export default function NoteBottomSheet({
   const handleViewStudentTimeline = () => {
     if (student?.id) {
       try {
-        window.dispatchEvent(new CustomEvent('navigateToStudentNotes', {
-          detail: { studentId: student.id, student, noteTypeFilter: observation?.type === 'lesson' ? 'lesson' : 'textVoice' }
+        window.dispatchEvent(new CustomEvent(isAssessment ? 'navigateToStudentAssessments' : 'navigateToStudentNotes', {
+          detail: isAssessment
+            ? { studentId: student.id, student }
+            : { studentId: student.id, student, noteTypeFilter: observation?.type === 'lesson' ? 'lesson' : 'textVoice' }
         }));
       } catch (e) { reportCaughtError(e, 'NoteBottomSheet', 'view student timeline'); }
       handleClose();
@@ -488,7 +491,21 @@ export default function NoteBottomSheet({
           )}
 
           {/* Type-specific content */}
-          {observation.type === 'voice' ? (
+          {isAssessment ? (
+            <Box sx={{ display: 'flex', flexDirection: 'column', gap: 1.25, pb: 1 }}>
+              <Typography variant="h6" sx={{ fontWeight: 700 }}>
+                {observation.assessmentName || observation.name || 'Assessment'}
+              </Typography>
+              {(observation.assessmentDescription || observation.description) && (
+                <Typography variant="body2" color="text.secondary">
+                  {observation.assessmentDescription || observation.description}
+                </Typography>
+              )}
+              {Object.entries(observation.values || observation.results || {}).map(([label, value]) => (
+                <Typography key={label} variant="body2">{label}: {String(value)}</Typography>
+              ))}
+            </Box>
+          ) : observation.type === 'voice' ? (
             <VoiceContent
               observation={observation}
               editing={editing}
@@ -531,6 +548,7 @@ export default function NoteBottomSheet({
           canReassign={canReassignCurrent}
           authorActionsExpired={authorActionsExpired}
           isLessonObservation={isLessonObservation}
+          isAssessment={isAssessment}
           editing={editing || media.mediaEditMode}
           saving={saving || media.mediaEditSaving}
           editText={editText || media.mediaEditComment}

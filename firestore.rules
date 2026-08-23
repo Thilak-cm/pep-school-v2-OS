@@ -98,6 +98,14 @@ service cloud.firestore {
       allow delete: if isSuperAdmin() || (isClassroomAdmin() && resource.data.role == 'teacher');
     }
 
+    // Structured assessment manifests are fan-out owners. They are immutable
+    // after publication; records remain under each student's observations.
+    match /structuredAssessmentSources/{sourceId} {
+      allow read: if isPrivilegedAdmin() || (isSignedIn() && resource.data.createdBy == request.auth.uid);
+      allow create: if isPrivilegedAdmin() || isTeacher();
+      allow update, delete: if isSuperAdmin();
+    }
+
     // Superadmin-only digest — explicit match prevents classroomadmin access via wildcard
     match /classrooms/_digest_all/digests/{digestId} {
       allow read: if isSuperAdmin();
@@ -355,6 +363,17 @@ service cloud.firestore {
             data.createdAt is timestamp;
         }
 
+        function isAssessment(data) {
+          return data.type == 'assessment' &&
+            data.assessmentKind in ['structured', 'medical'] &&
+            data.schemaVersion == 1 &&
+            data.studentId == studentId &&
+            data.classroomId == studentClassroomId(studentId) &&
+            data.createdBy == request.auth.uid &&
+            data.createdAt is timestamp &&
+            data.observedAt is timestamp;
+        }
+
         function isAuthor() {
           return resource.data.createdBy == request.auth.uid ||
             resource.data.teacherId == request.auth.uid;
@@ -403,6 +422,7 @@ service cloud.firestore {
           (
             (isMedia(request.resource.data) &&
               validMediaCreatePayload(request.resource.data)) ||
+            (isAssessment(request.resource.data)) ||
             (!isMedia(request.resource.data) &&
               isAllowedNonMediaObservationType(request.resource.data))
           );

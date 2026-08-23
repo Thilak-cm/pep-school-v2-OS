@@ -12,13 +12,12 @@ describe('AddNoteFab component', () => {
     assert.ok(source.includes('export default AddNoteFab'));
   });
 
-  it('renders Voice, Lesson, Media, and a disabled Assessments menu item', () => {
+  it('renders Voice, Lesson, Media, and an active Assessments menu item', () => {
     assert.ok(source.includes("'voice'"), 'Missing voice menu item');
     assert.ok(source.includes("'lesson'"), 'Missing lesson menu item');
     assert.ok(source.includes("'media'"), 'Missing media menu item');
     assert.ok(source.includes("'assessments'"), 'Missing assessments menu item');
-    assert.match(source, /key: 'assessments'[\s\S]*?disabled: true/);
-    assert.match(source, /NewFeaturePill label="Coming Soon"/);
+    assert.ok(source.includes('onAssessments'), 'Missing assessment callback');
   });
 
   it('does not include a Text note option', () => {
@@ -38,10 +37,11 @@ describe('AddNoteFab component', () => {
     assert.ok(source.includes('rgba(0, 0, 0, 0.3)'), 'Should render a scrim overlay');
   });
 
-  it('accepts onVoice, onLesson, onMedia callbacks', () => {
+  it('accepts note-type callbacks', () => {
     assert.ok(source.includes('onVoice'), 'Missing onVoice prop');
     assert.ok(source.includes('onLesson'), 'Missing onLesson prop');
     assert.ok(source.includes('onMedia'), 'Missing onMedia prop');
+    assert.ok(source.includes('onAssessments'), 'Missing onAssessments prop');
   });
 
   it('renders as a single card panel with rows', () => {
