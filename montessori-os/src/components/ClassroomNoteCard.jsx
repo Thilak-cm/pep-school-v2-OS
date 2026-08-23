@@ -136,7 +136,14 @@ export default function ClassroomNoteCard({
               )}
             </Box>
           )}
-          <TypeIcon config={chipConfig} />
+          <Box sx={{ display: 'flex', alignItems: 'center', gap: 0.75 }}>
+            {isMedia && mediaItems.length > 1 && (
+              <Typography variant="caption" sx={{ color: 'var(--color-text-soft)', fontSize: '0.72rem', fontWeight: 600 }}>
+                {mediaItems.length} images
+              </Typography>
+            )}
+            <TypeIcon config={chipConfig} />
+          </Box>
         </Box>
 
         {/* Row 2: Teacher icon + name — hidden for student variant */}
@@ -154,26 +161,28 @@ export default function ClassroomNoteCard({
           renderLessonSummary(note)
         ) : isMedia ? (
           /* Media: side-by-side thumbnail + text */
-          <Box sx={{ display: 'flex', gap: 1.5, mb: 0.5 }}>
-            <MediaBatchPreview mediaItems={mediaItems} mediaUrls={mediaUrls} onOpen={onMediaOpen} />
-            {note.text && (
-              <Typography
-                variant="body2"
-                sx={{
-                  lineHeight: 1.5,
-                  whiteSpace: 'pre-wrap',
-                  wordBreak: 'break-word',
-                  fontSize: '0.82rem',
-                  flex: 1,
-                  display: '-webkit-box',
-                  WebkitLineClamp: 4,
-                  WebkitBoxOrient: 'vertical',
-                  overflow: 'hidden',
-                }}
-              >
-                {note.text}
-              </Typography>
-            )}
+          <Box sx={{ mb: 0.5 }}>
+            <Box sx={{ display: 'flex', gap: 1.5 }}>
+              <MediaBatchPreview mediaItems={mediaItems} mediaUrls={mediaUrls} onOpen={onMediaOpen} />
+              {note.text && (
+                <Typography
+                  variant="body2"
+                  sx={{
+                    lineHeight: 1.5,
+                    whiteSpace: 'pre-wrap',
+                    wordBreak: 'break-word',
+                    fontSize: '0.82rem',
+                    flex: 1,
+                    display: '-webkit-box',
+                    WebkitLineClamp: 4,
+                    WebkitBoxOrient: 'vertical',
+                    overflow: 'hidden',
+                  }}
+                >
+                  {note.text}
+                </Typography>
+              )}
+            </Box>
           </Box>
         ) : (
           /* Text / Voice: full-width body */

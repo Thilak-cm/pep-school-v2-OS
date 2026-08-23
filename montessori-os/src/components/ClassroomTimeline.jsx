@@ -27,7 +27,6 @@ import ClassroomStudentCard from './ClassroomStudentCard';
 import NoteBottomSheet from './noteBottomSheet/NoteBottomSheet';
 import useObservationFilters from '../hooks/useObservationFilters';
 import useNotify from '../notifications/useNotify.js';
-import useSwipeTabs from '../hooks/useSwipeTabs';
 import useTimelineData from '../hooks/useTimelineData';
 import useTimelineStats from '../hooks/useTimelineStats';
 import { toDate, groupByCalendarDay } from './classroomTimelineUtils.js';
@@ -48,9 +47,6 @@ function ClassroomTimeline({ classroom, currentUser, userRole, manageableClassro
   const [reportPreviewData, setReportPreviewData] = useState(null);
   const [transferredStudents, setTransferredStudents] = useState(new Map());
   const fetchedTransferredIdsRef = useRef(new Set());
-  const notesTabRef = useRef(null);
-  const studentsTabRef = useRef(null);
-  const [tabHeights, setTabHeights] = useState({ notes: 'auto', students: 'auto' });
   const [classroomTeachers, setClassroomTeachers] = useState([]);
 
   // Shared data hook — cursor-based pagination (#221 Sprint 2)
@@ -225,39 +221,6 @@ function ClassroomTimeline({ classroom, currentUser, userRole, manageableClassro
     onNavigateToStudent(student);
   };
 
-  // Swipe navigation between tabs
-  const { bind: swipeBind, dx, isDragging } = useSwipeTabs({
-    onSwipeLeft: () => {
-      // Swipe left = next tab (if not on last tab)
-      if (activeTab < 1) {
-        setActiveTab(activeTab + 1);
-      }
-    },
-    onSwipeRight: () => {
-      // Swipe right = previous tab (if not on first tab)
-      if (activeTab > 0) {
-        setActiveTab(activeTab - 1);
-      }
-    },
-  });
-
-  // Calculate container width for swipe feedback
-  const containerWidthRef = useRef(null);
-  const containerWidth = containerWidthRef.current?.offsetWidth || 0;
-
-
-  // Calculate transform based on active tab and swipe delta
-  const getTransform = () => {
-    if (!isDragging || !containerWidth) {
-      return `translateX(-${activeTab * 50}%)`;
-    }
-    // During swipe, offset by dx relative to current tab position
-    // Each tab is 50% of the container (since we have 2 tabs = 200% total width)
-    const baseOffset = -activeTab * 50; // percentage
-    const dxPercent = (dx / containerWidth) * 100;
-    return `translateX(${baseOffset + dxPercent}%)`;
-  };
-
   // All students (active + transferred) for note-level search matching
   const allSearchableStudents = useMemo(() => {
     const transferred = [...transferredStudents.values()];
@@ -403,20 +366,6 @@ function ClassroomTimeline({ classroom, currentUser, userRole, manageableClassro
     return groupByCalendarDay(merged);
   }, [groupedAndSortedObservations]);
 
-  // Measure tab panel heights so the swipe container matches the active tab
-  useEffect(() => {
-    const measure = () => {
-      const notesH = notesTabRef.current?.scrollHeight || 0;
-      const studentsH = studentsTabRef.current?.scrollHeight || 0;
-      setTabHeights({ notes: notesH, students: studentsH });
-    };
-    measure();
-    const t = setTimeout(measure, 100);
-    return () => clearTimeout(t);
-  }, [activeTab, dayGroups, sortedFilteredStudents, loading]);
-
-  const activeTabHeight = activeTab === 0 ? tabHeights.notes : tabHeights.students;
-
   const lessonTitleById = useMemo(() => {
     const map = {};
     (classroomNotes || []).forEach((note) => {
@@ -514,8 +463,15 @@ function ClassroomTimeline({ classroom, currentUser, userRole, manageableClassro
             if (student) onNavigateToStudent(student);
           }}
           onNoteClick={() => {
+            const mediaItems = item.mediaItems || [];
+            const firstObservation = mediaItems[0]?.sourceObservation;
+            if (!firstObservation) return;
             setSelectedMediaIndex(0);
-            setSelectedNote(item);
+            setSelectedNote({
+              ...firstObservation,
+              mediaItems,
+              mediaCount: mediaItems.length,
+            });
           }}
           onMediaOpen={(index) => {
             const mediaItem = item.mediaItems?.[index];
@@ -649,47 +605,9 @@ function ClassroomTimeline({ classroom, currentUser, userRole, manageableClassro
         />
       </Box>
 
-      {/* Tab Content - Wrapped for swipe navigation */}
-      <Box 
-        {...swipeBind}
-        ref={(el) => {
-          containerWidthRef.current = el;
-          if (swipeBind.ref) {
-            if (typeof swipeBind.ref === 'function') {
-              swipeBind.ref(el);
-            } else {
-              swipeBind.ref.current = el;
-            }
-          }
-        }}
-        sx={{
-          touchAction: 'pan-x pan-y', // Allow both horizontal and vertical panning
-          overflow: 'hidden', // Hide tabs that are off-screen
-          position: 'relative',
-          height: activeTabHeight > 0 ? activeTabHeight : 'auto',
-          transition: isDragging ? 'none' : 'height 0.3s ease',
-        }}
-      >
-        <Box
-          sx={{
-            display: 'flex',
-            width: '200%', // Two tabs side by side
-            transform: getTransform(),
-            transition: isDragging ? 'none' : 'transform 0.3s cubic-bezier(0.4, 0, 0.2, 1)',
-            willChange: isDragging ? 'transform' : 'auto',
-            alignItems: 'flex-start',
-          }}
-        >
-          {/* Tab 0: Notes */}
-          <Box
-            ref={notesTabRef}
-            sx={{
-              width: '50%',
-              flexShrink: 0,
-              p: 2,
-              minHeight: '200px'
-            }}
-          >
+      {/* Header-only tab switching is intentional: horizontal gestures belong to media carousels. */}
+      {activeTab === 0 ? (
+        <Box sx={{ p: 2, minHeight: '200px' }}>
           {/* Notes Count — from statsCache (#221 Sprint 2) */}
           <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', mb: 2 }}>
             <Typography variant="subtitle2" sx={{ fontWeight: 600 }}>
@@ -739,18 +657,9 @@ function ClassroomTimeline({ classroom, currentUser, userRole, manageableClassro
               )}
             </Box>
           )}
-          </Box>
-
-          {/* Tab 1: Students */}
-          <Box
-            ref={studentsTabRef}
-            sx={{
-              width: '50%',
-              flexShrink: 0,
-              p: 2,
-              minHeight: '200px'
-            }}
-          >
+        </Box>
+      ) : (
+        <Box sx={{ p: 2, minHeight: '200px' }}>
           {/* Students Count — from statsCache (#221 Sprint 2) */}
           <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', mb: 2 }}>
             <Typography variant="subtitle2" sx={{ fontWeight: 600 }}>
@@ -779,9 +688,8 @@ function ClassroomTimeline({ classroom, currentUser, userRole, manageableClassro
               ))}
             </Box>
           )}
-          </Box>
         </Box>
-      </Box>
+      )}
 
       {/* Report preview dialog */}
       <ReportPreviewDialog

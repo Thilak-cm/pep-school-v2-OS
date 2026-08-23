@@ -93,6 +93,24 @@ export default function MediaContent({
         {/* Carousel arrows */}
         {hasCarousel && (
           <>
+            <Box
+              sx={{
+                position: 'absolute',
+                top: 8,
+                left: '50%',
+                transform: 'translateX(-50%)',
+                px: 1,
+                py: 0.25,
+                borderRadius: 'var(--radius-pill)',
+                bgcolor: 'rgba(0,0,0,0.62)',
+                color: 'white',
+                fontSize: '0.72rem',
+                fontWeight: 700,
+              }}
+              aria-label={`Image ${carouselIndex + 1} of ${carouselList.length}`}
+            >
+              {carouselIndex + 1}/{carouselList.length}
+            </Box>
             <IconButton
               onClick={() => onCarouselNavigate?.(-1)}
               disabled={carouselIndex <= 0}
