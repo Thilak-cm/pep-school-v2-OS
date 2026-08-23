@@ -1,7 +1,7 @@
 # Pep OS Overview
 
-Generated: 2026-08-19T19:50:10.005Z
-App version: 12.4.1
+Generated: 2026-08-23T01:21:29.786Z
+App version: 12.4.2
 
 ## App Snapshot
 
@@ -44,17 +44,17 @@ App version: 12.4.1
 - `montessori-os/src/components/AddNoteModal.versionGate.test.js`
 
 ### Timelines and Media (`timelines-and-media`)
-- Count: 11
-- Components: `ClassroomList`, `ClassroomTimeline`, `classroomTimelineUtils`, `classroomTimelineUtils.extraction.test`, `ExportWizard`, `FeedbackTimeline`, `FilterPanel`, `StudentDashboard`, `StudentDashboard.test`, `StudentTimeline`, `StudentTimeline.batchMedia.test`
+- Count: 13
+- Components: `ClassroomList`, `ClassroomTimeline`, `ClassroomTimeline.batchMedia.test`, `ClassroomTimeline.interactions.test`, `classroomTimelineUtils`, `classroomTimelineUtils.extraction.test`, `ExportWizard`, `FeedbackTimeline`, `FilterPanel`, `StudentDashboard`, `StudentDashboard.test`, `StudentTimeline`, `StudentTimeline.batchMedia.test`
 - Representative paths:
 - `montessori-os/src/components/ClassroomList.jsx`
 - `montessori-os/src/components/ClassroomTimeline.jsx`
+- `montessori-os/src/components/ClassroomTimeline.batchMedia.test.js`
+- `montessori-os/src/components/ClassroomTimeline.interactions.test.js`
 - `montessori-os/src/components/classroomTimelineUtils.js`
 - `montessori-os/src/components/classroomTimelineUtils.extraction.test.js`
 - `montessori-os/src/components/ExportWizard.jsx`
 - `montessori-os/src/components/FeedbackTimeline.jsx`
-- `montessori-os/src/components/FilterPanel.jsx`
-- `montessori-os/src/components/StudentDashboard.jsx`
 
 ### Analytics and Notifications (`analytics-and-notifications`)
 - Count: 7
@@ -95,8 +95,8 @@ App version: 12.4.1
 - `montessori-os/src/components/UsersAccessPage.jsx`
 
 ### Settings, Feedback, and App Shell (`settings-feedback-shell`)
-- Count: 51
-- Components: `App`, `AppFooter`, `AppHeader`, `BroadcastComposer`, `BroadcastComposer.test`, `BulkUploadPage`, `BulkUploadPage.helpers`, `BulkUploadPage.test`, `ChatMaintenance`, `ChatMaintenance.test`, `ClassroomNoteCard`, `ClassroomStudentCard`, `CopyToClipboardButton`, `DynamicIslandPill`, `DynamicIslandPill.test`, `FeedbackPage`, `GroupedNoteCard`, `GroupedNoteDialog`, `InlineVoiceOverlay`, `InterviewsPage`, `InterviewsPage.helpers`, `InterviewsPage.test`, `LandingPage`, `LandingPage.test`, `MonthlyPlanTab`, `MonthlyPlanTab.test`, `NoteBottomSheet.structure.test`, `NotesOverTimeDrawer`, `PhotoEditor`, `PlanFeedbackDialog`, `PlanFeedbackDialog.test`, `ProfilePage`, `QuestionDeck`, `QuestionDeck.test`, `ReadinessCheckDialog`, `ReportGenerateDialog`, `ReportPreviewDialog`, `ReportsCard`, `ReportsPage`, `ReportsPage.test`, `ReportTypeLandingPage`, `ReportTypeLandingPage.test`, `ReviewClassroomNotes`, `SettingsPage`, `SettingsPage.test`, `SnapshotBody`, `SnapshotCard`, `VersionBadge`, `VersionBadge.test`, `WritingAnalysisTab`, `WritingAnalysisTab.test`
+- Count: 55
+- Components: `App`, `AppFooter`, `AppHeader`, `BroadcastComposer`, `BroadcastComposer.test`, `BulkUploadPage`, `BulkUploadPage.helpers`, `BulkUploadPage.test`, `ClassroomNoteCard`, `ClassroomStudentCard`, `CopyToClipboardButton`, `DynamicIslandPill`, `DynamicIslandPill.test`, `FeedbackPage`, `GroupedMediaCard`, `GroupedMediaCard.test`, `groupedMediaUtils`, `groupedMediaUtils.test`, `GroupedNoteCard`, `GroupedNoteDialog`, `InlineVoiceOverlay`, `InterviewsPage`, `InterviewsPage.helpers`, `InterviewsPage.test`, `LandingPage`, `LandingPage.test`, `MediaBatchPreview`, `MediaBatchPreview.test`, `MonthlyPlanTab`, `MonthlyPlanTab.test`, `NoteBottomSheet.structure.test`, `NotesOverTimeDrawer`, `PhotoEditor`, `PlanFeedbackDialog`, `PlanFeedbackDialog.test`, `ProfilePage`, `QuestionDeck`, `QuestionDeck.test`, `ReadinessCheckDialog`, `ReportGenerateDialog`, `ReportPreviewDialog`, `ReportsCard`, `ReportsPage`, `ReportsPage.test`, `ReportTypeLandingPage`, `ReportTypeLandingPage.test`, `ReviewClassroomNotes`, `SettingsPage`, `SettingsPage.test`, `SnapshotBody`, `SnapshotCard`, `VersionBadge`, `VersionBadge.test`, `WritingAnalysisTab`, `WritingAnalysisTab.test`
 - Representative paths:
 - `montessori-os/src/App.jsx`
 - `montessori-os/src/AppFooter.jsx`
@@ -152,6 +152,10 @@ App version: 12.4.1
 
 ## Recent Changes
 
+### 12.4.2 (2026-08-22)
+- Student and Classroom Timelines now show complete multi-photo MediaNote batches with image counts, carousel positions, and correct per-image editing/deletion targets (#249).
+- Classroom Timeline tabs now switch only through their headers, preventing tab gestures from competing with media carousel swipes (#249).
+
 ### 12.4.1 (2026-08-19)
 - MediaNote photo editing now respects student-gated analysis, preserves corrected crop/rotation output, and keeps per-photo analysis revisions isolated (#236).
 - Student Timeline media batches hydrate complete sibling sets and support swipe navigation and refresh-after-delete behavior; the remaining carousel regression follow-up is tracked in #249.
@@ -162,8 +166,4 @@ App version: 12.4.1
 ### 12.3.0 (2026-08-12)
 - End-to-end Coach Pepper chat latency telemetry with correlated client/server attempts, genuine first-paint timing, privacy-safe structured stages, reliable delivery retries, and benchmark analysis primitives (#234).
 - Coach Pepper fallback and seeded history defaults now retain 30 recent messages, and the displayed PWA version derives from package metadata (#234).
-
-### 12.2.2 (2026-08-06)
-- Coach Pepper chat now gives clearer startup guidance, teacher-friendly tool progress, smoother streamed responses, and standard Markdown list-formatting guidance.
-- Empty-chat cleanup now revalidates candidates transactionally before deletion, and chat streaming/persistence edge cases have expanded test coverage.
 
