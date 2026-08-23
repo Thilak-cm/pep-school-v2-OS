@@ -1084,13 +1084,23 @@ Lifecycle: `autoExpireBroadcast` sets `expiresAt: now()` when `dismissedBy` coun
 ---
 
 ## 📊 Stats Cache (`/statsCache/{docId}`)
-Purpose: Pre-computed per-classroom stats and heatmap cache written by Cloud Functions (`recomputeStats` PEP-285, `writeHeatmapCache` PEP-303). Doc ID conventions: `classroom_{id}` for stats, `heatmap_{id}` for heatmap cache, `_meta` / `heatmap_meta` for freshness sentinels.
+Purpose: Pre-computed per-classroom stats and heatmap cache written by Cloud Functions (`updateStatsDelta` and weekly `reconcileStats` PEP-285, `writeHeatmapCache` PEP-303). Doc ID conventions: `classroom_{id}` for stats, `heatmap_{id}` for heatmap cache, `_meta` / `heatmap_meta` for freshness sentinels.
 
 ### Meta doc (`/statsCache/_meta`)
 ```typescript
 interface StatsMetaDoc {
   cachedAt: Timestamp;        // when CF last ran
   classroomCount: number;     // number of classroom docs written
+  deltaCursor: {               // ordered ingestion checkpoint; intentionally uses createdAt, not observedAt
+    createdAt: Timestamp;
+    documentPath: string;
+  } | null;
+  deltaGeneration: number;     // fencing token; newer runs invalidate older publishers
+  deltaRunId: string | null;
+  deltaRunStatus: "running" | "completed" | "failed";
+  deltaLeaseUntilMs: number | null;
+  deltaUpdatedAt: Timestamp;
+  lastFullReconciliationAt: Timestamp;
 }
 ```
 

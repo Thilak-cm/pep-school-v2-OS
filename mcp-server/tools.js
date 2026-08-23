@@ -645,7 +645,7 @@ export const TOOL_DEFINITIONS = [
   },
   {
     name: "export_recompute_stats_logs",
-    description: "Export bounded, privacy-safe Cloud Logging entries for the recomputeStats Cloud Function, including execution status, OOM failures, and aggregate stats events.",
+    description: "Export bounded, privacy-safe Cloud Logging entries for the paginated stats delta and weekly reconciliation Cloud Functions, including execution status, OOM failures, and aggregate stats events.",
     inputSchema: {
       type: "object",
       properties: {

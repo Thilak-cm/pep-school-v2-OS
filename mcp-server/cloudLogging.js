@@ -4,7 +4,7 @@ const FUNCTION_NAMES = {
   server: "childChatStream",
   preflight: "childChatStream",
 };
-const RECOMPUTE_STATS_FUNCTION_NAME = "recomputeStats";
+const STATS_FUNCTION_NAMES = ["updateStatsDelta", "reconcileStats"];
 const MAX_LOOKBACK_MS = 7 * 24 * 60 * 60 * 1000;
 const DEFAULT_PAGE_SIZE = 500;
 const MAX_PAGE_SIZE = 2000;
@@ -84,7 +84,7 @@ function buildRecomputeStatsLoggingFilter(params = {}) {
     : normalizeTimeWindow(params);
   return [
     `resource.type = "cloud_function"`,
-    `resource.labels.function_name = ${quote(RECOMPUTE_STATS_FUNCTION_NAME)}`,
+    `(${STATS_FUNCTION_NAMES.map((name) => `resource.labels.function_name = ${quote(name)}`).join(" OR ")})`,
     `timestamp >= ${quote(window.startTime)}`,
     `timestamp <= ${quote(window.endTime)}`,
   ].join(" AND ");
@@ -102,7 +102,7 @@ function sanitizeRecomputeStatsLog(entry = {}) {
   const payload = entry.data?.jsonPayload || entry.jsonPayload;
   const safePayload = payload && typeof payload === "object"
     ? Object.fromEntries(Object.entries(payload).filter(([key]) => [
-      "event", "classroomCount", "computeTimeMs", "observationCount", "callerRole",
+      "event", "classroomCount", "computeTimeMs", "observationCount", "callerRole", "actionCount", "runId",
     ].includes(key)))
     : undefined;
   const result = {
@@ -110,7 +110,7 @@ function sanitizeRecomputeStatsLog(entry = {}) {
     timestamp: metadata.timestamp ? new Date(metadata.timestamp).toISOString() : undefined,
     severity: metadata.severity || "DEFAULT",
     executionId: metadata.labels?.execution_id,
-    functionName: labels.function_name || labels.functionName || RECOMPUTE_STATS_FUNCTION_NAME,
+    functionName: labels.function_name || labels.functionName || STATS_FUNCTION_NAMES[0],
     region: labels.region || null,
   };
   if (textPayload) result.textPayload = textPayload.slice(0, 1000);
