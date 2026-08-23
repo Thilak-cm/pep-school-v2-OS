@@ -53,7 +53,8 @@ const EXPECTED_EXPORTS = [
   "batchGenerateMonthlyPlans",
   "monthlyPlanWorker",
   // Stats
-  "recomputeStats",
+  "updateStatsDelta",
+  "reconcileStats",
   // Alerts
   "autoExpireBroadcast",
   // Test Bench
