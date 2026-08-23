@@ -72,6 +72,22 @@ export function createTimelineQueries({ db, firestore }) {
     }));
   }
 
+  async function fetchClassroomBatchObservations({ classroomId, batchId }) {
+    if (!classroomId || !batchId) return [];
+    const snapshot = await getDocs(query(
+      collectionGroup(db, 'observations'),
+      where('classroomId', '==', classroomId),
+      where('batchId', '==', batchId),
+    ));
+    return snapshot.docs.map((documentSnapshot) => ({
+      id: documentSnapshot.id,
+      studentId: documentSnapshot.data().studentId || documentSnapshot.ref.parent?.parent?.id,
+      parentStudentId: documentSnapshot.ref.parent?.parent?.id,
+      docPath: documentSnapshot.ref.path,
+      ...documentSnapshot.data(),
+    }));
+  }
+
   async function fetchActiveClassroomStudents(classroomId) {
     const snapshot = await getDocs(
       query(collection(db, 'students'), where('classroomId', '==', classroomId)),
@@ -87,6 +103,7 @@ export function createTimelineQueries({ db, firestore }) {
 
   return {
     fetchActiveClassroomStudents,
+    fetchClassroomBatchObservations,
     fetchClassroomTimelineNotes,
     fetchStudentTimelineNotes,
     fetchStudentBatchObservations,

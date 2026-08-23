@@ -62,6 +62,14 @@ Fan-out per student: one observation doc per student at `students/{studentId}/ob
 - Shared constants between frontend and functions live in `functions/config/` (Vite `fs.allow` permits cross-boundary imports)
 - App version tracked in `montessori-os/package.json` and `VERSION` file at root; service worker version updated at prebuild
 
+### Change criticality
+
+Classify proposed changes using the global leaf/trunk definition.
+
+- Trunk code requires explicit human approval of the proposed code review.
+- Leaf-node code may proceed without human code review, using focused verification.
+- Auth, security rules, data models, Firestore schemas, shared contracts, migrations, and infrastructure are always trunk code.
+
 ### Firestore Mutation Scripts
 
 - Any script that can create, update, or delete Firestore data must be dry-run by default and require an explicit `--yes` flag before applying writes.

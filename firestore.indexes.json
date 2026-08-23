@@ -172,6 +172,14 @@
       ]
     },
     {
+      "collectionGroup": "observations",
+      "queryScope": "COLLECTION_GROUP",
+      "fields": [
+        { "fieldPath": "classroomId", "order": "ASCENDING" },
+        { "fieldPath": "batchId", "order": "ASCENDING" }
+      ]
+    },
+    {
       "collectionGroup": "media",
       "queryScope": "COLLECTION_GROUP",
       "fields": [

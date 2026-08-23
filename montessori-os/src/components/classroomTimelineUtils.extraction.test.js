@@ -63,6 +63,14 @@ describe('ClassroomNoteCard batch-media fallback', () => {
       'ClassroomNoteCard should fall back to mediaItems[0] for batched media groups',
     );
   });
+
+  it('shows an image count only for multi-item media batches', async () => {
+    const source = await readFile(classroomCardPath, 'utf8');
+    assert.ok(
+      /mediaItems\.length > 1/.test(source) && /\{mediaItems\.length\} images/.test(source),
+      'ClassroomNoteCard should label multi-item media batches with their image count',
+    );
+  });
 });
 
 describe('StudentTimeline uses day-grouped rendering', () => {

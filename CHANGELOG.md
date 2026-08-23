@@ -1,5 +1,11 @@
 # Changelog
 
+# 12.4.2 — 2026-08-22
+
+### Fixed
+- Student and Classroom Timelines now show complete multi-photo MediaNote batches with image counts, carousel positions, and correct per-image editing/deletion targets (#249).
+- Classroom Timeline tabs now switch only through their headers, preventing tab gestures from competing with media carousel swipes (#249).
+
 # 12.4.1 — 2026-08-19
 
 ### Fixed
