@@ -1,7 +1,7 @@
 # Pep OS Overview
 
-Generated: 2026-08-23T01:27:12.667Z
-App version: 12.4.1
+Generated: 2026-08-27T01:18:22.797Z
+App version: 13.0.0
 
 ## App Snapshot
 
@@ -95,17 +95,17 @@ App version: 12.4.1
 - `montessori-os/src/components/UsersAccessPage.jsx`
 
 ### Settings, Feedback, and App Shell (`settings-feedback-shell`)
-- Count: 49
-- Components: `App`, `AppFooter`, `AppHeader`, `BroadcastComposer`, `BroadcastComposer.test`, `BulkUploadPage`, `BulkUploadPage.helpers`, `BulkUploadPage.test`, `ClassroomNoteCard`, `ClassroomStudentCard`, `CopyToClipboardButton`, `DynamicIslandPill`, `DynamicIslandPill.test`, `FeedbackPage`, `GroupedNoteCard`, `GroupedNoteDialog`, `InlineVoiceOverlay`, `InterviewsPage`, `InterviewsPage.helpers`, `InterviewsPage.test`, `LandingPage`, `LandingPage.test`, `MonthlyPlanTab`, `MonthlyPlanTab.test`, `NoteBottomSheet.structure.test`, `NotesOverTimeDrawer`, `PhotoEditor`, `PlanFeedbackDialog`, `PlanFeedbackDialog.test`, `ProfilePage`, `QuestionDeck`, `QuestionDeck.test`, `ReadinessCheckDialog`, `ReportGenerateDialog`, `ReportPreviewDialog`, `ReportsCard`, `ReportsPage`, `ReportsPage.test`, `ReportTypeLandingPage`, `ReportTypeLandingPage.test`, `ReviewClassroomNotes`, `SettingsPage`, `SettingsPage.test`, `SnapshotBody`, `SnapshotCard`, `VersionBadge`, `VersionBadge.test`, `WritingAnalysisTab`, `WritingAnalysisTab.test`
+- Count: 53
+- Components: `App`, `AppFooter`, `AppHeader`, `AssessmentUploadPage`, `AssessmentUploadPage.test`, `BroadcastComposer`, `BroadcastComposer.test`, `BulkUploadPage`, `BulkUploadPage.helpers`, `BulkUploadPage.test`, `ClassroomNoteCard`, `ClassroomStudentCard`, `CopyToClipboardButton`, `DynamicIslandPill`, `DynamicIslandPill.test`, `FeedbackPage`, `GroupedNoteCard`, `GroupedNoteDialog`, `InlineVoiceOverlay`, `InterviewsPage`, `InterviewsPage.helpers`, `InterviewsPage.test`, `LandingPage`, `LandingPage.test`, `MonthlyPlanTab`, `MonthlyPlanTab.test`, `NoteBottomSheet.structure.test`, `NotesOverTimeDrawer`, `PhotoEditor`, `PlanFeedbackDialog`, `PlanFeedbackDialog.test`, `ProfilePage`, `QuestionDeck`, `QuestionDeck.test`, `ReadinessCheckDialog`, `ReportGenerateDialog`, `ReportPreviewDialog`, `ReportsCard`, `ReportsPage`, `ReportsPage.test`, `ReportTypeLandingPage`, `ReportTypeLandingPage.test`, `ReviewClassroomNotes`, `SettingsPage`, `SettingsPage.test`, `SnapshotBody`, `SnapshotCard`, `StudentAssessmentsPage`, `StudentAssessmentsPage.test`, `VersionBadge`, `VersionBadge.test`, `WritingAnalysisTab`, `WritingAnalysisTab.test`
 - Representative paths:
 - `montessori-os/src/App.jsx`
 - `montessori-os/src/AppFooter.jsx`
 - `montessori-os/src/AppHeader.jsx`
+- `montessori-os/src/components/AssessmentUploadPage.jsx`
+- `montessori-os/src/components/AssessmentUploadPage.test.js`
 - `montessori-os/src/components/BroadcastComposer.jsx`
 - `montessori-os/src/components/BroadcastComposer.test.js`
 - `montessori-os/src/components/BulkUploadPage.jsx`
-- `montessori-os/src/components/BulkUploadPage.helpers.js`
-- `montessori-os/src/components/BulkUploadPage.test.js`
 
 ## Existing UX Patterns
 
@@ -117,7 +117,7 @@ App version: 12.4.1
 
 ## Firestore/Data Surface
 
-- Core collections/signals: `users`, `branches`, `programs`, `classrooms`, `students`, `observations`, `ai_summaries`, `config`, `feedback`, `placements`, `chats`, `messages`, `access`, `alerts`, `brain`, `digests`, `files`, `history`, `interviews`, `monthly_plan_feedback`, `runs`, `statsCache`, `testbench`, `turns`
+- Core collections/signals: `users`, `branches`, `programs`, `classrooms`, `students`, `observations`, `ai_summaries`, `config`, `feedback`, `placements`, `chats`, `messages`, `access`, `alerts`, `brain`, `digests`, `files`, `history`, `interviews`, `monthly_plan_feedback`, `pendingMedicalAssessmentUploads`, `pendingStructuredAssessmentUploads`, `runs`, `statsCache`, `structuredAssessmentSources`, `testbench`, `turns`
 - Rule-declared paths:
 - `/{document=**}`
 - `/access/{uid}`
@@ -137,10 +137,13 @@ App version: 12.4.1
 - `/messages/{messageId}`
 - `/monthly_plan_feedback/{feedbackId}`
 - `/observations/{observationId}`
+- `/pendingMedicalAssessmentUploads/{uploadId}`
+- `/pendingStructuredAssessmentUploads/{uploadId}`
 - `/placements/{placementId}`
 - `/programs/{programId}`
 - `/runs/{runId}`
 - `/statsCache/{docId}`
+- `/structuredAssessmentSources/{sourceId}`
 - `/students/{studentId}`
 - `/testbench/settings`
 - `/turns/{turnId}`
