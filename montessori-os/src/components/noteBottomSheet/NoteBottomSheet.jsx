@@ -364,7 +364,13 @@ export default function NoteBottomSheet({
       try {
         window.dispatchEvent(new CustomEvent(isAssessment ? 'navigateToStudentAssessments' : 'navigateToStudentNotes', {
           detail: isAssessment
-            ? { studentId: student.id, student }
+            ? {
+                studentId: student.id,
+                student,
+                assessmentKind: observation?.assessmentKind,
+                sourceId: observation?.sourceId || null,
+                observationId: observation?.assessmentKind === 'medical' ? observation?.id : null,
+              }
             : { studentId: student.id, student, noteTypeFilter: observation?.type === 'lesson' ? 'lesson' : 'textVoice' }
         }));
       } catch (e) { reportCaughtError(e, 'NoteBottomSheet', 'view student timeline'); }

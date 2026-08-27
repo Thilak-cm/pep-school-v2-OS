@@ -5,6 +5,7 @@ import {
   getObservationDate,
   buildActivityTiers,
   deduplicateObservations,
+  isStatsEligibleNote,
   CACHE_TTL_MS,
 } from "../stats/helpers.js";
 
@@ -99,6 +100,14 @@ describe("classifyNote", () => {
       Object.values(counts).reduce((a, b) => a + b, 0),
       observations.length,
     );
+  });
+});
+
+describe("isStatsEligibleNote", () => {
+  it("counts structured and ready Medical assessments only", () => {
+    assert.equal(isStatsEligibleNote({type: "assessment", assessmentKind: "structured"}), true);
+    assert.equal(isStatsEligibleNote({type: "assessment", assessmentKind: "medical", uploadStatus: "ready"}), true);
+    assert.equal(isStatsEligibleNote({type: "assessment", assessmentKind: "medical", uploadStatus: "pending_upload"}), false);
   });
 });
 

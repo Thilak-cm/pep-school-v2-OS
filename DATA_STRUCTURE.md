@@ -618,6 +618,81 @@ Notes
 
 ---
 
+## 📊 Structured Assessment Sources (`/structuredAssessmentSources/{sourceId}` - #248)
+
+One immutable source manifest owns the selected worksheet and the fan-out records
+published under each matched student. Clients access safe source metadata and
+authorized downloads through Cloud Functions; direct client reads and writes are
+denied.
+
+```typescript
+interface StructuredAssessmentSource {
+  schemaVersion: 1;
+  assessmentName: string;
+  assessmentDescription: string;
+  dateRange: { startDate: string; endDate: string }; // YYYY-MM-DD; endDate sorts the event
+  resultDefinitions: Array<{
+    number: number;               // contiguous, starting at 1
+    label: string;                // "Result 1"
+    description: string;          // exact teacher-authored definition
+  }>;
+  normalizedFilename: string;     // indexed duplicate-warning lookup key
+  sourceFileName: string;         // original CSV/XLSX filename
+  worksheetName: string;          // selected worksheet only
+  selectedSheet: {
+    storagePath: string;          // structured-assessments/{sourceId}/selected-sheet.xlsx
+    contentType: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet';
+    sizeBytes: number;
+    downloadFilename: string;     // always .xlsx; original CSV/XLSX name remains sourceFileName
+  };
+  uploader: { uid: string; displayName: string };
+  classroomIds: string[];
+  studentIds: string[];
+  studentCount: number;
+  recordCount: number;
+  multilineSplitCount: number;
+  recordRefs: Array<{ studentId: string; observationId: string }>;
+  createdBy: string;
+  createdByName: string;
+  createdAt: Timestamp;
+  publishedAt: Timestamp;
+}
+```
+
+Guidance
+- The backend re-parses the stored standalone worksheet and derives metadata,
+  values, dates, record count, coordinates, and formulas authoritatively.
+- Formula cells require a cached displayed result. Published values preserve the
+  displayed source string; formulas and coordinates remain internal provenance.
+- A source and all records publish in one Firestore batch. The selected worksheet
+  first uploads through owner-bound `pendingStructuredAssessmentUploads` staging,
+  then is copied to the immutable source path only after trusted parsing passes.
+- Cleanup targets are persisted before deletion. Failed staging/final-object
+  cleanup remains `cleanup_pending` for the daily retry job; no orphan path is
+  discarded from operational state.
+- Source downloads require current access to every classroom in `classroomIds`.
+- Structured sources and their published records are immutable in v1.
+
+### Pending assessment upload staging
+
+Structured uploads use
+`/pendingStructuredAssessmentUploads/{uploadId}` with the original source
+filename, normalized filename, selected standalone-XLSX metadata, uploader,
+timestamps, and `uploadStatus`. Storage accepts only the exact owner-bound path,
+XLSX MIME type, and 10 MB limit declared by this backend-created document.
+
+Medical uploads use `/pendingMedicalAssessmentUploads/{uploadId}`.
+
+Backend-only operational documents authorize resumable Storage uploads. They
+contain the future ready-record payload, `observationId`, `studentId`,
+`classroomId`, `originalFile`, `createdBy`, and `uploadStatus: 'pending_upload'`.
+Finalization revalidates current student scope and file metadata, creates the
+ready Medical observation, and deletes staging atomically. Clients cannot read or
+write either staging collection directly. Stale staging documents and files are
+retried daily by `cleanupStaleAssessmentUploads`.
+
+---
+
 ## 📝 Observations (`/students/{studentId}/observations/{observationId}`)
 Collection group name: `observations`
 ```typescript
@@ -636,12 +711,32 @@ interface Observation {
   // Content
   type: 'text' | 'voice' | 'lesson' | 'assessment';
   assessmentKind?: 'structured' | 'medical';
-  schemaVersion?: number;
-  sourceId?: string;              // structured source manifest id
+  schemaVersion?: 1;
+  sourceId?: string;              // Structured only: source manifest id
   assessmentName?: string;
   assessmentDescription?: string;
-  values?: Record<string, string>; // exact source result labels and values
-  originalFile?: { storagePath: string, fileName: string, contentType: string, sizeBytes: number };
+  assessmentDate?: { startDate: string; endDate: string }; // Structured only
+  resultDefinitions?: Array<{ number: number; label: string; description: string }>;
+  values?: Record<string, string>; // Structured: exact displayed segment values
+  results?: Array<{               // Structured: definition mapped to exact value
+    resultNumber: number;
+    label: string;
+    sourceValue: string;
+  }>;
+  sourceProvenance?: {            // Structured, internal-only; never rendered
+    row: number;
+    nameCell: string;
+    segment: number;
+    segmentCount: number;
+    resultCells: Array<{ resultNumber: number; sourceCell: string; sourceFormula?: string | null }>;
+  };
+  originalFile?: {               // Medical only
+    storagePath: string;          // pending-medical-assessments/{uploadId}/original.pdf
+    originalFilename: string;
+    contentType: 'application/pdf';
+    sizeBytes: number;
+  };
+  uploadStatus?: 'ready';          // Medical observations exist only after finalization
   text?: string;                 // free text for text/voice notes
   durationSec?: number;          // voice notes only
   sttConfidence?: number;        // voice notes only
@@ -706,6 +801,24 @@ Observation timestamp compatibility:
   event time and may fall back to `createdAt` when `observedAt` is absent.
 - The separate optional `timestamp` field on legacy Coach Pepper chat messages
   is unrelated and remains supported by chat transcript readers.
+
+Assessment guidance
+- Structured IDs are `assessment_structured_{sourceId}_{sourceRow}_{segment}`.
+  Multiple multiline segments for one source row fan out to multiple records.
+- Medical IDs are `assessment_medical_{firestoreAutoId}`. The callable creates a
+  backend-only `pendingMedicalAssessmentUploads/{uploadId}` staging document,
+  the client uploads the PDF resumably, and the backend verifies object type and
+  size before atomically creating the ready observation and deleting staging.
+- Pending Medical uploads never enter observations, timelines, or Statistics.
+  Failed client uploads call backend cleanup to remove both the object and staging
+  document.
+- Assessment records cannot be created, edited, reassigned, or deleted through
+  generic client note flows. Downloads for both subtypes use the same authorized
+  Cloud Function flow; Medical access follows student access, while Structured
+  source access requires coverage of every source classroom.
+- Generic AI observation readers exclude `type: 'assessment'` until #252 adds an
+  explicit Structured assessment context contract. Medical interpretation is
+  separately owned by #255.
 
 Why fan-out per student?
 - Student timeline = 1 query

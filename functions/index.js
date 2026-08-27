@@ -75,9 +75,19 @@ export { generateMonthlyPlan, exportMonthlyPlanToDrive, batchGenerateMonthlyPlan
 // Stats (PEP-285)
 export { recomputeStats } from "./stats/index.js";
 
-export {parseAssessmentMatrix, normalizeFilename, buildStructuredAssessmentId} from "./assessments/parser.js";
-export {publishStructuredAssessment} from "./assessments/index.js";
-export {publishMedicalAssessment} from "./assessments/index.js";
+export {
+  findStructuredAssessmentDuplicate,
+  createStructuredAssessmentUpload,
+  publishStructuredAssessment,
+  cancelStructuredAssessmentUpload,
+  createMedicalAssessmentUpload,
+  finalizeMedicalAssessmentUpload,
+  cancelMedicalAssessmentUpload,
+  getStructuredAssessmentSource,
+  getAssessmentDownloadUrl,
+  deleteAssessment,
+  cleanupStaleAssessmentUploads,
+} from "./assessments/index.js";
 
 // Test Bench
 export { testBenchRun } from "./testbench/index.js";

@@ -40,11 +40,12 @@ export default function GroupedNoteDialog({ open, onClose, groupedNote, classroo
   const notify = useNotify();
   const note = groupedNote?.representativeNote;
   const isLesson = note?.type === 'lesson';
+  const isAssessment = note?.type === 'assessment';
   const [deleteMode, setDeleteMode] = useState(false);
   const [selectedStudentIds, setSelectedStudentIds] = useState(new Set());
   const [deleting, setDeleting] = useState(false);
   const [deleteConfirmOpen, setDeleteConfirmOpen] = useState(false);
-  const canDeleteGroupedNote = isAdminRole(userRole);
+  const canDeleteGroupedNote = !isAssessment && isAdminRole(userRole);
 
   const studentsInGroup = (groupedNote?.studentIds || [])
     .map(studentId => classroomStudents.find(s => s.id === studentId) || transferredStudents.get(studentId))
@@ -221,7 +222,7 @@ export default function GroupedNoteDialog({ open, onClose, groupedNote, classroo
           <Box sx={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', mb: 1.5 }}>
             <Chip
               icon={<BookOpen size={14} style={{ color: chipColors.color }} />}
-              label={isLesson ? 'LESSON NOTE' : 'GROUP NOTE'}
+              label={isAssessment ? 'ASSESSMENT' : (isLesson ? 'LESSON NOTE' : 'GROUP NOTE')}
               size="small"
               sx={{
                 bgcolor: chipColors.bg,
@@ -354,7 +355,9 @@ export default function GroupedNoteDialog({ open, onClose, groupedNote, classroo
           {/* Non-lesson text */}
           {!isLesson && (
             <Typography variant="body1" sx={{ lineHeight: 1.6, whiteSpace: 'pre-wrap', wordBreak: 'break-word', fontSize: '0.95rem' }}>
-              {note.text || '(transcribing…)'}
+              {isAssessment
+                ? `${note.assessmentName || 'Assessment'} was conducted for ${studentsInGroup.length} student${studentsInGroup.length === 1 ? '' : 's'}.`
+                : (note.text || '(transcribing…)')}
             </Typography>
           )}
 
@@ -438,10 +441,22 @@ export default function GroupedNoteDialog({ open, onClose, groupedNote, classroo
                             variant="outlined"
                             size="small"
                             startIcon={<Visibility />}
-                            onClick={() => { onNavigateToStudent(student); onClose(); }}
+                            onClick={() => {
+                              if (isAssessment) {
+                                window.dispatchEvent(new CustomEvent('navigateToStudentAssessments', {detail: {
+                                  student,
+                                  studentId: student.id,
+                                  assessmentKind: 'structured',
+                                  sourceId: groupedNote.sourceId,
+                                }}));
+                              } else {
+                                onNavigateToStudent(student);
+                              }
+                              onClose();
+                            }}
                             sx={{ textTransform: 'none' }}
                           >
-                            View Dashboard
+                            {isAssessment ? 'View Assessment' : 'View Dashboard'}
                           </Button>
                         </Box>
 

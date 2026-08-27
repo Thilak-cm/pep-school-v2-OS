@@ -132,6 +132,27 @@ test('Firestore Rules - Observations 48h window enforced', () => {
   );
 });
 
+test('Firestore Rules - Assessment sources and records are client-immutable', () => {
+  const sourceMatch = rulesContent.match(
+    /match\s+\/structuredAssessmentSources\/\{sourceId\}[\s\S]*?(?=\n    \/\/|\n    match\s+\/)/
+  )?.[0];
+  assert.ok(sourceMatch, 'Structured assessment source rule missing');
+  assert.ok(
+    sourceMatch.includes('allow read, create, update, delete: if false'),
+    'Structured assessment sources must be backend-only',
+  );
+
+  const observationMatch = rulesContent.match(
+    /match\s+\/observations\/\{observationId\}[\s\S]*?(?=\n      \/\/ #221)/
+  )?.[0];
+  assert.ok(observationMatch, 'Observation rule missing');
+  assert.ok(
+    observationMatch.includes("allow update: if resource.data.type != 'assessment'") &&
+      observationMatch.includes("allow delete: if resource.data.type != 'assessment'"),
+    'Assessment records must reject client update and delete operations',
+  );
+});
+
 test('Firestore Rules - Superadmin-only collections are protected', () => {
   // Check each protected collection
   const protectedCollections = [

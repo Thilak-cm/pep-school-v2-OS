@@ -150,8 +150,10 @@ export default function ClassroomNoteCard({
         {/* Content — type-specific */}
         {isAssessment ? (
           <Box sx={{mb: 0.5}}>
-            <Typography variant="body2" sx={{fontWeight: 650}}>{note.assessmentName || note.name || 'Assessment'}</Typography>
-            <Typography variant="caption" color="text.secondary">Assessment record</Typography>
+            <Typography variant="body2" sx={{fontWeight: 650}}>{note.assessmentName || note.name || 'Assessment'} was conducted.</Typography>
+            {note.assessmentStudentCount > 1 && (
+              <Typography variant="caption" color="text.secondary">For {note.assessmentStudentCount} students</Typography>
+            )}
           </Box>
         ) : isLesson ? (
           renderLessonSummary(note)

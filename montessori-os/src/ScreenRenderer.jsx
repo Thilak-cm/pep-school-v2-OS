@@ -50,7 +50,7 @@ function renderScreen(screen, ctx) {
     case "assessmentUpload":
       return <AssessmentUploadPage currentUser={ctx.user} userRole={ctx.role} manageableClassrooms={ctx.manageableClassrooms} onBack={() => ctx.setScreen(ctx.assessmentReturnScreen || "settings")} />;
     case "studentAssessments":
-      return <StudentAssessmentsPage student={ctx.selectedStudent} currentUser={ctx.user} />;
+      return <StudentAssessmentsPage student={ctx.selectedStudent} assessmentDeepLink={ctx.assessmentDeepLink} userRole={ctx.role} />;
     case "landingPage":
       return (
         <LandingPage
@@ -136,7 +136,7 @@ function renderScreen(screen, ctx) {
           onOpenFeedback={ctx.openFeedbackWithMessage}
           onOpenChat={() => ctx.setScreen("childChat")}
           onOpenReports={() => ctx.setScreen("studentReportTypes")}
-          onOpenAssessments={() => { ctx.setAssessmentReturnScreen?.("studentDashboard"); ctx.setScreen("studentAssessments"); }}
+          onOpenAssessments={() => { ctx.setAssessmentReturnScreen?.("studentDashboard"); ctx.setAssessmentDeepLink?.(null); ctx.setScreen("studentAssessments"); }}
           onOpenQuestions={() => ctx.setScreen("questionDeck")}
           onNavigateToManageStudent={ctx.isTeacher ? undefined : (studentId) => {
             ctx.setInitialStudentId(studentId);

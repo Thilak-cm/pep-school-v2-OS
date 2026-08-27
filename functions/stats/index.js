@@ -13,6 +13,7 @@ import {
   getObservationDate,
   buildActivityTiers,
   deduplicateObservations,
+  isStatsEligibleNote,
   CACHE_TTL_MS,
 } from "./helpers.js";
 
@@ -134,8 +135,7 @@ export const recomputeStats = functions
     const allObs = [];
     for (const doc of observationsSnap.docs) {
       const d = doc.data();
-      // Skip media docs that aren't ready (pending_upload, error, etc.)
-      if (d.type === "media" && d.status !== "ready") continue;
+      if (!isStatsEligibleNote(d)) continue;
       const classroomId = d.classroomId ||
         studentClassroomMap.get(d.studentId);
       if (!classroomId) continue;
@@ -182,7 +182,7 @@ export const recomputeStats = functions
 
       // Effort counts by type (deduped — teacher effort)
       const effortCounts = {
-        voice: 0, text: 0, lesson: 0, media: 0, total: 0,
+        voice: 0, text: 0, lesson: 0, media: 0, assessment: 0, total: 0,
       };
       for (const obs of dedupedObs) {
         const type = classifyNote(obs);
@@ -194,7 +194,9 @@ export const recomputeStats = functions
       const effortActivity = buildActivityTiers(dedupedObs, now);
 
       // Effort per-type activity tiers (deduped)
-      const dedupedByType = {voice: [], text: [], lesson: [], media: []};
+      const dedupedByType = {
+        voice: [], text: [], lesson: [], media: [], assessment: [],
+      };
       for (const obs of dedupedObs) {
         const t = classifyNote(obs);
         if (t in dedupedByType) dedupedByType[t].push(obs);
@@ -204,6 +206,7 @@ export const recomputeStats = functions
         text: buildActivityTiers(dedupedByType.text, now),
         lesson: buildActivityTiers(dedupedByType.lesson, now),
         media: buildActivityTiers(dedupedByType.media, now),
+        assessment: buildActivityTiers(dedupedByType.assessment, now),
       };
 
       // Teacher stats for this classroom
@@ -225,14 +228,17 @@ export const recomputeStats = functions
         let observations = 0;
         let lessons = 0;
         let media = 0;
+        let assessments = 0;
         let handwritten = 0;
         let observations7d = 0;
         let lessons7d = 0;
         let media7d = 0;
+        let assessments7d = 0;
         let handwritten7d = 0;
         let observations30d = 0;
         let lessons30d = 0;
         let media30d = 0;
+        let assessments30d = 0;
         let handwritten30d = 0;
         for (const o of dedupedTeacherObs) {
           const d = getObservationDate(o);
@@ -250,7 +256,11 @@ export const recomputeStats = functions
               if (d >= weekAgo) handwritten7d++;
               if (d >= thirtyDaysAgo) handwritten30d++;
             }
-          } else {
+          } else if (noteType === "assessment") {
+            assessments++;
+            if (d >= weekAgo) assessments7d++;
+            if (d >= thirtyDaysAgo) assessments30d++;
+          } else if (noteType === "voice" || noteType === "text") {
             // voice + text = observations
             observations++;
             if (d >= weekAgo) observations7d++;
@@ -288,14 +298,17 @@ export const recomputeStats = functions
           observations,
           lessons,
           media,
+          assessments,
           handwritten,
           observations7d,
           lessons7d,
           media7d,
+          assessments7d,
           handwritten7d,
           observations30d,
           lessons30d,
           media30d,
+          assessments30d,
           handwritten30d,
           otherNotes7d,
           otherCount7d: otherIds7d.size,
@@ -306,7 +319,9 @@ export const recomputeStats = functions
         // Exclude ghost teachers: orphaned UIDs or stale pending users with zero activity.
         // These pollute downstream consumers (e.g., digest agent reports "Unknown" teachers).
         const isGhost = !usersById.has(t.id) || t.id.startsWith("pending_");
-        const hasActivity = (t.observations + t.lessons + t.media) > 0;
+        const hasActivity = (
+          t.observations + t.lessons + t.media + t.assessments
+        ) > 0;
         return !isGhost || hasActivity;
       });
 
@@ -317,9 +332,13 @@ export const recomputeStats = functions
         let last14DaysMentions = 0;
         let last42DaysMentions = 0;
         let mediaMentions = 0;
+        let assessmentMentions = 0;
         let mediaThisWeek = 0;
+        let assessmentsThisWeek = 0;
         let mediaLast14Days = 0;
+        let assessmentsLast14Days = 0;
         let mediaLast42Days = 0;
+        let assessmentsLast42Days = 0;
         let handwrittenMentions = 0;
         let handwrittenThisWeek = 0;
         let handwrittenLast14Days = 0;
@@ -344,6 +363,11 @@ export const recomputeStats = functions
               if (d >= fourteenDaysAgo) handwrittenLast14Days++;
               if (d >= fortyTwoDaysAgo) handwrittenLast42Days++;
             }
+          } else if (classifyNote(obs) === "assessment") {
+            assessmentMentions++;
+            if (d >= weekAgo) assessmentsThisWeek++;
+            if (d >= fourteenDaysAgo) assessmentsLast14Days++;
+            if (d >= fortyTwoDaysAgo) assessmentsLast42Days++;
           }
         }
 
@@ -356,9 +380,13 @@ export const recomputeStats = functions
           last14DaysMentions,
           last42DaysMentions,
           mediaMentions,
+          assessmentMentions,
           mediaThisWeek,
+          assessmentsThisWeek,
           mediaLast14Days,
+          assessmentsLast14Days,
           mediaLast42Days,
+          assessmentsLast42Days,
           handwrittenMentions,
           handwrittenThisWeek,
           handwrittenLast14Days,

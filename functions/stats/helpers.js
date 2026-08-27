@@ -50,6 +50,16 @@ export function classifyNote(obs) {
   return "other";
 }
 
+/** Operational upload records are excluded until their file is ready. */
+export function isStatsEligibleNote(obs) {
+  if (!obs) return false;
+  if (obs.type === "media") return obs.status === "ready";
+  if (obs.type === "assessment" && obs.assessmentKind === "medical") {
+    return obs.uploadStatus === "ready";
+  }
+  return true;
+}
+
 /**
  * Extract a JS Date from an observation's timestamp fields.
  * Handles Firestore Timestamps (with .toDate()), serialized timestamps

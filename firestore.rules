@@ -99,11 +99,21 @@ service cloud.firestore {
     }
 
     // Structured assessment manifests are fan-out owners. They are immutable
-    // after publication; records remain under each student's observations.
+    // after publication. Backend callables provide scoped metadata/downloads;
+    // clients never read or mutate source manifests directly.
     match /structuredAssessmentSources/{sourceId} {
-      allow read: if isPrivilegedAdmin() || (isSignedIn() && resource.data.createdBy == request.auth.uid);
-      allow create: if isPrivilegedAdmin() || isTeacher();
-      allow update, delete: if isSuperAdmin();
+      allow read, create, update, delete: if false;
+    }
+
+    // Operational staging docs exist only while a resumable Medical PDF is
+    // uploading. The backend creates/finalizes/cleans them via Admin SDK.
+    match /pendingMedicalAssessmentUploads/{uploadId} {
+      allow read, create, update, delete: if false;
+    }
+
+    // Structured worksheet staging uses the same backend-owned lifecycle.
+    match /pendingStructuredAssessmentUploads/{uploadId} {
+      allow read, create, update, delete: if false;
     }
 
     // Superadmin-only digest — explicit match prevents classroomadmin access via wildcard
@@ -363,17 +373,6 @@ service cloud.firestore {
             data.createdAt is timestamp;
         }
 
-        function isAssessment(data) {
-          return data.type == 'assessment' &&
-            data.assessmentKind in ['structured', 'medical'] &&
-            data.schemaVersion == 1 &&
-            data.studentId == studentId &&
-            data.classroomId == studentClassroomId(studentId) &&
-            data.createdBy == request.auth.uid &&
-            data.createdAt is timestamp &&
-            data.observedAt is timestamp;
-        }
-
         function isAuthor() {
           return resource.data.createdBy == request.auth.uid ||
             resource.data.teacherId == request.auth.uid;
@@ -422,19 +421,22 @@ service cloud.firestore {
           (
             (isMedia(request.resource.data) &&
               validMediaCreatePayload(request.resource.data)) ||
-            (isAssessment(request.resource.data)) ||
             (!isMedia(request.resource.data) &&
               isAllowedNonMediaObservationType(request.resource.data))
           );
         
-        // Updates: admins can update all notes; authors can update their own notes within 48h.
-        allow update: if adminCanAccessObservation() || authorCanEditObservation();
+        // Published assessment records are immutable. Cloud Functions use the
+        // Admin SDK for the pending_upload -> ready Medical transition.
+        allow update: if resource.data.type != 'assessment' &&
+          (adminCanAccessObservation() || authorCanEditObservation());
 
         // Allow delete by admins OR by the author within 48h.
-        allow delete: if adminCanAccessObservation() || (
-          isTeacher() &&
-          isAuthor() &&
-          withinAuthorActionWindow()
+        allow delete: if resource.data.type != 'assessment' && (
+          adminCanAccessObservation() || (
+            isTeacher() &&
+            isAuthor() &&
+            withinAuthorActionWindow()
+          )
         );
       }
 
@@ -468,9 +470,9 @@ service cloud.firestore {
       }
 
       allow read: if isSuperAdmin() ||
-        adminCanQueryObservation() ||
-        (isTeacher() && ('classroomId' in resource.data) && isTeacherInClassroom(resource.data.classroomId)) ||
-        (isSignedIn() && resource.data.createdBy == request.auth.uid);
+          adminCanQueryObservation() ||
+          (isTeacher() && ('classroomId' in resource.data) && isTeacherInClassroom(resource.data.classroomId)) ||
+          (isSignedIn() && resource.data.createdBy == request.auth.uid);
     }
 
     // Feedback collection

@@ -1,4 +1,5 @@
 import { buildStudentProfile, renderSystemPrompt } from "./promptAssembly.js";
+import {isGenericObservation} from "../shared/studentHelpers.js";
 
 const DEFAULT_HISTORY_LIMIT = 12;
 
@@ -48,8 +49,7 @@ export async function loadObservationContext({ db, studentId, limit, windowDays 
     ? Date.now() - windowDays * 24 * 60 * 60 * 1000
     : null;
   const observations = snap.docs.filter((doc) => {
-    const data = doc.data() || {};
-    return data.type !== "assessment" && !data.assessmentKind;
+    return isGenericObservation(doc.data() || {});
   }).map((doc) => {
     const data = doc.data() || {};
     return {
@@ -64,7 +64,13 @@ export async function loadObservationContext({ db, studentId, limit, windowDays 
       : new Date(observation.observedAt).getTime();
     return !Number.isFinite(value) || value >= cutoff;
   });
-  const serialized = JSON.stringify(observations);
+  const endSerialization = telemetry?.startStage?.("observation_serialization") || (() => {});
+  let serialized;
+  try {
+    serialized = JSON.stringify(observations);
+  } finally {
+    endSerialization();
+  }
   telemetry?.setDimensions?.({
     observationsFetched: observations.length,
     observationsIncluded: observations.length,

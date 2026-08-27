@@ -1,4 +1,4 @@
 interface:
   display_name: "Draft GitHub Issues"
   short_description: "Archive takeaways and draft GitHub Issues"
-  default_prompt: "Archive this meeting, capture its explicit carry-forward takeaways, then extract and walk through GitHub Issue candidates one at a time."
+  default_prompt: "Archive this meeting, capture explicit carry-forward takeaways separately for the user and each named counterpart, then extract and walk through GitHub Issue candidates one at a time."

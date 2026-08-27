@@ -58,7 +58,7 @@ export default function ActionButtons({
     );
   }
 
-  const showViewTimeline = isClassroomContext && student;
+  const showViewTimeline = !isAssessment && isClassroomContext && student;
   const showViewAssessment = isAssessment && student;
   const showTaggedLessons = !isLessonObservation && canManageAuthorActions && hasLinkedLessons;
   const showReassign = !isAssessment && canReassign;

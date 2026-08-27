@@ -60,6 +60,7 @@ function App() {
     feedbackReturnScreen, setFeedbackReturnScreen,
     studentDashboardFlagOpen, setStudentDashboardFlagOpen,
     assessmentReturnScreen, setAssessmentReturnScreen,
+    assessmentDeepLink, setAssessmentDeepLink,
   } = useNavigationState();
 
   const handleNavigateToReport = useCallback(({ studentId: sid, docId }) => {
@@ -236,8 +237,19 @@ function App() {
       if (!studentId) return;
       const studentLike = detail.student || {id: studentId};
       setSelectedStudent(studentLike);
+      setAssessmentDeepLink({
+        assessmentKind: detail.assessmentKind || (detail.sourceId ? 'structured' : null),
+        sourceId: detail.sourceId || null,
+        observationId: detail.observationId || null,
+      });
       setAssessmentReturnScreen(screen === 'studentAssessments' ? 'studentDashboard' : screen);
       setScreen('studentAssessments');
+      const hasName = Boolean(studentLike?.name || studentLike?.displayName || studentLike?.firstName || studentLike?.lastName);
+      if (!hasName) {
+        getDoc(doc(db, 'students', studentId)).then((snapshot) => {
+          if (snapshot.exists()) setSelectedStudent({id: studentId, ...snapshot.data()});
+        }).catch(() => {});
+      }
     };
     window.addEventListener('navigateToStudentAssessments', handleNavigateToStudentAssessments);
     const handleNoteDrawerToggle = (e) => setNoteDrawerOpen(!!e?.detail?.open);
@@ -247,7 +259,7 @@ function App() {
       window.removeEventListener('navigateToStudentAssessments', handleNavigateToStudentAssessments);
       window.removeEventListener('noteDrawerToggle', handleNoteDrawerToggle);
     };
-  }, []);
+  }, [screen, setAssessmentDeepLink]);
 
   // Navigate to broadcast detail from system alert — needs role in closure (PEP-323c)
   useEffect(() => {
@@ -415,13 +427,14 @@ function App() {
     user, role, isTeacher, isSuperAdminUser, manageableClassrooms, classrooms, classroomsLoaded,
     selectedClassroom, selectedStudent,
     assessmentReturnScreen,
+    assessmentDeepLink,
     studentDashboardNoteType, timelineFilter, prefilledFeedback,
     usersAccessView, pendingViewReportId, reportTypeFilter, initialStudentId,
     lessonNoteInitialSelection, lessonNoteEditObservation, lessonNotesReturnScreen,
     setScreen, setSelectedClassroom, setSelectedStudent, setClassroomTimelineReturnScreen, setStudentDashboardReturnScreen,
     setStudentDashboardNoteType, setTimelineFilter, setUsersAccessView, setPendingViewReportId, setReportTypeFilter, setInitialStudentId,
     setLessonNoteEditObservation, setFeedbackReturnScreen, studentDashboardFlagOpen, setStudentDashboardFlagOpen,
-    setAssessmentReturnScreen,
+    setAssessmentReturnScreen, setAssessmentDeepLink,
     openFeedbackWithMessage, handleLessonNotesSaved, handleNoteSaved, handleNavigation, handleSignOut,
     getStudentDisplayName, broadcastDeepLink, setBroadcastDeepLink,
     pageTitle, backNavigation, showBackButton,
