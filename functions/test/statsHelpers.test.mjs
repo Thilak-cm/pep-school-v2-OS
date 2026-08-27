@@ -5,6 +5,7 @@ import {
   getObservationDate,
   buildActivityTiers,
   deduplicateObservations,
+  isStatsEligibleNote,
   CACHE_TTL_MS,
 } from "../stats/helpers.js";
 
@@ -47,6 +48,11 @@ describe("classifyNote", () => {
     assert.equal(classifyNote({type: "media", mediaKind: "photo"}), "media");
   });
 
+  it("classifies structured and medical assessments as assessments", () => {
+    assert.equal(classifyNote({type: "assessment", assessmentKind: "structured"}), "assessment");
+    assert.equal(classifyNote({assessmentKind: "medical"}), "assessment");
+  });
+
   it("returns other for null/undefined", () => {
     assert.equal(classifyNote(null), "other");
     assert.equal(classifyNote(undefined), "other");
@@ -76,9 +82,10 @@ describe("classifyNote", () => {
       {id: "5", type: "media", mediaKind: "video"},
       {id: "6", type: "text", text: "Another text note"},
       {id: "7", type: "lesson"},
+      {id: "8", type: "assessment", assessmentKind: "structured"},
     ];
 
-    const counts = {lesson: 0, voice: 0, text: 0, media: 0, other: 0};
+    const counts = {lesson: 0, voice: 0, text: 0, media: 0, assessment: 0, other: 0};
     for (const obs of observations) {
       counts[classifyNote(obs)]++;
     }
@@ -87,11 +94,20 @@ describe("classifyNote", () => {
     assert.equal(counts.voice, 1);
     assert.equal(counts.text, 2);
     assert.equal(counts.media, 2);
+    assert.equal(counts.assessment, 1);
     assert.equal(counts.other, 0);
     assert.equal(
       Object.values(counts).reduce((a, b) => a + b, 0),
       observations.length,
     );
+  });
+});
+
+describe("isStatsEligibleNote", () => {
+  it("counts structured and ready Medical assessments only", () => {
+    assert.equal(isStatsEligibleNote({type: "assessment", assessmentKind: "structured"}), true);
+    assert.equal(isStatsEligibleNote({type: "assessment", assessmentKind: "medical", uploadStatus: "ready"}), true);
+    assert.equal(isStatsEligibleNote({type: "assessment", assessmentKind: "medical", uploadStatus: "pending_upload"}), false);
   });
 });
 

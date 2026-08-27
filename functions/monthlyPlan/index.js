@@ -33,6 +33,7 @@ import {
   capitalize,
 } from "../utils/driveHelpers.js";
 import { DRIVE_CONSTANTS } from "../config/reportConstants.js";
+import {isGenericObservation} from "../shared/studentHelpers.js";
 import {
   buildDetailedPlanRequests,
   buildChecklistRequests,
@@ -194,7 +195,9 @@ async function generatePlanInternal(studentId, targetMonth, generatedBy, generat
   ]);
 
   const allDocs = obsSnap.docs.map((d) => d.data());
-  const observations = allDocs.filter((d) => d.type !== "media");
+  const observations = allDocs.filter((d) => (
+    d.type !== "media" && isGenericObservation(d)
+  ));
   const mediaDocs = allDocs.filter((d) => d.type === "media" && d.status === "ready");
   const writingAnalysis = writingSnap.exists ? writingSnap.data() : null;
   const precedingPlan = precedingPlanSnap.exists ? precedingPlanSnap.data() : null;

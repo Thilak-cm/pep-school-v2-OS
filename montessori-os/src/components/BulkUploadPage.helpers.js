@@ -13,16 +13,19 @@ const MEDIUM_THRESHOLD = 0.45;
  * Match CSV student names against database student records using fuzzy search.
  * @param {string[]} csvNames - unique student names from CSV
  * @param {object[]} students - student records from Firestore
- * @param {object} [filter] - optional { classroomId, programClassroomIds }
+ * @param {object} [filter] - optional classroom filters and requireUniqueBest
  * @returns {Array<{ csvName: string, match: object|null, score: number, confidence: string, candidates: object[] }>}
  */
 export function matchStudentNames(csvNames, students, filter = {}) {
-  let pool = students;
+  // Inactive, graduated, and transferred students must never be candidates
+  // for name matching. This is enforced here so every upload flow gets the
+  // same safety invariant, regardless of how its student pool was fetched.
+  let pool = (students || []).filter((student) => !student.status || student.status === 'active');
   if (filter.classroomId) {
-    pool = students.filter((s) => s.classroomId === filter.classroomId);
+    pool = pool.filter((s) => s.classroomId === filter.classroomId);
   } else if (filter.programClassroomIds) {
     const ids = new Set(filter.programClassroomIds);
-    pool = students.filter((s) => ids.has(s.classroomId));
+    pool = pool.filter((s) => ids.has(s.classroomId));
   }
 
   const fuse = createFuzzySearch(pool, {
@@ -42,16 +45,20 @@ export function matchStudentNames(csvNames, students, filter = {}) {
 
     const best = results[0];
     const score = best.score;
+    const tiedBest = filter.requireUniqueBest === true && results.length > 1
+      && Math.abs((results[1].score ?? 1) - (score ?? 1)) < 0.001;
     let confidence;
-    if (score < HIGH_THRESHOLD) confidence = CONFIDENCE.HIGH;
+    if (tiedBest) confidence = CONFIDENCE.LOW;
+    else if (score < HIGH_THRESHOLD) confidence = CONFIDENCE.HIGH;
     else if (score < MEDIUM_THRESHOLD) confidence = CONFIDENCE.MEDIUM;
     else confidence = CONFIDENCE.LOW;
 
     return {
       csvName,
-      match: best.item,
+      match: tiedBest ? null : best.item,
       score,
       confidence,
+      ambiguous: tiedBest,
       candidates: results.slice(0, 5).map((r) => ({ ...r.item, _score: r.score })),
     };
   });

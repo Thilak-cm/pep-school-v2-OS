@@ -75,6 +75,20 @@ export { generateMonthlyPlan, exportMonthlyPlanToDrive, batchGenerateMonthlyPlan
 // Stats (PEP-285)
 export { recomputeStats } from "./stats/index.js";
 
+export {
+  findStructuredAssessmentDuplicate,
+  createStructuredAssessmentUpload,
+  publishStructuredAssessment,
+  cancelStructuredAssessmentUpload,
+  createMedicalAssessmentUpload,
+  finalizeMedicalAssessmentUpload,
+  cancelMedicalAssessmentUpload,
+  getStructuredAssessmentSource,
+  getAssessmentDownloadUrl,
+  deleteAssessment,
+  cleanupStaleAssessmentUploads,
+} from "./assessments/index.js";
+
 // Test Bench
 export { testBenchRun } from "./testbench/index.js";
 export { promoteTestBenchConfig } from "./testbench/promote.js";

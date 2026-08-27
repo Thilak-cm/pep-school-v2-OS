@@ -76,6 +76,7 @@ export default function ClassroomNoteCard({
   const mediaPath = note.media?.[0]?.storagePath ?? note.mediaItems?.[0]?.storagePath;
   const mediaUrl = mediaPath ? mediaUrls[mediaPath] : null;
   const isMedia = note.type === 'media';
+  const isAssessment = note.type === 'assessment';
   const isLesson = note.type === 'lesson';
 
   return (
@@ -147,7 +148,14 @@ export default function ClassroomNoteCard({
         )}
 
         {/* Content — type-specific */}
-        {isLesson ? (
+        {isAssessment ? (
+          <Box sx={{mb: 0.5}}>
+            <Typography variant="body2" sx={{fontWeight: 650}}>{note.assessmentName || note.name || 'Assessment'} was conducted.</Typography>
+            {note.assessmentStudentCount > 1 && (
+              <Typography variant="caption" color="text.secondary">For {note.assessmentStudentCount} students</Typography>
+            )}
+          </Box>
+        ) : isLesson ? (
           renderLessonSummary(note)
         ) : isMedia ? (
           /* Media: side-by-side thumbnail + text */

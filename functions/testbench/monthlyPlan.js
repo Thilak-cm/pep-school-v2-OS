@@ -10,6 +10,7 @@ import { buildChatBody } from "../shared/openai.js";
 import { OPENROUTER_ENDPOINT } from "../shared/openrouter.js";
 import { calculateAge } from "../utils/handwritingAnalysisHelpers.js";
 import { getModelSupportsJson } from "../config/testBenchModels.js";
+import {isGenericObservation} from "../shared/studentHelpers.js";
 
 /**
  * Serialize a single observation into a text line for the prompt.
@@ -120,7 +121,9 @@ export async function testBenchMonthlyPlan({ studentId, systemPrompt, model, tem
   ]);
 
   const allDocs = obsSnap.docs.map((d) => d.data());
-  const observations = allDocs.filter((d) => d.type !== "media");
+  const observations = allDocs.filter((d) => (
+    d.type !== "media" && isGenericObservation(d)
+  ));
   const mediaDocs = allDocs.filter((d) => d.type === "media" && d.status === "ready");
   const writingAnalysis = writingSnap.exists ? writingSnap.data() : null;
 

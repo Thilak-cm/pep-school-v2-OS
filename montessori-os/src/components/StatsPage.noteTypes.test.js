@@ -10,6 +10,7 @@ function classifyNotes(observations) {
     voice: observations.filter(o => classifyNote(o) === 'voice'),
     text: observations.filter(o => classifyNote(o) === 'text'),
     media: observations.filter(o => classifyNote(o) === 'media'),
+    assessment: observations.filter(o => classifyNote(o) === 'assessment'),
   };
 }
 
@@ -22,6 +23,8 @@ describe('StatsPage note type classification', () => {
     { id: '5', type: 'media', mediaKind: 'video' },
     { id: '6', type: 'text', text: 'Another text note' },
     { id: '7', type: 'lesson' },
+    { id: '8', type: 'assessment', assessmentKind: 'structured' },
+    { id: '9', type: 'assessment', assessmentKind: 'medical', uploadStatus: 'ready' },
   ];
 
   it('classifies media notes correctly', () => {
@@ -37,10 +40,17 @@ describe('StatsPage note type classification', () => {
     assert.ok(!nonMediaIds.includes('5'), 'media note 5 should not be in text/voice/lesson');
   });
 
-  it('counts all four types without overlap or loss', () => {
-    const { text, voice, lesson, media } = classifyNotes(observations);
-    const total = text.length + voice.length + lesson.length + media.length;
+  it('counts all five storage types without overlap or loss', () => {
+    const { text, voice, lesson, media, assessment } = classifyNotes(observations);
+    const total = text.length + voice.length + lesson.length + media.length + assessment.length;
     assert.equal(total, observations.length);
+  });
+
+  it('keeps assessments out of observation, lesson, and media buckets', () => {
+    const {text, voice, lesson, media, assessment} = classifyNotes(observations);
+    assert.deepEqual(assessment.map(o => o.id), ['8', '9']);
+    const otherIds = [...text, ...voice, ...lesson, ...media].map(o => o.id);
+    assert.equal(otherIds.includes('8') || otherIds.includes('9'), false);
   });
 
   it('classifies other types unchanged', () => {

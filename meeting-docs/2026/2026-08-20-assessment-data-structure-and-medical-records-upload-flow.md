@@ -2,12 +2,14 @@
 type: meeting_record
 title: "Assessment data structure and medical records upload flow"
 date: "2026-08-20"
-participants: ["Thilak"]
+participants: ["Thilak", "Rahul"]
 areas: ["observation-capture", "timelines-and-media", "analytics-and-notifications", "ai-tools-and-chat", "admin-and-access", "settings-feedback-shell"]
 topics: ["structured-assessments", "medical-assessments", "assessment-ingestion", "weekly-digest", "brain", "stats", "coach-chat", "soul-generation", "job-monitoring", "ai-costs"]
 status: "issues-drafted"
 issue_refs: [212, 229, 241, 248, 253, 254, 255]
-takeaway_count: 4
+takeaway_count: 7
+thilak_takeaway_count: 4
+rahul_takeaway_count: 3
 source: "Granola — https://notes.granola.ai/t/2ad4a9d3-2825-43e7-a23a-9ab534752907"
 ---
 
@@ -48,42 +50,98 @@ The group also discussed several operational follow-ups: dismissible red alerts;
 
 ## Post-Meeting Reflection
 
-These are the four explicit commitments made at the close of the meeting. They are not a restatement of every issue discussed. Meeting Prep must carry each incomplete takeaway forward until current evidence supports 100% completion or the user explicitly marks it cancelled or superseded.
+This is the durable commitment ledger for Meeting Prep. It records the four explicit commitments Thilak made in the closing recap and three explicit commitments Rahul made during the meeting. It intentionally excludes general decisions, requests without an owner, and Rahul's exploratory observation-quality experiment. Meeting Prep must carry an incomplete item forward under its actual owner until its completion evidence is verified or the commitment is explicitly cancelled or superseded. Estimates are contextual rather than fixed workflow stages; 100% is reserved for the recorded definition of done.
 
-### Takeaway 1 — Deliver an AI cost-per-child report
+### Thilak's Explicit Takeaways
+
+#### Takeaway T1 — Deliver an AI cost-per-child report
 
 - **Owner:** Thilak
-- **Commitment:** Calculate tokens and monetary cost per child, broken down by major AI pipeline/output, and deliver the report for model and unit-economics decisions.
+- **Commitment:** Calculate tokens and monetary cost per child, broken down by major AI pipeline/output, and deliver the report to Rahul for model and unit-economics decisions.
+- **Why it matters:** School revenue is understood per child, so AI spend needs the same unit basis to support model, frequency, and margin decisions.
+- **Expected deliverable / handoff:** A concise report Rahul can use to compare current costs and estimate the per-child effect of future model changes.
 - **Tracking refs:** #241
-- **Completion evidence:** A reviewed report based on current provider/Langfuse usage data covers Souls/Open Questions, weekly snapshots, monthly plans, baseline and term reports, readiness, writing analysis, and chat; it includes per-child and frequency-aware totals and has been delivered to the intended stakeholder.
+- **Completion evidence:** A reviewed report based on current provider/Langfuse usage data covers Souls/Open Questions, weekly snapshots, monthly plans, baseline and term reports, readiness, writing analysis, and chat; it includes per-child and frequency-aware totals and has been delivered to Rahul.
 - **Baseline at meeting close:** 0% — the requirement was agreed, but report work had not started.
+- **Next-meeting check:** Confirm that Rahul received the report, then ask whether the breakdown is sufficient for model and pricing decisions.
 - **Carry forward:** Yes
 
-### Takeaway 2 — Roll out improved Open Questions to all programs
+#### Takeaway T2 — Validate and run improved Open Questions for every program
 
 - **Owner:** Thilak
-- **Commitment:** Update and validate all four program-specific Soul/Open Questions prompts, then move the August Soul run to approximately August 27–28 if the prompts are ready.
-- **Tracking refs:** Soul generation prompts; August 2026 Soul run
+- **Commitment:** Integrate and validate all four program-specific Soul/Open Questions prompts after Rahul returns his edits, then move the August Soul run to approximately August 27–28 if they are ready.
+- **Why it matters:** Teachers found Open Questions valuable, but the improvement appears to exist in only one program; an earlier run gives teachers more time to enrich observations before September term reports.
+- **Dependency / expected input:** Rahul must return the edited program-specific prompts described in Takeaway R3.
+- **Expected deliverable / handoff:** Four versioned prompts, validation evidence, and a complete production Soul/Open Questions run for the expected student population.
+- **Tracking refs:** `docs/soul-generation-prompts.md`; August 2026 Soul run; Takeaway R3
 - **Completion evidence:** All four prompts are versioned and validated; the production Soul/Open Questions run completes for the expected students; Firestore/run logs and Langfuse confirm complete outputs; representative questions pass review.
-- **Baseline at meeting close:** 0% — prompt edits and validation were still pending.
+- **Baseline at meeting close:** 0% — Rahul's edits, engineering integration, validation, and the production run were still pending.
+- **Next-meeting check:** Confirm whether Rahul supplied all four prompt edits, report validation and run coverage, and resolve any missing-program output.
 - **Carry forward:** Yes
 
-### Takeaway 3 — Implement Assessment notes
+#### Takeaway T3 — Ship Assessment notes v1
 
 - **Owner:** Thilak
 - **Commitment:** Ship the v1 Assessment note type with structured spreadsheet ingestion, Medical PDF upload, per-student history, a fourth Statistics category, and deliberate downstream AI integration.
-- **Tracking refs:** #248, #252; deferred follow-ups #253 and #255 are not v1 blockers
+- **Why it matters:** Structured academic results and medical reports are the two major remaining child-data sources outside Pep OS; bringing them in closes a material context gap for teachers and AI outputs.
+- **Dependency / expected input:** Rahul owns teacher guidance for the standardized assessment-sheet format in Takeaway R1.
+- **Expected deliverable / handoff:** A production-ready Assessment flow that teachers can use and Rahul can roll out with the agreed spreadsheet guidance.
+- **Tracking refs:** #248, #252; deferred follow-ups #253 and #255 are not v1 blockers; Takeaway R1
 - **Completion evidence:** The approved #248 scope is implemented, reviewed, merged, deployed, and verified in production across upload, parsing, record counts, student history, Statistics, access control, source retention, and the named downstream AI consumers.
-- **Baseline at meeting close:** 20% — product and technical specification work was underway, but implementation had not started.
+- **Baseline at meeting close:** 20% — product and technical specification work was underway, but implementation had not started. This is a contextual estimate, not a fixed stage value.
+- **Next-meeting check:** Demonstrate the production flow and confirm Rahul has completed the teacher-format rollout needed for adoption.
 - **Carry forward:** Yes
 
-### Takeaway 4 — Implement month-end job monitoring
+#### Takeaway T4 — Implement month-end job monitoring
 
 - **Owner:** Thilak
 - **Commitment:** Add run logs and completion reconciliation for month-end Soul and monthly-plan generation so missing students are detected before teachers report gaps.
+- **Why it matters:** Month-end and term-report generation are becoming operationally large; missing outputs must be visible immediately rather than discovered by teachers a week later.
+- **Expected deliverable / handoff:** An internal run ledger and reconciliation view or report that identifies expected, completed, skipped, failed, and missing students for each bulk run.
 - **Tracking refs:** #229
 - **Completion evidence:** Scheduled runs record expected, completed, skipped, failed, and missing students; internal records reconcile to aggregate monitoring; the implementation is reviewed, merged, deployed, and verified against a live month-end run without exposing student data externally.
 - **Baseline at meeting close:** 0% — the requirement was agreed, but implementation had not started.
+- **Next-meeting check:** Report the latest run's expected-versus-completed counts and any students that required recovery.
+- **Carry forward:** Yes
+
+### Rahul's Explicit Takeaways
+
+These are Rahul-owned promises that Thilak should explicitly follow up on. Their progress must be researched and reported separately from Thilak's completion rollup so an external dependency cannot inflate or reduce Thilak's own score. Each remains on the next-meeting follow-up list until the promised handoff is received and verified.
+
+#### Takeaway R1 — Roll out the standardized assessment-sheet format to teachers
+
+- **Owner:** Rahul
+- **Commitment:** Handle teacher knowledge transfer and recommendations for converting existing assessment sheets to the agreed metadata-first format.
+- **Why it matters:** The v1 design deliberately replaces LLM clarification with clear human-authored labels; teacher adoption of the format is therefore a product dependency, not optional documentation.
+- **Expected deliverable / handoff:** Teacher-facing guidance, a worked example or template, and direct communication/training that explains assessment name, date/date window, description, and plain-English Result 1…N definitions.
+- **Tracking refs:** #248; Takeaway T3
+- **Completion evidence:** The guidance/template exists, has been shared with the intended teachers, and at least one representative teacher-prepared sheet is confirmed to match the #248 ingestion contract.
+- **Baseline at meeting close:** 0% — Rahul explicitly took ownership, but no guidance or teacher rollout was presented in the meeting.
+- **Next-meeting follow-up:** Ask: “Have you shared the assessment-sheet format with teachers, and can we review one sheet they prepared against it?”
+- **Carry forward:** Yes
+
+#### Takeaway R2 — Deliver the revised monthly-plan prompt and reference pack
+
+- **Owner:** Rahul
+- **Commitment:** Update the monthly-plan prompt/output specification, send the revised Markdown or printable HTML, and add two or three curriculum/reference files for the prompt to use.
+- **Why it matters:** Brain adds material value only when editable prompts can draw on authoritative curriculum context; the requested printable output also needs a concrete content/format contract before engineering can wire it.
+- **Expected deliverable / handoff:** The revised prompt, the requested output template or HTML, and the complete referenced curriculum files, with their intended relationships made explicit for Thilak to integrate.
+- **Tracking refs:** #212; Brain monthly-plan content
+- **Completion evidence:** Rahul has delivered the revised prompt/output artifact and all promised reference files; the files are internally consistent, sufficient for engineering integration, and acknowledged as received by Thilak. Runtime wiring and production deployment remain Thilak-owned and do not block completion of Rahul's handoff.
+- **Baseline at meeting close:** 0% — Rahul said he would work on and send these artifacts, but they had not yet been delivered.
+- **Next-meeting follow-up:** Ask: “Can you send the final monthly-plan prompt/HTML and the two or three curriculum reference files so I can wire and test them?”
+- **Carry forward:** Yes
+
+#### Takeaway R3 — Return updated Soul/Open Questions prompts for all programs
+
+- **Owner:** Rahul
+- **Commitment:** Review and edit every program-specific Soul/Open Questions prompt, including adolescent and elementary, and return the complete set to Thilak.
+- **Why it matters:** The successful Open Questions change appears to have reached only one program; all four prompts must be aligned before Thilak can validate and safely run generation early.
+- **Expected deliverable / handoff:** A clearly versioned set of edits for all four program prompts, with enough lead time for engineering validation before the intended August 27–28 run.
+- **Tracking refs:** `docs/soul-generation-prompts.md`; August 2026 Soul run; Takeaway T2
+- **Completion evidence:** Rahul has returned edits covering all four program-specific prompts, Thilak has acknowledged receipt, and the files are unambiguous enough to integrate and validate. Engineering integration and the production run remain part of Takeaway T2 rather than Rahul's handoff.
+- **Baseline at meeting close:** 0% — Rahul committed to review and return the prompts; no completed prompt set had been received during the meeting.
+- **Next-meeting follow-up:** Ask: “Have you completed and sent the Open Questions edits for all four program prompts, and is any program still waiting on content decisions?”
 - **Carry forward:** Yes
 
 ## Drafted Issues

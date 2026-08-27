@@ -68,7 +68,7 @@ This is an IMPORTANT rule — check storage.rules to see if it was modified.
   }
 });
 
-test('Storage Rules - firestore.get() budget is maintained (max 2 calls)', () => {
+test('Storage Rules - firestore.get() budget is maintained per path (max 2 calls)', () => {
   // Remove comments to get accurate count
   const withoutComments = rulesContent.split('\n').map(line => {
     const commentIndex = line.indexOf('//');
@@ -77,15 +77,29 @@ test('Storage Rules - firestore.get() budget is maintained (max 2 calls)', () =>
 
   const firestoreGetCalls = (withoutComments.match(/firestore\.get\s*\(/g) || []).length;
 
-  // There should be exactly 2 function definitions that call firestore.get():
+  // There are four helpers across disjoint match blocks:
   // 1. requesterDoc()
   // 2. mediaDoc()
+  // 3. pendingMedicalDoc()
+  // 4. pendingStructuredDoc()
+  // Each evaluation uses requesterDoc plus only one resource helper.
   assert.ok(
-    firestoreGetCalls === 2,
-    `Found ${firestoreGetCalls} firestore.get() calls (expected 2).
-     Having more than 2 means you're over the Storage rules budget and will hit 403 errors.
-     Check the comment in storage.rules about the budget constraint.`
+    firestoreGetCalls === 4,
+    `Found ${firestoreGetCalls} firestore.get() helper definitions (expected 4).`
   );
+
+  const mediaMatch = rulesContent.match(
+    /match\s+\/students\/\{studentId\}\/media\/\{mediaId\}\/\{fileName\}[\s\S]*?(?=\n    \/\/ Medical)/
+  )?.[0];
+  const medicalMatch = rulesContent.match(
+    /match\s+\/pending-medical-assessments\/\{uploadId\}\/original\.pdf[\s\S]*?(?=\n    \/\/ The client stages)/
+  )?.[0];
+  const structuredMatch = rulesContent.match(
+    /match\s+\/pending-structured-assessments\/\{uploadId\}\/selected-sheet\.xlsx[\s\S]*?(?=\n    \/\/ Structured source)/
+  )?.[0];
+  assert.ok(mediaMatch?.includes('mediaDoc') && !mediaMatch.includes('pendingMedicalDoc'));
+  assert.ok(medicalMatch?.includes('pendingMedicalDoc') && !medicalMatch.includes('mediaDoc'));
+  assert.ok(structuredMatch?.includes('pendingStructuredDoc') && !structuredMatch.includes('pendingMedicalDoc'));
 });
 
 test('Storage Rules - Role gate uses only requesterDoc and mediaDoc', () => {
@@ -162,6 +176,28 @@ test('Storage Rules - Media create/update requires pending_upload status', () =>
     createUpdateRule && createUpdateRule.includes('pending_upload'),
     'Media create/update rule must check pending_upload status to prevent overwriting completed uploads'
   );
+});
+
+test('Storage Rules - Medical PDF upload is resumable, bounded, and not directly readable', () => {
+  const medicalMatch = rulesContent.match(
+    /match\s+\/pending-medical-assessments\/\{uploadId\}\/original\.pdf[\s\S]*?(?=\n    \/\/ The client stages)/
+  )?.[0];
+  assert.ok(medicalMatch, 'Medical assessment Storage rule missing');
+  assert.ok(medicalMatch.includes("uploadStatus == 'pending_upload'"));
+  assert.ok(medicalMatch.includes("contentType == 'application/pdf'"));
+  assert.ok(medicalMatch.includes('25 * 1024 * 1024'));
+  assert.ok(medicalMatch.includes('allow read, delete: if false'));
+});
+
+test('Storage Rules - Structured XLSX staging is owner-bound and bounded', () => {
+  const structuredMatch = rulesContent.match(
+    /match\s+\/pending-structured-assessments\/\{uploadId\}\/selected-sheet\.xlsx[\s\S]*?(?=\n    \/\/ Structured source)/
+  )?.[0];
+  assert.ok(structuredMatch, 'Structured assessment staging rule missing');
+  assert.ok(structuredMatch.includes("uploadStatus == 'pending_upload'"));
+  assert.ok(structuredMatch.includes('application/vnd.openxmlformats-officedocument.spreadsheetml.sheet'));
+  assert.ok(structuredMatch.includes('10 * 1024 * 1024'));
+  assert.ok(structuredMatch.includes('allow read, delete: if false'));
 });
 
 test('Storage Rules - Delete rules restrict teachers to 48h window', () => {

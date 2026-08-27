@@ -11,6 +11,7 @@ Firebase Functions v1 Pub/Sub schedules and use asynchronous `onRun` handlers.
 | IST schedule | Function | Module | Execution pattern | Purpose |
 |---|---|---|---|---|
 | Every day at 06:00 | `dataIntegrityChecks` | `functions/integrity/index.js` | Direct async work | Runs registered data-integrity checks and sends pass/failure results to configured Telegram chats. |
+| Every day at 03:15 | `cleanupStaleAssessmentUploads` | `functions/assessments/index.js` | Direct async work | Retries deletion of stale Structured and Medical staging files, retaining failed cleanup references for later retries. |
 
 ## Weekly
 
@@ -34,6 +35,7 @@ Firebase Functions v1 Pub/Sub schedules and use asynchronous `onRun` handlers.
 | Function | Cron expression | Source |
 |---|---|---|
 | `dataIntegrityChecks` | `0 6 * * *` | `functions/integrity/index.js` |
+| `cleanupStaleAssessmentUploads` | `15 3 * * *` | `functions/assessments/index.js` |
 | `generateBaseballCards` | `0 0 * * 0` | `functions/ai/baseballCard.js` |
 | `weeklyDigestClassroomAdmin` | `0 18 * * 0` | `functions/digest/index.js` |
 | `weeklyDigestSuperadmin` | `45 18 * * 0` | `functions/digest/index.js` |

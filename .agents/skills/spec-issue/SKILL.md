@@ -62,6 +62,18 @@ Requires a GitHub issue identifier as argument (e.g., `#42`). If not provided, a
 
 5. Do not ask generic questions that ignore known app context (existing pages, roles, patterns, and current behavior).
 
+6. Before asking the first grill question, draw a rough system diagram for this issue.
+   - Use the codebase findings to show the relevant user entry points, frontend components, shared services, Cloud Functions, Firestore/Storage data, security boundaries, and downstream consumers.
+   - Keep unrelated system areas out of the diagram. If a boundary or dependency is uncertain, label it `needs clarity` rather than inventing a connection.
+   - Prefer a compact Mermaid flowchart when it will render clearly; otherwise use an ASCII block-and-arrow diagram.
+   - After the diagram, briefly identify which blocks are understood and which blocks need decisions from the user. Then begin the grill with exactly one question.
+
+7. Track the grill as a rough sequence of information blocks, adapting the blocks to the issue. Typical blocks are: current behavior, desired outcome, primary flow, edge/error states, roles and data, constraints and integrations, scope/priority, and single-path convergence. Do not expose a fabricated total question count.
+
+8. Show a rough progress bar only when a meaningful milestone is reached — normally after completing one information block and before moving to the next, or when the planning probe confirms convergence. Do not show it after every answer. The progress update should name the completed block and the block being opened, for example:
+   `Spec progress: [####------] 3/8 blocks — Current behavior complete; moving to desired outcome.`
+   Use an approximate denominator, revise it if the issue expands, and never imply that the spec is complete merely because the bar is full. Keep asking one question at a time after the progress update.
+
 ## Workflow
 
 ### 1. Fetch & Understand
@@ -70,10 +82,13 @@ Requires a GitHub issue identifier as argument (e.g., `#42`). If not provided, a
 - Read the current title, description, priority, labels, state, and assignee.
 - Check the description for a `Source: Meeting Transcript —` marker (created by `/draft-github-issues`).
 - Summarize the current state of the issue to the user before starting the grill.
+- Include the rough system diagram from Context Loading immediately before the first grill question. The diagram is an orientation artifact, not a technical implementation plan.
 
 ### 2. Grill — One Question at a Time
 
 Interview the user relentlessly about every aspect of this issue. Walk down each branch of the decision tree, resolving dependencies between decisions one by one.
+
+Begin by naming the first information block and asking one question. At each later block transition, show the rough progress bar described in Context Loading. Progress bars are milestone markers only; omit them while continuing within the same block.
 
 **Rules:**
 - **One question per message.** Asking multiple questions at once is bewildering. Wait for feedback on each question before continuing.

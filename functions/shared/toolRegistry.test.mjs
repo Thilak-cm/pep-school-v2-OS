@@ -4,11 +4,39 @@ import { readFile } from "node:fs/promises";
 import { URL } from "node:url";
 
 import {
+  collectEligibleObservationDocs,
   createToolExecutor,
   getToolDefinitions,
   getTools,
   mergeChronologicalChatMessages,
 } from "./toolRegistry.js";
+
+test("observation collection paginates past assessment-heavy history", async () => {
+  const documents = [
+    ...Array.from({length: 60}, (_, index) => ({
+      id: `assessment-${index}`,
+      data: () => ({type: "assessment"}),
+    })),
+    ...Array.from({length: 3}, (_, index) => ({
+      id: `observation-${index}`,
+      data: () => ({type: "text", text: `Observation ${index}`}),
+    })),
+  ];
+  const pageSize = 25;
+  let pageCalls = 0;
+  const result = await collectEligibleObservationDocs(async (cursor) => {
+    pageCalls += 1;
+    const start = cursor ? documents.indexOf(cursor) + 1 : 0;
+    return documents.slice(start, start + pageSize);
+  }, 3);
+
+  assert.deepEqual(result.map((doc) => doc.id), [
+    "observation-0",
+    "observation-1",
+    "observation-2",
+  ]);
+  assert.equal(pageCalls, 3);
+});
 
 test("getToolDefinitions strips server-bound arguments from model schemas", () => {
   const tools = getTools(["fetch_observations"], ["student"]);

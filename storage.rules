@@ -19,6 +19,18 @@ service firebase.storage {
       );
     }
 
+    function pendingMedicalDoc(uploadId) {
+      return firestore.get(
+        /databases/(default)/documents/pendingMedicalAssessmentUploads/$(uploadId)
+      );
+    }
+
+    function pendingStructuredDoc(uploadId) {
+      return firestore.get(
+        /databases/(default)/documents/pendingStructuredAssessmentUploads/$(uploadId)
+      );
+    }
+
     function isMediaDoc(doc) {
       return doc.data != null && doc.data.type == 'media';
     }
@@ -94,6 +106,46 @@ service firebase.storage {
            isAuthor(mediaDoc(studentId, mediaId)) &&
            withinDeleteWindow(mediaDoc(studentId, mediaId)))
         );
+    }
+
+    // Medical PDFs upload directly with resumable Storage. The pending record
+    // is created by a callable first, keeping this evaluation to exactly two
+    // Firestore paths for this match: requesterDoc + pendingMedicalDoc.
+    match /pending-medical-assessments/{uploadId}/original.pdf {
+      allow create, update: if isSignedIn() &&
+        isKnownRole() &&
+        pendingMedicalDoc(uploadId).data.kind == 'medical_assessment_upload' &&
+        pendingMedicalDoc(uploadId).data.createdBy == request.auth.uid &&
+        pendingMedicalDoc(uploadId).data.uploadStatus == 'pending_upload' &&
+        pendingMedicalDoc(uploadId).data.originalFile.storagePath ==
+          'pending-medical-assessments/' + uploadId + '/original.pdf' &&
+        request.resource.contentType == 'application/pdf' &&
+        request.resource.size > 0 &&
+        request.resource.size <= 25 * 1024 * 1024;
+      allow read, delete: if false;
+    }
+
+    // The client stages only the selected standalone worksheet. Publication
+    // downloads and reparses it on the trusted backend before any record write.
+    match /pending-structured-assessments/{uploadId}/selected-sheet.xlsx {
+      allow create, update: if isSignedIn() &&
+        isKnownRole() &&
+        pendingStructuredDoc(uploadId).data.kind == 'structured_assessment_upload' &&
+        pendingStructuredDoc(uploadId).data.createdBy == request.auth.uid &&
+        pendingStructuredDoc(uploadId).data.uploadStatus == 'pending_upload' &&
+        pendingStructuredDoc(uploadId).data.selectedSheet.storagePath ==
+          'pending-structured-assessments/' + uploadId + '/selected-sheet.xlsx' &&
+        request.resource.contentType ==
+          'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet' &&
+        request.resource.size > 0 &&
+        request.resource.size <= 10 * 1024 * 1024;
+      allow read, delete: if false;
+    }
+
+    // Structured source files and ready Medical PDFs are downloaded through
+    // one authoritative callable that revalidates current classroom scope.
+    match /structured-assessments/{sourceId}/{fileName} {
+      allow read, write: if false;
     }
 
     match /{allPaths=**} {

@@ -14,6 +14,7 @@
  */
 
 import { db } from "./firebase.js";
+import {isGenericObservation} from "./studentHelpers.js";
 
 function messageTimeValue(message) {
   const value = message.createdAt || message.timestamp || 0;
@@ -38,6 +39,21 @@ export function mergeChronologicalChatMessages(messageGroups, limit) {
       return left < right ? -1 : left > right ? 1 : 0;
     })
     .slice(-limit);
+}
+
+export async function collectEligibleObservationDocs(fetchPage, limit) {
+  const eligible = [];
+  let cursor = null;
+  while (eligible.length < limit) {
+    const docs = await fetchPage(cursor);
+    if (!docs.length) break;
+    for (const doc of docs) {
+      if (isGenericObservation(doc.data())) eligible.push(doc);
+      if (eligible.length === limit) break;
+    }
+    cursor = docs[docs.length - 1];
+  }
+  return eligible;
 }
 
 // ── Tool Catalog ──────────────────────────────────────────────────────
@@ -180,12 +196,23 @@ const TOOL_CATALOG = [
     },
     execute: async (args) => {
       const limit = Math.min(args.limit || 10, 25);
-      const snap = await db.collection(`students/${args.studentId}/observations`).orderBy("createdAt", "desc").limit(limit).get();
-      if (snap.empty) return { error: "No observations found" };
-      return snap.docs.map((d) => {
+      const pageSize = Math.max(25, limit * 2);
+      const observationsRef = db.collection(
+        `students/${args.studentId}/observations`,
+      );
+      const docs = await collectEligibleObservationDocs(async (cursor) => {
+        let query = observationsRef
+          .orderBy("createdAt", "desc")
+          .limit(pageSize);
+        if (cursor) query = query.startAfter(cursor);
+        const snapshot = await query.get();
+        return snapshot.docs;
+      }, limit);
+      const observations = docs.map((d) => {
         const data = d.data();
         return { type: data.type, text: data.text || data.description || "", observedAt: data.observedAt || data.createdAt || null };
       });
+      return observations.length ? observations : {error: "No observations found"};
     },
   },
   {

@@ -4,7 +4,7 @@ import { Plus, Mic, BookOpen, Image, ListChecks } from '../icons';
 import NewFeaturePill from './NewFeaturePill';
 
 const MENU_ITEMS = [
-  { key: 'assessments', label: 'Assessments', Icon: ListChecks, disabled: true },
+  { key: 'assessments', label: 'Assessments', Icon: ListChecks },
   { key: 'media', label: 'Media', Icon: Image },
   { key: 'lesson', label: 'Lesson', Icon: BookOpen },
   { key: 'voice', label: 'Voice', Icon: Mic },
@@ -14,7 +14,7 @@ const MENU_ITEMS = [
  * Floating action button that expands into a card menu
  * with four note-type rows (Voice, Lesson, Media, Assessments — bottom to top).
  */
-const AddNoteFab = ({ onVoice, onLesson, onMedia, sx = {} }) => {
+const AddNoteFab = ({ onVoice, onLesson, onMedia, onAssessments, sx = {} }) => {
   const [open, setOpen] = useState(false);
 
   const handleToggle = () => setOpen((o) => !o);
@@ -25,6 +25,7 @@ const AddNoteFab = ({ onVoice, onLesson, onMedia, sx = {} }) => {
     if (key === 'voice') onVoice?.();
     else if (key === 'lesson') onLesson?.();
     else if (key === 'media') onMedia?.();
+    else if (key === 'assessments') onAssessments?.();
   };
 
   return (

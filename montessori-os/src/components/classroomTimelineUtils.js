@@ -12,6 +12,51 @@ export function toDate(ts) {
   return new Date(ts);
 }
 
+/** Group generic fan-out notes by groupId and Structured assessments by sourceId. */
+export function groupTimelineObservations(observations) {
+  if (!observations?.length) return {grouped: [], ungrouped: []};
+  const groupMap = new Map();
+  const ungrouped = [];
+  observations.forEach((note) => {
+    const groupKey = note.type === 'assessment' && note.assessmentKind === 'structured' && note.sourceId
+      ? `assessment:${note.sourceId}`
+      : note.groupId;
+    if (!groupKey) {
+      ungrouped.push(note);
+      return;
+    }
+    if (!groupMap.has(groupKey)) groupMap.set(groupKey, []);
+    groupMap.get(groupKey).push(note);
+  });
+
+  const grouped = [...groupMap.entries()].map(([groupId, notes]) => {
+    notes.sort((a, b) => toDate(b.observedAt || b.timestamp) - toDate(a.observedAt || a.timestamp));
+    const earliestObservedAt = notes.reduce((earliest, note) => {
+      const noteDate = toDate(note.observedAt || note.timestamp);
+      return noteDate < earliest ? noteDate : earliest;
+    }, toDate(notes[0].observedAt || notes[0].timestamp));
+    return {
+      groupId,
+      notes,
+      representativeNote: notes[0],
+      earliestObservedAt,
+      sourceId: notes[0]?.sourceId || null,
+      isAssessmentGroup: notes[0]?.type === 'assessment',
+      studentIds: [...new Set(notes.map((note) => note.studentId))],
+      studentCount: new Set(notes.map((note) => note.studentId)).size,
+    };
+  });
+
+  const retainedGroups = [];
+  grouped.forEach((group) => {
+    if (group.notes.length <= 1 && !group.isAssessmentGroup) ungrouped.push(group.notes[0]);
+    else retainedGroups.push(group);
+  });
+  retainedGroups.sort((a, b) => b.earliestObservedAt - a.earliestObservedAt);
+  ungrouped.sort((a, b) => toDate(b.observedAt || b.timestamp) - toDate(a.observedAt || a.timestamp));
+  return {grouped: retainedGroups, ungrouped};
+}
+
 /**
  * Merge grouped and ungrouped timeline items, sort by date, paginate,
  * and bucket into time periods (today / last7Days / beyond).
@@ -123,7 +168,7 @@ export function groupByCalendarDay(items) {
 /**
  * Get chip config (label, tone, iconName) for a note type.
  *
- * @param {string} type - 'text' | 'voice' | 'lesson' | 'media' | 'report'
+ * @param {string} type - 'text' | 'voice' | 'lesson' | 'media' | 'assessment' | 'report'
  * @returns {{ label: string, tone: string, iconName: string }}
  */
 export function getTypeChipConfig(type) {
@@ -136,6 +181,8 @@ export function getTypeChipConfig(type) {
       return { label: 'Lesson', tone: 'green', iconName: 'BookOpen' };
     case 'media':
       return { label: 'Media', tone: 'indigo', iconName: 'Image' };
+    case 'assessment':
+      return { label: 'Assessment', tone: 'amber', iconName: 'ListChecks' };
     case 'report':
       return { label: 'Report', tone: 'amber', iconName: 'FileText' };
     default:

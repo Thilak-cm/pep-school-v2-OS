@@ -54,6 +54,18 @@ const EXPECTED_EXPORTS = [
   "monthlyPlanWorker",
   // Stats
   "recomputeStats",
+  // Assessments (#248)
+  "findStructuredAssessmentDuplicate",
+  "createStructuredAssessmentUpload",
+  "publishStructuredAssessment",
+  "cancelStructuredAssessmentUpload",
+  "createMedicalAssessmentUpload",
+  "finalizeMedicalAssessmentUpload",
+  "cancelMedicalAssessmentUpload",
+  "getStructuredAssessmentSource",
+  "getAssessmentDownloadUrl",
+  "deleteAssessment",
+  "cleanupStaleAssessmentUploads",
   // Alerts
   "autoExpireBroadcast",
   // Test Bench

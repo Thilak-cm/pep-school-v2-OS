@@ -24,6 +24,8 @@ export const useNavigationState = () => {
   const [initialStudentId, setInitialStudentId] = useState(null);
   const [feedbackReturnScreen, setFeedbackReturnScreen] = useState(null);
   const [studentDashboardFlagOpen, setStudentDashboardFlagOpen] = useState(false);
+  const [assessmentReturnScreen, setAssessmentReturnScreen] = useState('settings');
+  const [assessmentDeepLink, setAssessmentDeepLink] = useState(null);
 
   return {
     screen, setScreen,
@@ -43,6 +45,8 @@ export const useNavigationState = () => {
     initialStudentId, setInitialStudentId,
     feedbackReturnScreen, setFeedbackReturnScreen,
     studentDashboardFlagOpen, setStudentDashboardFlagOpen,
+    assessmentReturnScreen, setAssessmentReturnScreen,
+    assessmentDeepLink, setAssessmentDeepLink,
   };
 };
 

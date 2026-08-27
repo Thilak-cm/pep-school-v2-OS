@@ -190,6 +190,7 @@ const StatsPage = ({ user, role, manageableClassrooms = [], onBack, onNavigateTo
       thisWeekObservationNotes: sumTypeTier(doc, 'voice') + sumTypeTier(doc, 'text'),
       thisWeekLessonNotes: sumTypeTier(doc, 'lesson'),
       thisWeekMediaNotes: sumTypeTier(doc, 'media'),
+      thisWeekAssessmentNotes: sumTypeTier(doc, 'assessment'),
     }));
   }, [classroomTimePeriod, classroomDocs]);
 
@@ -213,23 +214,25 @@ const StatsPage = ({ user, role, manageableClassrooms = [], onBack, onNavigateTo
     // Fall back to all-time effortCounts if effortActivityByType not yet in cache docs
     const hasTypeTiers = classroomDocs.some(d => d.effortActivityByType);
     if (!hasTypeTiers) {
-      const nc = { observations: 0, lesson: 0, media: 0 };
+      const nc = { observations: 0, lesson: 0, media: 0, assessment: 0 };
       for (const doc of classroomDocs) {
         const c = doc.effortCounts || {};
         nc.observations += (c.voice || 0) + (c.text || 0);
-        nc.lesson += c.lesson || 0; nc.media += c.media || 0;
+        nc.lesson += c.lesson || 0; nc.media += c.media || 0; nc.assessment += c.assessment || 0;
       }
       return [
         { name: 'Observations', value: nc.observations, color: '#4f46e5' }, /* Recharts */
         { name: 'Lessons', value: nc.lesson, color: '#059669' }, /* Recharts */
-        { name: 'Media', value: nc.media, color: '#ec4899' } /* Recharts */
+        { name: 'Media', value: nc.media, color: '#ec4899' }, /* Recharts */
+        { name: 'Assessments', value: nc.assessment, color: '#d97706' } /* Recharts */
       ];
     }
 
     return [
       { name: 'Observations', value: sumTier('voice') + sumTier('text'), color: '#4f46e5' }, /* Recharts */
       { name: 'Lessons', value: sumTier('lesson'), color: '#059669' }, /* Recharts */
-      { name: 'Media', value: sumTier('media'), color: '#ec4899' } /* Recharts */
+      { name: 'Media', value: sumTier('media'), color: '#ec4899' }, /* Recharts */
+      { name: 'Assessments', value: sumTier('assessment'), color: '#d97706' } /* Recharts */
     ];
   }, [classroomDocs, timePeriod]);
 
@@ -277,16 +280,18 @@ const StatsPage = ({ user, role, manageableClassrooms = [], onBack, onNavigateTo
       const periodObs = is7d ? (t.observations7d || 0) : (t.observations30d || 0);
       const periodLessons = is7d ? (t.lessons7d || 0) : (t.lessons30d || 0);
       const periodMedia = is7d ? (t.media7d || 0) : (t.media30d || 0);
+      const periodAssessments = is7d ? (t.assessments7d || 0) : (t.assessments30d || 0);
 
       return {
         id: t.id,
         name: t.name,
         email: t.email,
         status: t.status,
-        periodObservations: periodObs + periodLessons + periodMedia,
+        periodObservations: periodObs + periodLessons + periodMedia + periodAssessments,
         periodObservationNotes: periodObs,
         periodLessonNotes: periodLessons,
         periodMediaNotes: periodMedia,
+        periodAssessmentNotes: periodAssessments,
         otherClassroomCount: is7d
           ? (t.otherCount7d || 0)
           : (t.otherCount30d || 0),
@@ -340,12 +345,14 @@ const StatsPage = ({ user, role, manageableClassrooms = [], onBack, onNavigateTo
     const obsMerged = mergeType(['voice', 'text']);  // observations = voice + text
     const lessonMerged = mergeType(['lesson']);
     const mediaMerged = mergeType(['media']);
+    const assessmentMerged = mergeType(['assessment']);
 
     // Get all unique time keys across all types
     const allKeys = [...new Set([
       ...Object.keys(obsMerged),
       ...Object.keys(lessonMerged),
       ...Object.keys(mediaMerged),
+      ...Object.keys(assessmentMerged),
     ])].sort();
 
     const dayNames = ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'];
@@ -375,6 +382,7 @@ const StatsPage = ({ user, role, manageableClassrooms = [], onBack, onNavigateTo
       observations: obsMerged[key] || 0,
       lessons: lessonMerged[key] || 0,
       media: mediaMerged[key] || 0,
+      assessments: assessmentMerged[key] || 0,
     }));
   };
 
@@ -486,7 +494,8 @@ const StatsPage = ({ user, role, manageableClassrooms = [], onBack, onNavigateTo
       name: classroom.name,
       Observations: classroom.thisWeekObservationNotes ?? classroom.thisWeekObservations ?? 0,
       'Lesson Notes': classroom.thisWeekLessonNotes ?? 0,
-      'Media Notes': classroom.thisWeekMediaNotes ?? 0
+      'Media Notes': classroom.thisWeekMediaNotes ?? 0,
+      Assessments: classroom.thisWeekAssessmentNotes ?? 0
     }));
 
     // Don't render chart until mounted AND has data
@@ -541,7 +550,8 @@ const StatsPage = ({ user, role, manageableClassrooms = [], onBack, onNavigateTo
                   const observationsValue = payload.find(item => item.dataKey === 'Observations')?.value ?? 0;
                   const lessonNotesValue = payload.find(item => item.dataKey === 'Lesson Notes')?.value ?? 0;
                   const mediaNotesValue = payload.find(item => item.dataKey === 'Media Notes')?.value ?? 0;
-                  const notesCount = observationsValue + lessonNotesValue + mediaNotesValue;
+                  const assessmentsValue = payload.find(item => item.dataKey === 'Assessments')?.value ?? 0;
+                  const notesCount = observationsValue + lessonNotesValue + mediaNotesValue + assessmentsValue;
                   return (
                     <Box sx={{
                       backgroundColor: 'white',
@@ -566,6 +576,9 @@ const StatsPage = ({ user, role, manageableClassrooms = [], onBack, onNavigateTo
                         <Typography sx={{ fontSize: '12px', color: 'var(--color-pink)' }}>
                           Media Notes: {mediaNotesValue}
                         </Typography>
+                        <Typography sx={{ fontSize: '12px', color: '#d97706' }}>
+                          Assessments: {assessmentsValue}
+                        </Typography>
                       </Box>
                     </Box>
                   );
@@ -576,6 +589,7 @@ const StatsPage = ({ user, role, manageableClassrooms = [], onBack, onNavigateTo
               <Bar dataKey="Observations" stackId="notes" fill="#4f46e5" radius={[0, 0, 0, 0]} /> {/* Recharts — hex required */}
               <Bar dataKey="Lesson Notes" stackId="notes" fill="#059669" radius={[0, 0, 0, 0]} /> {/* Recharts */}
               <Bar dataKey="Media Notes" stackId="notes" fill="#ec4899" radius={[0, 0, 0, 0]} /> {/* Recharts */}
+              <Bar dataKey="Assessments" stackId="notes" fill="#d97706" radius={[0, 0, 0, 0]} /> {/* Recharts */}
             </RechartsBarChart>
           </ResponsiveContainer>
         </Box>
@@ -608,6 +622,12 @@ const StatsPage = ({ user, role, manageableClassrooms = [], onBack, onNavigateTo
               <Box sx={{ width: 10, height: 10, borderRadius: '50%', backgroundColor: 'var(--color-pink)' }} />
               <Typography variant="caption" sx={{ color: 'text.secondary', fontWeight: 600 }}>
                 Media Notes
+              </Typography>
+            </Box>
+            <Box sx={{ display: 'flex', alignItems: 'center', gap: 0.6 }}>
+              <Box sx={{ width: 10, height: 10, borderRadius: '50%', backgroundColor: '#d97706' }} />
+              <Typography variant="caption" sx={{ color: 'text.secondary', fontWeight: 600 }}>
+                Assessments
               </Typography>
             </Box>
           </Box>
@@ -699,7 +719,7 @@ const StatsPage = ({ user, role, manageableClassrooms = [], onBack, onNavigateTo
                 content={({ active, payload }) => {
                   if (active && payload && payload.length) {
                     const d = payload[0]?.payload;
-                    const total = (d?.observations || 0) + (d?.lessons || 0) + (d?.media || 0);
+                    const total = (d?.observations || 0) + (d?.lessons || 0) + (d?.media || 0) + (d?.assessments || 0);
                     return (
                       <Box sx={{
                         backgroundColor: 'white',
@@ -720,6 +740,9 @@ const StatsPage = ({ user, role, manageableClassrooms = [], onBack, onNavigateTo
                         <Typography sx={{ fontSize: '12px', color: '#ec4899' }}>
                           Media: {d?.media || 0}
                         </Typography>
+                        <Typography sx={{ fontSize: '12px', color: '#d97706' }}>
+                          Assessments: {d?.assessments || 0}
+                        </Typography>
                       </Box>
                     );
                   }
@@ -729,6 +752,7 @@ const StatsPage = ({ user, role, manageableClassrooms = [], onBack, onNavigateTo
               <Line type="monotone" dataKey="observations" name="Observations" stroke="#4f46e5" strokeWidth={2.5} dot={{ fill: '#4f46e5', r: 3 }} /> {/* Recharts */}
               <Line type="monotone" dataKey="lessons" name="Lessons" stroke="#059669" strokeWidth={2.5} dot={{ fill: '#059669', r: 3 }} /> {/* Recharts */}
               <Line type="monotone" dataKey="media" name="Media" stroke="#ec4899" strokeWidth={2.5} dot={{ fill: '#ec4899', r: 3 }} /> {/* Recharts */}
+              <Line type="monotone" dataKey="assessments" name="Assessments" stroke="#d97706" strokeWidth={2.5} dot={{ fill: '#d97706', r: 3 }} /> {/* Recharts */}
             </LineChart>
           </ResponsiveContainer>
         </Box>
@@ -746,6 +770,10 @@ const StatsPage = ({ user, role, manageableClassrooms = [], onBack, onNavigateTo
             <Box sx={{ display: 'flex', alignItems: 'center', gap: 0.6 }}>
               <Box sx={{ width: 10, height: 10, borderRadius: '50%', backgroundColor: '#ec4899' }} />
               <Typography variant="caption" sx={{ color: 'text.secondary', fontWeight: 600 }}>Media</Typography>
+            </Box>
+            <Box sx={{ display: 'flex', alignItems: 'center', gap: 0.6 }}>
+              <Box sx={{ width: 10, height: 10, borderRadius: '50%', backgroundColor: '#d97706' }} />
+              <Typography variant="caption" sx={{ color: 'text.secondary', fontWeight: 600 }}>Assessments</Typography>
             </Box>
           </Box>
         </Box>
@@ -1310,6 +1338,7 @@ const StatsPage = ({ user, role, manageableClassrooms = [], onBack, onNavigateTo
                             <Chip size="small" variant="outlined" color="success" label={`Observations: ${teacher.periodObservationNotes ?? 0}`} />
                             <Chip size="small" variant="outlined" color="info" label={`Lessons: ${teacher.periodLessonNotes ?? 0}`} />
                             <Chip size="small" variant="outlined" sx={{ borderColor: '#ec4899', color: '#ec4899' }} label={`Media: ${teacher.periodMediaNotes ?? 0}`} />
+                            <Chip size="small" variant="outlined" sx={{ borderColor: '#d97706', color: '#d97706' }} label={`Assessments: ${teacher.periodAssessmentNotes ?? 0}`} />
                           </Box>
 
                           {teacher.otherClassroomCount > 0 && (

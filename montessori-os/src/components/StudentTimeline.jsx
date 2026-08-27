@@ -247,7 +247,20 @@ function StudentTimeline({ student, currentUser, userRole, noteTypeFilter = null
   const timelineItems = useMemo(() => {
     const items = [];
     const batches = new Map();
+    const structuredAssessments = new Map();
     (visibleObservations || []).forEach((obs) => {
+      if (obs.type === 'assessment' && obs.assessmentKind === 'structured' && obs.sourceId) {
+        if (!structuredAssessments.has(obs.sourceId)) {
+          structuredAssessments.set(obs.sourceId, {
+            ...obs,
+            id: `assessment-${obs.sourceId}`,
+            assessmentRecordCount: 1,
+          });
+        } else {
+          structuredAssessments.get(obs.sourceId).assessmentRecordCount += 1;
+        }
+        return;
+      }
       if (obs.type !== 'media') {
         items.push(obs);
         return;
@@ -327,6 +340,7 @@ function StudentTimeline({ student, currentUser, userRole, noteTypeFilter = null
       });
       items.push(group);
     });
+    structuredAssessments.forEach((assessment) => items.push(assessment));
     return items.sort((a, b) => {
       const da = toJsDate(a.observedAt || a.timestamp) || new Date(0);
       const db = toJsDate(b.observedAt || b.timestamp) || new Date(0);
@@ -649,7 +663,7 @@ function StudentTimeline({ student, currentUser, userRole, noteTypeFilter = null
     setDeleteConfirmOpen(false);
   };
   const exportableObservations = useMemo(
-    () => applyFilters(observations.filter((o) => o.type !== 'media' && o.type !== 'report'), null),
+    () => applyFilters(observations.filter((o) => !['media', 'report', 'assessment'].includes(o.type)), null),
     // eslint-disable-next-line react-hooks/exhaustive-deps
     [observations, filters]
   );
@@ -880,6 +894,20 @@ function StudentTimeline({ student, currentUser, userRole, noteTypeFilter = null
                         handleMediaClick(obs, mediaItems, 0);
                       }
                     }}
+                    mediaUrls={mediaUrls}
+                  />
+                );
+              }
+
+              if (obs.type === 'assessment') {
+                return (
+                  <ClassroomNoteCard
+                    key={obs.id}
+                    note={obs}
+                    variant="student"
+                    isTransferred={false}
+                    classroomTeachers={classroomTeachers}
+                    onNoteClick={() => window.dispatchEvent(new CustomEvent('navigateToStudentAssessments', {detail: {studentId: student?.id, assessmentKind: obs.assessmentKind, sourceId: obs.sourceId, observationId: obs.assessmentKind === 'medical' ? obs.id : null}}))}
                     mediaUrls={mediaUrls}
                   />
                 );

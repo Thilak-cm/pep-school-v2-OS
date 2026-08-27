@@ -14,10 +14,12 @@ export const CACHE_TTL_MS = 24 * 60 * 60 * 1000;
  * Order matters — lesson > voice > text > media. Anything unmatched → "other".
  *
  * @param {Object} obs - Observation or media document
- * @returns {"lesson"|"voice"|"text"|"media"|"other"}
+ * @returns {"lesson"|"voice"|"text"|"media"|"assessment"|"other"}
  */
 export function classifyNote(obs) {
   if (!obs) return "other";
+
+  if (obs.type === "assessment" || obs.assessmentKind) return "assessment";
 
   // Lesson: explicit type or has lessonTitle
   if (obs.type === "lesson" || obs.lessonTitle) return "lesson";
@@ -46,6 +48,16 @@ export function classifyNote(obs) {
   if (obs.type === "media") return "media";
 
   return "other";
+}
+
+/** Operational upload records are excluded until their file is ready. */
+export function isStatsEligibleNote(obs) {
+  if (!obs) return false;
+  if (obs.type === "media") return obs.status === "ready";
+  if (obs.type === "assessment" && obs.assessmentKind === "medical") {
+    return obs.uploadStatus === "ready";
+  }
+  return true;
 }
 
 /**
