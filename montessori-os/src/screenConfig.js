@@ -17,6 +17,7 @@ const STATIC_TITLES = {
   configAiTools: "AI Tools",
   configDigest: "School Context Notes",
   bulkUpload: "Bulk Upload",
+  assessmentUpload: "Add Assessment",
   aiTextEditor: "Text Cleanup Editor",
   aiVoiceEditor: "Voice Transcriber Editor",
   aiCoachEditor: "Coach Editor",
@@ -77,6 +78,8 @@ export function getPageTitle(screen, state) {
       return `${state.getStudentDisplayName?.() || "Student"}'s Reports`;
     case "studentReports":
       return `${state.getStudentDisplayName?.() || "Student"}'s Reports`;
+    case "studentAssessments":
+      return `${state.getStudentDisplayName?.() || "Student"}'s Assessments`;
 
     case "addUser":
       if (state.usersAccessView === "add") return "Add Users";
@@ -124,6 +127,9 @@ export function getBackNavigation(screen, state, setters) {
       return () => setters.setScreen?.("studentDashboard");
     case "studentReports":
       return () => setters.setScreen?.("studentReportTypes");
+    case "studentAssessments":
+    case "assessmentUpload":
+      return () => setters.setScreen?.(state.assessmentReturnScreen || "settings");
     case "profile":
       return () => setters.setScreen?.("settings");
     case "feedback": {
@@ -177,6 +183,7 @@ export const FAB_HIDDEN_SCREENS = new Set([
   "configLessonNotes", "configAiTools", "configDigest", "chatCommandCentre",
   "reportGenConfig", "bulkUpload", "alerts", "interviews", "broadcastComposer",
   "questionDeck",
+  "assessmentUpload", "studentAssessments",
 ]);
 
 // ── Footer tab mapping ─────────────────────────────────────────────────────

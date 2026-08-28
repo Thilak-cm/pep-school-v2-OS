@@ -27,6 +27,33 @@ test('matchStudentNames returns high confidence for exact name match', () => {
   assert.equal(results[0].confidence, CONFIDENCE.HIGH);
 });
 
+test('matchStudentNames never returns inactive students', () => {
+  const results = matchStudentNames(['Aarav Kumar'], [
+    {id: 'inactive', displayName: 'Aarav Kumar', firstName: 'Aarav', lastName: 'Kumar', classroomId: 'c9', status: 'inactive'},
+    ...STUDENTS,
+  ]);
+  assert.equal(results[0].match.id, 's1');
+});
+
+test('matchStudentNames keeps inactive students out after classroom filtering', () => {
+  const results = matchStudentNames(['Aarav Kumar'], [
+    {id: 'inactive', displayName: 'Aarav Kumar', firstName: 'Aarav', lastName: 'Kumar', classroomId: 'c1', status: 'inactive'},
+    ...STUDENTS,
+  ], {programClassroomIds: ['c1']});
+  assert.equal(results[0].match.id, 's1');
+});
+
+test('matchStudentNames treats tied duplicate names as ambiguous when required', () => {
+  const results = matchStudentNames(['Aarav Kumar'], [
+    ...STUDENTS,
+    {id: 'duplicate', displayName: 'Aarav Kumar', firstName: 'Aarav', lastName: 'Kumar', classroomId: 'c2'},
+  ], {requireUniqueBest: true});
+  assert.equal(results[0].match, null);
+  assert.equal(results[0].ambiguous, true);
+  assert.equal(results[0].confidence, CONFIDENCE.LOW);
+  assert.equal(results[0].candidates.length >= 2, true);
+});
+
 test('matchStudentNames returns match for close fuzzy name', () => {
   const results = matchStudentNames(['Aarav Kumr'], STUDENTS); // typo
   assert.equal(results.length, 1);

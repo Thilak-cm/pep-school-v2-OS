@@ -1,6 +1,7 @@
 import { describe, it } from 'node:test';
 import assert from 'node:assert/strict';
 import { readFile } from 'node:fs/promises';
+import { groupTimelineObservations } from './classroomTimelineUtils.js';
 
 const typeIconPath = new URL('./ui/TypeIcon.jsx', import.meta.url);
 const classroomCardPath = new URL('./ClassroomNoteCard.jsx', import.meta.url);
@@ -120,5 +121,20 @@ describe('StudentTimeline uses day-grouped rendering', () => {
       !/Swipe to browse/.test(source),
       'StudentTimeline should not contain "Swipe to browse" text',
     );
+  });
+});
+
+describe('Structured assessment timeline grouping', () => {
+  it('groups fan-out records by sourceId and keeps single-student sources grouped', () => {
+    const {grouped, ungrouped} = groupTimelineObservations([
+      {id: 'a1', type: 'assessment', assessmentKind: 'structured', sourceId: 'source-1', studentId: 's1', observedAt: new Date('2026-08-20')},
+      {id: 'a2', type: 'assessment', assessmentKind: 'structured', sourceId: 'source-1', studentId: 's2', observedAt: new Date('2026-08-20')},
+      {id: 'a3', type: 'assessment', assessmentKind: 'structured', sourceId: 'source-2', studentId: 's3', observedAt: new Date('2026-08-21')},
+      {id: 'm1', type: 'assessment', assessmentKind: 'medical', studentId: 's1', observedAt: new Date('2026-08-22')},
+    ]);
+    assert.equal(grouped.length, 2);
+    assert.equal(grouped.find((group) => group.sourceId === 'source-1').studentCount, 2);
+    assert.equal(grouped.find((group) => group.sourceId === 'source-2').studentCount, 1);
+    assert.deepEqual(ungrouped.map((note) => note.id), ['m1']);
   });
 });

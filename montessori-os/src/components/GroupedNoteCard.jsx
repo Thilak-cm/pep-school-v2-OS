@@ -152,6 +152,7 @@ export default function GroupedNoteCard({
   const chipConfig = getTypeChipConfig(note.type);
   const teacher = getTeacherForNote(note, classroomTeachers);
   const isLesson = note.type === 'lesson';
+  const isAssessment = note.type === 'assessment';
 
   const studentsInGroup = groupedNote.studentIds
     .map((sid) => classroomStudents.find((s) => s.id === sid) || transferredStudents.get(sid))
@@ -218,7 +219,11 @@ export default function GroupedNoteCard({
         </Box>
 
         {/* Content */}
-        {isLesson ? (
+        {isAssessment ? (
+          <Typography variant="body2" sx={{mb: 0.5, fontWeight: 650}}>
+            {note.assessmentName || 'Assessment'} was conducted for {groupedNote.studentCount} student{groupedNote.studentCount === 1 ? '' : 's'}.
+          </Typography>
+        ) : isLesson ? (
           renderLessonSummary(note, !!note.groupDefaults)
         ) : (
           <Typography
@@ -257,7 +262,7 @@ export default function GroupedNoteCard({
         )}
 
         {/* Linked lesson tags */}
-        {!isLesson && Array.isArray(note.linkedLessonObservationId) && note.linkedLessonObservationId.length > 0 && (
+        {!isLesson && !isAssessment && Array.isArray(note.linkedLessonObservationId) && note.linkedLessonObservationId.length > 0 && (
           <Box sx={{ display: 'flex', alignItems: 'center', gap: 0.5, flexWrap: 'wrap', mb: 0.5 }}>
             <Typography variant="caption" color="text.secondary" sx={{ fontWeight: 600 }}>
               Tagged Lesson Notes:

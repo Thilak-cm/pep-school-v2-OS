@@ -29,7 +29,7 @@ import useObservationFilters from '../hooks/useObservationFilters';
 import useNotify from '../notifications/useNotify.js';
 import useTimelineData from '../hooks/useTimelineData';
 import useTimelineStats from '../hooks/useTimelineStats';
-import { toDate, groupByCalendarDay } from './classroomTimelineUtils.js';
+import { toDate, groupByCalendarDay, groupTimelineObservations } from './classroomTimelineUtils.js';
 import { groupMediaObservations } from './groupedMediaUtils.js';
 import { HFTabs, DayHeader, HFSearchInput, HFFilterChip } from './ui';
 import { trackEvent } from '../utils/analytics';
@@ -280,71 +280,7 @@ function ClassroomTimeline({ classroom, currentUser, userRole, manageableClassro
 
   // Group notes by groupId, then sort
   const groupedAndSortedObservations = useMemo(() => {
-    if (!displayedObservations || displayedObservations.length === 0) {
-      return { grouped: [], ungrouped: [] };
-    }
-
-    // Group notes by groupId
-    const groupMap = new Map();
-    const ungrouped = [];
-
-    groupMediaObservations(displayedObservations).forEach((note) => {
-      if (note.groupId) {
-        if (!groupMap.has(note.groupId)) {
-          groupMap.set(note.groupId, []);
-        }
-        groupMap.get(note.groupId).push(note);
-      } else {
-        ungrouped.push(note);
-      }
-    });
-
-    // Convert groups to array format, using first note as representative
-    const grouped = Array.from(groupMap.entries()).map(([groupId, notes]) => {
-      // Sort notes within group by observedAt (newest first)
-      notes.sort((a, b) => {
-        const da = toDate(a.observedAt || a.timestamp);
-        const db = toDate(b.observedAt || b.timestamp);
-        return db - da;
-      });
-      
-      // Use earliest observedAt for time categorization
-      const earliestDate = notes.reduce((earliest, note) => {
-        const noteDate = toDate(note.observedAt || note.timestamp);
-        return noteDate < earliest ? noteDate : earliest;
-      }, toDate(notes[0].observedAt || notes[0].timestamp));
-
-      return {
-        groupId,
-        notes,
-        representativeNote: notes[0], // Use first note for display
-        earliestObservedAt: earliestDate,
-        studentIds: notes.map(n => n.studentId),
-        studentCount: notes.length
-      };
-    });
-
-    // Move any singleton "groups" back into ungrouped so they display as regular notes
-    const filteredGrouped = [];
-    grouped.forEach((group) => {
-      if (group.notes.length <= 1) {
-        ungrouped.push(group.notes[0]);
-      } else {
-        filteredGrouped.push(group);
-      }
-    });
-
-    // Sort grouped notes by earliest observedAt (newest first)
-    filteredGrouped.sort((a, b) => b.earliestObservedAt - a.earliestObservedAt);
-
-    // Sort ungrouped notes
-    ungrouped.sort((a, b) => {
-      const da = toDate(a.observedAt || a.timestamp);
-      const db = toDate(b.observedAt || b.timestamp);
-      return db - da;
-    });
-
-    return { grouped: filteredGrouped, ungrouped };
+    return groupTimelineObservations(groupMediaObservations(displayedObservations));
   }, [displayedObservations]);
 
   // All fetched notes (including reports) — merged chronologically into day-grouped buckets
@@ -509,6 +445,17 @@ function ClassroomTimeline({ classroom, currentUser, userRole, manageableClassro
   };
 
   const handleNoteClick = (note) => {
+    if (note.type === 'assessment') {
+      window.dispatchEvent(new CustomEvent('navigateToStudentAssessments', {
+        detail: {
+          studentId: note.studentId,
+          assessmentKind: note.assessmentKind,
+          sourceId: note.sourceId || null,
+          observationId: note.assessmentKind === 'medical' ? note.id : null,
+        },
+      }));
+      return;
+    }
     setSelectedMediaIndex(0);
     setSelectedNote(note);
   };

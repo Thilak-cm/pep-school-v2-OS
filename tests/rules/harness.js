@@ -35,11 +35,11 @@ export function createUnauthenticatedDb() {
   return testEnvironment.unauthenticatedContext().firestore();
 }
 
-export function createAuthenticatedStorage(uid) {
+export function createAuthenticatedStorage(uid, bucket = 'pep-os.appspot.com') {
   if (!testEnvironment) throw new Error('Rules test environment is not initialized');
   return testEnvironment
     .authenticatedContext(uid)
-    .storage('gs://pep-os.appspot.com');
+    .storage(`gs://${bucket}`);
 }
 
 export function createUnauthenticatedStorage() {
@@ -66,9 +66,14 @@ export async function clearStorageData() {
   await testEnvironment.clearStorage();
 }
 
-export async function seedStorageObject(pathname, data, contentType) {
+export async function seedStorageObject(
+  pathname,
+  data,
+  contentType,
+  bucket = 'pep-os.appspot.com',
+) {
   await testEnvironment.withSecurityRulesDisabled(async (context) => {
-    const storage = context.storage('gs://pep-os.appspot.com');
+    const storage = context.storage(`gs://${bucket}`);
     await uploadBytes(ref(storage, pathname), data, { contentType });
   });
 }

@@ -15,6 +15,10 @@ const chooseObservationTimestamp = (obs) => {
     null;
 };
 
+const isGenericObservation = (observation) => {
+  return observation?.type !== "assessment" && !observation?.assessmentKind;
+};
+
 function formatObservationForPrompt(obs) {
   const ts = chooseObservationTimestamp(obs);
   return {
@@ -51,6 +55,9 @@ async function fetchStudentNotesForWindow(studentId, windowDays) {
   await collect("observedAt");
   await collect("createdAt");
   const notes = Array.from(notesMap.values()).filter((n) => {
+    // Assessment contracts are owned by #252; keep them out of generic AI
+    // context until their labels/limits/provenance are deliberately defined.
+    if (!isGenericObservation(n)) return false;
     const ts = chooseObservationTimestamp(n);
     return ts && ts >= cutoff;
   });
@@ -157,6 +164,7 @@ async function getStudentWithProgram(studentId) {
 export {
   normalizeTimestampValue,
   chooseObservationTimestamp,
+  isGenericObservation,
   formatObservationForPrompt,
   fetchStudentNotesForWindow,
   fetchStudentInterviews,

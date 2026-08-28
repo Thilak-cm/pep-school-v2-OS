@@ -27,6 +27,7 @@ import {
   chooseObservationTimestamp,
   formatObservationForPrompt,
   getStudentWithProgram,
+  isGenericObservation,
 } from "../shared/studentHelpers.js";
 
 // ── Report config cache + helpers ───────────────────────────────────────────
@@ -113,7 +114,7 @@ function fetchStudentNotesForDateRange(studentId, startDate, endDate) {
     await collect("createdAt");
     const notes = Array.from(notesMap.values()).filter((n) => {
       const ts = chooseObservationTimestamp(n);
-      return ts && ts >= startDate && ts <= endDate;
+      return isGenericObservation(n) && ts && ts >= startDate && ts <= endDate;
     });
 
     notes.sort((a, b) => {

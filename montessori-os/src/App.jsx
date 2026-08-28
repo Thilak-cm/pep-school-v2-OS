@@ -59,6 +59,8 @@ function App() {
     initialStudentId, setInitialStudentId,
     feedbackReturnScreen, setFeedbackReturnScreen,
     studentDashboardFlagOpen, setStudentDashboardFlagOpen,
+    assessmentReturnScreen, setAssessmentReturnScreen,
+    assessmentDeepLink, setAssessmentDeepLink,
   } = useNavigationState();
 
   const handleNavigateToReport = useCallback(({ studentId: sid, docId }) => {
@@ -229,13 +231,36 @@ function App() {
       } catch { /* ignored */ }
     };
     window.addEventListener('navigateToStudentNotes', handleNavigateToStudentNotes);
+    const handleNavigateToStudentAssessments = (e) => {
+      if (!isSuperAdmin(role)) return;
+      const detail = e?.detail || {};
+      const studentId = detail.studentId || detail?.student?.id;
+      if (!studentId) return;
+      const studentLike = detail.student || {id: studentId};
+      setSelectedStudent(studentLike);
+      setAssessmentDeepLink({
+        assessmentKind: detail.assessmentKind || (detail.sourceId ? 'structured' : null),
+        sourceId: detail.sourceId || null,
+        observationId: detail.observationId || null,
+      });
+      setAssessmentReturnScreen(screen === 'studentAssessments' ? 'studentDashboard' : screen);
+      setScreen('studentAssessments');
+      const hasName = Boolean(studentLike?.name || studentLike?.displayName || studentLike?.firstName || studentLike?.lastName);
+      if (!hasName) {
+        getDoc(doc(db, 'students', studentId)).then((snapshot) => {
+          if (snapshot.exists()) setSelectedStudent({id: studentId, ...snapshot.data()});
+        }).catch(() => {});
+      }
+    };
+    window.addEventListener('navigateToStudentAssessments', handleNavigateToStudentAssessments);
     const handleNoteDrawerToggle = (e) => setNoteDrawerOpen(!!e?.detail?.open);
     window.addEventListener('noteDrawerToggle', handleNoteDrawerToggle);
     return () => {
       window.removeEventListener('navigateToStudentNotes', handleNavigateToStudentNotes);
+      window.removeEventListener('navigateToStudentAssessments', handleNavigateToStudentAssessments);
       window.removeEventListener('noteDrawerToggle', handleNoteDrawerToggle);
     };
-  }, []);
+  }, [screen, setAssessmentDeepLink, role]);
 
   // Navigate to broadcast detail from system alert — needs role in closure (PEP-323c)
   useEffect(() => {
@@ -392,7 +417,7 @@ function App() {
 
   const titleState = { isTeacher, isSuperAdminUser, selectedClassroom, selectedStudent, timelineTitleAsDashboard, usersAccessView, getStudentDisplayName: () => getStudentDisplayName(selectedStudent) };
   const pageTitle = getPageTitle(screen, titleState);
-  const backNavigation = getBackNavigation(screen, { classroomTimelineReturnScreen, studentDashboardReturnScreen, lessonNotesReturnScreen, feedbackReturnScreen, usersAccessView }, { setScreen, setSelectedStudent, setUsersAccessView });
+  const backNavigation = getBackNavigation(screen, { classroomTimelineReturnScreen, studentDashboardReturnScreen, lessonNotesReturnScreen, feedbackReturnScreen, assessmentReturnScreen, usersAccessView }, { setScreen, setSelectedStudent, setUsersAccessView });
   const showBackButton = !NO_BACK_BUTTON_SCREENS.has(screen);
   const isChildChat = screen === 'childChat';
   const showFooter = !loading && user && screen !== 'accessDenied' && !inputFocused;
@@ -402,12 +427,15 @@ function App() {
   const ctx = {
     user, role, isTeacher, isSuperAdminUser, manageableClassrooms, classrooms, classroomsLoaded,
     selectedClassroom, selectedStudent,
+    assessmentReturnScreen,
+    assessmentDeepLink,
     studentDashboardNoteType, timelineFilter, prefilledFeedback,
     usersAccessView, pendingViewReportId, reportTypeFilter, initialStudentId,
     lessonNoteInitialSelection, lessonNoteEditObservation, lessonNotesReturnScreen,
     setScreen, setSelectedClassroom, setSelectedStudent, setClassroomTimelineReturnScreen, setStudentDashboardReturnScreen,
     setStudentDashboardNoteType, setTimelineFilter, setUsersAccessView, setPendingViewReportId, setReportTypeFilter, setInitialStudentId,
     setLessonNoteEditObservation, setFeedbackReturnScreen, studentDashboardFlagOpen, setStudentDashboardFlagOpen,
+    setAssessmentReturnScreen, setAssessmentDeepLink,
     openFeedbackWithMessage, handleLessonNotesSaved, handleNoteSaved, handleNavigation, handleSignOut,
     getStudentDisplayName, broadcastDeepLink, setBroadcastDeepLink,
     pageTitle, backNavigation, showBackButton,
@@ -470,6 +498,8 @@ function App() {
                     onVoice={() => { setAddNoteInitialStep('record'); setAddNoteOpen(true); }}
                     onLesson={() => openLessonNotesScreen()}
                     onMedia={() => { setAddNoteInitialStep('media'); setAddNoteOpen(true); }}
+                    onAssessments={() => { setAssessmentReturnScreen(screen); setScreen('assessmentUpload'); }}
+                    assessmentsDisabled={!isSuperAdminUser}
                     sx={{
                       // Align the global control with the third quick-jump column
                       // and the vertical center of the dashboard's second action row.

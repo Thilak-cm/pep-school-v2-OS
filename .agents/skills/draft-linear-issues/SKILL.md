@@ -17,7 +17,7 @@ Batch-triage meeting transcripts into lightweight Backlog issues, optionally gro
 - **Archive the source meeting before issue walkthrough** — every run creates a durable source record in `meeting-notes/` with frontmatter metadata and the full lightly-redacted transcript before the one-at-a-time Create/Skip/Edit walk. This prevents losing meeting context if the issue triage session is interrupted.
 - **Very high recall** — extract every possible actionable item, even tiny ones mentioned in passing, side comments, or verbal agreements buried in tangents. Missing an item is worse than creating one that gets skipped. When in doubt, extract it — the user can always Skip during the walk-through. Scan for: UI tweaks, number corrections, format changes, label renames, layout adjustments, data fixes, new pages, new graphs, new fields, pipeline changes, scheduled jobs, prompt updates, folder/architecture decisions, investigation tasks, and verification/testing tasks.
 - **Smart aggregation** — after extracting with high recall, intelligently group small items that don't deserve their own issue. Multiple tiny UI tweaks (label changes, spacing, layout adjustments) should be bundled into a single issue even if seemingly unrelated — the point is they can all be done at once. Don't create ten small issues for ten small things. Present aggregated items as a single issue with a checklist body. Larger items that are clearly sub-tasks of a parent feature should be merged into that parent issue rather than standing alone.
-- **Takeaways are commitments, not the issue inventory** — separately capture the small set of tasks the user explicitly committed to at the close of the meeting. Do not turn every discussed idea or drafted issue into a takeaway. These commitments are the durable input for future Meeting Prep sessions and must remain visible even if their GitHub priorities later drift downward.
+- **Takeaways are commitments, not the issue inventory** — separately capture the small set of tasks explicitly accepted by the user and by named meeting counterparts. Do not turn every discussed idea, request, or drafted issue into a takeaway. These commitments are the durable input for future Meeting Prep sessions and must remain visible even if their GitHub priorities later drift downward.
 - **Duplicate detection before presenting** — before presenting extracted items to the user, check GitHub issues (`gh issue list --repo Thilak-cm/pep-school-v2-OS --search "<key terms>" --json number,title,state`) for existing issues that overlap. If a match is found, suggest augmenting the existing issue (adding context/checklist items) instead of creating a new one. Present this as: `"Found existing #123: {title} — suggest augmenting instead of creating new."`
 - Never create without showing the item first
 - Always one-at-a-time (no batch-create)
@@ -54,7 +54,8 @@ Prepare required archive metadata:
 - `topics` as freeform kebab-case tags inferred from the meeting
 - `status: drafting`
 - `issue_refs: []`
-- `takeaway_count` as the number of explicit closing commitments
+- `takeaway_count` as the total number of explicit commitments
+- `{owner_slug}_takeaway_count` for each owner represented in the commitment ledger
 - `source`
 
 The first 10-15 lines of each archive file are the retrieval surface for future agents. Keep this frontmatter compact and complete enough for relevance skimming before reading the full transcript.
@@ -84,21 +85,28 @@ Deduplicate similar items. Mark ambiguous items with `[?]`.
 
 ### Extract Carry-Forward Takeaways
 
-Separately identify the explicit closing commitments: the tasks described as the concrete takeaways, clear tasks, next actions, or work the user personally agreed to complete. Prefer the participants' end-of-meeting recap over a broad earlier brainstorm.
+Separately identify explicit commitments by owner: tasks described as concrete takeaways, clear next actions, promised handoffs, or work a participant personally agreed to complete. Prefer the end-of-meeting recap for the user's commitments, but scan the entire transcript for explicit counterpart language such as “I will,” “I’ll send,” “leave that to me,” or “I’ll return it.” A counterpart's request, preference, experiment, or general statement of intent is not automatically a commitment.
+
+Create distinct owner sections in `Post-Meeting Reflection`, for example `### Thilak's Explicit Takeaways` and `### Rahul's Explicit Takeaways`. Never merge one person's delivery obligation into another person's score. Record dependencies in both linked commitments when one participant's handoff unlocks another participant's work.
+
+Write the reflection as a self-sufficient distilled record. Future Meeting Prep should be able to identify the owner, promised outcome, responsibility boundary, evidence needed, dependency, and exact follow-up without reinterpreting the raw transcript. Preserve only information that serves those purposes; detail is valuable here when it removes future ambiguity.
 
 For each takeaway, capture:
 
 - a stable, outcome-focused title;
 - owner;
 - the commitment in one sentence;
+- why the promised outcome matters;
+- the expected deliverable or handoff, including which participant receives it;
 - GitHub issues, PRs, run names, documents, or other tracking references;
 - observable completion evidence;
-- baseline completion at meeting close using only `0%`, `20%`, `50%`, `80%`, `90%`, or `100%`;
+- an evidence-based baseline completion estimate at meeting close;
+- an exact next-meeting check or follow-up question;
 - `Carry forward: Yes` unless the user explicitly cancels or supersedes it.
 
-Use the Meeting Prep scale: `0%` not started; `20%` work or specification started; `50%` specification/plan complete; `80%` implemented but not independently reviewed/merged; `90%` implemented, reviewed, and merged but not deployed; `100%` deployed and production-verified. For non-code deliverables, use the equivalent final gate of reviewed, delivered, and accepted. A title-only or triaged issue is not evidence of implementation and must not inflate the score.
+Estimate the baseline dynamically from the work actually completed and remaining at meeting close. Any whole value from `0%` to `99%` is allowed; do not force commitments into fixed maturity buckets or round-number stages. `100%` is reserved for a takeaway whose complete user-defined completion evidence is already satisfied and verified. A title-only or triaged issue is not implementation evidence, while a substantive issue/spec may contribute an amount proportional to the real scope it resolves.
 
-If the transcript does not contain explicit commitments, write `None captured.` rather than promoting ordinary issue candidates into takeaways.
+If an owner has no explicit commitments, omit that owner's section. If the transcript contains no explicit commitments at all, write `None captured.` rather than promoting ordinary issue candidates into takeaways.
 
 ### Phase 4 — Seed Meeting Archive
 
@@ -130,6 +138,7 @@ topics: ["{topic-tag}"]
 status: "drafting"
 issue_refs: []
 takeaway_count: {count}
+{owner_slug}_takeaway_count: {owner_count}
 source: "{source}"
 ---
 
@@ -140,14 +149,19 @@ source: "{source}"
 {notable decisions inferred from the transcript, or "None captured yet."}
 
 ## Post-Meeting Reflection
-{one `### Takeaway N — {title}` block per explicit commitment, using the required fields below, or "None captured."}
+{one owner section per participant with explicit commitments, using the required fields below, or "None captured."}
 
-### Takeaway 1 — {outcome-focused title}
+### {Owner}'s Explicit Takeaways
+
+#### Takeaway {owner_initial}1 — {outcome-focused title}
 - **Owner:** {owner}
 - **Commitment:** {one-sentence outcome}
+- **Why it matters:** {decision or operational value}
+- **Expected deliverable / handoff:** {artifact, outcome, recipient, and boundary of responsibility}
 - **Tracking refs:** {issue/PR/run/document refs or "None yet"}
 - **Completion evidence:** {observable evidence required for 100%}
-- **Baseline at meeting close:** {0/20/50/80/90/100}% — {brief evidence}
+- **Baseline at meeting close:** {dynamic completion estimate}% — {brief evidence and remaining gap}
+- **Next-meeting follow-up:** {specific question or verification request}
 - **Carry forward:** Yes
 
 ## Drafted Issues
@@ -169,7 +183,7 @@ None yet.
 
 Treat the raw transcript as the original source record. Later updates should be additive under `Post-Meeting Additions`, `Clarifications`, or metadata edits rather than rewriting the transcript.
 
-The `Post-Meeting Reflection` is also additive. Preserve the original commitment and baseline; add tracking references or a clarification after the issue walkthrough rather than rewriting history.
+The `Post-Meeting Reflection` is also additive. Preserve the original commitment and baseline; add tracking references or a clarification after the issue walkthrough rather than rewriting history. Counterpart-owned commitments remain visible until their promised handoff is received and verified, explicitly cancelled, or superseded.
 
 ### Phase 5 — Assign to Projects (Selective)
 
@@ -191,12 +205,15 @@ Most meetings will result in 0 new projects — all items go into the main "Pep 
 
 ### Phase 6 — Summary Preview
 
-Present the extracted takeaways first, then issue candidates grouped by project:
+Present the extracted takeaways first, grouped by owner, then issue candidates grouped by project:
 
 ```
 Takeaways to carry into future Meeting Prep:
- 1  Deliver AI cost-per-child report          Owner: Thilak  Baseline: 0%
- 2  Ship assessment notes                     Owner: Thilak  Baseline: 20%
+ Thilak
+ T1  Deliver AI cost-per-child report          Baseline: 7%
+ T2  Ship assessment notes                     Baseline: 23%
+ Rahul
+ R1  Deliver curriculum reference pack         Baseline: 0%
 ```
 
 Then present issue candidates:

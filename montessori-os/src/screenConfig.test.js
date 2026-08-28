@@ -43,6 +43,13 @@ describe("getPageTitle", () => {
     assert.equal(title, "Aarav's Dashboard");
   });
 
+  it("returns the dedicated student assessments title", () => {
+    assert.equal(
+      getPageTitle("studentAssessments", {getStudentDisplayName: () => "Aarav"}),
+      "Aarav's Assessments",
+    );
+  });
+
   it("returns timeline title with dashboard override", () => {
     const title = getPageTitle("timeline", { timelineTitleAsDashboard: true, getStudentDisplayName: () => "Aarav" });
     assert.equal(title, "Aarav's Dashboard");
@@ -108,6 +115,17 @@ describe("getBackNavigation", () => {
     const fn = getBackNavigation("studentDashboard", {}, setters);
     fn();
     assert.deepStrictEqual(calls, ["classroomTimeline"]);
+  });
+
+  it("student assessments returns to its recorded source screen", () => {
+    const calls = [];
+    const fn = getBackNavigation(
+      "studentAssessments",
+      {assessmentReturnScreen: "timeline"},
+      {setScreen: (value) => calls.push(value)},
+    );
+    fn();
+    assert.deepStrictEqual(calls, ["timeline"]);
   });
 
   it("config screens navigate to their parent", () => {

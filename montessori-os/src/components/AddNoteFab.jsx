@@ -3,8 +3,8 @@ import { Fab, Box, Typography } from '@mui/material';
 import { Plus, Mic, BookOpen, Image, ListChecks } from '../icons';
 import NewFeaturePill from './NewFeaturePill';
 
-const MENU_ITEMS = [
-  { key: 'assessments', label: 'Assessments', Icon: ListChecks, disabled: true },
+const BASE_MENU_ITEMS = [
+  { key: 'assessments', label: 'Assessments', Icon: ListChecks },
   { key: 'media', label: 'Media', Icon: Image },
   { key: 'lesson', label: 'Lesson', Icon: BookOpen },
   { key: 'voice', label: 'Voice', Icon: Mic },
@@ -14,8 +14,11 @@ const MENU_ITEMS = [
  * Floating action button that expands into a card menu
  * with four note-type rows (Voice, Lesson, Media, Assessments — bottom to top).
  */
-const AddNoteFab = ({ onVoice, onLesson, onMedia, sx = {} }) => {
+const AddNoteFab = ({ onVoice, onLesson, onMedia, onAssessments, assessmentsDisabled = false, sx = {} }) => {
   const [open, setOpen] = useState(false);
+  const menuItems = assessmentsDisabled
+    ? BASE_MENU_ITEMS.map((item) => item.key === 'assessments' ? { ...item, disabled: true } : item)
+    : BASE_MENU_ITEMS;
 
   const handleToggle = () => setOpen((o) => !o);
   const handleClose = () => setOpen(false);
@@ -25,6 +28,7 @@ const AddNoteFab = ({ onVoice, onLesson, onMedia, sx = {} }) => {
     if (key === 'voice') onVoice?.();
     else if (key === 'lesson') onLesson?.();
     else if (key === 'media') onMedia?.();
+    else if (key === 'assessments') onAssessments?.();
   };
 
   return (
@@ -79,7 +83,7 @@ const AddNoteFab = ({ onVoice, onLesson, onMedia, sx = {} }) => {
             minWidth: 180,
           }}
         >
-          {MENU_ITEMS.map((item, index) => (
+          {menuItems.map((item, index) => (
             <Box
               key={item.key}
               onClick={item.disabled ? undefined : () => handleSelect(item.key)}
@@ -90,7 +94,7 @@ const AddNoteFab = ({ onVoice, onLesson, onMedia, sx = {} }) => {
                 px: 2,
                 py: 1.5,
                 cursor: item.disabled ? 'not-allowed' : 'pointer',
-                borderBottom: index < MENU_ITEMS.length - 1 ? '1px solid rgba(0,0,0,0.06)' : 'none',
+                borderBottom: index < menuItems.length - 1 ? '1px solid rgba(0,0,0,0.06)' : 'none',
                 opacity: item.disabled ? 0.5 : 1,
                 '&:hover': !item.disabled && {
                   backgroundColor: 'rgba(0,0,0,0.04)',

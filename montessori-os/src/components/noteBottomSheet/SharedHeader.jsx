@@ -1,5 +1,5 @@
 import { Box, Typography, IconButton, Chip } from '@mui/material';
-import { X as Close, Eye, Mic, BookOpen, Image } from '../../icons';
+import { X as Close, Eye, Mic, BookOpen, Image, ListChecks } from '../../icons';
 import { getTypeChipConfig } from '../classroomTimelineUtils.js';
 import { Avatar } from '../ui';
 import { TONE_STYLES } from '../ui/toneStyles';
@@ -10,9 +10,10 @@ const TYPE_LABELS = {
   voice: 'VOICE NOTE',
   lesson: 'LESSON NOTE',
   media: 'MEDIA NOTE',
+  assessment: 'ASSESSMENT',
 };
 
-const TYPE_ICONS = { Eye, Mic, BookOpen, Image };
+const TYPE_ICONS = { Eye, Mic, BookOpen, Image, ListChecks };
 
 export default function SharedHeader({ observation, student, teacherName, isFormerTeacher, onClose, isEditing = false }) {
   if (!observation) return null;

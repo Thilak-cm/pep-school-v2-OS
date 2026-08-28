@@ -1,8 +1,8 @@
 import { Box } from '@mui/material';
-import { Eye, Mic, BookOpen, Image } from '../../icons';
+import { Eye, Mic, BookOpen, Image, ListChecks, FileText } from '../../icons';
 import { TONE_STYLES } from './toneStyles';
 
-const TYPE_ICONS = { Eye, Mic, BookOpen, Image };
+const TYPE_ICONS = { Eye, Mic, BookOpen, Image, ListChecks, FileText };
 
 export default function TypeIcon({ config }) {
   const IconComp = TYPE_ICONS[config.iconName] || Eye;

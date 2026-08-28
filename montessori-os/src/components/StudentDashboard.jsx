@@ -79,7 +79,7 @@ const SNAPSHOT_TABS_NO_PLAN = [
   { label: 'Writing', value: 'writing' },
 ];
 
-function StudentDashboard({ student, onOpenTimeline, onOpenFeedback, onOpenChat, onOpenReports, onOpenQuestions, onNavigateToManageStudent, initialNoteType = 'textVoice', userRole, initialFlagOpen = false, onClearFlagOpen }) {
+function StudentDashboard({ student, onOpenTimeline, onOpenFeedback, onOpenChat, onOpenReports, onOpenAssessments, onOpenQuestions, onNavigateToManageStudent, initialNoteType = 'textVoice', userRole, initialFlagOpen = false, onClearFlagOpen }) {
   const notify = useNotify();
   const questionsCoachmark = useCoachmark('open_questions_v1');
   const questionsButtonRef = useRef(null);
@@ -1689,21 +1689,12 @@ function StudentDashboard({ student, onOpenTimeline, onOpenFeedback, onOpenChat,
             label="Assessments"
             iconColor="var(--color-green-bright)"
             onClick={() => {
+              if (!isSuperAdmin(userRole)) {
+                notify.info('Assessments is coming soon!');
+                return;
+              }
               trackEvent('student_dashboard_card_click', { card: 'assessments', studentId }).catch(() => {});
-              notify.info('Assessments are coming soon.');
-            }}
-          />
-          <NewFeaturePill
-            label="Coming Soon"
-            showIcon={false}
-            sx={{
-              position: 'absolute',
-              top: 4,
-              right: 4,
-              px: 0.75,
-              py: 0.25,
-              fontSize: '0.6rem',
-              pointerEvents: 'none',
+              onOpenAssessments?.();
             }}
           />
         </Box>

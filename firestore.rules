@@ -98,6 +98,24 @@ service cloud.firestore {
       allow delete: if isSuperAdmin() || (isClassroomAdmin() && resource.data.role == 'teacher');
     }
 
+    // Structured assessment manifests are fan-out owners. They are immutable
+    // after publication. Backend callables provide scoped metadata/downloads;
+    // clients never read or mutate source manifests directly.
+    match /structuredAssessmentSources/{sourceId} {
+      allow read, create, update, delete: if false;
+    }
+
+    // Operational staging docs exist only while a resumable Medical PDF is
+    // uploading. The backend creates/finalizes/cleans them via Admin SDK.
+    match /pendingMedicalAssessmentUploads/{uploadId} {
+      allow read, create, update, delete: if false;
+    }
+
+    // Structured worksheet staging uses the same backend-owned lifecycle.
+    match /pendingStructuredAssessmentUploads/{uploadId} {
+      allow read, create, update, delete: if false;
+    }
+
     // Superadmin-only digest — explicit match prevents classroomadmin access via wildcard
     match /classrooms/_digest_all/digests/{digestId} {
       allow read: if isSuperAdmin();
@@ -407,14 +425,18 @@ service cloud.firestore {
               isAllowedNonMediaObservationType(request.resource.data))
           );
         
-        // Updates: admins can update all notes; authors can update their own notes within 48h.
-        allow update: if adminCanAccessObservation() || authorCanEditObservation();
+        // Published assessment records are immutable. Cloud Functions use the
+        // Admin SDK for the pending_upload -> ready Medical transition.
+        allow update: if resource.data.type != 'assessment' &&
+          (adminCanAccessObservation() || authorCanEditObservation());
 
         // Allow delete by admins OR by the author within 48h.
-        allow delete: if adminCanAccessObservation() || (
-          isTeacher() &&
-          isAuthor() &&
-          withinAuthorActionWindow()
+        allow delete: if resource.data.type != 'assessment' && (
+          adminCanAccessObservation() || (
+            isTeacher() &&
+            isAuthor() &&
+            withinAuthorActionWindow()
+          )
         );
       }
 
@@ -448,9 +470,9 @@ service cloud.firestore {
       }
 
       allow read: if isSuperAdmin() ||
-        adminCanQueryObservation() ||
-        (isTeacher() && ('classroomId' in resource.data) && isTeacherInClassroom(resource.data.classroomId)) ||
-        (isSignedIn() && resource.data.createdBy == request.auth.uid);
+          adminCanQueryObservation() ||
+          (isTeacher() && ('classroomId' in resource.data) && isTeacherInClassroom(resource.data.classroomId)) ||
+          (isSignedIn() && resource.data.createdBy == request.auth.uid);
     }
 
     // Feedback collection
