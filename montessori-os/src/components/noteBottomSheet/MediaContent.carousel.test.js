@@ -10,3 +10,8 @@ test('media carousel supports horizontal touch navigation', () => {
   assert.match(source, /SWIPE_THRESHOLD/);
   assert.match(source, /onCarouselNavigate\?\.\(deltaX < 0 \? 1 : -1\)/);
 });
+
+test('media carousel shows the current image position for multi-item batches', () => {
+  assert.match(source, /\{carouselIndex \+ 1\}\/\{carouselList\.length\}/);
+  assert.match(source, /Image \$\{carouselIndex \+ 1\} of \$\{carouselList\.length\}/);
+});

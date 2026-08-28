@@ -28,6 +28,8 @@ import useNotify from '../notifications/useNotify.js';
 import FilterPanel from './FilterPanel';
 import NoteBottomSheet from './noteBottomSheet/NoteBottomSheet';
 import ClassroomNoteCard from './ClassroomNoteCard';
+import GroupedMediaCard from './GroupedMediaCard';
+import { buildMediaItemsForObservation as buildSharedMediaItems } from './groupedMediaUtils.js';
 import { DayHeader } from './ui';
 import { groupByCalendarDay } from './classroomTimelineUtils.js';
 import useObservationFilters from '../hooks/useObservationFilters';
@@ -176,24 +178,7 @@ function StudentTimeline({ student, currentUser, userRole, noteTypeFilter = null
   };
 
   const buildMediaItemsForObservation = (obs) => {
-    if (!obs || obs.type !== 'media') return [];
-    const entries = Array.isArray(obs.media) && obs.media.length > 0 ? obs.media : [{}];
-    const itemObservedAt = obs.observedAt || obs.timestamp;
-    const itemObservedAtDate = toJsDate(itemObservedAt);
-    const observedAtMs = itemObservedAtDate ? itemObservedAtDate.getTime() : 0;
-    return entries.map((entry, index) => ({
-      id: `${obs.id}-${index}`,
-      mediaDocId: obs.id,
-      mediaIndex: index,
-      storagePath: entry?.storagePath || null,
-      mediaKind: normalizeMediaKind(obs.mediaKind, entry?.contentType),
-      status: obs.status || 'ready',
-      observedAt: itemObservedAt,
-      timestamp: obs.timestamp,
-      observedAtMs,
-      teacherComment: obs.teacherComment || '',
-      sourceObservation: obs,
-    }));
+    return buildSharedMediaItems(obs);
   };
 
 
@@ -867,8 +852,8 @@ function StudentTimeline({ student, currentUser, userRole, noteTypeFilter = null
                 const mediaItems = Array.isArray(obs.mediaItems) && obs.mediaItems.length > 0
                   ? obs.mediaItems
                   : buildMediaItemsForObservation(obs);
-                return (
-                  <ClassroomNoteCard
+                  return (
+                  <GroupedMediaCard
                     key={obs.id}
                     note={obs}
                     variant="student"
@@ -880,6 +865,7 @@ function StudentTimeline({ student, currentUser, userRole, noteTypeFilter = null
                         handleMediaClick(obs, mediaItems, 0);
                       }
                     }}
+                    onMediaOpen={(index) => handleMediaClick(obs, mediaItems, index)}
                     mediaUrls={mediaUrls}
                   />
                 );

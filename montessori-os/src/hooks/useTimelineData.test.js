@@ -125,6 +125,15 @@ describe('useTimelineData hook structure', () => {
   });
 });
 
+describe('media batch hydration', () => {
+  it('supports classroom hydration and does not permanently skip refresh rehydration', async () => {
+    const hookSource = await readFile(hookPath, 'utf8');
+    assert.match(hookSource, /fetchClassroomBatchObservations/);
+    assert.doesNotMatch(hookSource, /if \(scope !== 'student' \|\| !studentId\) return page/);
+    assert.match(hookSource, /fetchedBatchIdsRef\.current\.clear\(\)/);
+  });
+});
+
 // ──────────────────────────────────────────────
 // Structural: Firestore indexes for ai_summaries
 // ──────────────────────────────────────────────

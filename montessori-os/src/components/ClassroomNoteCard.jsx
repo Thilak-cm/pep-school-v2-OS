@@ -1,5 +1,5 @@
 import React from 'react';
-import { Box, Card, CardContent, Typography, Skeleton } from '@mui/material';
+import { Box, Card, CardContent, Typography } from '@mui/material';
 import { Clock as AccessTime, User as Person } from '../icons';
 import { formatTimestamp } from '../utils/observationUtils.jsx';
 import { getTypeChipConfig, getTeacherForNote } from './classroomTimelineUtils.js';
@@ -9,6 +9,8 @@ import {
   LESSON_RATING_LABELS,
   LESSON_RATING_COLORS,
 } from '../utils/lessonNoteConstraints';
+import MediaBatchPreview from './MediaBatchPreview';
+import { buildMediaItemsForObservation } from './groupedMediaUtils.js';
 
 function renderLessonSummary(note) {
   const dimensions = getLessonDimensions(note);
@@ -66,6 +68,7 @@ export default function ClassroomNoteCard({
   classroomTeachers = [],
   onStudentClick,
   onNoteClick,
+  onMediaOpen,
   mediaUrls = {},
   variant,
 }) {
@@ -74,7 +77,7 @@ export default function ClassroomNoteCard({
   const isStudentVariant = variant === 'student';
 
   const mediaPath = note.media?.[0]?.storagePath ?? note.mediaItems?.[0]?.storagePath;
-  const mediaUrl = mediaPath ? mediaUrls[mediaPath] : null;
+  const mediaItems = note.mediaItems || (mediaPath ? buildMediaItemsForObservation(note) : []);
   const isMedia = note.type === 'media';
   const isLesson = note.type === 'lesson';
 
@@ -133,7 +136,14 @@ export default function ClassroomNoteCard({
               )}
             </Box>
           )}
-          <TypeIcon config={chipConfig} />
+          <Box sx={{ display: 'flex', alignItems: 'center', gap: 0.75 }}>
+            {isMedia && mediaItems.length > 1 && (
+              <Typography variant="caption" sx={{ color: 'var(--color-text-soft)', fontSize: '0.72rem', fontWeight: 600 }}>
+                {mediaItems.length} images
+              </Typography>
+            )}
+            <TypeIcon config={chipConfig} />
+          </Box>
         </Box>
 
         {/* Row 2: Teacher icon + name — hidden for student variant */}
@@ -151,37 +161,28 @@ export default function ClassroomNoteCard({
           renderLessonSummary(note)
         ) : isMedia ? (
           /* Media: side-by-side thumbnail + text */
-          <Box sx={{ display: 'flex', gap: 1.5, mb: 0.5 }}>
-            <Box sx={{ flexShrink: 0, width: 100, height: 80, borderRadius: 'var(--radius-sm)', overflow: 'hidden' }}>
-              {mediaUrl ? (
-                <Box
-                  component="img"
-                  src={mediaUrl}
-                  alt="Media"
-                  sx={{ width: '100%', height: '100%', objectFit: 'cover', display: 'block' }}
-                />
-              ) : mediaPath ? (
-                <Skeleton variant="rounded" width={100} height={80} animation="wave" />
-              ) : null}
+          <Box sx={{ mb: 0.5 }}>
+            <Box sx={{ display: 'flex', gap: 1.5 }}>
+              <MediaBatchPreview mediaItems={mediaItems} mediaUrls={mediaUrls} onOpen={onMediaOpen} />
+              {note.text && (
+                <Typography
+                  variant="body2"
+                  sx={{
+                    lineHeight: 1.5,
+                    whiteSpace: 'pre-wrap',
+                    wordBreak: 'break-word',
+                    fontSize: '0.82rem',
+                    flex: 1,
+                    display: '-webkit-box',
+                    WebkitLineClamp: 4,
+                    WebkitBoxOrient: 'vertical',
+                    overflow: 'hidden',
+                  }}
+                >
+                  {note.text}
+                </Typography>
+              )}
             </Box>
-            {note.text && (
-              <Typography
-                variant="body2"
-                sx={{
-                  lineHeight: 1.5,
-                  whiteSpace: 'pre-wrap',
-                  wordBreak: 'break-word',
-                  fontSize: '0.82rem',
-                  flex: 1,
-                  display: '-webkit-box',
-                  WebkitLineClamp: 4,
-                  WebkitBoxOrient: 'vertical',
-                  overflow: 'hidden',
-                }}
-              >
-                {note.text}
-              </Typography>
-            )}
           </Box>
         ) : (
           /* Text / Voice: full-width body */

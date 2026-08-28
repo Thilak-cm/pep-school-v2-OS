@@ -357,54 +357,7 @@ Check whether the diff involves Firestore schema changes. Run this check automat
      ```
    - Report PR URL to user
 
-### Phase 8: GitHub Claude CI Review Loop (Orchestrator)
-
-After the PR is opened, the GitHub Claude CI reviewer (`claude-code-action` with `code-review` plugin) will automatically review it. This phase waits for that review and fixes any findings before proceeding.
-
-**7a. Wait for the CI review**
-- Poll for the review using `gh pr checks <pr_number>` — look for the `claude-review` check
-- Also check `gh pr reviews <pr_number> --json author,state,body` for review comments
-- If no review yet, inform the user and ask whether to:
-  - Wait and check again (re-poll)
-  - Skip the CI review and proceed to Phase 9 (GitHub issue sync)
-- Do NOT auto-poll in a loop — always ask the user before re-checking
-
-**7b. Parse the CI reviewer's findings**
-- If the review state is `APPROVED` → all green, proceed to Phase 9
-- If the review state is `CHANGES_REQUESTED` or `COMMENTED`:
-  - Fetch review comments via `gh api repos/Thilak-cm/pep-school-v2-OS/pulls/{pr_number}/comments`
-  - Also fetch general review body from the review itself
-  - Display the CI reviewer's findings to the user in a clear summary
-
-**7c. Fix the CI reviewer's findings**
-- Ask user for confirmation before fixing (Human Approval Gate)
-- Spawn the **`code-fixer` custom subagent** using the host's native subagent mechanism with:
-  - The CI reviewer's comments (formatted as findings)
-  - GitHub issue context
-- After fixes are applied, commit and push to the same branch:
-  - `git add` changed files
-  - `git commit -m "fix: address CI review feedback (#<issue-number>)"`
-  - `git push origin {branch}`
-- The new push will trigger the CI reviewer to re-review the PR
-
-**7d. Re-check loop**
-- After pushing fixes, return to step 7a (wait for new CI review)
-- Loop control:
-  ```
-  max_ci_review_iterations = 3
-
-  for i in 1..max_ci_review_iterations:
-      wait for CI review
-      if APPROVED:
-          break → proceed to Phase 9
-      if i == max_ci_review_iterations:
-          STOP — surface remaining CI review findings to user
-          ask: "3 rounds of CI review fixes haven't resolved all issues. Proceed anyway or review manually?"
-      else:
-          fix findings → push → continue loop
-  ```
-
-### Phase 9: GitHub Issue Sync (Orchestrator)
+### Phase 8: GitHub Issue Sync (Orchestrator)
 
 1. **Add a comment on the GitHub issue:**
    ```bash
@@ -424,7 +377,7 @@ After the PR is opened, the GitHub Claude CI reviewer (`claude-code-action` with
    - {pass/fail counts}
    - {lint results}
    
-   **Ready for CI → merge**"
+   **Ready for merge once required project checks pass**"
    ```
 
 2. **The issue will be closed automatically** when the PR merges (via the `Closes #<issue-number>` link in the PR body). No manual state change needed.
@@ -434,8 +387,6 @@ After the PR is opened, the GitHub Claude CI reviewer (`claude-code-action` with
 1. **Before fixing** — after showing the audit report, confirm user wants to proceed with fixes (or review manually)
 2. **After 3 failed fix loops** — surface remaining findings, ask user to intervene
 3. **All version bumps** — present recommendation with reasoning, wait for user to confirm bump type (patch/minor/major)
-4. **Before fixing CI reviewer's findings** — show the CI review summary, confirm user wants auto-fix (or handle manually)
-5. **After 3 failed CI review loops** — surface remaining findings, ask user whether to proceed or review manually
 
 ## Guardrails
 
@@ -460,7 +411,7 @@ After the PR is opened, the GitHub Claude CI reviewer (`claude-code-action` with
 7. Clean commit(s) created with issue references
 8. Feature branch pushed to origin
 9. PR opened against `dev` with audit + integration summary in body, and `Closes #<issue-number>` for auto-linking
-10. GitHub Claude CI review is APPROVED (or user chose to skip/proceed)
+10. Required project CI checks pass
 11. GitHub issue commented with review summary (auto-closed on PR merge)
 
 ## Next Step
