@@ -17,6 +17,7 @@ Firebase Functions v1 Pub/Sub schedules and use asynchronous `onRun` handlers.
 | IST schedule | Function | Module | Execution pattern | Purpose |
 |---|---|---|---|---|
 | Sunday at 00:00 | `generateBaseballCards` | `functions/ai/baseballCard.js` | Direct async work | Generates baseball-card summaries for active students and rebuilds the heatmap cache. |
+| Sunday at 04:00 | `reconcileStats` | `functions/stats/index.js` | Classroom-by-classroom paginated rebuild | Reconciles every stats cache from source observations and seeds the delta checkpoint. |
 | Sunday at 18:00 | `weeklyDigestClassroomAdmin` | `functions/digest/index.js` | Direct async work | Generates, stores, and emails classroom-admin weekly digests. |
 | Sunday at 18:45 | `weeklyDigestSuperadmin` | `functions/digest/index.js` | Direct async work | Generates and emails a consolidated superadmin digest from classroom digests. The 45-minute offset is not a guaranteed completion dependency on the first digest job. |
 | Monday at 00:00 | `generateWritingAnalysis` | `functions/ai/handwriting.js` | Direct async work | Runs writing analysis for all active students and archives prior scheduled results. |
@@ -35,6 +36,7 @@ Firebase Functions v1 Pub/Sub schedules and use asynchronous `onRun` handlers.
 |---|---|---|
 | `dataIntegrityChecks` | `0 6 * * *` | `functions/integrity/index.js` |
 | `generateBaseballCards` | `0 0 * * 0` | `functions/ai/baseballCard.js` |
+| `reconcileStats` | `0 4 * * 0` | `functions/stats/index.js` |
 | `weeklyDigestClassroomAdmin` | `0 18 * * 0` | `functions/digest/index.js` |
 | `weeklyDigestSuperadmin` | `45 18 * * 0` | `functions/digest/index.js` |
 | `generateWritingAnalysis` | `0 0 * * 1` | `functions/ai/handwriting.js` |
@@ -51,3 +53,16 @@ Firebase Functions v1 Pub/Sub schedules and use asynchronous `onRun` handlers.
   timezone.
 - Keep Pub/Sub workers listed separately from cron jobs unless they also have a
   schedule trigger.
+- **Deployment prerequisite:** Before releasing `updateStatsDelta`, invoke
+  `reconcileStats` manually once to seed its exact `createdAt + documentPath`
+  checkpoint and compact rolling state. Existing classroom cache docs lack the
+  `aggregationState.version: 2` field that `applyDeltaToCache` requires; without
+  a prior reconcile, every `updateStatsDelta` call will fail until the next
+  scheduled Sunday run. Deploy Firestore indexes first and wait for READY status
+  before triggering reconcile.
+- Stats publication uses one Firestore transaction and therefore fails safely
+  before writing when more than 450 classroom documents, a 900 KiB classroom
+  document, or 8 MiB of serialized cache payload would be published. The limits
+  reserve headroom below Firestore's 500-write, 1 MiB-document, and 10 MiB
+  transaction ceilings; the previous active cache remains untouched when a guard
+  is exceeded.

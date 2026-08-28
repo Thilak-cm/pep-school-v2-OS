@@ -1,5 +1,22 @@
 # Changelog
 
+# 12.5.0 — 2026-08-27
+
+### Added
+- Paginated delta stats refresh (`updateStatsDelta`) replaces the monolithic `recomputeStats` that was crashing with OOM errors at ~400MB heap (#256).
+- Weekly `reconcileStats` scheduled function rebuilds stats classroom-by-classroom every Sunday at 04:00 IST with atomic publication and pending-media guards (#256).
+- Lease-based coordination with generation fencing prevents concurrent stats refreshes from corrupting cache state (#256).
+- MCP `export_stats_refresh_logs` tool for bounded Cloud Logging export of delta and reconciliation events (#256).
+- Admin scripts for auditing media observation status and marking orphaned uploads as failed (#256).
+
+### Changed
+- Delta stats skip past orphaned pending-media uploads instead of permanently blocking the cursor; weekly reconciliation remains the source of truth for pending-media barriers (#256).
+- Stats page refresh callable renamed from `recomputeStats` to `updateStatsDelta`; response includes `actionCount` and `generation` (#256).
+
+### Fixed
+- Stats refresh no longer crashes with heap allocation failures on large observation sets (#256).
+- Delta publication now reads classroom caches inside the Firestore transaction, preventing a race where concurrent reconciliation could be silently overwritten (#256).
+
 # 12.4.2 — 2026-08-22
 
 ### Fixed

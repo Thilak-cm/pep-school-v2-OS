@@ -73,7 +73,7 @@ export { onStudentWrite } from "./students/onStudentWrite.js";
 export { generateMonthlyPlan, exportMonthlyPlanToDrive, batchGenerateMonthlyPlans, monthlyPlanWorker } from "./monthlyPlan/index.js";
 
 // Stats (PEP-285)
-export { recomputeStats } from "./stats/index.js";
+export { updateStatsDelta, reconcileStats } from "./stats/index.js";
 
 // Test Bench
 export { testBenchRun } from "./testbench/index.js";

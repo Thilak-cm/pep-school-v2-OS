@@ -644,6 +644,17 @@ export const TOOL_DEFINITIONS = [
     },
   },
   {
+    name: "export_stats_refresh_logs",
+    description: "Export bounded, privacy-safe Cloud Logging entries for the paginated stats delta and weekly reconciliation Cloud Functions, including execution status, OOM failures, and aggregate stats events.",
+    inputSchema: {
+      type: "object",
+      properties: {
+        startTime: { type: "string" }, endTime: { type: "string" }, lookbackMinutes: { type: "number" },
+        pageSize: { type: "number" }, pageToken: { type: "string" },
+      },
+    },
+  },
+  {
     name: "export_chat_latency_events",
     description: "Export privacy-safe Coach Pepper client, server, and CORS preflight latency events from the fixed Cloud Logging boundary.",
     inputSchema: {
@@ -1443,6 +1454,10 @@ export async function handleListDigestHistory(db, params) {
 
 export async function handleExportChatLatencyEvents(adapter, params) {
   return adapter.exportChatLatencyEvents(params);
+}
+
+export async function handleExportStatsRefreshLogs(adapter, params) {
+  return adapter.exportStatsRefreshLogs(params);
 }
 
 export async function handleGetChatLatencyCorrelation(adapter, params) {

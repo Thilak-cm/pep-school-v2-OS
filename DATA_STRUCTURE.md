@@ -570,7 +570,7 @@ interface MediaDoc {
   classroomId: string;           // denorm; equals student's classroomId
   type: 'media';                 // constant
   mediaKind: 'photo' | 'video' | 'pdf';
-  status: 'pending_upload' | 'uploaded' | 'error';
+  status: 'pending_upload' | 'ready' | 'failed';
 
   media: Array<{
     storagePath: string;         // e.g., "students/{studentId}/media/{mediaId}/original.webp"
@@ -996,6 +996,10 @@ MCP tools: `list_brain`, `get_brain_file`.
   - `branchId ASC, createdBy ASC, observedAt DESC`
   - `classroomId ASC, observedAt DESC`
   - `groupId ASC, observedAt DESC` (for grouping multi-student notes in UI)
+  - Stats composite: `classroomId ASC, createdAt ASC` (`COLLECTION_GROUP` scope)
+  - Stats composite: `type ASC, createdAt ASC` (`COLLECTION_GROUP` scope)
+  - Stats single-field: `groupId ASC` (`COLLECTION_GROUP` scope)
+  - Stats single-field: `createdAt ASC` (`COLLECTION_GROUP` scope)
 - `feedback`
   - `userId ASC, timestamp DESC`
   - `status ASC, timestamp DESC`
@@ -1084,13 +1088,24 @@ Lifecycle: `autoExpireBroadcast` sets `expiresAt: now()` when `dismissedBy` coun
 ---
 
 ## 📊 Stats Cache (`/statsCache/{docId}`)
-Purpose: Pre-computed per-classroom stats and heatmap cache written by Cloud Functions (`recomputeStats` PEP-285, `writeHeatmapCache` PEP-303). Doc ID conventions: `classroom_{id}` for stats, `heatmap_{id}` for heatmap cache, `_meta` / `heatmap_meta` for freshness sentinels.
+Purpose: Pre-computed per-classroom stats and heatmap cache written by Cloud Functions (`updateStatsDelta` and weekly `reconcileStats` PEP-285, `writeHeatmapCache` PEP-303). Doc ID conventions: `classroom_{id}` for stats, `heatmap_{id}` for heatmap cache, `_meta` / `heatmap_meta` for freshness sentinels.
 
 ### Meta doc (`/statsCache/_meta`)
 ```typescript
 interface StatsMetaDoc {
   cachedAt: Timestamp;        // when CF last ran
   classroomCount: number;     // number of classroom docs written
+  deltaCursor: {               // ordered ingestion checkpoint; intentionally uses createdAt, not observedAt
+    createdAt: Timestamp;
+    documentPath: string;
+  } | null;
+  deltaGeneration: number;     // fencing token incremented on every lease acquisition; starts at 1 after first reconcile
+  lastSuccessfulGeneration: number; // generation backing cachedAt
+  deltaRunId: string | null;
+  deltaRunStatus: "running" | "completed" | "failed";
+  deltaLeaseUntilMs: number | null;
+  deltaUpdatedAt: Timestamp;
+  lastFullReconciliationAt: Timestamp;
 }
 ```
 
@@ -1165,6 +1180,17 @@ interface StatsClassroomDoc {
     handwrittenLast14Days: number;
     handwrittenLast42Days: number;
   }>;
+
+  aggregationState: {           // internal compact state; identity remains reconciliation-owned
+    version: 2;
+    teacherRecent: Record<string, Record<string, {
+      observations: number; lessons: number;
+      media: number; handwritten: number;
+    }>>;                         // teacherId -> UTC epoch day -> counters; max 30 days
+    studentRecent: Record<string, Record<string, {
+      mentions: number; media: number; handwritten: number;
+    }>>;                         // studentId -> UTC epoch day -> counters; max 42 days
+  };
 }
 ```
 

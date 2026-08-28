@@ -1,406 +1,361 @@
-/**
- * Stats Cloud Function (PEP-285).
- *
- * recomputeStats — callable CF that pre-computes per-classroom stats docs
- * in the `statsCache` collection. The client reads these docs directly;
- * Firestore rules enforce role-scoped access.
- */
-
+/** Paginated stats delta and weekly source-of-truth reconciliation (PEP-285). */
+import {randomUUID} from "node:crypto";
 import * as functions from "firebase-functions/v1";
-import {db, Timestamp} from "../shared/firebase.js";
+import {db, Timestamp, FieldPath} from "../shared/firebase.js";
 import {
-  classifyNote,
-  getObservationDate,
-  buildActivityTiers,
-  deduplicateObservations,
-  CACHE_TTL_MS,
-} from "./helpers.js";
+  DEFAULT_DELTA_PAGE_SIZE,
+  applyDeltaToCache,
+  createDeltaAccumulator,
+  cursorFromObservation,
+  finalizeDelta,
+  reconcileCrossClassroomCounts,
+} from "./delta.js";
+import {
+  LEASE_DURATION_MS,
+  LEASE_RENEW_INTERVAL_MS,
+  buildDeltaMeta,
+  buildLeaseMeta,
+  canPublishRun,
+  leaseAcquisitionDecision,
+} from "./control.js";
+import {
+  aggregateObservationPage,
+  reconcileAllStats,
+  resolveCanonicalGroupCursors,
+  withFirestoreRetry,
+} from "./reconcile.js";
 
-/**
- * Recompute all per-classroom stats and write to statsCache/.
- *
- * Callable by any authenticated user (superadmin, classroomadmin, teacher).
- * Checks a `_meta` doc for freshness; skips recompute if cache is < TTL old
- * (unless forceRefresh is set).
- *
- * @param {Object} data
- * @param {boolean} [data.forceRefresh] - bypass cache freshness check
- */
-export const recomputeStats = functions
-  .region("asia-south1")
-  .runWith({timeoutSeconds: 120, memory: "512MB"})
-  .https.onCall(async (data, context) => {
-    // ── Auth gate ──────────────────────────────────────────────────
-    if (!context.auth) {
-      throw new functions.https.HttpsError(
-        "unauthenticated",
-        "Must be signed in",
-      );
+const REGION = "asia-south1";
+export const DELTA_TIMEOUT_SECONDS = 120;
+export const RECONCILE_TIMEOUT_SECONDS = 540;
+export const MAX_ATOMIC_CLASSROOM_WRITES = 450;
+export const MAX_ATOMIC_PAYLOAD_BYTES = 8 * 1024 * 1024;
+export const MAX_ATOMIC_DOCUMENT_BYTES = 900 * 1024;
+export const RESPONSE_MARGIN_MS = 10 * 1000;
+const WAIT_INTERVAL_MS = 1000;
+
+const metaRef = (database = db) => database.collection("statsCache").doc("_meta");
+const httpsError = (code, message) => new functions.https.HttpsError(code, message);
+
+export function deadlineForRuntime(timeoutSeconds, nowMs = Date.now()) {
+  return nowMs + timeoutSeconds * 1000 - RESPONSE_MARGIN_MS;
+}
+
+function cursorFromMeta(meta) {
+  const cursor = meta?.deltaCursor;
+  return cursor?.createdAt ? {createdAt: cursor.createdAt, documentPath: cursor.documentPath || ""} : null;
+}
+
+function cachedAtMs(meta) {
+  const value = meta?.cachedAt;
+  if (!value) return null;
+  if (typeof value.toMillis === "function") return value.toMillis();
+  if (value.seconds != null) return value.seconds * 1000 + (value.nanoseconds || 0) / 1e6;
+  return Number(value) || null;
+}
+
+function ownsRunningLease(meta, generation, runId) {
+  return meta?.deltaRunStatus === "running" && canPublishRun(meta, generation, runId);
+}
+
+async function authorize(context) {
+  if (!context.auth) throw httpsError("unauthenticated", "Must be signed in");
+  const snap = await withFirestoreRetry(() => db.collection("users").doc(context.auth.uid).get());
+  if (!snap.exists) throw httpsError("permission-denied", "User not found");
+  const role = snap.data()?.role;
+  if (!["superadmin", "classroomadmin", "teacher"].includes(role)) throw httpsError("permission-denied", "Unknown role");
+  return role;
+}
+
+export async function acquireLease(runId, {
+  allowBootstrap = false,
+  nowMs = Date.now(),
+  minimumCompletedGeneration = null,
+  database = db,
+} = {}) {
+  return withFirestoreRetry(() => database.runTransaction(async (transaction) => {
+    const ref = metaRef(database);
+    const snap = await transaction.get(ref);
+    const meta = snap.exists ? snap.data() : {classroomCount: 0, deltaGeneration: 0, deltaCursor: null};
+    if (minimumCompletedGeneration != null && meta.deltaRunStatus === "completed" && meta.deltaGeneration >= minimumCompletedGeneration) {
+      return {acquired: false, waited: true, meta};
     }
+    const decision = leaseAcquisitionDecision(meta, {exists: snap.exists, allowBootstrap, nowMs});
+    if (decision === "missing-checkpoint") throw httpsError("failed-precondition", "Stats are not initialized yet. Run reconciliation first.");
+    if (decision === "wait") return {acquired: false, meta};
+    const generation = (meta.deltaGeneration || 0) + 1;
+    transaction.set(ref, buildLeaseMeta({base: meta, generation, runId, leaseUntilMs: nowMs + LEASE_DURATION_MS}));
+    return {acquired: true, generation, meta};
+  }));
+}
 
-    const callerUid = context.auth.uid;
-    const callerSnap = await db.collection("users").doc(callerUid).get();
-    if (!callerSnap.exists) {
-      throw new functions.https.HttpsError(
-        "permission-denied",
-        "User not found",
-      );
-    }
+async function readMeta() {
+  const snap = await withFirestoreRetry(() => metaRef().get());
+  return snap.exists ? snap.data() : null;
+}
 
-    const {role} = callerSnap.data();
-    if (!["superadmin", "classroomadmin", "teacher"].includes(role)) {
-      throw new functions.https.HttpsError(
-        "permission-denied",
-        "Unknown role",
-      );
-    }
-
-    // ── Cache freshness check ──────────────────────────────────────
-    const forceRefresh = data?.forceRefresh === true;
-    if (!forceRefresh) {
-      const metaSnap = await db.collection("statsCache").doc("_meta").get();
-      if (metaSnap.exists) {
-        const cachedAt = metaSnap.data()?.cachedAt;
-        if (cachedAt) {
-          const cachedMs = typeof cachedAt.toDate === "function"
-            ? cachedAt.toDate().getTime()
-            : cachedAt.seconds ? cachedAt.seconds * 1000 : 0;
-          if (Date.now() - cachedMs < CACHE_TTL_MS) {
-            return {fresh: true, cachedAt: cachedMs};
-          }
-        }
-      }
-    }
-
-    const startMs = Date.now();
-
-    // ── Fetch all source data ──────────────────────────────────────
-    const [
-      classroomsSnap,
-      studentsSnap,
-      usersSnap,
-      observationsSnap,
-      // #221: media docs now live in observations - no separate media fetch needed
-    ] = await Promise.all([
-      db.collection("classrooms").where("status", "==", "active").get(),
-      db.collection("students").get(),
-      db.collection("users").get(),
-      db.collectionGroup("observations").get(),
-    ]);
-
-    // Parse classrooms
-    const classrooms = classroomsSnap.docs.map((doc) => ({
-      id: doc.id,
-      ...doc.data(),
-    }));
-
-    // Parse students — index by classroomId
-    const allStudents = studentsSnap.docs.map((doc) => ({
-      id: doc.id,
-      ...doc.data(),
-    }));
-    const studentsByClassroom = new Map();
-    for (const s of allStudents) {
-      if (!s.classroomId) continue;
-      if (!studentsByClassroom.has(s.classroomId)) {
-        studentsByClassroom.set(s.classroomId, []);
-      }
-      studentsByClassroom.get(s.classroomId).push(s);
-    }
-
-    // Parse users — teachers/admins by ID
-    const usersById = new Map();
-    for (const doc of usersSnap.docs) {
-      const d = doc.data();
-      if (d.role === "teacher" || d.role === "superadmin" ||
-          d.role === "classroomadmin") {
-        usersById.set(doc.id, {
-          id: doc.id,
-          displayName: d.displayName,
-          email: d.email,
-          status: d.status || "active",
-        });
-      }
-    }
-
-    // Parse all observations + media into a unified list, indexed by classroomId
-    // Each entry gets a classroomId (from doc or via student lookup)
-    const studentClassroomMap = new Map();
-    for (const s of allStudents) {
-      studentClassroomMap.set(s.id, s.classroomId);
-    }
-
-    // #221: media docs now live in observations, so this single fetch covers all types
-    const allObs = [];
-    for (const doc of observationsSnap.docs) {
-      const d = doc.data();
-      // Skip media docs that aren't ready (pending_upload, error, etc.)
-      if (d.type === "media" && d.status !== "ready") continue;
-      const classroomId = d.classroomId ||
-        studentClassroomMap.get(d.studentId);
-      if (!classroomId) continue;
-      allObs.push({...d, id: doc.id, _classroomId: classroomId});
-    }
-
-    // Index observations by classroomId and by createdBy (for cross-classroom)
-    const obsByClassroom = new Map();
-    const obsByCreator = new Map();
-    for (const obs of allObs) {
-      const cid = obs._classroomId;
-      if (!obsByClassroom.has(cid)) obsByClassroom.set(cid, []);
-      obsByClassroom.get(cid).push(obs);
-
-      const uid = obs.createdBy;
-      if (uid) {
-        if (!obsByCreator.has(uid)) obsByCreator.set(uid, []);
-        obsByCreator.get(uid).push(obs);
-      }
-    }
-
-    // ── Compute per-classroom stats ────────────────────────────────
-    const now = new Date();
-    const weekAgo = new Date(now.getTime() - 7 * 24 * 60 * 60 * 1000);
-    const fourteenDaysAgo = new Date(
-      now.getTime() - 14 * 24 * 60 * 60 * 1000,
-    );
-    const thirtyDaysAgo = new Date(now.getTime() - 30 * 24 * 60 * 60 * 1000);
-    const fortyTwoDaysAgo = new Date(
-      now.getTime() - 42 * 24 * 60 * 60 * 1000,
-    );
-
-    const batch = db.batch();
-    let classroomCount = 0;
-
-    for (const classroom of classrooms) {
-      const classroomObs = obsByClassroom.get(classroom.id) || [];
-      const classroomStudents = (
-        studentsByClassroom.get(classroom.id) || []
-      ).filter((s) => (s.status || "active") === "active");
-
-      // Dedup classroom obs for effort counts (group note = 1 act)
-      const dedupedObs = deduplicateObservations(classroomObs);
-
-      // Effort counts by type (deduped — teacher effort)
-      const effortCounts = {
-        voice: 0, text: 0, lesson: 0, media: 0, total: 0,
-      };
-      for (const obs of dedupedObs) {
-        const type = classifyNote(obs);
-        if (type in effortCounts) effortCounts[type]++;
-        effortCounts.total++;
-      }
-
-      // Effort activity tiers (deduped aggregate)
-      const effortActivity = buildActivityTiers(dedupedObs, now);
-
-      // Effort per-type activity tiers (deduped)
-      const dedupedByType = {voice: [], text: [], lesson: [], media: []};
-      for (const obs of dedupedObs) {
-        const t = classifyNote(obs);
-        if (t in dedupedByType) dedupedByType[t].push(obs);
-      }
-      const effortActivityByType = {
-        voice: buildActivityTiers(dedupedByType.voice, now),
-        text: buildActivityTiers(dedupedByType.text, now),
-        lesson: buildActivityTiers(dedupedByType.lesson, now),
-        media: buildActivityTiers(dedupedByType.media, now),
-      };
-
-      // Teacher stats for this classroom
-      const teacherIds = classroom.teacherIds || [];
-      const uniqueTeacherIds = [...new Set(teacherIds)];
-      const teachers = uniqueTeacherIds.map((tid) => {
-        const user = usersById.get(tid) || {
-          id: tid,
-          displayName: "Unknown",
-          email: "",
-          status: "active",
-        };
-
-        // Count notes by this teacher IN this classroom (deduped)
-        const teacherObsHere = classroomObs.filter(
-          (o) => o.createdBy === tid,
-        );
-        const dedupedTeacherObs = deduplicateObservations(teacherObsHere);
-        let observations = 0;
-        let lessons = 0;
-        let media = 0;
-        let handwritten = 0;
-        let observations7d = 0;
-        let lessons7d = 0;
-        let media7d = 0;
-        let handwritten7d = 0;
-        let observations30d = 0;
-        let lessons30d = 0;
-        let media30d = 0;
-        let handwritten30d = 0;
-        for (const o of dedupedTeacherObs) {
-          const d = getObservationDate(o);
-          const noteType = classifyNote(o);
-          if (noteType === "lesson") {
-            lessons++;
-            if (d >= weekAgo) lessons7d++;
-            if (d >= thirtyDaysAgo) lessons30d++;
-          } else if (noteType === "media") {
-            media++;
-            if (d >= weekAgo) media7d++;
-            if (d >= thirtyDaysAgo) media30d++;
-            if (o.handwritten === true) {
-              handwritten++;
-              if (d >= weekAgo) handwritten7d++;
-              if (d >= thirtyDaysAgo) handwritten30d++;
-            }
-          } else {
-            // voice + text = observations
-            observations++;
-            if (d >= weekAgo) observations7d++;
-            if (d >= thirtyDaysAgo) observations30d++;
-          }
-        }
-
-        // Cross-classroom: count this teacher's notes in OTHER classrooms
-        // (deduped, filtered by time window)
-        const allTeacherObs = obsByCreator.get(tid) || [];
-        const dedupedAllTeacherObs = deduplicateObservations(allTeacherObs);
-        let otherNotes7d = 0;
-        let otherNotes30d = 0;
-        const otherIds7d = new Set();
-        const otherIds30d = new Set();
-        for (const o of dedupedAllTeacherObs) {
-          if (o._classroomId !== classroom.id) {
-            const d = getObservationDate(o);
-            if (d >= weekAgo) {
-              otherNotes7d++;
-              otherIds7d.add(o._classroomId);
-            }
-            if (d >= thirtyDaysAgo) {
-              otherNotes30d++;
-              otherIds30d.add(o._classroomId);
-            }
-          }
-        }
-
-        return {
-          id: tid,
-          name: user.displayName || user.email || "Unknown",
-          email: user.email || "",
-          status: user.status,
-          observations,
-          lessons,
-          media,
-          handwritten,
-          observations7d,
-          lessons7d,
-          media7d,
-          handwritten7d,
-          observations30d,
-          lessons30d,
-          media30d,
-          handwritten30d,
-          otherNotes7d,
-          otherCount7d: otherIds7d.size,
-          otherNotes30d,
-          otherCount30d: otherIds30d.size,
-        };
-      }).filter((t) => {
-        // Exclude ghost teachers: orphaned UIDs or stale pending users with zero activity.
-        // These pollute downstream consumers (e.g., digest agent reports "Unknown" teachers).
-        const isGhost = !usersById.has(t.id) || t.id.startsWith("pending_");
-        const hasActivity = (t.observations + t.lessons + t.media) > 0;
-        return !isGhost || hasActivity;
-      });
-
-      // Student stats (per-student fan-out — NOT deduped)
-      const students = classroomStudents.map((s) => {
-        let totalMentions = 0;
-        let thisWeekMentions = 0;
-        let last14DaysMentions = 0;
-        let last42DaysMentions = 0;
-        let mediaMentions = 0;
-        let mediaThisWeek = 0;
-        let mediaLast14Days = 0;
-        let mediaLast42Days = 0;
-        let handwrittenMentions = 0;
-        let handwrittenThisWeek = 0;
-        let handwrittenLast14Days = 0;
-        let handwrittenLast42Days = 0;
-
-        for (const obs of classroomObs) {
-          if (obs.studentId !== s.id) continue;
-          totalMentions++;
-          const d = getObservationDate(obs);
-          if (d >= weekAgo) thisWeekMentions++;
-          if (d >= fourteenDaysAgo) last14DaysMentions++;
-          if (d >= fortyTwoDaysAgo) last42DaysMentions++;
-
-          if (classifyNote(obs) === "media") {
-            mediaMentions++;
-            if (d >= weekAgo) mediaThisWeek++;
-            if (d >= fourteenDaysAgo) mediaLast14Days++;
-            if (d >= fortyTwoDaysAgo) mediaLast42Days++;
-            if (obs.handwritten === true) {
-              handwrittenMentions++;
-              if (d >= weekAgo) handwrittenThisWeek++;
-              if (d >= fourteenDaysAgo) handwrittenLast14Days++;
-              if (d >= fortyTwoDaysAgo) handwrittenLast42Days++;
-            }
-          }
-        }
-
-        return {
-          id: s.id,
-          name: s.displayName || s.name || "Unknown Student",
-          status: s.status || "active",
-          totalMentions,
-          thisWeekMentions,
-          last14DaysMentions,
-          last42DaysMentions,
-          mediaMentions,
-          mediaThisWeek,
-          mediaLast14Days,
-          mediaLast42Days,
-          handwrittenMentions,
-          handwrittenThisWeek,
-          handwrittenLast14Days,
-          handwrittenLast42Days,
-        };
-      });
-
-      // Write classroom stats doc
-      const docRef = db.collection("statsCache")
-        .doc(`classroom_${classroom.id}`);
-      batch.set(docRef, {
-        cachedAt: Timestamp.now(),
-        classroomId: classroom.id,
-        classroomName: classroom.name || classroom.id,
-        branchId: classroom.branchId || null,
-        effortCounts,
-        effortActivity,
-        effortActivityByType,
-        studentCount: classroomStudents.length,
-        teachers,
-        students,
-      });
-
-      classroomCount++;
-    }
-
-    // Write _meta doc
-    batch.set(db.collection("statsCache").doc("_meta"), {
-      cachedAt: Timestamp.now(),
-      classroomCount,
+export async function waitForLease(runId, {
+  acquire = acquireLease,
+  read = readMeta,
+  sleep = (ms) => new Promise((resolve) => setTimeout(resolve, ms)),
+  now = Date.now,
+  deadlineMs = deadlineForRuntime(DELTA_TIMEOUT_SECONDS, now()),
+  allowBootstrap = false,
+  returnOnCompletion = true,
+} = {}) {
+  let observedGeneration = 0;
+  while (now() < deadlineMs) {
+    const result = await acquire(runId, {
+      allowBootstrap,
+      nowMs: now(),
+      minimumCompletedGeneration: returnOnCompletion && observedGeneration > 0 ? observedGeneration : null,
     });
+    if (result.acquired) return result;
+    if (result.waited) return result;
+    observedGeneration = Math.max(observedGeneration, result.meta?.deltaGeneration || 0);
+    const remainingMs = deadlineMs - now();
+    if (remainingMs <= 0) break;
+    await sleep(Math.min(WAIT_INTERVAL_MS, remainingMs));
+    if (!returnOnCompletion) continue;
+    const meta = await read();
+    if (meta?.deltaRunStatus === "completed" && meta.deltaGeneration >= observedGeneration) return {acquired: false, waited: true, meta};
+  }
+  throw httpsError("deadline-exceeded", "Stats refresh is still running. Please try again shortly.");
+}
 
-    await batch.commit();
+async function waitForSuccessfulGeneration(minimumGeneration, {
+  now = Date.now,
+  deadlineMs = deadlineForRuntime(DELTA_TIMEOUT_SECONDS, now()),
+  sleep = (ms) => new Promise((resolve) => setTimeout(resolve, ms)),
+} = {}) {
+  while (now() < deadlineMs) {
+    const meta = await readMeta();
+    if (meta?.deltaRunStatus === "completed" && meta.deltaGeneration >= minimumGeneration) return meta;
+    const remainingMs = deadlineMs - now();
+    if (remainingMs <= 0) break;
+    await sleep(Math.min(WAIT_INTERVAL_MS, remainingMs));
+  }
+  throw httpsError("deadline-exceeded", "A newer stats refresh is still running.");
+}
 
-    const computeTimeMs = Date.now() - startMs;
-    console.log(JSON.stringify({
-      event: "stats_recompute",
-      classroomCount,
-      computeTimeMs,
-      observationCount: allObs.length,
-      callerRole: role,
+export async function renewLease(runId, generation, {
+  database = db,
+  nowMs = Date.now(),
+} = {}) {
+  return withFirestoreRetry(() => database.runTransaction(async (transaction) => {
+    const ref = metaRef(database);
+    const snap = await transaction.get(ref);
+    if (!snap.exists || !ownsRunningLease(snap.data(), generation, runId)) return false;
+    transaction.update(ref, {deltaLeaseUntilMs: nowMs + LEASE_DURATION_MS});
+    return true;
+  }));
+}
+
+function startLeaseRenewal(runId, generation, eventName) {
+  const timer = setInterval(() => {
+    renewLease(runId, generation).catch((error) => console.error(JSON.stringify({event: eventName, runId, code: error.code || "unknown"})));
+  }, LEASE_RENEW_INTERVAL_MS);
+  return () => clearInterval(timer);
+}
+
+async function markRunFailed(runId, generation) {
+  try {
+    await withFirestoreRetry(() => db.runTransaction(async (transaction) => {
+      const ref = metaRef();
+      const snap = await transaction.get(ref);
+      if (!snap.exists || !ownsRunningLease(snap.data(), generation, runId)) return;
+      transaction.update(ref, {deltaRunStatus: "failed", deltaLeaseUntilMs: null, deltaUpdatedAt: Timestamp.now()});
     }));
+  } catch (error) {
+    console.error(JSON.stringify({event: "stats_lease_cleanup_failed", runId, code: error.code || "unknown"}));
+  }
+}
 
-    return {fresh: false, classroomCount, computeTimeMs};
+function normalizeDocument(doc) {
+  return {...doc.data(), id: doc.id, path: doc.ref.path};
+}
+
+/** The query starts at the persisted values; no historical page is read. */
+export async function fetchDelta(runCursor, {database = db, now = new Date(), onPageReleased = () => {}} = {}) {
+  const state = createDeltaAccumulator(now);
+  state.latestCursor = runCursor;
+  let pageCursor = runCursor;
+  while (true) {
+    // createdAt intentionally controls ingestion. observedAt is retained in the
+    // compact aggregate and controls graph/window attribution.
+    const query = database.collectionGroup("observations")
+      .orderBy("createdAt", "asc")
+      .orderBy(FieldPath.documentId(), "asc")
+      .startAfter(pageCursor.createdAt, pageCursor.documentPath)
+      .limit(DEFAULT_DELTA_PAGE_SIZE);
+    const snap = await withFirestoreRetry(() => query.get());
+    const page = snap.docs.map(normalizeDocument);
+    const canonical = await resolveCanonicalGroupCursors(page, database);
+    const result = aggregateObservationPage(state, page, canonical, null, {skipPendingMedia: true});
+    onPageReleased(page.length);
+    if (result.blocked || page.length < DEFAULT_DELTA_PAGE_SIZE) break;
+    pageCursor = cursorFromObservation(page[page.length - 1]);
+  }
+  return finalizeDelta(state);
+}
+
+async function readClassroomCaches(database = db, transaction = null) {
+  const query = database.collection("statsCache")
+    .orderBy(FieldPath.documentId())
+    .startAt("classroom_")
+    .endAt("classroom_\uf8ff");
+  const snap = transaction
+    ? await transaction.get(query)
+    : await withFirestoreRetry(() => query.get());
+  return snap.docs.map((doc) => ({ref: doc.ref, data: doc.data()}));
+}
+
+export function assertAtomicPublicationFits(classrooms) {
+  if (classrooms.length > MAX_ATOMIC_CLASSROOM_WRITES) {
+    throw new Error(`Atomic stats publication supports at most ${MAX_ATOMIC_CLASSROOM_WRITES} classrooms; found ${classrooms.length}`);
+  }
+  for (const item of classrooms) {
+    const payload = Object.hasOwn(item, "data") ? item.data : item;
+    const bytes = Buffer.byteLength(JSON.stringify(payload), "utf8");
+    if (bytes > MAX_ATOMIC_DOCUMENT_BYTES) throw new Error(`Atomic stats document exceeds ${MAX_ATOMIC_DOCUMENT_BYTES} bytes`);
+  }
+  const bytes = Buffer.byteLength(JSON.stringify(classrooms.map((item) => Object.hasOwn(item, "data") ? item.data : item)), "utf8");
+  if (bytes > MAX_ATOMIC_PAYLOAD_BYTES) throw new Error(`Atomic stats publication payload exceeds ${MAX_ATOMIC_PAYLOAD_BYTES} bytes`);
+}
+
+export async function publishDelta(delta, runId, generation, {
+  database = db,
+  publishedAt = Timestamp.now(),
+  retrySleep,
+} = {}) {
+  const now = delta.now;
+  return withFirestoreRetry(() => database.runTransaction(async (transaction) => {
+    const ref = metaRef(database);
+    const metaSnap = await transaction.get(ref);
+    if (!metaSnap.exists || !ownsRunningLease(metaSnap.data(), generation, runId)) return {published: false};
+    // Read classroom caches inside the transaction so a concurrent reconcile
+    // commit cannot be silently overwritten by deltas applied on stale data.
+    const current = await readClassroomCaches(database, transaction);
+    const merged = reconcileCrossClassroomCounts(current.map(({data}) => applyDeltaToCache(data, delta.classrooms.get(data.classroomId), now)), now);
+    const writes = current.flatMap((item, index) => {
+      const before = {...item.data};
+      const after = {...merged[index]};
+      delete before.cachedAt;
+      delete after.cachedAt;
+      return JSON.stringify(before) === JSON.stringify(after)
+        ? []
+        : [{ref: item.ref, data: {...merged[index], cachedAt: publishedAt}}];
+    });
+    assertAtomicPublicationFits(writes);
+    for (const classroom of writes) transaction.set(classroom.ref, classroom.data);
+    transaction.set(ref, {
+      ...buildDeltaMeta({base: metaSnap.data(), cursor: delta.latestCursor, generation, runId}),
+      cachedAt: publishedAt, deltaUpdatedAt: publishedAt, lastSuccessfulGeneration: generation,
+    });
+    return {published: true, cachedAt: publishedAt};
+  }), undefined, retrySleep);
+}
+
+export async function publishReconciliation(result, runId, generation, {
+  database = db,
+  publishedAt = Timestamp.now(),
+  retrySleep,
+} = {}) {
+  if (result.blockedByPendingMedia) {
+    console.error(JSON.stringify({
+      event: "stats_reconcile_blocked_by_pending_media",
+      runId,
+      pendingMediaCount: result.pendingMediaCount || 1,
+      earliestPendingCursor: result.pendingCursor || null,
+    }));
+    throw new Error("Stats reconciliation blocked by pending media; existing caches were preserved");
+  }
+  const writes = result.classrooms.map((data) => ({
+    ref: database.collection("statsCache").doc(`classroom_${data.classroomId}`),
+    data,
+  }));
+  const activeIds = new Set(writes.map((item) => item.ref.id));
+  const stale = (await readClassroomCaches(database)).filter((item) => !activeIds.has(item.ref.id));
+  assertAtomicPublicationFits([...writes, ...stale.map((item) => ({ref: item.ref, data: null}))]);
+  return withFirestoreRetry(() => database.runTransaction(async (transaction) => {
+    const ref = metaRef(database);
+    const metaSnap = await transaction.get(ref);
+    if (!metaSnap.exists || !ownsRunningLease(metaSnap.data(), generation, runId)) return {published: false};
+    for (const classroom of writes) transaction.set(classroom.ref, {...classroom.data, cachedAt: publishedAt});
+    for (const classroom of stale) transaction.delete(classroom.ref);
+    transaction.set(ref, {
+      ...metaSnap.data(),
+      cachedAt: publishedAt,
+      classroomCount: result.classroomCount,
+      deltaCursor: result.latestCursor,
+      deltaRunStatus: "completed",
+      deltaLeaseUntilMs: null,
+      deltaUpdatedAt: publishedAt,
+      lastFullReconciliationAt: publishedAt,
+      lastSuccessfulGeneration: generation,
+    });
+    return {published: true, cachedAt: publishedAt};
+  }), undefined, retrySleep);
+}
+
+export const updateStatsDelta = functions.region(REGION)
+  .runWith({timeoutSeconds: DELTA_TIMEOUT_SECONDS, memory: "512MB"})
+  .https.onCall(async (_data, context) => {
+    const deadlineMs = deadlineForRuntime(DELTA_TIMEOUT_SECONDS);
+    const role = await authorize(context);
+    const runId = randomUUID();
+    const lease = await waitForLease(runId, {deadlineMs});
+    if (lease.waited) return {fresh: true, cachedAt: cachedAtMs(lease.meta), generation: lease.meta.deltaGeneration};
+    const stopRenewal = startLeaseRenewal(runId, lease.generation, "stats_delta_lease_renewal_failed");
+    try {
+      const delta = await fetchDelta(cursorFromMeta(lease.meta));
+      const publication = await publishDelta(delta, runId, lease.generation);
+      if (!publication.published) {
+        const newest = await waitForSuccessfulGeneration(lease.generation + 1, {deadlineMs});
+        return {fresh: true, fenced: true, cachedAt: cachedAtMs(newest), generation: newest.deltaGeneration};
+      }
+      const actionCount = [...delta.classrooms.values()].reduce((sum, item) => sum + item.actionCount, 0);
+      const logPayload = {event: "stats_delta", role, runId, actionCount, pageCount: delta.pageCount};
+      if (delta.skippedPendingMedia) logPayload.skippedPendingMedia = delta.skippedPendingMedia;
+      console.log(JSON.stringify(logPayload));
+      return {fresh: false, cachedAt: publication.cachedAt.toMillis(), actionCount, generation: lease.generation};
+    } catch (error) {
+      await markRunFailed(runId, lease.generation);
+      console.error(JSON.stringify({event: "stats_delta_failed", runId, code: error.code || "unknown"}));
+      if (error instanceof functions.https.HttpsError) throw error;
+      throw httpsError("internal", "Stats refresh failed. Showing last successful stats. Please try again.");
+    } finally {
+      stopRenewal();
+    }
+  });
+
+export const reconcileStats = functions.region(REGION)
+  // Reconciliation scans every classroom weekly; pagination keeps 512MB safe,
+  // while the longer timeout is required for the deliberately complete scan.
+  .runWith({timeoutSeconds: RECONCILE_TIMEOUT_SECONDS, memory: "512MB"})
+  .pubsub.schedule("0 4 * * 0")
+  .timeZone("Asia/Kolkata")
+  .onRun(async () => {
+    const deadlineMs = deadlineForRuntime(RECONCILE_TIMEOUT_SECONDS);
+    const runId = randomUUID();
+    const lease = await waitForLease(runId, {
+      allowBootstrap: true,
+      deadlineMs,
+      returnOnCompletion: false,
+    });
+    if (!lease.acquired) throw new Error("reconcileStats expects to always acquire the lease");
+    const stopRenewal = startLeaseRenewal(runId, lease.generation, "stats_reconcile_lease_renewal_failed");
+    try {
+      const result = await reconcileAllStats();
+      const publication = await publishReconciliation(result, runId, lease.generation);
+      if (!publication.published) throw new Error("Stats reconciliation was fenced before publication");
+      console.log(JSON.stringify({event: "stats_reconcile", runId, classroomCount: result.classroomCount, blockedByPendingMedia: result.blockedByPendingMedia}));
+    } catch (error) {
+      await markRunFailed(runId, lease.generation);
+      console.error(JSON.stringify({event: "stats_reconcile_failed", runId, code: error.code || "unknown"}));
+      throw error;
+    } finally {
+      stopRenewal();
+    }
+    return null;
   });

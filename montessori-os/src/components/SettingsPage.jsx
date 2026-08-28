@@ -38,8 +38,8 @@ import { isSuperAdmin, isAdminRole, isClassroomAdmin, getRoleLabel } from '../ut
 import useNotify from '../notifications/useNotify';
 import { fuzzySearchStudents } from '../utils/fuzzySearch';
 
-// Thilak's UID - gates dev-only UI triggers for ad-hoc testing (soul gen, digest, etc.)
-const DEV_UID = 'T1iLA2qjTqMvgS4hamw2PEtNsov1';
+// UIDs that see dev-only UI triggers for ad-hoc testing (soul gen, digest, etc.)
+const DEV_UIDS = ['T1iLA2qjTqMvgS4hamw2PEtNsov1', 'HA1TiA1xbkRJ8n1MPaBi1PdGlo92'];
 
 function SettingsPage({ user, userRole, classrooms = [], onNavigate, onSignOut }) {
   const [confirmOpen, setConfirmOpen] = useState(false);
@@ -47,7 +47,7 @@ function SettingsPage({ user, userRole, classrooms = [], onNavigate, onSignOut }
   const [digestRunning, setDigestRunning] = useState(false);
   const [soulDialogOpen, setSoulDialogOpen] = useState(false);
   const [soulRunning, setSoulRunning] = useState(false);
-  const [soulSelectedStudents, setSoulSelectedStudents] = useState([]);
+  const [soulSelectedStudent, setSoulSelectedStudent] = useState(null);
   const [soulStudentSearch, setSoulStudentSearch] = useState('');
   const [allStudents, setAllStudents] = useState([]);
   const [studentsLoading, setStudentsLoading] = useState(false);
@@ -56,7 +56,7 @@ function SettingsPage({ user, userRole, classrooms = [], onNavigate, onSignOut }
   const notify = useNotify();
   const isSuperAdminUser = isSuperAdmin(userRole);
   const isAdmin = isAdminRole(userRole);
-  const isDevUser = user?.uid === DEV_UID;
+  const isDevUser = DEV_UIDS.includes(user?.uid);
 
   const loadStudents = useCallback(async () => {
     if (allStudents.length > 0) return;
@@ -362,34 +362,23 @@ function SettingsPage({ user, userRole, classrooms = [], onNavigate, onSignOut }
         </DialogTitle>
         <DialogContent sx={{ pb: 2 }}>
           <DialogContentText sx={{ mb: 2 }}>
-            Search and select students to regenerate, or leave empty to run for all active students.
+            Search and select a student to regenerate their soul.
           </DialogContentText>
           <Autocomplete
-            multiple
             options={soulStudentOptions}
             loading={studentsLoading}
-            value={soulSelectedStudents}
-            onChange={(e, newValue) => setSoulSelectedStudents(newValue)}
+            value={soulSelectedStudent}
+            onChange={(e, newValue) => setSoulSelectedStudent(newValue)}
             inputValue={soulStudentSearch}
             onInputChange={(e, newInputValue) => setSoulStudentSearch(newInputValue)}
             getOptionLabel={getStudentLabel}
             isOptionEqualToValue={(opt, val) => opt.id === val.id}
             disabled={soulRunning}
-            renderTags={(value, getTagProps) =>
-              value.map((stu, index) => (
-                <Chip
-                  {...getTagProps({ index })}
-                  key={stu.id}
-                  label={getStudentLabel(stu)}
-                  size="small"
-                />
-              ))
-            }
             renderInput={(params) => (
               <TextField
                 {...params}
                 size="small"
-                placeholder={soulSelectedStudents.length ? '' : 'Search students...'}
+                placeholder={soulSelectedStudent ? '' : 'Search students...'}
                 InputProps={{
                   ...params.InputProps,
                   endAdornment: (
@@ -410,24 +399,22 @@ function SettingsPage({ user, userRole, classrooms = [], onNavigate, onSignOut }
           </Button>
           <Button
             variant="contained"
-            disabled={soulRunning}
+            disabled={soulRunning || !soulSelectedStudent}
             sx={{ minWidth: 80 }}
             onClick={async () => {
               setSoulRunning(true);
               setSoulDialogOpen(false);
               try {
                 const call = httpsCallable(cloudFunctions, 'triggerSoulGeneration', { timeout: 540_000 });
-                const ids = soulSelectedStudents.map((s) => s.id);
-                const payload = ids.length > 0 ? { studentIds: ids } : {};
-                const result = await call(payload);
+                const result = await call({ studentIds: [soulSelectedStudent.id] });
                 const d = result.data;
-                const msg = `Soul gen dispatched: ${d.studentsDispatched} students in ${d.batchesPublished} batches (${d.durationSec}s)`;
+                const msg = `Soul gen dispatched: ${d.studentsDispatched} student in ${d.batchesPublished} batch (${d.durationSec}s)`;
                 if (d.batchesFailed > 0) {
                   notify.error(`${msg} - ${d.batchesFailed} batches FAILED`);
                 } else {
                   notify.success(msg);
                 }
-                setSoulSelectedStudents([]);
+                setSoulSelectedStudent(null);
               } catch (err) {
                 notify.error(`Soul gen failed: ${err.message}`);
               } finally {

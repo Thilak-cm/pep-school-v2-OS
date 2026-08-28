@@ -1,4 +1,4 @@
 interface:
   display_name: "Draft GitHub Issues"
-  short_description: "Parse meeting transcripts and batch-create GitHub Issues"
-  default_prompt: "Parse meeting transcripts and create GitHub Issues: extract action items, decisions, bugs, and follow-ups, then walk through each one for triage into Backlog issues."
+  short_description: "Archive takeaways and draft GitHub Issues"
+  default_prompt: "Archive this meeting, capture its explicit carry-forward takeaways, then extract and walk through GitHub Issue candidates one at a time."

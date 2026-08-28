@@ -399,6 +399,13 @@ export const mediaFinalize = functions
       mediaEntry.height = dimensions.height;
     }
 
+    // STATS COUPLING: this transition from 'pending_upload' to 'ready' unblocks
+    // stats reconciliation. If this function fails silently or the Storage
+    // trigger never fires, the doc stays 'pending_upload' and becomes an
+    // orphaned barrier for weekly reconciliation (delta stats skip past these).
+    // If media upload reliability is improved to guarantee this transition,
+    // update functions/stats/reconcile.js aggregateObservationPage and
+    // functions/stats/delta.js isPendingMedia.
     try {
       await mediaRef.set(
         {

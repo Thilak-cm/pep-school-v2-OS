@@ -3,11 +3,7 @@
  *
  * classifyNote   — single source of truth for observation type classification
  * getObservationDate — Firestore Timestamp → Date with fallbacks
- * buildActivityTiers — bucket observations into daily / weekly / monthly maps
  */
-
-/** Cache TTL in milliseconds (24 hours). */
-export const CACHE_TTL_MS = 24 * 60 * 60 * 1000;
 
 /**
  * Classify an observation into exactly one type.
@@ -78,32 +74,13 @@ export function getObservationDate(obs) {
   return new Date(0);
 }
 
-/**
- * Bucket observations into tiered activity maps.
- *
- * Returns:
- *   daily   — { "YYYY-MM-DD": count } for the last 30 days
- *   weekly  — { "YYYY-Www": count }   for the last 12 weeks
- *   monthly — { "YYYY-MM": count }    for the last 12 months
- *
- * @param {Object[]} observations - Array of observation docs
- * @param {Date}     [now]        - Reference time (default: new Date())
- * @returns {{ daily: Object, weekly: Object, monthly: Object }}
- */
-export function buildActivityTiers(observations, now = new Date()) {
+/** Create zero-filled graph buckets for the currently visible windows. */
+export function createActivityTiers(now = new Date()) {
   const daily = {};
   const weekly = {};
   const monthly = {};
 
-  // Pre-compute cutoff dates
   const dayMs = 24 * 60 * 60 * 1000;
-  const dailyCutoff = new Date(now.getTime() - 30 * dayMs);
-  const weeklyCutoff = new Date(now.getTime() - 12 * 7 * dayMs);
-  const monthlyCutoff = new Date(
-    now.getFullYear(),
-    now.getMonth() - 11,
-    1
-  );
 
   // Initialize all daily buckets (last 30 days)
   for (let i = 0; i < 30; i++) {
@@ -123,49 +100,42 @@ export function buildActivityTiers(observations, now = new Date()) {
     monthly[formatMonthKey(d)] = 0;
   }
 
-  // Single pass through observations
-  for (const obs of observations) {
-    const date = getObservationDate(obs);
-    if (date.getTime() === 0) continue; // skip invalid dates
-
-    if (date >= dailyCutoff) {
-      const key = formatDateKey(date);
-      if (key in daily) daily[key]++;
-    }
-
-    if (date >= weeklyCutoff) {
-      const key = formatWeekKey(date);
-      if (key in weekly) weekly[key]++;
-    }
-
-    if (date >= monthlyCutoff) {
-      const key = formatMonthKey(date);
-      if (key in monthly) monthly[key]++;
-    }
-  }
-
   return {daily, weekly, monthly};
 }
 
-/**
- * Deduplicate observations by groupId.
- * Docs sharing a groupId (fan-out from a single group note) are collapsed
- * to just the first occurrence. Docs without a groupId pass through as-is.
- *
- * @param {Object[]} observations - Array of observation/media docs
- * @returns {Object[]} Deduplicated array
- */
-export function deduplicateObservations(observations) {
-  const seen = new Set();
-  const result = [];
-  for (const obs of observations) {
-    if (obs.groupId) {
-      if (seen.has(obs.groupId)) continue;
-      seen.add(obs.groupId);
-    }
-    result.push(obs);
+/** Add one observation to an existing current-window graph aggregate. */
+export function incrementActivityTiers(tiers, observation, now = new Date()) {
+  const date = getObservationDate(observation);
+  if (date.getTime() === 0) return tiers;
+  const dayMs = 24 * 60 * 60 * 1000;
+  const dailyCutoff = new Date(now.getTime() - 30 * dayMs);
+  const weeklyCutoff = new Date(now.getTime() - 12 * 7 * dayMs);
+  const monthlyCutoff = new Date(now.getFullYear(), now.getMonth() - 11, 1);
+
+  if (date >= dailyCutoff) {
+    const key = formatDateKey(date);
+    if (key in tiers.daily) tiers.daily[key]++;
   }
-  return result;
+  if (date >= weeklyCutoff) {
+    const key = formatWeekKey(date);
+    if (key in tiers.weekly) tiers.weekly[key]++;
+  }
+  if (date >= monthlyCutoff) {
+    const key = formatMonthKey(date);
+    if (key in tiers.monthly) tiers.monthly[key]++;
+  }
+  return tiers;
+}
+
+/** Drop expired graph keys while preserving counts still in visible buckets. */
+export function normalizeActivityTiers(existing = {}, now = new Date()) {
+  const normalized = createActivityTiers(now);
+  for (const tier of ["daily", "weekly", "monthly"]) {
+    for (const key of Object.keys(normalized[tier])) {
+      normalized[tier][key] = existing?.[tier]?.[key] || 0;
+    }
+  }
+  return normalized;
 }
 
 // ── Date formatting helpers ──────────────────────────────────────────

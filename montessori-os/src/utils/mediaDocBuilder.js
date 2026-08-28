@@ -27,6 +27,16 @@ export function buildMediaDocData(payload, mediaId, storagePath) {
     classroomId: payload.classroomId,
     type: 'media',
     mediaKind: kind,
+    // STATS COUPLING: this status blocks stats reconciliation cursor advancement
+    // until mediaFinalize transitions the doc to 'ready' or 'failed'. If the
+    // upload never completes (app crash, network drop), the doc becomes an
+    // orphaned barrier. Delta stats skip past these (skipPendingMedia in
+    // functions/stats/reconcile.js aggregateObservationPage), but weekly
+    // reconciliation still blocks on them. If media upload reliability is fixed
+    // to guarantee terminal status, update:
+    //   - functions/stats/delta.js isPendingMedia
+    //   - functions/stats/reconcile.js aggregateObservationPage skipPendingMedia
+    //   - scripts/admin/mark-orphaned-media-failed.mjs
     status: 'pending_upload',
     media: [mediaEntry],
     createdBy: payload.createdBy || 'unknown',

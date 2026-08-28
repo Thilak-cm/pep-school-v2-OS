@@ -12,10 +12,13 @@ describe('AddNoteFab component', () => {
     assert.ok(source.includes('export default AddNoteFab'));
   });
 
-  it('renders 3 menu items (Voice, Lesson, Media)', () => {
+  it('renders Voice, Lesson, Media, and a disabled Assessments menu item', () => {
     assert.ok(source.includes("'voice'"), 'Missing voice menu item');
     assert.ok(source.includes("'lesson'"), 'Missing lesson menu item');
     assert.ok(source.includes("'media'"), 'Missing media menu item');
+    assert.ok(source.includes("'assessments'"), 'Missing assessments menu item');
+    assert.match(source, /key: 'assessments'[\s\S]*?disabled: true/);
+    assert.match(source, /NewFeaturePill label="Coming Soon"/);
   });
 
   it('does not include a Text note option', () => {
@@ -58,11 +61,13 @@ describe('AddNoteFab component', () => {
     assert.ok(source.includes("transformOrigin: 'bottom right'"), 'Should animate from FAB position');
   });
 
-  it('menu items ordered top-to-bottom: Media, Lesson, Voice', () => {
+  it('menu items ordered top-to-bottom: Assessments, Media, Lesson, Voice', () => {
+    const assessmentsIdx = source.indexOf("key: 'assessments'");
     const mediaIdx = source.indexOf("key: 'media'");
     const lessonIdx = source.indexOf("key: 'lesson'");
     const voiceIdx = source.indexOf("key: 'voice'");
-    assert.ok(mediaIdx < lessonIdx, 'Media should be first in array (top of card)');
-    assert.ok(lessonIdx < voiceIdx, 'Lesson should be second (middle), Voice last (bottom, closest to FAB)');
+    assert.ok(assessmentsIdx < mediaIdx, 'Assessments should be first in array (top of card)');
+    assert.ok(mediaIdx < lessonIdx, 'Media should be second in array');
+    assert.ok(lessonIdx < voiceIdx, 'Lesson should be third and Voice last (bottom, closest to FAB)');
   });
 });

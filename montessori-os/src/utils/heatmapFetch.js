@@ -5,7 +5,7 @@
  * Centralised here so the role-aware query logic stays in one place.
  *
  * NOTE: The superadmin path queries `where('classroomId', '!=', null)` which
- * also returns non-heatmap statsCache docs (e.g. classroom_* from recomputeStats).
+ * also returns non-heatmap statsCache docs (e.g. classroom_* from the stats writers).
  * The client-side prefix filter handles this. If statsCache grows significantly,
  * consider adding a `type` discriminator field to heatmap docs.
  */

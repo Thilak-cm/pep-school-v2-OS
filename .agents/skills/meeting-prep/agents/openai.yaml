@@ -1,4 +1,4 @@
 interface:
   display_name: "Meeting Prep"
-  short_description: "Concise Done, Doing, Next meeting brief"
-  default_prompt: "Use $meeting-prep to prepare a terse Done, Being done, Next, and Talk points brief."
+  short_description: "Track takeaways and prepare a concise meeting brief"
+  default_prompt: "Use $meeting-prep to score all carried meeting takeaways from current evidence, then prepare a terse Done, Being done, Next, and Talk points brief."

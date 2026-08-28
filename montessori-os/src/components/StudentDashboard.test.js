@@ -124,12 +124,37 @@ describe('StudentDashboard Plan tab (PEP-260)', () => {
 });
 
 describe('StudentDashboard Questions pilot gate', () => {
-  it('limits Questions to toddler/primary teachers and classroom admins while retaining superadmin access', async () => {
+  it('keeps Questions visible in the first position while preserving its program availability gate', async () => {
     const src = await readFile(dashboardPath, 'utf8');
     assert.match(src, /const QUESTIONS_PROGRAMS = \['toddler', 'primary'\]/);
     assert.match(src, /\[['"]teacher['"], ['"]classroomadmin['"]\]\.includes\(userRole\)[\s\S]*?programResolved[\s\S]*?QUESTIONS_PROGRAMS\.includes\(studentProgramId\)/);
     assert.match(src, /isSuperAdmin\(userRole\)/);
-    assert.match(src, /\{canViewQuestions && \(/);
+    assert.match(src, /<Box ref=\{canViewQuestions \? questionsButtonRef : null\}[\s\S]*?label="Questions"/);
+  });
+
+  it('opens Questions for eligible users and shows a coming-soon notice otherwise', async () => {
+    const src = await readFile(dashboardPath, 'utf8');
+    assert.match(src, /if \(canViewQuestions\) \{[\s\S]*?onOpenQuestions\?\.\(\)/);
+    assert.match(src, /notify\.info\('Questions are not available for this program yet\. Coming soon\.'\)/);
+    assert.match(src, /trackEvent\('student_dashboard_card_click', \{ card: 'questions', studentId \}\)/);
+  });
+});
+
+describe('StudentDashboard quick jumps', () => {
+  it('uses a fixed three-column grid with equal-sized button cells', async () => {
+    const src = await readFile(dashboardPath, 'utf8');
+    assert.match(src, /gridTemplateColumns:\s*'repeat\(3, minmax\(0, 1fr\)\)'/);
+    assert.match(src, /gridTemplateRows:\s*'repeat\(2, 1fr\)'/);
+    assert.match(src, /const QUICK_JUMP_CELL_SX = \{[\s\S]*?minWidth:\s*0[\s\S]*?width:\s*'100%'[\s\S]*?height:\s*'100%'/);
+    assert.match(src, /gridColumn:\s*2, gridRow:\s*2[\s\S]*?label="Assessments"/);
+    assert.match(src, /label="Coach"[\s\S]*?label="Assessments"/);
+  });
+
+  it('uses NewFeaturePill for Assessments and explains that it is coming soon on click', async () => {
+    const src = await readFile(dashboardPath, 'utf8');
+    assert.match(src, /import NewFeaturePill from '\.\/NewFeaturePill'/);
+    assert.match(src, /label="Assessments"[\s\S]*?notify\.info\('Assessments are coming soon\.'\)/);
+    assert.match(src, /label="Assessments"[\s\S]*?<NewFeaturePill[\s\S]*?label="Coming Soon"[\s\S]*?showIcon=\{false\}/);
   });
 });
 

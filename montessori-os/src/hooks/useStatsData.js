@@ -3,7 +3,8 @@
  *
  * Reads `statsCache/classroom_{id}` docs the user has access to (Firestore
  * rules enforce role scoping). Exposes cachedAt timestamp and a manual refresh
- * trigger. Auto-triggers recomputeStats CF only when no cache exists at all.
+ * trigger. Cache initialization is performed by the scheduled reconciliation;
+ * this hook never silently starts an expensive full rebuild.
  */
 
 import { useState, useEffect, useCallback, useRef } from 'react';
@@ -90,13 +91,18 @@ export const useStatsData = ({ user, role, manageableClassrooms = [], userClassr
       try {
         const metaSnap = await getDoc(doc(statsCacheRef, '_meta'));
         if (metaSnap.exists()) {
-          const metaCachedAt = metaSnap.data()?.cachedAt;
+          const metaData = metaSnap.data();
+          if (!metaData?.deltaCursor && mountedRef.current) {
+            setError('Stats are not initialized yet. Please try again after reconciliation.');
+          }
+          const metaCachedAt = metaData?.cachedAt;
           const cachedMs = metaCachedAt?.toDate ? metaCachedAt.toDate().getTime()
             : metaCachedAt?.seconds ? metaCachedAt.seconds * 1000 : 0;
           if (mountedRef.current) setCachedAt(cachedMs || null);
         } else if (canTrigger && triggerIfStale) {
-          // No cache at all — auto-trigger first compute (global recompute regardless of caller role)
-          triggerRecompute(true);
+          // A missing checkpoint is a deployment/operations state, not a reason
+          // to let a teacher accidentally start a full-database computation.
+          if (mountedRef.current) setError('Stats are not initialized yet. Please try again after reconciliation.');
         }
       } catch (_metaErr) {
         // _meta read failed — non-critical, cachedAt stays null
@@ -113,34 +119,34 @@ export const useStatsData = ({ user, role, manageableClassrooms = [], userClassr
   }, [user?.uid, role, classroomKey, teacherKey, canTrigger]);
 
   // Trigger the CF to recompute stats
-  const triggerRecompute = useCallback(async (forceRefresh = false) => {
+  const triggerRecompute = useCallback(async () => {
     if (!canTrigger) return;
     try {
       setRefreshing(true);
-      const callFn = httpsCallable(cloudFunctions, 'recomputeStats', { timeout: 120_000 });
-      const result = await callFn({ forceRefresh });
+      // Keep the client deadline beyond the function's 120s runtime so the
+      // server can return its own bounded-wait error instead of a client timeout.
+      const callFn = httpsCallable(cloudFunctions, 'updateStatsDelta', { timeout: 135_000 });
+      const result = await callFn();
 
-      if (!result.data?.fresh) {
-        // CF recomputed — re-fetch docs without triggering another recompute
-        await fetchDocs({ triggerIfStale: false, silent: true });
-      }
+      // Owners and waiting/fenced callers all re-read the generation that the
+      // server actually published.
+      await fetchDocs({ triggerIfStale: false, silent: true });
       if (mountedRef.current) {
         setRefreshing(false);
-        // Use server-provided timestamp when cache was already fresh; otherwise now
-        setCachedAt(result.data?.fresh ? (result.data.cachedAt || Date.now()) : Date.now());
+        if (result.data?.cachedAt) setCachedAt(result.data.cachedAt);
       }
     } catch (e) {
       if (mountedRef.current) {
         setRefreshing(false);
-        setError(e?.message || 'Stats refresh failed');
-        if (import.meta.env.DEV) console.warn('[useStatsData] recompute failed', e);
+        setError('Stats refresh failed. Showing last successful stats. Please try again.');
+        if (import.meta.env.DEV) console.warn('[useStatsData] delta refresh failed', e);
       }
     }
   }, [canTrigger, fetchDocs]);
 
   // Manual refresh (exposed to UI)
   const refresh = useCallback(() => {
-    triggerRecompute(true);
+    triggerRecompute();
   }, [triggerRecompute]);
 
   // Load on mount

@@ -361,8 +361,7 @@ async function commitWrites(plan, color) {
 
   console.log(`SUCCESS: Classroom "${classroomName}" (${classroomId}) created in ${branch.id} / ${programId}.`);
   console.log("\nReminders:");
-  console.log("  - Stats cache: trigger recomputeStats (Stats page in the app, or wait for the");
-  console.log(`    scheduled run) so statsCache/classroom_${classroomId} gets created.`);
+  console.log(`  - Stats cache: run reconcileStats manually after rollout, or wait for its weekly schedule (Sunday 04:00 IST), so statsCache/classroom_${classroomId} and the delta checkpoint are created.`);
   console.log("  - Drive folder: driveFolderId is set automatically on first report export.");
 }
 
