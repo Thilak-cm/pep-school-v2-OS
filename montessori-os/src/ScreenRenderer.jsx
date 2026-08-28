@@ -35,6 +35,7 @@ import QuestionDeck from "./components/QuestionDeck.jsx";
 import ChildChat from "./components/ChildChat.jsx";
 import AssessmentUploadPage from "./components/AssessmentUploadPage.jsx";
 import StudentAssessmentsPage from "./components/StudentAssessmentsPage.jsx";
+import { isSuperAdmin } from "./utils/roleUtils";
 
 /**
  * Renders the correct screen component based on the current `screen` value.
@@ -48,8 +49,10 @@ export default function ScreenRenderer({ screen, ctx }) {
 function renderScreen(screen, ctx) {
   switch (screen) {
     case "assessmentUpload":
+      if (!isSuperAdmin(ctx.role)) { ctx.setScreen(ctx.assessmentReturnScreen || "settings"); return null; }
       return <AssessmentUploadPage currentUser={ctx.user} userRole={ctx.role} manageableClassrooms={ctx.manageableClassrooms} onBack={() => ctx.setScreen(ctx.assessmentReturnScreen || "settings")} />;
     case "studentAssessments":
+      if (!isSuperAdmin(ctx.role)) { ctx.setScreen("studentDashboard"); return null; }
       return <StudentAssessmentsPage student={ctx.selectedStudent} assessmentDeepLink={ctx.assessmentDeepLink} userRole={ctx.role} />;
     case "landingPage":
       return (

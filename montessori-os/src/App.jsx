@@ -232,6 +232,7 @@ function App() {
     };
     window.addEventListener('navigateToStudentNotes', handleNavigateToStudentNotes);
     const handleNavigateToStudentAssessments = (e) => {
+      if (!isSuperAdmin(role)) return;
       const detail = e?.detail || {};
       const studentId = detail.studentId || detail?.student?.id;
       if (!studentId) return;
@@ -259,7 +260,7 @@ function App() {
       window.removeEventListener('navigateToStudentAssessments', handleNavigateToStudentAssessments);
       window.removeEventListener('noteDrawerToggle', handleNoteDrawerToggle);
     };
-  }, [screen, setAssessmentDeepLink]);
+  }, [screen, setAssessmentDeepLink, role]);
 
   // Navigate to broadcast detail from system alert — needs role in closure (PEP-323c)
   useEffect(() => {
@@ -498,6 +499,7 @@ function App() {
                     onLesson={() => openLessonNotesScreen()}
                     onMedia={() => { setAddNoteInitialStep('media'); setAddNoteOpen(true); }}
                     onAssessments={() => { setAssessmentReturnScreen(screen); setScreen('assessmentUpload'); }}
+                    assessmentsDisabled={!isSuperAdminUser}
                     sx={{
                       // Align the global control with the third quick-jump column
                       // and the vertical center of the dashboard's second action row.
