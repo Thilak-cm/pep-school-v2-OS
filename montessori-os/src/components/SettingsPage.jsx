@@ -47,7 +47,7 @@ function SettingsPage({ user, userRole, classrooms = [], onNavigate, onSignOut }
   const [digestRunning, setDigestRunning] = useState(false);
   const [soulDialogOpen, setSoulDialogOpen] = useState(false);
   const [soulRunning, setSoulRunning] = useState(false);
-  const [soulSelectedStudents, setSoulSelectedStudents] = useState([]);
+  const [soulSelectedStudent, setSoulSelectedStudent] = useState(null);
   const [soulStudentSearch, setSoulStudentSearch] = useState('');
   const [allStudents, setAllStudents] = useState([]);
   const [studentsLoading, setStudentsLoading] = useState(false);
@@ -362,34 +362,23 @@ function SettingsPage({ user, userRole, classrooms = [], onNavigate, onSignOut }
         </DialogTitle>
         <DialogContent sx={{ pb: 2 }}>
           <DialogContentText sx={{ mb: 2 }}>
-            Search and select students to regenerate, or leave empty to run for all active students.
+            Search and select a student to regenerate their soul.
           </DialogContentText>
           <Autocomplete
-            multiple
             options={soulStudentOptions}
             loading={studentsLoading}
-            value={soulSelectedStudents}
-            onChange={(e, newValue) => setSoulSelectedStudents(newValue)}
+            value={soulSelectedStudent}
+            onChange={(e, newValue) => setSoulSelectedStudent(newValue)}
             inputValue={soulStudentSearch}
             onInputChange={(e, newInputValue) => setSoulStudentSearch(newInputValue)}
             getOptionLabel={getStudentLabel}
             isOptionEqualToValue={(opt, val) => opt.id === val.id}
             disabled={soulRunning}
-            renderTags={(value, getTagProps) =>
-              value.map((stu, index) => (
-                <Chip
-                  {...getTagProps({ index })}
-                  key={stu.id}
-                  label={getStudentLabel(stu)}
-                  size="small"
-                />
-              ))
-            }
             renderInput={(params) => (
               <TextField
                 {...params}
                 size="small"
-                placeholder={soulSelectedStudents.length ? '' : 'Search students...'}
+                placeholder={soulSelectedStudent ? '' : 'Search students...'}
                 InputProps={{
                   ...params.InputProps,
                   endAdornment: (
@@ -410,24 +399,22 @@ function SettingsPage({ user, userRole, classrooms = [], onNavigate, onSignOut }
           </Button>
           <Button
             variant="contained"
-            disabled={soulRunning}
+            disabled={soulRunning || !soulSelectedStudent}
             sx={{ minWidth: 80 }}
             onClick={async () => {
               setSoulRunning(true);
               setSoulDialogOpen(false);
               try {
                 const call = httpsCallable(cloudFunctions, 'triggerSoulGeneration', { timeout: 540_000 });
-                const ids = soulSelectedStudents.map((s) => s.id);
-                const payload = ids.length > 0 ? { studentIds: ids } : {};
-                const result = await call(payload);
+                const result = await call({ studentIds: [soulSelectedStudent.id] });
                 const d = result.data;
-                const msg = `Soul gen dispatched: ${d.studentsDispatched} students in ${d.batchesPublished} batches (${d.durationSec}s)`;
+                const msg = `Soul gen dispatched: ${d.studentsDispatched} student in ${d.batchesPublished} batch (${d.durationSec}s)`;
                 if (d.batchesFailed > 0) {
                   notify.error(`${msg} - ${d.batchesFailed} batches FAILED`);
                 } else {
                   notify.success(msg);
                 }
-                setSoulSelectedStudents([]);
+                setSoulSelectedStudent(null);
               } catch (err) {
                 notify.error(`Soul gen failed: ${err.message}`);
               } finally {
