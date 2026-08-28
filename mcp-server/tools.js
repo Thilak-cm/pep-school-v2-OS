@@ -644,7 +644,7 @@ export const TOOL_DEFINITIONS = [
     },
   },
   {
-    name: "export_recompute_stats_logs",
+    name: "export_stats_refresh_logs",
     description: "Export bounded, privacy-safe Cloud Logging entries for the paginated stats delta and weekly reconciliation Cloud Functions, including execution status, OOM failures, and aggregate stats events.",
     inputSchema: {
       type: "object",
@@ -1456,8 +1456,8 @@ export async function handleExportChatLatencyEvents(adapter, params) {
   return adapter.exportChatLatencyEvents(params);
 }
 
-export async function handleExportRecomputeStatsLogs(adapter, params) {
-  return adapter.exportRecomputeStatsLogs(params);
+export async function handleExportStatsRefreshLogs(adapter, params) {
+  return adapter.exportStatsRefreshLogs(params);
 }
 
 export async function handleGetChatLatencyCorrelation(adapter, params) {

@@ -1,186 +1,195 @@
-import {db, Timestamp} from "../shared/firebase.js";
+import {db, Timestamp, FieldPath} from "../shared/firebase.js";
 import {
-  classifyNote,
-  getObservationDate,
-  buildActivityTiers,
-  deduplicateObservations,
-} from "./helpers.js";
-import {DEFAULT_DELTA_PAGE_SIZE, compareCursors, cursorFromObservation} from "./delta.js";
+  AGGREGATION_STATE_VERSION,
+  DEFAULT_DELTA_PAGE_SIZE,
+  addObservationToDelta,
+  applyDeltaToCache,
+  compareCursors,
+  createDeltaAccumulator,
+  cursorFromObservation,
+  finalizeDelta,
+  isCountableObservation,
+  isPendingMedia,
+  reconcileCrossClassroomCounts,
+} from "./delta.js";
 
-export const RECONCILE_RETRY_ATTEMPTS = 3;
-
+export const FIRESTORE_RETRY_ATTEMPTS = 3;
+const TRANSIENT_CODES = new Set(["aborted", "deadline-exceeded", "internal", "resource-exhausted", "unavailable", 4, 8, 10, 13, 14]);
 const delay = (ms) => new Promise((resolve) => setTimeout(resolve, ms));
 
-export async function withFirestoreRetry(operation, attempts = RECONCILE_RETRY_ATTEMPTS) {
+export function isTransientFirestoreError(error) {
+  const code = typeof error?.code === "string" ? error.code.replace(/^firestore\//, "") : error?.code;
+  return TRANSIENT_CODES.has(code);
+}
+
+export async function withFirestoreRetry(operation, attempts = FIRESTORE_RETRY_ATTEMPTS, sleep = delay) {
   let lastError;
   for (let attempt = 1; attempt <= attempts; attempt++) {
     try {
       return await operation();
     } catch (error) {
       lastError = error;
-      if (attempt === attempts) break;
-      await delay(250 * (2 ** (attempt - 1)));
+      if (!isTransientFirestoreError(error) || attempt === attempts) break;
+      await sleep(250 * (2 ** (attempt - 1)));
     }
   }
   throw lastError;
 }
 
-function emptyCounts() {
-  return {voice: 0, text: 0, lesson: 0, media: 0, total: 0};
+function normalizeDocument(doc) {
+  const data = typeof doc.data === "function" ? doc.data() : doc;
+  return {...data, id: doc.id || data.id, path: doc.ref?.path || data.path};
 }
 
-function emptyTierSet() {
-  return {daily: {}, weekly: {}, monthly: {}};
-}
+const groupKey = (observation) => `${observation.classroomId}\u0000${observation.groupId}`;
 
-function countEffort(observations) {
-  const counts = emptyCounts();
-  for (const observation of observations) {
-    const type = classifyNote(observation);
-    if (type in counts) counts[type]++;
-    counts.total++;
+/** Resolve a stable representative for each fan-out group, including siblings from prior runs. */
+export async function resolveCanonicalGroupCursors(observations, database = db) {
+  const groupIds = [...new Set(observations.map((item) => item.groupId).filter(Boolean))];
+  const canonical = new Map();
+  for (let offset = 0; offset < groupIds.length; offset += 30) {
+    const ids = groupIds.slice(offset, offset + 30);
+    const snap = await withFirestoreRetry(() => database.collectionGroup("observations").where("groupId", "in", ids).get());
+    for (const doc of snap.docs) {
+      const observation = normalizeDocument(doc);
+      if (!observation.classroomId || !isCountableObservation(observation)) continue;
+      const key = groupKey(observation);
+      const cursor = cursorFromObservation(observation);
+      if (!canonical.has(key) || compareCursors(cursor, canonical.get(key)) < 0) canonical.set(key, cursor);
+    }
   }
-  return counts;
+  return canonical;
+}
+
+/**
+ * Compact one page and report whether a pending-media/cutoff barrier stopped it.
+ *
+ * skipPendingMedia (delta path): advance the cursor past pending media docs
+ * instead of blocking. The doc is still excluded from counts via
+ * isCountableObservation, but the cursor is not stalled. This prevents a
+ * single orphaned upload from permanently blocking all delta refreshes.
+ * Weekly reconciliation uses stopBeforeCursor instead and does NOT skip.
+ *
+ * COUPLING: if media upload reliability is fixed so that pending_upload docs
+ * can no longer become orphaned, revisit this flag and consider removing
+ * isPendingMedia from the blocking path entirely. See:
+ *   - montessori-os/src/utils/mediaDocBuilder.js (sets status: 'pending_upload')
+ *   - functions/media/index.js mediaFinalize (transitions to 'ready' or 'failed')
+ *   - functions/stats/delta.js isPendingMedia (defines the barrier condition)
+ */
+export function aggregateObservationPage(state, observations, canonicalGroups = new Map(), stopBeforeCursor = null, {skipPendingMedia = false} = {}) {
+  let blocked = false;
+  for (const observation of observations) {
+    const cursor = cursorFromObservation(observation);
+    if (stopBeforeCursor && compareCursors(cursor, stopBeforeCursor) >= 0) {
+      blocked = true;
+      state.blockedByPendingMedia = true;
+      break;
+    }
+    if (isPendingMedia(observation)) {
+      if (skipPendingMedia) {
+        // Delta path: log and advance past. The observation is excluded from
+        // counts by isCountableObservation but does not stall the cursor.
+        state.skippedPendingMedia = (state.skippedPendingMedia || 0) + 1;
+        state.latestCursor = cursor;
+        continue;
+      }
+      blocked = true;
+      state.blockedByPendingMedia = true;
+      break;
+    }
+    state.latestCursor = cursor;
+    if (!isCountableObservation(observation)) continue;
+    const canonical = !observation.groupId || compareCursors(cursor, canonicalGroups.get(groupKey(observation))) === 0;
+    addObservationToDelta(state, observation, {countAction: canonical});
+  }
+  state.pageCount++;
+  return {state, blocked};
+}
+
+export async function findEarliestPendingMedia(database = db, {
+  onPageReleased = () => {},
+} = {}) {
+  let pageCursor = null;
+  while (true) {
+    // Scan every media status so legacy or unexpected not-ready values cannot be
+    // missed by a status-specific query and then stranded behind the checkpoint.
+    let query = database.collectionGroup("observations")
+      .where("type", "==", "media")
+      .orderBy("createdAt", "asc")
+      .orderBy(FieldPath.documentId(), "asc")
+      .limit(DEFAULT_DELTA_PAGE_SIZE);
+    if (pageCursor) {
+      query = query.startAfter(pageCursor.createdAt, pageCursor.documentPath);
+    }
+    const snap = await withFirestoreRetry(() => query.get());
+    const page = snap.docs.map(normalizeDocument);
+    const pending = page.find(isPendingMedia);
+    onPageReleased(page.length);
+    if (pending) return cursorFromObservation(pending);
+    if (page.length < DEFAULT_DELTA_PAGE_SIZE) return null;
+    pageCursor = cursorFromObservation(page[page.length - 1]);
+  }
+}
+
+export async function collectClassroomAggregate(classroomId, {
+  database = db,
+  now = new Date(),
+  stopBeforeCursor = null,
+  onPageReleased = () => {},
+} = {}) {
+  const state = createDeltaAccumulator(now);
+  let pageCursor = null;
+  while (true) {
+    let query = database.collectionGroup("observations")
+      .where("classroomId", "==", classroomId)
+      .orderBy("createdAt", "asc")
+      .orderBy(FieldPath.documentId(), "asc")
+      .limit(DEFAULT_DELTA_PAGE_SIZE);
+    if (pageCursor) query = query.startAfter(pageCursor.createdAt, pageCursor.documentPath);
+    const snap = await withFirestoreRetry(() => query.get());
+    const page = snap.docs.map(normalizeDocument);
+    const canonical = await resolveCanonicalGroupCursors(page, database);
+    const result = aggregateObservationPage(state, page, canonical, stopBeforeCursor);
+    onPageReleased(page.length);
+    if (result.blocked || page.length < DEFAULT_DELTA_PAGE_SIZE) break;
+    pageCursor = cursorFromObservation(page[page.length - 1]);
+  }
+  return finalizeDelta(state);
 }
 
 function createTeacherRow(user, id) {
-  return {
-    id,
-    name: user?.displayName || user?.email || "Unknown",
-    email: user?.email || "",
-    status: user?.status || "active",
-    observations: 0, lessons: 0, media: 0, handwritten: 0,
-    observations7d: 0, lessons7d: 0, media7d: 0, handwritten7d: 0,
-    observations30d: 0, lessons30d: 0, media30d: 0, handwritten30d: 0,
-    otherNotes7d: 0, otherCount7d: 0, otherNotes30d: 0, otherCount30d: 0,
-  };
-}
-
-function incrementTeacher(row, observation, nowMs) {
-  const type = classifyNote(observation);
-  const date = getObservationDate(observation).getTime();
-  const in7d = date >= nowMs - 7 * 24 * 60 * 60 * 1000;
-  const in30d = date >= nowMs - 30 * 24 * 60 * 60 * 1000;
-  if (type === "lesson") {
-    row.lessons++;
-    if (in7d) row.lessons7d++;
-    if (in30d) row.lessons30d++;
-  } else if (type === "media") {
-    row.media++;
-    if (in7d) row.media7d++;
-    if (in30d) row.media30d++;
-    if (observation.handwritten) {
-      row.handwritten++;
-      if (in7d) row.handwritten7d++;
-      if (in30d) row.handwritten30d++;
-    }
-  } else {
-    row.observations++;
-    if (in7d) row.observations7d++;
-    if (in30d) row.observations30d++;
-  }
+  return {id, name: user?.displayName || user?.email || "Unknown", email: user?.email || "", status: user?.status || "active", observations: 0, lessons: 0, media: 0, handwritten: 0, observations7d: 0, lessons7d: 0, media7d: 0, handwritten7d: 0, observations30d: 0, lessons30d: 0, media30d: 0, handwritten30d: 0, otherNotes7d: 0, otherCount7d: 0, otherNotes30d: 0, otherCount30d: 0};
 }
 
 function createStudentRow(student) {
-  return {
-    id: student.id,
-    name: student.displayName || student.name || "Unknown Student",
-    status: student.status || "active",
-    totalMentions: 0, thisWeekMentions: 0, last14DaysMentions: 0,
-    last42DaysMentions: 0, mediaMentions: 0, mediaThisWeek: 0,
-    mediaLast14Days: 0, mediaLast42Days: 0, handwrittenMentions: 0,
-    handwrittenThisWeek: 0, handwrittenLast14Days: 0,
-    handwrittenLast42Days: 0,
+  return {id: student.id, name: student.displayName || student.name || "Unknown Student", status: student.status || "active", totalMentions: 0, thisWeekMentions: 0, last14DaysMentions: 0, last42DaysMentions: 0, mediaMentions: 0, mediaThisWeek: 0, mediaLast14Days: 0, mediaLast42Days: 0, handwrittenMentions: 0, handwrittenThisWeek: 0, handwrittenLast14Days: 0, handwrittenLast42Days: 0};
+}
+
+export function buildClassroomCache(classroom, students, usersById, aggregate, now = new Date()) {
+  const teachers = [...new Set(classroom.teacherIds || [])].map((id) => createTeacherRow(usersById.get(id), id));
+  const base = {
+    cachedAt: Timestamp.fromDate(now), classroomId: classroom.id,
+    classroomName: classroom.name || classroom.id, branchId: classroom.branchId || null,
+    effortCounts: {voice: 0, text: 0, lesson: 0, media: 0, total: 0},
+    effortActivity: {}, effortActivityByType: {}, studentCount: students.length,
+    teachers, students: students.map(createStudentRow),
+    aggregationState: {version: AGGREGATION_STATE_VERSION, teacherRecent: {}, studentRecent: {}},
   };
+  const cache = applyDeltaToCache(base, aggregate, now);
+  cache.teachers = cache.teachers.filter((teacher) => {
+    const isGhost = !usersById.has(teacher.id) || teacher.id.startsWith("pending_");
+    return !isGhost || teacher.observations + teacher.lessons + teacher.media > 0;
+  });
+  return cache;
 }
 
-function incrementStudent(row, observation, nowMs) {
-  const date = getObservationDate(observation).getTime();
-  const type = classifyNote(observation);
-  row.totalMentions++;
-  if (date >= nowMs - 7 * 86400000) row.thisWeekMentions++;
-  if (date >= nowMs - 14 * 86400000) row.last14DaysMentions++;
-  if (date >= nowMs - 42 * 86400000) row.last42DaysMentions++;
-  if (type !== "media") return;
-  row.mediaMentions++;
-  if (date >= nowMs - 7 * 86400000) row.mediaThisWeek++;
-  if (date >= nowMs - 14 * 86400000) row.mediaLast14Days++;
-  if (date >= nowMs - 42 * 86400000) row.mediaLast42Days++;
-  if (!observation.handwritten) return;
-  row.handwrittenMentions++;
-  if (date >= nowMs - 7 * 86400000) row.handwrittenThisWeek++;
-  if (date >= nowMs - 14 * 86400000) row.handwrittenLast14Days++;
-  if (date >= nowMs - 42 * 86400000) row.handwrittenLast42Days++;
-}
-
-function normalizedObservation(doc) {
-  const data = doc.data();
-  if (data.type === "media" && data.status !== "ready") return null;
-  return {...data, id: doc.id, path: doc.ref.path, classroomId: data.classroomId};
-}
-
-export function buildClassroomCache(classroom, students, usersById, observations, now = new Date()) {
-  const deduped = deduplicateObservations(observations);
-  const effortActivityByType = {voice: emptyTierSet(), text: emptyTierSet(), lesson: emptyTierSet(), media: emptyTierSet()};
-  for (const type of Object.keys(effortActivityByType)) {
-    effortActivityByType[type] = buildActivityTiers(
-      deduped.filter((observation) => classifyNote(observation) === type), now,
-    );
-  }
-  const teachers = [...new Set(classroom.teacherIds || [])].map((id) => {
-    const row = createTeacherRow(usersById.get(id), id);
-    for (const observation of deduped.filter((item) => item.createdBy === id)) {
-      incrementTeacher(row, observation, now.getTime());
-    }
-    return row;
-  }).filter((row) => usersById.has(row.id) || row.observations + row.lessons + row.media > 0);
-  const studentsById = new Map(students.map((student) => [student.id, createStudentRow(student)]));
-  for (const observation of observations) {
-    if (studentsById.has(observation.studentId)) incrementStudent(
-      studentsById.get(observation.studentId), observation, now.getTime(),
-    );
-  }
-  return {
-    cachedAt: Timestamp.fromDate(now),
-    classroomId: classroom.id,
-    classroomName: classroom.name || classroom.id,
-    branchId: classroom.branchId || null,
-    effortCounts: countEffort(deduped),
-    effortActivity: buildActivityTiers(deduped, now),
-    effortActivityByType,
-    studentCount: students.length,
-    teachers,
-    students: [...studentsById.values()],
-  };
-}
-
-export async function collectClassroom(classroomId) {
-  const observations = [];
-  let lastDoc = null;
-  while (true) {
-    // The classroomId + createdAt index lets reconciliation jump through one
-    // classroom's source stream without materializing every classroom first.
-    let query = db.collectionGroup("observations")
-      .where("classroomId", "==", classroomId)
-      .orderBy("createdAt", "asc")
-      .limit(DEFAULT_DELTA_PAGE_SIZE);
-    if (lastDoc) query = query.startAfter(lastDoc);
-    const snap = await withFirestoreRetry(() => query.get());
-    for (const doc of snap.docs) {
-      const observation = normalizedObservation(doc);
-      if (observation) observations.push(observation);
-    }
-    if (snap.size < DEFAULT_DELTA_PAGE_SIZE) break;
-    lastDoc = snap.docs[snap.docs.length - 1];
-  }
-  return observations;
-}
-
-export async function reconcileAllStats() {
-  const [classroomsSnap, studentsSnap, usersSnap] = await Promise.all([
-    withFirestoreRetry(() => db.collection("classrooms").where("status", "==", "active").get()),
-    withFirestoreRetry(() => db.collection("students").get()),
-    withFirestoreRetry(() => db.collection("users").get()),
+export async function reconcileAllStats({database = db, now = new Date()} = {}) {
+  const [classroomsSnap, studentsSnap, usersSnap, pendingCursor] = await Promise.all([
+    withFirestoreRetry(() => database.collection("classrooms").where("status", "==", "active").get()),
+    withFirestoreRetry(() => database.collection("students").get()),
+    withFirestoreRetry(() => database.collection("users").get()),
+    findEarliestPendingMedia(database),
   ]);
   const classrooms = classroomsSnap.docs.map((doc) => ({id: doc.id, ...doc.data()}));
   const studentsByClassroom = new Map();
@@ -193,41 +202,19 @@ export async function reconcileAllStats() {
   const usersById = new Map();
   for (const doc of usersSnap.docs) {
     const user = doc.data();
-    if (["teacher", "superadmin", "classroomadmin"].includes(user.role)) {
-      usersById.set(doc.id, {id: doc.id, ...user});
-    }
+    if (["teacher", "superadmin", "classroomadmin"].includes(user.role)) usersById.set(doc.id, {id: doc.id, ...user});
   }
-  const now = new Date();
   const results = [];
   let latestCursor = null;
   for (const classroom of classrooms) {
-    const observations = await collectClassroom(classroom.id);
-    for (const observation of observations) {
-      const cursor = cursorFromObservation(observation);
-      if (!latestCursor || compareCursors(latestCursor, cursor) < 0) latestCursor = cursor;
-    }
-    results.push(buildClassroomCache(
-      classroom, studentsByClassroom.get(classroom.id) || [], usersById, observations, now,
-    ));
+    const delta = await collectClassroomAggregate(classroom.id, {database, now, stopBeforeCursor: pendingCursor});
+    if (delta.latestCursor && (!latestCursor || compareCursors(latestCursor, delta.latestCursor) < 0)) latestCursor = delta.latestCursor;
+    results.push(buildClassroomCache(classroom, studentsByClassroom.get(classroom.id) || [], usersById, delta.classrooms.get(classroom.id), now));
   }
-  // Cross-classroom teacher counts are derived after each classroom has been
-  // compacted. This keeps raw observations out of memory while preserving the
-  // old cache contract for teachers assigned to more than one classroom.
-  const teacherRows = new Map();
-  for (const classroom of results) {
-    for (const teacher of classroom.teachers) {
-      if (!teacherRows.has(teacher.id)) teacherRows.set(teacher.id, []);
-      teacherRows.get(teacher.id).push({classroomId: classroom.classroomId, teacher});
-    }
-  }
-  for (const classroom of results) {
-    for (const teacher of classroom.teachers) {
-      const others = (teacherRows.get(teacher.id) || []).filter((item) => item.classroomId !== classroom.classroomId);
-      teacher.otherNotes7d = others.reduce((sum, item) => sum + item.teacher.observations7d + item.teacher.lessons7d + item.teacher.media7d, 0);
-      teacher.otherNotes30d = others.reduce((sum, item) => sum + item.teacher.observations30d + item.teacher.lessons30d + item.teacher.media30d, 0);
-      teacher.otherCount7d = others.filter((item) => item.teacher.observations7d + item.teacher.lessons7d + item.teacher.media7d > 0).length;
-      teacher.otherCount30d = others.filter((item) => item.teacher.observations30d + item.teacher.lessons30d + item.teacher.media30d > 0).length;
-    }
-  }
-  return {classrooms: results, classroomCount: results.length, latestCursor, usersById};
+  return {
+    classrooms: reconcileCrossClassroomCounts(results, now),
+    classroomCount: results.length,
+    latestCursor: latestCursor || {createdAt: Timestamp.fromMillis(0), documentPath: ""},
+    blockedByPendingMedia: Boolean(pendingCursor),
+  };
 }

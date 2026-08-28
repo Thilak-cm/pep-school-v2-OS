@@ -119,21 +119,21 @@ export const useStatsData = ({ user, role, manageableClassrooms = [], userClassr
   }, [user?.uid, role, classroomKey, teacherKey, canTrigger]);
 
   // Trigger the CF to recompute stats
-  const triggerRecompute = useCallback(async (forceRefresh = false) => {
+  const triggerRecompute = useCallback(async () => {
     if (!canTrigger) return;
     try {
       setRefreshing(true);
-      const callFn = httpsCallable(cloudFunctions, 'updateStatsDelta', { timeout: 600_000 });
-      const result = await callFn({ forceRefresh });
+      // Keep the client deadline beyond the function's 120s runtime so the
+      // server can return its own bounded-wait error instead of a client timeout.
+      const callFn = httpsCallable(cloudFunctions, 'updateStatsDelta', { timeout: 135_000 });
+      const result = await callFn();
 
-      if (!result.data?.fresh) {
-        // CF recomputed — re-fetch docs without triggering another recompute
-        await fetchDocs({ triggerIfStale: false, silent: true });
-      }
+      // Owners and waiting/fenced callers all re-read the generation that the
+      // server actually published.
+      await fetchDocs({ triggerIfStale: false, silent: true });
       if (mountedRef.current) {
         setRefreshing(false);
-        // Use server-provided timestamp when cache was already fresh; otherwise now
-        setCachedAt(result.data?.fresh ? (result.data.cachedAt || Date.now()) : Date.now());
+        if (result.data?.cachedAt) setCachedAt(result.data.cachedAt);
       }
     } catch (e) {
       if (mountedRef.current) {
@@ -146,7 +146,7 @@ export const useStatsData = ({ user, role, manageableClassrooms = [], userClassr
 
   // Manual refresh (exposed to UI)
   const refresh = useCallback(() => {
-    triggerRecompute(true);
+    triggerRecompute();
   }, [triggerRecompute]);
 
   // Load on mount

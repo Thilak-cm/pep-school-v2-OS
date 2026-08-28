@@ -53,3 +53,16 @@ Firebase Functions v1 Pub/Sub schedules and use asynchronous `onRun` handlers.
   timezone.
 - Keep Pub/Sub workers listed separately from cron jobs unless they also have a
   schedule trigger.
+- **Deployment prerequisite:** Before releasing `updateStatsDelta`, invoke
+  `reconcileStats` manually once to seed its exact `createdAt + documentPath`
+  checkpoint and compact rolling state. Existing classroom cache docs lack the
+  `aggregationState.version: 2` field that `applyDeltaToCache` requires; without
+  a prior reconcile, every `updateStatsDelta` call will fail until the next
+  scheduled Sunday run. Deploy Firestore indexes first and wait for READY status
+  before triggering reconcile.
+- Stats publication uses one Firestore transaction and therefore fails safely
+  before writing when more than 450 classroom documents, a 900 KiB classroom
+  document, or 8 MiB of serialized cache payload would be published. The limits
+  reserve headroom below Firestore's 500-write, 1 MiB-document, and 10 MiB
+  transaction ceilings; the previous active cache remains untouched when a guard
+  is exceeded.

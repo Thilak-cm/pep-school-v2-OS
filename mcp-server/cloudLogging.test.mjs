@@ -42,12 +42,13 @@ test("exports bounded stats logs and classifies OOM failures", async () => {
       { insertId: "event-1", metadata: { timestamp: "2026-08-12T02:58:00.000Z", labels: { execution_id: "run-1" }, resource: { labels: { function_name: "updateStatsDelta", region: "asia-south1" } } }, data: { jsonPayload: { event: "stats_delta", actionCount: 42, runId: "run-1", secret: "filtered" } } },
     ], null],
   });
-  const result = await adapter.exportRecomputeStatsLogs({ lookbackMinutes: 5 }, new Date("2026-08-12T03:00:00.000Z"));
+  const result = await adapter.exportStatsRefreshLogs({ lookbackMinutes: 5 }, new Date("2026-08-12T03:00:00.000Z"));
   assert.equal(result.logs.length, 2);
   assert.equal(result.counts.oom, 1);
   assert.equal(result.logs[0].category, "oom");
   assert.equal(result.logs[1].jsonPayload.actionCount, 42);
   assert.equal(result.logs[1].jsonPayload.secret, undefined);
+  assert.equal(result.logs[0].textPayload, undefined);
 });
 
 test("builds a fixed Cloud Logging boundary and only named filters", () => {

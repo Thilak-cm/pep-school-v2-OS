@@ -77,7 +77,7 @@ function quote(value) {
   return JSON.stringify(String(value));
 }
 
-function buildRecomputeStatsLoggingFilter(params = {}) {
+function buildStatsRefreshLoggingFilter(params = {}) {
   if (params.query || params.logName || params.resource) throw new Error("unsupported arbitrary logging query");
   const window = params.startTime && params.endTime
     ? normalizeTimeWindow(params, new Date(params.endTime))
@@ -90,7 +90,7 @@ function buildRecomputeStatsLoggingFilter(params = {}) {
   ].join(" AND ");
 }
 
-function sanitizeRecomputeStatsLog(entry = {}) {
+function sanitizeStatsRefreshLog(entry = {}) {
   const metadata = entry.metadata || entry;
   const resource = metadata.resource || entry.resource || {};
   const labels = resource.labels || {};
@@ -102,7 +102,7 @@ function sanitizeRecomputeStatsLog(entry = {}) {
   const payload = entry.data?.jsonPayload || entry.jsonPayload;
   const safePayload = payload && typeof payload === "object"
     ? Object.fromEntries(Object.entries(payload).filter(([key]) => [
-      "event", "classroomCount", "computeTimeMs", "observationCount", "callerRole", "actionCount", "runId",
+      "event", "classroomCount", "actionCount", "pageCount", "runId", "role", "blockedByPendingMedia", "skippedPendingMedia",
     ].includes(key)))
     : undefined;
   const result = {
@@ -113,16 +113,17 @@ function sanitizeRecomputeStatsLog(entry = {}) {
     functionName: labels.function_name || labels.functionName || STATS_FUNCTION_NAMES[0],
     region: labels.region || null,
   };
-  if (textPayload) result.textPayload = textPayload.slice(0, 1000);
+  if (textPayload && /heap limit|out of memory/i.test(textPayload)) result.errorKind = "oom";
+  else if (textPayload && /finished with status:/i.test(textPayload)) {
+    result.executionStatus = /status code: [23]\d\d/i.test(textPayload) ? "completed" : "failed";
+  } else if (textPayload && /execution started/i.test(textPayload)) result.executionStatus = "started";
   if (safePayload && Object.keys(safePayload).length) result.jsonPayload = safePayload;
   return Object.fromEntries(Object.entries(result).filter(([, value]) => value !== undefined));
 }
 
-function classifyRecomputeStatsLog(entry) {
-  const text = entry.textPayload || "";
-  if (/heap limit|out of memory/i.test(text)) return "oom";
-  if (/finished with status:/.test(text)) return /status code: [23]\d\d/.test(text) ? "completed" : "failed";
-  if (/execution started/.test(text)) return "started";
+function classifyStatsRefreshLog(entry) {
+  if (entry.errorKind === "oom") return "oom";
+  if (entry.executionStatus) return entry.executionStatus;
   return "log";
 }
 
@@ -348,14 +349,14 @@ export function checkLatencyCoverage({ clientEvents = [], serverEvents = [] } = 
 export function createCloudLoggingAdapter({ entries }) {
   if (typeof entries !== "function") throw new Error("Cloud Logging entries client is required");
   return {
-    async exportRecomputeStatsLogs(params = {}, now = new Date()) {
+    async exportStatsRefreshLogs(params = {}, now = new Date()) {
       const window = params.startTime && params.endTime
         ? normalizeTimeWindow(params, new Date(params.endTime))
-        : normalizeTimeWindow(params);
+        : normalizeTimeWindow(params, now);
       const pageSize = Math.min(Math.max(Number(params.pageSize) || DEFAULT_PAGE_SIZE, 1), MAX_PAGE_SIZE);
       let response;
       try {
-        response = await entries(buildRecomputeStatsLoggingFilter({ ...params, ...window }), {
+        response = await entries(buildStatsRefreshLoggingFilter({ ...params, ...window }), {
           pageSize,
           pageToken: params.pageToken,
         });
@@ -364,8 +365,8 @@ export function createCloudLoggingAdapter({ entries }) {
       }
       const [rawEntries, nextQuery] = response;
       const logs = rawEntries
-        .map(sanitizeRecomputeStatsLog)
-        .map((log) => ({ ...log, category: classifyRecomputeStatsLog(log) }))
+        .map(sanitizeStatsRefreshLog)
+        .map((log) => ({ ...log, category: classifyStatsRefreshLog(log) }))
         .sort((a, b) => String(b.timestamp).localeCompare(String(a.timestamp)));
       const counts = {};
       for (const log of logs) counts[log.category] = (counts[log.category] || 0) + 1;
