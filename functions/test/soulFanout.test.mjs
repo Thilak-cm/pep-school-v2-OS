@@ -61,7 +61,23 @@ describe("parseSoulWorkerMessage", () => {
   test("parses valid message with studentIds array", () => {
     const message = { json: { studentIds: ["s1", "s2", "s3"] } };
     const result = parseSoulWorkerMessage(message);
-    assert.deepStrictEqual(result, { studentIds: ["s1", "s2", "s3"] });
+    assert.deepStrictEqual(result, { studentIds: ["s1", "s2", "s3"], force: false });
+  });
+
+  test("parses force flag when true", () => {
+    const message = { json: { studentIds: ["s1"], force: true } };
+    const result = parseSoulWorkerMessage(message);
+    assert.deepStrictEqual(result, { studentIds: ["s1"], force: true });
+  });
+
+  test("force defaults to false when absent", () => {
+    const message = { json: { studentIds: ["s1"] } };
+    assert.equal(parseSoulWorkerMessage(message).force, false);
+  });
+
+  test("force defaults to false for non-boolean values", () => {
+    const message = { json: { studentIds: ["s1"], force: "yes" } };
+    assert.equal(parseSoulWorkerMessage(message).force, false);
   });
 
   test("throws on missing JSON payload", () => {

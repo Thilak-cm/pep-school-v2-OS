@@ -407,8 +407,9 @@ export const soulWorker = functions
     // Parse message - validation errors are permanent, so ACK (return null)
     // to prevent infinite Pub/Sub retries on malformed messages.
     let studentIds;
+    let force;
     try {
-      ({ studentIds } = parseSoulWorkerMessage(message));
+      ({ studentIds, force } = parseSoulWorkerMessage(message));
     } catch (parseErr) {
       console.error("[soul-worker] bad message, ACKing to stop retries:", parseErr.message);
       return null;
@@ -420,18 +421,21 @@ export const soulWorker = functions
       return null;
     }
 
-    console.log(`[soul-worker] processing batch of ${studentIds.length}: ${studentIds.join(", ")}`);
+    console.log(`[soul-worker] processing batch of ${studentIds.length}: ${studentIds.join(", ")}${force ? " (force)" : ""}`);
 
     // Process all students in the batch in parallel.
     // Per-student idempotency guard: skip if soul.updatedAt is in the current month.
+    // Manual triggers pass force=true to bypass this guard.
     const results = await Promise.allSettled(
       studentIds.map(async (studentId) => {
-        // Idempotency guard
-        const existingSoul = await db.collection("students").doc(studentId)
-          .collection("ai_summaries").doc("soul").get();
-        if (existingSoul.exists && isCurrentMonthIST(existingSoul.data().updatedAt)) {
-          console.log(`[soul-worker] ${studentId} already has soul for current month, skipping`);
-          return { studentId, status: "skipped" };
+        // Idempotency guard (skipped when force=true, e.g. manual Settings trigger)
+        if (!force) {
+          const existingSoul = await db.collection("students").doc(studentId)
+            .collection("ai_summaries").doc("soul").get();
+          if (existingSoul.exists && isCurrentMonthIST(existingSoul.data().updatedAt)) {
+            console.log(`[soul-worker] ${studentId} already has soul for current month, skipping`);
+            return { studentId, status: "skipped" };
+          }
         }
 
         const result = await generateSoulForStudent(studentId, apiKey);
@@ -478,7 +482,7 @@ const WAVE_SIZE = 25; // match maxInstances
 const WAVE_GAP_MS = 90_000;
 const sleep = (ms) => new Promise((resolve) => setTimeout(resolve, ms));
 
-async function publishInWaves(studentIds, logPrefix) {
+async function publishInWaves(studentIds, logPrefix, { force = false } = {}) {
   const chunks = chunkStudentIds(studentIds);
   // Group chunks into waves of WAVE_SIZE
   const waves = [];
@@ -499,7 +503,7 @@ async function publishInWaves(studentIds, logPrefix) {
     await Promise.all(
       wave.map(async (batch) => {
         try {
-          const payload = JSON.stringify({ studentIds: batch });
+          const payload = JSON.stringify({ studentIds: batch, ...(force && { force: true }) });
           await soulTopic.publishMessage({ data: Buffer.from(payload) });
           published++;
         } catch (err) {
@@ -569,10 +573,11 @@ export const triggerSoulGeneration = functions
       console.log(`[soul-dispatcher] manual trigger for all ${studentIds.length} active students`);
     }
 
-    const result = await publishInWaves(studentIds, "[soul-dispatcher]");
+    // Manual triggers always force-regenerate, bypassing the monthly idempotency guard.
+    const result = await publishInWaves(studentIds, "[soul-dispatcher]", { force: true });
 
     const duration = ((Date.now() - startTime) / 1000).toFixed(1);
-    console.log(`[soul-dispatcher] manual trigger done in ${duration}s: ${result.published} batches published (${studentIds.length} students), ${result.publishFailed} failed`);
+    console.log(`[soul-dispatcher] manual trigger done in ${duration}s (force): ${result.published} batches published (${studentIds.length} students), ${result.publishFailed} failed`);
 
     return {
       status: result.publishFailed > 0 ? "partial" : "ok",

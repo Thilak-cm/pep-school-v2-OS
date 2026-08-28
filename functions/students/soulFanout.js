@@ -36,5 +36,5 @@ export function parseSoulWorkerMessage(message) {
   if (!Array.isArray(payload.studentIds) || !payload.studentIds.length) {
     throw new Error("Invalid Pub/Sub message: studentIds must be a non-empty array");
   }
-  return { studentIds: payload.studentIds };
+  return { studentIds: payload.studentIds, force: payload.force === true };
 }
