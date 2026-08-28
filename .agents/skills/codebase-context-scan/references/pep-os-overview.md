@@ -1,7 +1,7 @@
 # Pep OS Overview
 
-Generated: 2026-08-23T01:21:29.786Z
-App version: 12.4.2
+Generated: 2026-08-28T01:03:18.844Z
+App version: 12.5.0
 
 ## App Snapshot
 
@@ -152,6 +152,11 @@ App version: 12.4.2
 
 ## Recent Changes
 
+### 12.5.0 (2026-08-27)
+- Paginated delta stats refresh (`updateStatsDelta`) replaces the monolithic `recomputeStats` that was crashing with OOM errors at ~400MB heap (#256).
+- Weekly `reconcileStats` scheduled function rebuilds stats classroom-by-classroom every Sunday at 04:00 IST with atomic publication and pending-media guards (#256).
+- Lease-based coordination with generation fencing prevents concurrent stats refreshes from corrupting cache state (#256).
+
 ### 12.4.2 (2026-08-22)
 - Student and Classroom Timelines now show complete multi-photo MediaNote batches with image counts, carousel positions, and correct per-image editing/deletion targets (#249).
 - Classroom Timeline tabs now switch only through their headers, preventing tab gestures from competing with media carousel swipes (#249).
@@ -162,8 +167,4 @@ App version: 12.4.2
 
 ### 12.4.0 (2026-08-12)
 - Four privacy-safe MCP tools for bounded Coach Pepper Cloud Logging export, correlation, coverage checks, and schema discovery (#244).
-
-### 12.3.0 (2026-08-12)
-- End-to-end Coach Pepper chat latency telemetry with correlated client/server attempts, genuine first-paint timing, privacy-safe structured stages, reliable delivery retries, and benchmark analysis primitives (#234).
-- Coach Pepper fallback and seeded history defaults now retain 30 recent messages, and the displayed PWA version derives from package metadata (#234).
 
