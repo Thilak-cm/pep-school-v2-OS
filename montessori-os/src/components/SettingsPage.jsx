@@ -38,8 +38,8 @@ import { isSuperAdmin, isAdminRole, isClassroomAdmin, getRoleLabel } from '../ut
 import useNotify from '../notifications/useNotify';
 import { fuzzySearchStudents } from '../utils/fuzzySearch';
 
-// Thilak's UID - gates dev-only UI triggers for ad-hoc testing (soul gen, digest, etc.)
-const DEV_UID = 'T1iLA2qjTqMvgS4hamw2PEtNsov1';
+// UIDs that see dev-only UI triggers for ad-hoc testing (soul gen, digest, etc.)
+const DEV_UIDS = ['T1iLA2qjTqMvgS4hamw2PEtNsov1', 'HA1TiA1xbkRJ8n1MPaBi1PdGlo92'];
 
 function SettingsPage({ user, userRole, classrooms = [], onNavigate, onSignOut }) {
   const [confirmOpen, setConfirmOpen] = useState(false);
@@ -56,7 +56,7 @@ function SettingsPage({ user, userRole, classrooms = [], onNavigate, onSignOut }
   const notify = useNotify();
   const isSuperAdminUser = isSuperAdmin(userRole);
   const isAdmin = isAdminRole(userRole);
-  const isDevUser = user?.uid === DEV_UID;
+  const isDevUser = DEV_UIDS.includes(user?.uid);
 
   const loadStudents = useCallback(async () => {
     if (allStudents.length > 0) return;
