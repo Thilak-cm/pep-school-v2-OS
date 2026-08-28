@@ -68,6 +68,18 @@ const EXPECTED_EXPORTS = [
   "onStudentWrite",
   // Data Integrity Checks (#161)
   "dataIntegrityChecks",
+  // Assessments (#248)
+  "cancelMedicalAssessmentUpload",
+  "cancelStructuredAssessmentUpload",
+  "cleanupStaleAssessmentUploads",
+  "createMedicalAssessmentUpload",
+  "createStructuredAssessmentUpload",
+  "deleteAssessment",
+  "finalizeMedicalAssessmentUpload",
+  "findStructuredAssessmentDuplicate",
+  "getAssessmentDownloadUrl",
+  "getStructuredAssessmentSource",
+  "publishStructuredAssessment",
 ];
 
 describe("barrel file (functions/index.js)", () => {
