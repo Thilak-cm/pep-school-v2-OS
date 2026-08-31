@@ -1,7 +1,8 @@
 import * as functions from "firebase-functions/v1";
 import { defineSecret } from "firebase-functions/params";
 import { db } from "../shared/firebase.js";
-import { OPENROUTER_API_KEY, getOpenRouterKey } from "../shared/openrouter.js";
+import { OPENROUTER_API_KEY } from "../shared/llm.js";
+import { getOpenRouterKey } from "../shared/openrouter.js";
 
 const LANGFUSE_SECRET_KEY = defineSecret("LANGFUSE_SECRET_KEY");
 const LANGFUSE_PUBLIC_KEY = defineSecret("LANGFUSE_PUBLIC_KEY");

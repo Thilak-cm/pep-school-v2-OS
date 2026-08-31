@@ -1,31 +1,39 @@
 {
   "_description": "Per-feature model registry. Keys are featureIds; values map floating aliases (from Firestore config docs) to OpenRouter slugs. The resolver looks up registry[featureId][alias]. 'default' is a reserved alias for features with no config doc. Pushed to config/model_registry via scripts/ops/push-model-registry.mjs.",
   "text_cleanup": {
-    "gpt-5.4-nano": "openai/gpt-5.4-nano"
+    "gpt-5.4-nano": "openai/gpt-5.4-nano",
+    "default": "openai/gpt-5.4-nano"
   },
   "coach": {
-    "gpt-5.4": "openai/gpt-5.4"
+    "gpt-5.4": "openai/gpt-5.4",
+    "default": "openai/gpt-5.4"
   },
   "baseball_card": {
-    "gpt-5.4-mini": "openai/gpt-5.4-mini"
+    "gpt-5.4-mini": "openai/gpt-5.4-mini",
+    "default": "openai/gpt-5.4-mini"
   },
   "writing_analysis": {
-    "gpt-5.4": "openai/gpt-5.4"
+    "gpt-5.4": "openai/gpt-5.4",
+    "default": "openai/gpt-5.4"
   },
   "photo_classification": {
-    "gpt-5.4-nano": "openai/gpt-5.4-nano"
+    "gpt-5.4-nano": "openai/gpt-5.4-nano",
+    "default": "openai/gpt-5.4-nano"
   },
   "media_pdf": {
     "default": "openai/gpt-5.4-mini"
   },
   "chat": {
-    "gpt-5-mini": "openai/gpt-5-mini"
+    "gpt-5-mini": "openai/gpt-5-mini",
+    "gpt-5.4": "openai/gpt-5.4"
   },
   "soul_generation": {
-    "gpt-5.4": "openai/gpt-5.4"
+    "gpt-5.4": "openai/gpt-5.4",
+    "default": "openai/gpt-5.4"
   },
   "monthly_plan": {
-    "gpt-5.4": "openai/gpt-5.4"
+    "gpt-5.4": "openai/gpt-5.4",
+    "default": "openai/gpt-5.4"
   },
   "weekly_digest": {
     "openai/gpt-5.5": "openai/gpt-5.5"
@@ -37,6 +45,7 @@
     "openai/gpt-4.1-mini": "openai/gpt-4.1-mini"
   },
   "readiness": {
-    "gpt-5.4-mini": "openai/gpt-5.4-mini"
+    "gpt-5.4-mini": "openai/gpt-5.4-mini",
+    "default": "openai/gpt-5.4-mini"
   }
 }

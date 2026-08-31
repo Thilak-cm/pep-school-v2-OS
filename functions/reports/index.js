@@ -1,11 +1,8 @@
 import * as functions from "firebase-functions/v1";
 // defineSecret imports come from shared/llm.js (OPENROUTER_API_KEY, LANGFUSE_SECRET_KEY, LANGFUSE_PUBLIC_KEY)
 import { db } from "../shared/firebase.js";
-import { buildChatBody } from "../shared/llm.js";
-import { OPENROUTER_API_KEY, LANGFUSE_SECRET_KEY, LANGFUSE_PUBLIC_KEY } from "../shared/llm.js";
-import { getOpenRouterKey, OPENROUTER_ENDPOINT } from "../shared/openrouter.js";
+import { runLLM, OPENROUTER_API_KEY, LANGFUSE_SECRET_KEY, LANGFUSE_PUBLIC_KEY } from "../shared/llm.js";
 import { createLangfuse } from "../shared/langfuse.js";
-import { resolveModel } from "../shared/modelRegistry.js";
 
 import { REPORT_DEFAULTS, READINESS_DEFAULTS, JUDGE_DEFAULTS, getReadinessDocId, DRIVE_CONSTANTS, buildCsvFilename, buildArchiveCsvFilename, buildBaselineCsvFilename, buildBaselineArchiveCsvFilename } from "../config/reportConstants.js";
 import { getDefaultDateRange, parseReportResponse, parseReadinessResponse, parseJudgeResponse, getReportPromptDocId, getJudgePromptDocId, getReadinessPromptDocId, mergeReportConfig, formatCsvRow, updateCsvContent, removeCsvRow, appendCsvContent, normalizeEndOfDay, assembleReportSystemContent, buildReadinessArchive } from "../utils/reportHelpers.js";
@@ -139,12 +136,7 @@ IMPORTANT: You must output your response as a JSON object with exactly this stru
 The reportText should contain the complete parent-facing report following the prompt instructions above.
 Output ONLY the JSON object, nothing else.`;
 
-async function callReportGeneration(notes, prompt, studentContext, dateRange, config = REPORT_DEFAULTS, reportType = "term") {
-  const apiKey = getOpenRouterKey();
-  if (!apiKey) {
-    throw new functions.https.HttpsError("failed-precondition", "OpenRouter API key not configured");
-  }
-
+async function callReportGeneration(notes, prompt, studentContext, dateRange, config = REPORT_DEFAULTS, reportType = "term", trace = null) {
   const safeContext = {
     studentName: studentContext?.studentName || "Unknown student",
     dob: studentContext?.dob || "dob unavailable in context",
@@ -173,44 +165,20 @@ async function callReportGeneration(notes, prompt, studentContext, dateRange, co
     JSON.stringify(notes),
   ].join("\n");
 
-  const resolvedModel = await resolveModel("report", config.model || REPORT_DEFAULTS.model);
-  const body = buildChatBody({
-    model: resolvedModel,
+  const { content: rawContent } = await runLLM({
+    featureId: "report",
     messages: [
       { role: "system", content: systemContent },
       { role: "user", content: userContent },
     ],
+    model: config.model || REPORT_DEFAULTS.model,
     temperature: Number.isFinite(config.temperature) ? config.temperature : REPORT_DEFAULTS.temperature,
-    max_completion_tokens: Number.isFinite(config.max_tokens) ? config.max_tokens : REPORT_DEFAULTS.max_tokens,
-    response_format: { type: "json_object" },
+    maxTokens: Number.isFinite(config.max_tokens) ? config.max_tokens : REPORT_DEFAULTS.max_tokens,
+    responseFormat: { type: "json_object" },
+    traceName: "report-generation",
+    traceMetadata: { reportType, noteCount: notes.length },
+    trace,
   });
-
-  let response;
-  try {
-    response = await fetch(OPENROUTER_ENDPOINT, {
-      method: "POST",
-      headers: {
-        "Authorization": `Bearer ${apiKey}`,
-        "Content-Type": "application/json",
-      },
-      body: JSON.stringify(body),
-    });
-  } catch (e) {
-    console.error("[report] network error", e);
-    throw new functions.https.HttpsError("unavailable", "AI service unavailable");
-  }
-
-  if (!response.ok) {
-    const errText = await response.text().catch(() => "");
-    console.error("[report] OpenAI error", response.status, errText?.slice?.(0, 400));
-    throw new functions.https.HttpsError("internal", `AI error: ${response.status}`);
-  }
-
-  const json = await response.json();
-  const rawContent = json?.choices?.[0]?.message?.content?.trim();
-  if (!rawContent) {
-    throw new functions.https.HttpsError("internal", "AI returned no content");
-  }
 
   return parseReportResponse(rawContent);
 }
@@ -258,9 +226,6 @@ async function callReportJudge(reportText, notes, studentContext, programId) {
     return null;
   }
 
-  const apiKey = getOpenRouterKey();
-  if (!apiKey) return null;
-
   const systemContent = judgeConfig.systemPrompt + JUDGE_JSON_WRAPPER;
 
   const safeContext = {
@@ -282,41 +247,21 @@ async function callReportJudge(reportText, notes, studentContext, programId) {
   ].join("\n");
 
   const judgeModelAlias = judgeConfig.model || JUDGE_DEFAULTS.model;
-  const config = {
-    model: await resolveModel("baseline_judge", judgeModelAlias),
-    temperature: Number.isFinite(judgeConfig.temperature) ? judgeConfig.temperature : JUDGE_DEFAULTS.temperature,
-    max_tokens: Number.isFinite(judgeConfig.max_tokens) ? judgeConfig.max_tokens : JUDGE_DEFAULTS.max_tokens,
-  };
-
-  const body = buildChatBody({
-    model: config.model,
-    messages: [
-      { role: "system", content: systemContent },
-      { role: "user", content: userContent },
-    ],
-    temperature: config.temperature,
-    max_completion_tokens: config.max_tokens,
-    response_format: { type: "json_object" },
-  });
 
   try {
-    const response = await fetch(OPENROUTER_ENDPOINT, {
-      method: "POST",
-      headers: {
-        "Authorization": `Bearer ${apiKey}`,
-        "Content-Type": "application/json",
-      },
-      body: JSON.stringify(body),
+    const { content: rawContent } = await runLLM({
+      featureId: "baseline_judge",
+      messages: [
+        { role: "system", content: systemContent },
+        { role: "user", content: userContent },
+      ],
+      model: judgeModelAlias,
+      temperature: Number.isFinite(judgeConfig.temperature) ? judgeConfig.temperature : JUDGE_DEFAULTS.temperature,
+      maxTokens: Number.isFinite(judgeConfig.max_tokens) ? judgeConfig.max_tokens : JUDGE_DEFAULTS.max_tokens,
+      responseFormat: { type: "json_object" },
+      traceName: "baseline-judge",
+      traceMetadata: { programId },
     });
-
-    if (!response.ok) {
-      console.error("[report-judge] API error", response.status);
-      return null;
-    }
-
-    const json = await response.json();
-    const rawContent = json?.choices?.[0]?.message?.content?.trim();
-    if (!rawContent) return null;
 
     return parseJudgeResponse(rawContent);
   } catch (e) {
@@ -388,13 +333,7 @@ async function runSingleReport({ studentId, dateRangeStart, dateRangeEnd, reques
 
   const formatted = notes.map(formatObservationForPrompt);
 
-  const genSpan = trace?.generation({
-    name: "report-generation",
-    model: config.model,
-    input: { noteCount: formatted.length, reportType, programId: studentInfo.programId },
-  });
-  const aiResult = await callReportGeneration(formatted, prompt, studentInfo, { start: startDate, end: endDate }, config, reportType);
-  genSpan?.end({ output: { reportLength: aiResult.reportText?.length || 0 } });
+  const aiResult = await callReportGeneration(formatted, prompt, studentInfo, { start: startDate, end: endDate }, config, reportType, trace);
 
   const sourceNoteIds = notes.map((n) => n.id).filter(Boolean);
 
@@ -529,11 +468,6 @@ export const previewStudentReport = functions
     const requesterRole = requesterSnap.data()?.role;
     if (!requesterSnap.exists || requesterRole !== "superadmin") {
       throw new functions.https.HttpsError("permission-denied", "Only super admins can preview reports");
-    }
-
-    const apiKey = getOpenRouterKey();
-    if (!apiKey) {
-      throw new functions.https.HttpsError("failed-precondition", "OpenRouter API key not configured");
     }
 
     const studentId = String(data?.studentId || "").trim();
@@ -1038,10 +972,6 @@ export const checkReportReadiness = functions
     }
 
     const formatted = notes.map(formatObservationForPrompt);
-    const apiKey = getOpenRouterKey();
-    if (!apiKey) {
-      throw new functions.https.HttpsError("failed-precondition", "OpenRouter API key not configured");
-    }
 
     const systemContent = prompt.systemPrompt + READINESS_JSON_WRAPPER;
     const userContent = [
@@ -1053,44 +983,19 @@ export const checkReportReadiness = functions
       JSON.stringify(formatted),
     ].join("\n");
 
-    const readinessModel = await resolveModel("readiness", prompt.model);
-    const body = buildChatBody({
-      model: readinessModel,
+    const { content: rawContent } = await runLLM({
+      featureId: "readiness",
       messages: [
         { role: "system", content: systemContent },
         { role: "user", content: userContent },
       ],
+      model: prompt.model,
       temperature: prompt.temperature,
-      max_completion_tokens: prompt.max_tokens,
-      response_format: { type: "json_object" },
+      maxTokens: prompt.max_tokens,
+      responseFormat: { type: "json_object" },
+      traceName: "report-readiness",
+      traceMetadata: { studentId, reportType, noteCount: formatted.length },
     });
-
-    let response;
-    try {
-      response = await fetch(OPENROUTER_ENDPOINT, {
-        method: "POST",
-        headers: {
-          "Authorization": `Bearer ${apiKey}`,
-          "Content-Type": "application/json",
-        },
-        body: JSON.stringify(body),
-      });
-    } catch (e) {
-      console.error("[readiness] network error", e);
-      throw new functions.https.HttpsError("unavailable", "AI service unavailable");
-    }
-
-    if (!response.ok) {
-      const errText = await response.text().catch(() => "");
-      console.error("[readiness] OpenAI error", response.status, errText?.slice?.(0, 400));
-      throw new functions.https.HttpsError("internal", `AI error: ${response.status}`);
-    }
-
-    const json = await response.json();
-    const rawContent = json?.choices?.[0]?.message?.content?.trim();
-    if (!rawContent) {
-      throw new functions.https.HttpsError("internal", "AI returned no content");
-    }
 
     const scores = parseReadinessResponse(rawContent);
 

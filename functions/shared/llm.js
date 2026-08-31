@@ -95,7 +95,7 @@ export async function runLLM({
   });
 
   // 3. Get API key
-  const apiKey = process.env.OPENROUTER_API_KEY;
+  const apiKey = process.env.OPENROUTER_API_KEY || OPENROUTER_API_KEY.value?.() || null;
   if (!apiKey) {
     throw new functions.https.HttpsError("failed-precondition", "OPENROUTER_API_KEY not configured");
   }

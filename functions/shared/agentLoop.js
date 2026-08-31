@@ -28,6 +28,7 @@ const MAX_ITERATIONS = 15;
  * @param {Object}   [opts.trace]      - Langfuse span for tracing (optional)
  * @param {boolean}  [opts.collectTrace] - Build per-iteration trace data (default false)
  * @param {number}   [opts.maxIterations] - Safety limit (default 15)
+ * @param {string}   [opts.featureId] - Registry feature ID for model resolution (default "weekly_digest")
  * @returns {{ content: string, toolCallLog: Object[], iterations: number, totalTokens: number, iterationTrace: Object[] }}
  */
 export async function runAgentLoop({
@@ -38,12 +39,13 @@ export async function runAgentLoop({
   trace,
   collectTrace = false,
   maxIterations = MAX_ITERATIONS,
+  featureId,
 }) {
   const apiKey = getOpenRouterKey();
   if (!apiKey) throw new Error("OPENROUTER_API_KEY not configured");
 
   // Resolve model alias through the central registry (#187)
-  const resolvedModelId = await resolveModel("weekly_digest", model.model);
+  const resolvedModelId = await resolveModel(featureId || "weekly_digest", model.model);
 
   const toolCallLog = [];
   const iterationTrace = collectTrace ? [] : null;

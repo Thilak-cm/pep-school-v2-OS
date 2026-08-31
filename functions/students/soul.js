@@ -1,8 +1,7 @@
 import * as functions from "firebase-functions/v1";
 import { db, Timestamp } from "../shared/firebase.js";
-import { buildChatBody, OPENROUTER_API_KEY, LANGFUSE_SECRET_KEY, LANGFUSE_PUBLIC_KEY } from "../shared/llm.js";
-import { resolveModel } from "../shared/modelRegistry.js";
-import { getOpenRouterKey, OPENROUTER_ENDPOINT } from "../shared/openrouter.js";
+import { runLLM, buildChatBody, OPENROUTER_API_KEY, LANGFUSE_SECRET_KEY, LANGFUSE_PUBLIC_KEY } from "../shared/llm.js";
+import { OPENROUTER_ENDPOINT } from "../shared/openrouter.js";
 import {
   SOUL_DEFAULTS,
   VALID_PROGRAMS,
@@ -97,12 +96,11 @@ async function getSoulTemplateConfig(programId) {
   return out;
 }
 
-async function callSoulGeneration(observations, interviews, guidelinesContent, studentContext, previousSoul, apiKey) {
+async function callSoulGeneration(observations, interviews, guidelinesContent, studentContext, previousSoul) {
   // Read instruction prompt + model settings from Firestore, fall back to hardcoded
   const soulConfig = await getSoulConfig(studentContext.programId);
   const systemPromptTemplate = soulConfig?.systemPrompt || null;
   const modelAlias = soulConfig?.model || SOUL_DEFAULTS.model;
-  const model = await resolveModel("soul_generation", modelAlias);
   const temperature = soulConfig?.temperature ?? SOUL_DEFAULTS.temperature;
   const maxTokens = soulConfig?.max_tokens || SOUL_DEFAULTS.max_tokens;
 
@@ -114,42 +112,18 @@ async function callSoulGeneration(observations, interviews, guidelinesContent, s
     : buildSoulSystemPrompt(guidelinesContent);
   const userContent = buildSoulUserPrompt(studentContext, observations, interviews, previousSoul);
 
-  const body = buildChatBody({
-    model,
+  const { content: rawContent } = await runLLM({
+    featureId: "soul_generation",
     messages: [
       { role: "system", content: systemContent },
       { role: "user", content: userContent },
     ],
+    model: modelAlias,
     temperature,
-    max_completion_tokens: maxTokens,
+    maxTokens,
+    traceName: "soul-generation",
+    traceMetadata: { studentId: studentContext?.studentId, programId: studentContext?.programId },
   });
-
-  let response;
-  try {
-    response = await fetch(OPENROUTER_ENDPOINT, {
-      method: "POST",
-      headers: {
-        "Authorization": `Bearer ${apiKey}`,
-        "Content-Type": "application/json",
-      },
-      body: JSON.stringify(body),
-    });
-  } catch (e) {
-    console.error("[soul] network error", e);
-    throw new functions.https.HttpsError("unavailable", "AI service unavailable");
-  }
-
-  if (!response.ok) {
-    const errText = await response.text().catch(() => "");
-    console.error("[soul] LLM error", response.status, errText?.slice?.(0, 400));
-    throw new functions.https.HttpsError("internal", `AI error: ${response.status}`);
-  }
-
-  const json = await response.json();
-  const rawContent = json?.choices?.[0]?.message?.content?.trim();
-  if (!rawContent) {
-    throw new functions.https.HttpsError("internal", "AI returned no content");
-  }
 
   try {
     return parseSoulResponse(rawContent);
@@ -241,11 +215,6 @@ export const generateStudentProfile = functions
       throw new functions.https.HttpsError("unauthenticated", "User must be authenticated");
     }
 
-    const apiKey = getOpenRouterKey();
-    if (!apiKey) {
-      throw new functions.https.HttpsError("failed-precondition", "OPENROUTER_API_KEY not configured");
-    }
-
     const requesterSnap = await db.collection("users").doc(context.auth.uid).get();
     if (!requesterSnap.exists) {
       throw new functions.https.HttpsError("permission-denied", "You do not have permission to generate profiles");
@@ -282,7 +251,7 @@ export const generateStudentProfile = functions
     }
 
     const windowDays = data?.windowDays ?? 365;
-    return await generateSoulForStudent(studentId, apiKey, { windowDays });
+    return await generateSoulForStudent(studentId, { windowDays });
   });
 
 // -----------------------------------------------
@@ -290,7 +259,7 @@ export const generateStudentProfile = functions
 // Reused by the on-demand callable and the Pub/Sub worker.
 // -----------------------------------------------
 
-async function generateSoulForStudent(studentId, apiKey, { windowDays = 365 } = {}) {
+async function generateSoulForStudent(studentId, { windowDays = 365 } = {}) {
   const t0 = Date.now();
   const lap = (label) => console.log(`[soul] ${studentId} ${label} +${Date.now() - t0}ms`);
 
@@ -348,8 +317,8 @@ async function generateSoulForStudent(studentId, apiKey, { windowDays = 365 } = 
 
   const soulContent = await callSoulGeneration(
     formatted, formattedInterviews, guidelinesContent,
-    { studentName: studentInfo.studentName, dob: studentInfo.dob, age: studentInfo.age, programId: studentInfo.programId },
-    previousSoul, apiKey,
+    { studentId, studentName: studentInfo.studentName, dob: studentInfo.dob, age: studentInfo.age, programId: studentInfo.programId },
+    previousSoul,
   );
   lap("callSoulGeneration(LLM)");
 
@@ -417,12 +386,6 @@ export const soulWorker = functions
       return null;
     }
 
-    const apiKey = getOpenRouterKey();
-    if (!apiKey) {
-      console.error("[soul-worker] OPENROUTER_API_KEY not configured, ACKing");
-      return null;
-    }
-
     console.log(`[soul-worker] processing batch of ${studentIds.length}: ${studentIds.join(", ")}${force ? " (force)" : ""}`);
 
     // Process all students in the batch in parallel.
@@ -440,7 +403,7 @@ export const soulWorker = functions
           }
         }
 
-        const result = await generateSoulForStudent(studentId, apiKey);
+        const result = await generateSoulForStudent(studentId);
         return { studentId, ...result };
       }),
     );

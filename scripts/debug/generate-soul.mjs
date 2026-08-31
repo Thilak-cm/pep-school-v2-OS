@@ -1,8 +1,8 @@
 // PEP-207: Generate soul + open_questions for a student locally.
 // Replicates generateStudentProfile logic without needing Firebase Auth context.
 //
-// Usage: OPENAI_API_KEY=sk-... node scripts/debug/generate-soul.mjs <studentId>
-// Example: OPENAI_API_KEY=sk-... node scripts/debug/generate-soul.mjs 2025-ADO-001
+// Usage: OPENROUTER_API_KEY=sk-... node scripts/debug/generate-soul.mjs <studentId>
+// Example: OPENROUTER_API_KEY=sk-... node scripts/debug/generate-soul.mjs 2025-ADO-001
 
 // Set project ID before any firebase-admin import so shared/firebase.js picks it up
 process.env.GCLOUD_PROJECT = "pep-os";
@@ -27,7 +27,7 @@ import {
   extractGuidelinesSuggestions,
   extractOpenQuestions,
 } from "../../functions/utils/soulHelpers.js";
-import { buildChatBody, CHAT_ENDPOINT } from "../../functions/shared/openai.js";
+import { buildChatBody } from "../../functions/shared/llm.js";
 import {
   getStudentWithProgram,
   fetchStudentNotesForWindow,
@@ -38,17 +38,18 @@ import {
 import { formatInterviewForPrompt } from "../../functions/utils/interviewHelpers.js";
 
 // --- Config ---
-const OPENAI_API_KEY = process.env.OPENAI_API_KEY;
-if (!OPENAI_API_KEY) {
-  console.error("ERROR: OPENAI_API_KEY env var is required");
-  console.error("Usage: OPENAI_API_KEY=sk-... node scripts/debug/generate-soul.mjs <studentId>");
+const OPENROUTER_ENDPOINT = "https://openrouter.ai/api/v1/chat/completions";
+const OPENROUTER_API_KEY = process.env.OPENROUTER_API_KEY;
+if (!OPENROUTER_API_KEY) {
+  console.error("ERROR: OPENROUTER_API_KEY env var is required");
+  console.error("Usage: OPENROUTER_API_KEY=sk-... node scripts/debug/generate-soul.mjs <studentId>");
   process.exit(1);
 }
 
 const studentId = process.argv[2]?.trim();
 if (!studentId) {
   console.error("ERROR: studentId argument is required");
-  console.error("Usage: OPENAI_API_KEY=sk-... node scripts/debug/generate-soul.mjs <studentId>");
+  console.error("Usage: OPENROUTER_API_KEY=sk-... node scripts/debug/generate-soul.mjs <studentId>");
   process.exit(1);
 }
 
@@ -117,10 +118,10 @@ async function callSoulGeneration(observations, interviews, guidelinesContent, s
     max_completion_tokens: maxTokens,
   });
 
-  const response = await fetch(CHAT_ENDPOINT, {
+  const response = await fetch(OPENROUTER_ENDPOINT, {
     method: "POST",
     headers: {
-      "Authorization": `Bearer ${OPENAI_API_KEY}`,
+      "Authorization": `Bearer ${OPENROUTER_API_KEY}`,
       "Content-Type": "application/json",
     },
     body: JSON.stringify(body),
@@ -128,7 +129,7 @@ async function callSoulGeneration(observations, interviews, guidelinesContent, s
 
   if (!response.ok) {
     const errText = await response.text().catch(() => "");
-    throw new Error(`OpenAI error ${response.status}: ${errText?.slice?.(0, 400)}`);
+    throw new Error(`OpenRouter error ${response.status}: ${errText?.slice?.(0, 400)}`);
   }
 
   const json = await response.json();

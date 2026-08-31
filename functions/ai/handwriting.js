@@ -1,7 +1,6 @@
 import * as functions from "firebase-functions/v1";
 import { db, storage, Timestamp } from "../shared/firebase.js";
-import { runLLM, OPENROUTER_API_KEY, LANGFUSE_SECRET_KEY, LANGFUSE_PUBLIC_KEY } from "../shared/llm.js";
-import { buildChatBody } from "../shared/llm.js";
+import { runLLM, buildChatBody, OPENROUTER_API_KEY, LANGFUSE_SECRET_KEY, LANGFUSE_PUBLIC_KEY } from "../shared/llm.js";
 import { OPENROUTER_ENDPOINT } from "../shared/openrouter.js";
 import {
   HANDWRITING_ANALYSIS_DEFAULTS,
