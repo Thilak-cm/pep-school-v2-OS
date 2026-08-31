@@ -1,12 +1,12 @@
 # Pep OS Overview
 
-Generated: 2026-08-28T01:03:18.844Z
-App version: 12.5.0
+Generated: 2026-08-31T06:08:33.862Z
+App version: 13.0.1
 
 ## App Snapshot
 
 - Mobile-first web app for Montessori classrooms (repo root package: `pep-os`, app package: `montessori-os`).
-- Frontend stack: React 19.1.0, MUI 7.2.0, Firebase 11.10.0, Vite 6.0.0.
+- Frontend stack: React 19.1.0, MUI 7.3.0, Firebase 11.10.0, Vite 6.0.0.
 - Product focus: fast classroom note capture, timeline review, analytics, and AI-assisted educator workflows.
 
 ## Roles
@@ -95,17 +95,17 @@ App version: 12.5.0
 - `montessori-os/src/components/UsersAccessPage.jsx`
 
 ### Settings, Feedback, and App Shell (`settings-feedback-shell`)
-- Count: 55
-- Components: `App`, `AppFooter`, `AppHeader`, `BroadcastComposer`, `BroadcastComposer.test`, `BulkUploadPage`, `BulkUploadPage.helpers`, `BulkUploadPage.test`, `ClassroomNoteCard`, `ClassroomStudentCard`, `CopyToClipboardButton`, `DynamicIslandPill`, `DynamicIslandPill.test`, `FeedbackPage`, `GroupedMediaCard`, `GroupedMediaCard.test`, `groupedMediaUtils`, `groupedMediaUtils.test`, `GroupedNoteCard`, `GroupedNoteDialog`, `InlineVoiceOverlay`, `InterviewsPage`, `InterviewsPage.helpers`, `InterviewsPage.test`, `LandingPage`, `LandingPage.test`, `MediaBatchPreview`, `MediaBatchPreview.test`, `MonthlyPlanTab`, `MonthlyPlanTab.test`, `NoteBottomSheet.structure.test`, `NotesOverTimeDrawer`, `PhotoEditor`, `PlanFeedbackDialog`, `PlanFeedbackDialog.test`, `ProfilePage`, `QuestionDeck`, `QuestionDeck.test`, `ReadinessCheckDialog`, `ReportGenerateDialog`, `ReportPreviewDialog`, `ReportsCard`, `ReportsPage`, `ReportsPage.test`, `ReportTypeLandingPage`, `ReportTypeLandingPage.test`, `ReviewClassroomNotes`, `SettingsPage`, `SettingsPage.test`, `SnapshotBody`, `SnapshotCard`, `VersionBadge`, `VersionBadge.test`, `WritingAnalysisTab`, `WritingAnalysisTab.test`
+- Count: 59
+- Components: `App`, `AppFooter`, `AppHeader`, `AssessmentUploadPage`, `AssessmentUploadPage.test`, `BroadcastComposer`, `BroadcastComposer.test`, `BulkUploadPage`, `BulkUploadPage.helpers`, `BulkUploadPage.test`, `ClassroomNoteCard`, `ClassroomStudentCard`, `CopyToClipboardButton`, `DynamicIslandPill`, `DynamicIslandPill.test`, `FeedbackPage`, `GroupedMediaCard`, `GroupedMediaCard.test`, `groupedMediaUtils`, `groupedMediaUtils.test`, `GroupedNoteCard`, `GroupedNoteDialog`, `InlineVoiceOverlay`, `InterviewsPage`, `InterviewsPage.helpers`, `InterviewsPage.test`, `LandingPage`, `LandingPage.test`, `MediaBatchPreview`, `MediaBatchPreview.test`, `MonthlyPlanTab`, `MonthlyPlanTab.test`, `NoteBottomSheet.structure.test`, `NotesOverTimeDrawer`, `PhotoEditor`, `PlanFeedbackDialog`, `PlanFeedbackDialog.test`, `ProfilePage`, `QuestionDeck`, `QuestionDeck.test`, `ReadinessCheckDialog`, `ReportGenerateDialog`, `ReportPreviewDialog`, `ReportsCard`, `ReportsPage`, `ReportsPage.test`, `ReportTypeLandingPage`, `ReportTypeLandingPage.test`, `ReviewClassroomNotes`, `SettingsPage`, `SettingsPage.test`, `SnapshotBody`, `SnapshotCard`, `StudentAssessmentsPage`, `StudentAssessmentsPage.test`, `VersionBadge`, `VersionBadge.test`, `WritingAnalysisTab`, `WritingAnalysisTab.test`
 - Representative paths:
 - `montessori-os/src/App.jsx`
 - `montessori-os/src/AppFooter.jsx`
 - `montessori-os/src/AppHeader.jsx`
+- `montessori-os/src/components/AssessmentUploadPage.jsx`
+- `montessori-os/src/components/AssessmentUploadPage.test.js`
 - `montessori-os/src/components/BroadcastComposer.jsx`
 - `montessori-os/src/components/BroadcastComposer.test.js`
 - `montessori-os/src/components/BulkUploadPage.jsx`
-- `montessori-os/src/components/BulkUploadPage.helpers.js`
-- `montessori-os/src/components/BulkUploadPage.test.js`
 
 ## Existing UX Patterns
 
@@ -117,7 +117,7 @@ App version: 12.5.0
 
 ## Firestore/Data Surface
 
-- Core collections/signals: `users`, `branches`, `programs`, `classrooms`, `students`, `observations`, `ai_summaries`, `config`, `feedback`, `placements`, `chats`, `messages`, `access`, `alerts`, `brain`, `digests`, `files`, `history`, `interviews`, `monthly_plan_feedback`, `runs`, `statsCache`, `testbench`, `turns`
+- Core collections/signals: `users`, `branches`, `programs`, `classrooms`, `students`, `observations`, `ai_summaries`, `config`, `feedback`, `placements`, `chats`, `messages`, `access`, `alerts`, `brain`, `digests`, `files`, `history`, `interviews`, `monthly_plan_feedback`, `pendingMedicalAssessmentUploads`, `pendingStructuredAssessmentUploads`, `runs`, `statsCache`, `structuredAssessmentSources`, `testbench`, `turns`
 - Rule-declared paths:
 - `/{document=**}`
 - `/access/{uid}`
@@ -137,10 +137,13 @@ App version: 12.5.0
 - `/messages/{messageId}`
 - `/monthly_plan_feedback/{feedbackId}`
 - `/observations/{observationId}`
+- `/pendingMedicalAssessmentUploads/{uploadId}`
+- `/pendingStructuredAssessmentUploads/{uploadId}`
 - `/placements/{placementId}`
 - `/programs/{programId}`
 - `/runs/{runId}`
 - `/statsCache/{docId}`
+- `/structuredAssessmentSources/{sourceId}`
 - `/students/{studentId}`
 - `/testbench/settings`
 - `/turns/{turnId}`
@@ -151,6 +154,11 @@ App version: 12.5.0
 - `/classrooms/_digest_all/digests/{digestId}/history/{weekKey}`
 
 ## Recent Changes
+
+### 13.0.1 (2026-08-30)
+- Soul generation month picker in Settings: superadmins select a target month (current or next, IST-bounded) to pre-generate next month's souls ahead of the monthly cron (#264).
+- `generatedForMonth` ("YYYY-MM") field on soul and open_questions docs serves as the idempotency token — the worker skips students already generated for the target month (#264).
+- Question Deck subtitle reads the month from `generatedForMonth`, appending the year for cross-year pre-generation (#264).
 
 ### 12.5.0 (2026-08-27)
 - Paginated delta stats refresh (`updateStatsDelta`) replaces the monolithic `recomputeStats` that was crashing with OOM errors at ~400MB heap (#256).
@@ -164,7 +172,4 @@ App version: 12.5.0
 ### 12.4.1 (2026-08-19)
 - MediaNote photo editing now respects student-gated analysis, preserves corrected crop/rotation output, and keeps per-photo analysis revisions isolated (#236).
 - Student Timeline media batches hydrate complete sibling sets and support swipe navigation and refresh-after-delete behavior; the remaining carousel regression follow-up is tracked in #249.
-
-### 12.4.0 (2026-08-12)
-- Four privacy-safe MCP tools for bounded Coach Pepper Cloud Logging export, correlation, coverage checks, and schema discovery (#244).
 
