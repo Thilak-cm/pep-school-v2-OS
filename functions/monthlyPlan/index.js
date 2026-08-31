@@ -44,6 +44,14 @@ import {
 import { fetchActiveStudentIds } from "../shared/scheduling.js";
 import { PubSub } from "@google-cloud/pubsub";
 import { buildDispatchList, parseWorkerMessage } from "./pubsubFanout.js";
+import {
+  computeExecutionId,
+  createExecution,
+  seedWorkItems,
+  updateWorkItem,
+  buildWorkItemUpdate,
+  classifyError,
+} from "../shared/ledger.js";
 
 const MONTHLY_PLAN_TOPIC = "monthly-plan-workers";
 const pubsub = new PubSub();
@@ -679,23 +687,31 @@ export const batchGenerateMonthlyPlans = functions
 
     console.log(`[batchGenerateMonthlyPlans] ${toPublish.length + skipped} eligible, ${skipped} skipped (already at ${targetMonth}), ${toPublish.length} to publish`);
 
+    // Ledger: create execution + seed workItems in parallel with publishing
+    const JOB_KEY = "monthlyPlans";
+    const executionId = computeExecutionId(JOB_KEY);
+    await createExecution(JOB_KEY, executionId, toPublish.length);
+
     // Publish to Pub/Sub topic
     let published = 0;
     let publishFailed = 0;
 
-    // Publish in parallel (fast — no LLM calls)
-    await Promise.all(
-      toPublish.map(async (studentId) => {
-        try {
-          const payload = JSON.stringify({ studentId, targetMonth });
-          await topic.publishMessage({ data: Buffer.from(payload) });
-          published++;
-        } catch (err) {
-          publishFailed++;
-          console.error(`[batchGenerateMonthlyPlans] publish failed for ${studentId}:`, err.message);
-        }
-      }),
-    );
+    // Seed workItems + publish in parallel (both are fast, no LLM calls)
+    await Promise.all([
+      seedWorkItems(JOB_KEY, executionId, toPublish),
+      Promise.all(
+        toPublish.map(async (studentId) => {
+          try {
+            const payload = JSON.stringify({ studentId, targetMonth });
+            await topic.publishMessage({ data: Buffer.from(payload) });
+            published++;
+          } catch (err) {
+            publishFailed++;
+            console.error(`[batchGenerateMonthlyPlans] publish failed for ${studentId}:`, err.message);
+          }
+        }),
+      ),
+    ]);
 
     const duration = ((Date.now() - startTime) / 1000).toFixed(1);
     console.log(`[batchGenerateMonthlyPlans] done in ${duration}s: ${published} published, ${skipped} skipped, ${publishFailed} failed to publish`);
@@ -735,6 +751,8 @@ export const monthlyPlanWorker = functions
       return null;
     }
 
+    const JOB_KEY = "monthlyPlans";
+    const executionId = computeExecutionId(JOB_KEY);
     console.log(`[monthlyPlanWorker] processing ${studentId} → ${targetMonth}`);
 
     // Lightweight idempotency guard: skip if plan already exists for targetMonth.
@@ -743,6 +761,9 @@ export const monthlyPlanWorker = functions
       .collection("ai_summaries").doc("monthly_plan").get();
     if (existingPlan.exists && existingPlan.data().month === targetMonth) {
       console.log(`[monthlyPlanWorker] ${studentId} already has plan for ${targetMonth}, skipping`);
+      await updateWorkItem(JOB_KEY, executionId, studentId, buildWorkItemUpdate("skipped", {
+        detail: "already_generated",
+      })).catch(() => {});
       return null;
     }
 
@@ -760,9 +781,14 @@ export const monthlyPlanWorker = functions
       const permanent = ["not-found", "failed-precondition"];
       if (genErr.code && permanent.includes(genErr.code)) {
         console.error(`[monthlyPlanWorker] permanent error for ${studentId}, ACKing:`, genErr.message);
+        await updateWorkItem(JOB_KEY, executionId, studentId, buildWorkItemUpdate("failed", {
+          failureCategory: classifyError(genErr),
+          detail: genErr.message,
+        })).catch(() => {});
         return null;
       }
-      throw genErr; // transient — let Pub/Sub retry
+      // Transient error - do NOT write terminal workItem, Pub/Sub will retry
+      throw genErr;
     }
     console.log(`[monthlyPlanWorker] generated plan for ${studentId}`);
 
@@ -770,10 +796,17 @@ export const monthlyPlanWorker = functions
     try {
       await exportPlanToDriveInternal(studentId, "system:batchCron");
       console.log(`[monthlyPlanWorker] exported to Drive for ${studentId}`);
+      await updateWorkItem(JOB_KEY, executionId, studentId, buildWorkItemUpdate("success", {
+        evidence: { month: targetMonth, driveExported: true },
+      })).catch(() => {});
     } catch (driveErr) {
       // Plan was generated but Drive export failed — log but don't re-throw
       // (plan is saved; Drive export can be retried manually)
       console.error(`[monthlyPlanWorker] Drive export failed for ${studentId}:`, driveErr.message);
+      await updateWorkItem(JOB_KEY, executionId, studentId, buildWorkItemUpdate("failed", {
+        failureCategory: "export_failed",
+        detail: driveErr.message,
+      })).catch(() => {});
     }
 
     return null;

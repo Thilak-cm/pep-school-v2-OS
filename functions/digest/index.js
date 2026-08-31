@@ -31,6 +31,19 @@ import { DIGEST_TOOLS, createToolExecutor } from "./tools.js";
 import { parseAndRender, renderClassroomDigest, renderSuperadminDigest } from "./renderHtml.js";
 import { batchHtmlToPdf } from "./htmlToPdf.js";
 import { createLangfuse } from "../shared/langfuse.js";
+import {
+  computeExecutionId,
+  createExecution,
+  seedWorkItems,
+  updateWorkItem,
+  buildWorkItemUpdate,
+  markExecutionFailed,
+  classifyError,
+} from "../shared/ledger.js";
+import { broadcastAlert } from "../shared/telegram.js";
+import { formatCrashSignal } from "../shared/verifierTelegram.js";
+
+const TELEGRAM_BOT_TOKEN = defineSecret("TELEGRAM_BOT_TOKEN");
 
 // ── Default system prompts ──────────────────────────────────────────
 
@@ -372,11 +385,12 @@ export const weeklyDigestClassroomAdmin = functions
   .runWith({
     timeoutSeconds: 540,
     memory: "1GB",
-    secrets: [OPENROUTER_API_KEY, SENDGRID_API_KEY, LANGFUSE_SECRET_KEY, LANGFUSE_PUBLIC_KEY],
+    secrets: [OPENROUTER_API_KEY, SENDGRID_API_KEY, LANGFUSE_SECRET_KEY, LANGFUSE_PUBLIC_KEY, TELEGRAM_BOT_TOKEN],
   })
   .pubsub.schedule("0 18 * * 0") // Sunday 6:00 PM IST
   .timeZone("Asia/Kolkata")
   .onRun(async () => {
+    const JOB_KEY = "digestClassroomAdmin";
     const langfuse = createLangfuse();
     const weekKey = getWeekKey();
     const sessionId = `digest-${weekKey}`;
@@ -401,6 +415,11 @@ export const weeklyDigestClassroomAdmin = functions
         id: d.id,
         ...d.data(),
       }));
+
+      // Ledger: create execution + seed workItems (one per classroom)
+      const executionId = computeExecutionId(JOB_KEY);
+      await createExecution(JOB_KEY, executionId, classrooms.length);
+      await seedWorkItems(JOB_KEY, executionId, classrooms.map((c) => c.id));
 
       trace.span({
         name: "config-loaded",
@@ -546,6 +565,9 @@ export const weeklyDigestClassroomAdmin = functions
               },
             });
             digestCount++;
+            await updateWorkItem(JOB_KEY, executionId, classroom.id, buildWorkItemUpdate("success", {
+              evidence: { weekKey, recipientCount: recipientEmails.length },
+            })).catch(() => {});
           } catch (err) {
             console.error(
               `[weeklyDigestClassroomAdmin] Error for ${classroom.id}:`,
@@ -553,6 +575,10 @@ export const weeklyDigestClassroomAdmin = functions
             );
             classroomSpan.end({ output: err.message, level: "ERROR" });
             errorCount++;
+            await updateWorkItem(JOB_KEY, executionId, classroom.id, buildWorkItemUpdate("failed", {
+              failureCategory: classifyError(err),
+              detail: err.message,
+            })).catch(() => {});
           }
         },
         3 // concurrency limit
@@ -567,6 +593,10 @@ export const weeklyDigestClassroomAdmin = functions
       console.error("[weeklyDigestClassroomAdmin] Fatal error:", err);
       trace.update({ output: err.message, level: "ERROR" });
       await langfuse.flushAsync();
+      const executionId = computeExecutionId(JOB_KEY);
+      await markExecutionFailed(JOB_KEY, executionId, err).catch(() => {});
+      const msg = formatCrashSignal(JOB_KEY, executionId, classifyError(err), err.message);
+      await broadcastAlert(TELEGRAM_BOT_TOKEN.value(), db, msg).catch(() => {});
       return null;
     }
   });
@@ -578,16 +608,18 @@ export const weeklyDigestSuperadmin = functions
   .runWith({
     timeoutSeconds: 540,
     memory: "2GB",
-    secrets: [OPENROUTER_API_KEY, SENDGRID_API_KEY, LANGFUSE_SECRET_KEY, LANGFUSE_PUBLIC_KEY],
+    secrets: [OPENROUTER_API_KEY, SENDGRID_API_KEY, LANGFUSE_SECRET_KEY, LANGFUSE_PUBLIC_KEY, TELEGRAM_BOT_TOKEN],
   })
   // Offset from CF1 (18:00). Fixed gap — not guaranteed to run after CF1 finishes.
   // For reliable sequencing, see Pub/Sub handoff issue.
   .pubsub.schedule("45 18 * * 0") // Sunday 6:45 PM IST (45 min after CF 1)
   .timeZone("Asia/Kolkata")
   .onRun(async () => {
+    const JOB_KEY = "digestSuperadmin";
     const langfuse = createLangfuse();
     const weekKey = getWeekKey();
     const sessionId = `digest-${weekKey}`;
+    const executionId = computeExecutionId(JOB_KEY);
 
     const trace = langfuse.trace({
       name: "weekly-digest-superadmin",
@@ -598,6 +630,10 @@ export const weeklyDigestSuperadmin = functions
     });
 
     try {
+      // Ledger: single workItem for the consolidated digest
+      await createExecution(JOB_KEY, executionId, 1);
+      await seedWorkItems(JOB_KEY, executionId, ["_digest_all"]);
+
       const config = await fetchDigestConfig();
 
       // Read all classroom digests written by CF 1
@@ -795,11 +831,25 @@ export const weeklyDigestSuperadmin = functions
       );
       trace.update({ output: htmlContent, metadata: summary });
       await langfuse.flushAsync();
+
+      // Ledger: mark the single workItem as success
+      await updateWorkItem(JOB_KEY, executionId, "_digest_all", buildWorkItemUpdate("success", {
+        evidence: {
+          weekKey,
+          digestsFound: digests.length,
+          classroomsActive: classroomIds.length,
+          recipientCount: recipientEmails.length,
+        },
+      })).catch(() => {});
+
       return summary;
     } catch (err) {
       console.error("[weeklyDigestSuperadmin] Fatal error:", err);
       trace.update({ output: err.message, level: "ERROR" });
       await langfuse.flushAsync();
+      await markExecutionFailed(JOB_KEY, executionId, err).catch(() => {});
+      const msg = formatCrashSignal(JOB_KEY, executionId, classifyError(err), err.message);
+      await broadcastAlert(TELEGRAM_BOT_TOKEN.value(), db, msg).catch(() => {});
       return null;
     }
   });

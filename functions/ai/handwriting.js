@@ -1,4 +1,5 @@
 import * as functions from "firebase-functions/v1";
+import { defineSecret } from "firebase-functions/params";
 import { db, storage, Timestamp } from "../shared/firebase.js";
 import { OPENAI_API_KEY, getOpenAiKey, buildChatBody, CHAT_ENDPOINT } from "../shared/openai.js";
 import { OPENROUTER_ENDPOINT } from "../shared/openrouter.js";
@@ -9,6 +10,20 @@ import {
 } from "../config/handwritingAnalysisFallbacks.js";
 import { fetchActiveStudentIds, runWithConcurrency } from "../shared/scheduling.js";
 import { buildBatchWritingPrompt, calculateAge, parseWritingAnalysisResponse } from "../utils/handwritingAnalysisHelpers.js";
+import { getIstIsoWeekKey } from "../utils/weekKey.js";
+import {
+  computeExecutionId,
+  createExecution,
+  seedWorkItems,
+  updateWorkItem,
+  buildWorkItemUpdate,
+  markExecutionFailed,
+  classifyError,
+} from "../shared/ledger.js";
+import { broadcastAlert } from "../shared/telegram.js";
+import { formatCrashSignal } from "../shared/verifierTelegram.js";
+
+const TELEGRAM_BOT_TOKEN = defineSecret("TELEGRAM_BOT_TOKEN");
 
 // -----------------------------------------------
 // AI: Batch Writing Analysis (PEP-132, PEP-263)
@@ -319,6 +334,7 @@ async function runWritingAnalysisForStudent(studentId, { dryRun = false, program
     programId: programId || null,
     classroomId: studentData.classroomId || null,
     status: "completed",
+    periodKey: getIstIsoWeekKey(), // Added for ledger verification (#229)
   };
 
   if (dryRun) {
@@ -405,50 +421,86 @@ export const batchAnalyzeWriting = functions
 
 export const generateWritingAnalysis = functions
   .region("asia-south1")
-  .runWith({ timeoutSeconds: 540, memory: "1GB", secrets: [OPENAI_API_KEY] })
-  .pubsub.schedule("0 0 * * 1")
+  .runWith({ timeoutSeconds: 540, memory: "1GB", secrets: [OPENAI_API_KEY, TELEGRAM_BOT_TOKEN] })
+  .pubsub.schedule("30 0 * * 0")
   .timeZone("Asia/Kolkata")
   .onRun(async () => {
-    const openAiKey = getOpenAiKey();
-    if (!openAiKey) {
-      console.error("[writingAnalysis] OpenAI key not configured");
-      return null;
-    }
+    const JOB_KEY = "writingAnalysis";
+    const executionId = computeExecutionId(JOB_KEY);
 
-    const studentIds = await fetchActiveStudentIds();
-    console.log(`[writingAnalysis] running for ${studentIds.length} active student(s)`);
-
-    let completed = 0;
-    let skipped = 0;
-    let errors = 0;
-
-    await runWithConcurrency(studentIds, async (studentId) => {
-      try {
-        // Read student once, resolve program, then pass both into the runner
-        const studentSnap = await db.collection("students").doc(studentId).get();
-        if (!studentSnap.exists) { skipped++; return; }
-        const studentData = studentSnap.data();
-        const programId = await resolveProgramId(studentData);
-        if (!programId) { skipped++; return; }
-
-        const result = await runWritingAnalysisForStudent(studentId, {
-          programId,
-          archive: true,
-          studentData,
-        });
-        if (result.status === "completed") {
-          completed++;
-        } else {
-          skipped++;
-        }
-      } catch (err) {
-        console.error(`[writingAnalysis] error for ${studentId}:`, err?.message);
-        errors++;
+    try {
+      const openAiKey = getOpenAiKey();
+      if (!openAiKey) {
+        console.error("[writingAnalysis] OpenAI key not configured");
+        return null;
       }
-    }, 8);
 
-    console.log(`[writingAnalysis] done — completed: ${completed}, skipped: ${skipped}, errors: ${errors}`);
-    return null;
+      const studentIds = await fetchActiveStudentIds();
+      console.log(`[writingAnalysis] running for ${studentIds.length} active student(s)`);
+
+      // Ledger: create execution + seed workItems
+      await createExecution(JOB_KEY, executionId, studentIds.length);
+      await seedWorkItems(JOB_KEY, executionId, studentIds);
+
+      let completed = 0;
+      let skipped = 0;
+      let errors = 0;
+
+      await runWithConcurrency(studentIds, async (studentId) => {
+        try {
+          const studentSnap = await db.collection("students").doc(studentId).get();
+          if (!studentSnap.exists) {
+            skipped++;
+            await updateWorkItem(JOB_KEY, executionId, studentId, buildWorkItemUpdate("skipped", {
+              detail: "student_not_found",
+            }));
+            return;
+          }
+          const studentData = studentSnap.data();
+          const programId = await resolveProgramId(studentData);
+          if (!programId) {
+            skipped++;
+            await updateWorkItem(JOB_KEY, executionId, studentId, buildWorkItemUpdate("skipped", {
+              detail: "unresolvable_program",
+            }));
+            return;
+          }
+
+          const result = await runWritingAnalysisForStudent(studentId, {
+            programId,
+            archive: true,
+            studentData,
+          });
+          if (result.status === "completed") {
+            completed++;
+            await updateWorkItem(JOB_KEY, executionId, studentId, buildWorkItemUpdate("success", {
+              evidence: { status: "completed", periodKey: executionId },
+            }));
+          } else {
+            skipped++;
+            await updateWorkItem(JOB_KEY, executionId, studentId, buildWorkItemUpdate("skipped", {
+              detail: result.reason || result.status,
+            }));
+          }
+        } catch (err) {
+          console.error(`[writingAnalysis] error for ${studentId}:`, err?.message);
+          errors++;
+          await updateWorkItem(JOB_KEY, executionId, studentId, buildWorkItemUpdate("failed", {
+            failureCategory: classifyError(err),
+            detail: err.message,
+          })).catch(() => {});
+        }
+      }, 8);
+
+      console.log(`[writingAnalysis] done — completed: ${completed}, skipped: ${skipped}, errors: ${errors}`);
+      return null;
+    } catch (err) {
+      console.error("[writingAnalysis] Fatal error:", err);
+      await markExecutionFailed(JOB_KEY, executionId, err).catch(() => {});
+      const msg = formatCrashSignal(JOB_KEY, executionId, classifyError(err), err.message);
+      await broadcastAlert(TELEGRAM_BOT_TOKEN.value(), db, msg).catch(() => {});
+      throw err;
+    }
   });
 
 // -----------------------------------------------
