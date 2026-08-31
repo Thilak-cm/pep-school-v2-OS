@@ -20,6 +20,7 @@
  * concurrency.
  */
 import * as functions from "firebase-functions/v1";
+import { defineSecret } from "firebase-functions/params";
 import { db } from "../shared/firebase.js";
 import { buildChatBody } from "../shared/openai.js";
 import { OPENROUTER_ENDPOINT, OPENROUTER_API_KEY, getOpenRouterKey } from "../shared/openrouter.js";
@@ -44,6 +45,19 @@ import {
 import { fetchActiveStudentIds } from "../shared/scheduling.js";
 import { PubSub } from "@google-cloud/pubsub";
 import { buildDispatchList, parseWorkerMessage } from "./pubsubFanout.js";
+import {
+  computeExecutionId,
+  createExecution,
+  seedWorkItems,
+  updateWorkItem,
+  buildWorkItemUpdate,
+  markExecutionFailed,
+  classifyError,
+} from "../shared/ledger.js";
+import { broadcastAlert } from "../shared/telegram.js";
+import { formatCrashSignal } from "../shared/verifierTelegram.js";
+
+const TELEGRAM_BOT_TOKEN = defineSecret("TELEGRAM_BOT_TOKEN");
 
 const MONTHLY_PLAN_TOPIC = "monthly-plan-workers";
 const pubsub = new PubSub();
@@ -609,6 +623,7 @@ export const batchGenerateMonthlyPlans = functions
   .runWith({
     timeoutSeconds: 120,
     memory: "512MB",
+    secrets: [TELEGRAM_BOT_TOKEN],
   })
   .pubsub.schedule("0 0 28-31 * *")
   .timeZone("Asia/Kolkata")
@@ -625,81 +640,98 @@ export const batchGenerateMonthlyPlans = functions
       return null;
     }
 
-    const startTime = Date.now();
-    console.log("[batchGenerateMonthlyPlans] starting dispatch run");
+    const JOB_KEY = "monthlyPlans";
+    const executionId = computeExecutionId(JOB_KEY);
 
-    // Resolve target month (next month from current IST date)
-    const nextMonth = new Date(istNow.getFullYear(), istNow.getMonth() + 1, 1);
-    const targetMonth = `${nextMonth.getFullYear()}-${String(nextMonth.getMonth() + 1).padStart(2, "0")}`;
+    try {
+      const startTime = Date.now();
+      console.log("[batchGenerateMonthlyPlans] starting dispatch run");
 
-    // Fetch all active students
-    const allStudentIds = await fetchActiveStudentIds();
-    console.log(`[batchGenerateMonthlyPlans] ${allStudentIds.length} active students total`);
+      // Resolve target month (next month from current IST date)
+      const nextMonth = new Date(istNow.getFullYear(), istNow.getMonth() + 1, 1);
+      const targetMonth = `${nextMonth.getFullYear()}-${String(nextMonth.getMonth() + 1).padStart(2, "0")}`;
 
-    // Parallel reads: student docs + classroom docs for program resolution
-    const studentSnaps = await Promise.all(
-      allStudentIds.map((id) => db.collection("students").doc(id).get()),
-    );
+      // Fetch all active students
+      const allStudentIds = await fetchActiveStudentIds();
+      console.log(`[batchGenerateMonthlyPlans] ${allStudentIds.length} active students total`);
 
-    // Build classroom program map for students without direct programId
-    const classroomIdsNeeded = new Set();
-    for (const snap of studentSnaps) {
-      if (!snap.exists) continue;
-      const data = snap.data();
-      if (!data.programId && data.classroomId) {
-        classroomIdsNeeded.add(data.classroomId);
-      }
-    }
-    const classroomSnaps = await Promise.all(
-      [...classroomIdsNeeded].map((id) => db.collection("classrooms").doc(id).get()),
-    );
-    const classroomProgramMap = {};
-    for (const snap of classroomSnaps) {
-      if (snap.exists) classroomProgramMap[snap.id] = snap.data().programId || null;
-    }
+      // Parallel reads: student docs + classroom docs for program resolution
+      const studentSnaps = await Promise.all(
+        allStudentIds.map((id) => db.collection("students").doc(id).get()),
+      );
 
-    // Fetch existing monthly_plan months for skip check (parallel reads)
-    const planSnaps = await Promise.all(
-      allStudentIds.map((id) =>
-        db.collection("students").doc(id)
-          .collection("ai_summaries").doc("monthly_plan").get(),
-      ),
-    );
-    const existingPlanMonths = {};
-    for (let i = 0; i < allStudentIds.length; i++) {
-      if (planSnaps[i].exists) {
-        existingPlanMonths[allStudentIds[i]] = planSnaps[i].data().month || null;
-      }
-    }
-
-    // Build dispatch list
-    const { toPublish, skipped } = buildDispatchList(
-      studentSnaps, classroomProgramMap, existingPlanMonths, targetMonth,
-    );
-
-    console.log(`[batchGenerateMonthlyPlans] ${toPublish.length + skipped} eligible, ${skipped} skipped (already at ${targetMonth}), ${toPublish.length} to publish`);
-
-    // Publish to Pub/Sub topic
-    let published = 0;
-    let publishFailed = 0;
-
-    // Publish in parallel (fast — no LLM calls)
-    await Promise.all(
-      toPublish.map(async (studentId) => {
-        try {
-          const payload = JSON.stringify({ studentId, targetMonth });
-          await topic.publishMessage({ data: Buffer.from(payload) });
-          published++;
-        } catch (err) {
-          publishFailed++;
-          console.error(`[batchGenerateMonthlyPlans] publish failed for ${studentId}:`, err.message);
+      // Build classroom program map for students without direct programId
+      const classroomIdsNeeded = new Set();
+      for (const snap of studentSnaps) {
+        if (!snap.exists) continue;
+        const data = snap.data();
+        if (!data.programId && data.classroomId) {
+          classroomIdsNeeded.add(data.classroomId);
         }
-      }),
-    );
+      }
+      const classroomSnaps = await Promise.all(
+        [...classroomIdsNeeded].map((id) => db.collection("classrooms").doc(id).get()),
+      );
+      const classroomProgramMap = {};
+      for (const snap of classroomSnaps) {
+        if (snap.exists) classroomProgramMap[snap.id] = snap.data().programId || null;
+      }
 
-    const duration = ((Date.now() - startTime) / 1000).toFixed(1);
-    console.log(`[batchGenerateMonthlyPlans] done in ${duration}s: ${published} published, ${skipped} skipped, ${publishFailed} failed to publish`);
-    return null;
+      // Fetch existing monthly_plan months for skip check (parallel reads)
+      const planSnaps = await Promise.all(
+        allStudentIds.map((id) =>
+          db.collection("students").doc(id)
+            .collection("ai_summaries").doc("monthly_plan").get(),
+        ),
+      );
+      const existingPlanMonths = {};
+      for (let i = 0; i < allStudentIds.length; i++) {
+        if (planSnaps[i].exists) {
+          existingPlanMonths[allStudentIds[i]] = planSnaps[i].data().month || null;
+        }
+      }
+
+      // Build dispatch list
+      const { toPublish, skipped } = buildDispatchList(
+        studentSnaps, classroomProgramMap, existingPlanMonths, targetMonth,
+      );
+
+      console.log(`[batchGenerateMonthlyPlans] ${toPublish.length + skipped} eligible, ${skipped} skipped (already at ${targetMonth}), ${toPublish.length} to publish`);
+
+      // Ledger: create execution + seed workItems in parallel with publishing
+      await createExecution(JOB_KEY, executionId, toPublish.length);
+
+      // Publish to Pub/Sub topic
+      let published = 0;
+      let publishFailed = 0;
+
+      // Seed workItems + publish in parallel (both are fast, no LLM calls)
+      await Promise.all([
+        seedWorkItems(JOB_KEY, executionId, toPublish),
+        Promise.all(
+          toPublish.map(async (studentId) => {
+            try {
+              const payload = JSON.stringify({ studentId, targetMonth });
+              await topic.publishMessage({ data: Buffer.from(payload) });
+              published++;
+            } catch (err) {
+              publishFailed++;
+              console.error(`[batchGenerateMonthlyPlans] publish failed for ${studentId}:`, err.message);
+            }
+          }),
+        ),
+      ]);
+
+      const duration = ((Date.now() - startTime) / 1000).toFixed(1);
+      console.log(`[batchGenerateMonthlyPlans] done in ${duration}s: ${published} published, ${skipped} skipped, ${publishFailed} failed to publish`);
+      return null;
+    } catch (err) {
+      console.error("[batchGenerateMonthlyPlans] Fatal error:", err);
+      await markExecutionFailed(JOB_KEY, executionId, err).catch(() => {});
+      const msg = formatCrashSignal(JOB_KEY, executionId, classifyError(err), err.message);
+      await broadcastAlert(TELEGRAM_BOT_TOKEN.value(), db, msg).catch(() => {});
+      throw err;
+    }
   });
 
 // ---------------------------------------------------------------------------
@@ -735,6 +767,13 @@ export const monthlyPlanWorker = functions
       return null;
     }
 
+    const JOB_KEY = "monthlyPlans";
+    // Use targetMonth as executionId to match the dispatcher's value.
+    // The dispatcher computes executionId as computeExecutionId(JOB_KEY)
+    // which returns the same targetMonth string, but recomputing in the
+    // worker risks drift if the worker runs after midnight. Using the
+    // dispatcher's value directly avoids this.
+    const executionId = targetMonth;
     console.log(`[monthlyPlanWorker] processing ${studentId} → ${targetMonth}`);
 
     // Lightweight idempotency guard: skip if plan already exists for targetMonth.
@@ -743,6 +782,9 @@ export const monthlyPlanWorker = functions
       .collection("ai_summaries").doc("monthly_plan").get();
     if (existingPlan.exists && existingPlan.data().month === targetMonth) {
       console.log(`[monthlyPlanWorker] ${studentId} already has plan for ${targetMonth}, skipping`);
+      await updateWorkItem(JOB_KEY, executionId, studentId, buildWorkItemUpdate("skipped", {
+        detail: "already_generated",
+      })).catch(() => {});
       return null;
     }
 
@@ -760,9 +802,14 @@ export const monthlyPlanWorker = functions
       const permanent = ["not-found", "failed-precondition"];
       if (genErr.code && permanent.includes(genErr.code)) {
         console.error(`[monthlyPlanWorker] permanent error for ${studentId}, ACKing:`, genErr.message);
+        await updateWorkItem(JOB_KEY, executionId, studentId, buildWorkItemUpdate("failed", {
+          failureCategory: classifyError(genErr),
+          detail: genErr.message,
+        })).catch(() => {});
         return null;
       }
-      throw genErr; // transient — let Pub/Sub retry
+      // Transient error - do NOT write terminal workItem, Pub/Sub will retry
+      throw genErr;
     }
     console.log(`[monthlyPlanWorker] generated plan for ${studentId}`);
 
@@ -770,10 +817,17 @@ export const monthlyPlanWorker = functions
     try {
       await exportPlanToDriveInternal(studentId, "system:batchCron");
       console.log(`[monthlyPlanWorker] exported to Drive for ${studentId}`);
+      await updateWorkItem(JOB_KEY, executionId, studentId, buildWorkItemUpdate("success", {
+        evidence: { month: targetMonth, driveExported: true },
+      })).catch(() => {});
     } catch (driveErr) {
       // Plan was generated but Drive export failed — log but don't re-throw
       // (plan is saved; Drive export can be retried manually)
       console.error(`[monthlyPlanWorker] Drive export failed for ${studentId}:`, driveErr.message);
+      await updateWorkItem(JOB_KEY, executionId, studentId, buildWorkItemUpdate("failed", {
+        failureCategory: "export_failed",
+        detail: driveErr.message,
+      })).catch(() => {});
     }
 
     return null;

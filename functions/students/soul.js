@@ -1,4 +1,5 @@
 import * as functions from "firebase-functions/v1";
+import { defineSecret } from "firebase-functions/params";
 import { db, Timestamp } from "../shared/firebase.js";
 import { buildChatBody } from "../shared/openai.js";
 import { OPENROUTER_API_KEY, getOpenRouterKey, OPENROUTER_ENDPOINT } from "../shared/openrouter.js";
@@ -29,6 +30,19 @@ import {
 import { fetchActiveStudentIds } from "../shared/scheduling.js";
 import { PubSub } from "@google-cloud/pubsub";
 import { chunkStudentIds, parseSoulWorkerMessage } from "./soulFanout.js";
+import {
+  computeExecutionId,
+  createExecution,
+  seedWorkItems,
+  updateWorkItem,
+  buildWorkItemUpdate,
+  markExecutionFailed,
+  classifyError,
+} from "../shared/ledger.js";
+import { broadcastAlert } from "../shared/telegram.js";
+import { formatCrashSignal } from "../shared/verifierTelegram.js";
+
+const TELEGRAM_BOT_TOKEN = defineSecret("TELEGRAM_BOT_TOKEN");
 
 // -----------------------------------------------
 // Student Soul: Generate soul narrative for a single student (PEP-149)
@@ -466,16 +480,35 @@ export const soulWorker = functions
     // The first run after deployment writes generatedForMonth; subsequent runs
     // match against it. This is simpler than a legacy fallback and produces
     // identical behavior - old docs get regenerated once, then are idempotent.
+    const JOB_KEY = "soulRegen";
+    // Prefer executionId from the dispatcher's message to avoid drift
+    // if the worker runs after midnight. Fallback for in-flight messages
+    // from before this deploy that lack the field.
+    const executionId = message.json.executionId || computeExecutionId(JOB_KEY);
+
     const results = await Promise.allSettled(
       studentIds.map(async (studentId) => {
         const existingSoul = await db.collection("students").doc(studentId)
           .collection("ai_summaries").doc("soul").get();
         if (existingSoul.exists && existingSoul.data().generatedForMonth === targetMonth) {
           console.log(`[soul-worker] ${studentId} already has soul for ${targetMonth}, skipping`);
+          await updateWorkItem(JOB_KEY, executionId, studentId, buildWorkItemUpdate("skipped", {
+            detail: "already_generated",
+          })).catch(() => {});
           return { studentId, status: "skipped" };
         }
 
         const result = await generateSoulForStudent(studentId, apiKey, { generatedForMonth: targetMonth });
+        // Write workItem based on generation result
+        if (result.status === "skipped") {
+          await updateWorkItem(JOB_KEY, executionId, studentId, buildWorkItemUpdate("skipped", {
+            detail: result.reason,
+          })).catch(() => {});
+        } else {
+          await updateWorkItem(JOB_KEY, executionId, studentId, buildWorkItemUpdate("success", {
+            evidence: { status: result.status, generatedForMonth: targetMonth },
+          })).catch(() => {});
+        }
         return { studentId, ...result };
       }),
     );
@@ -486,15 +519,24 @@ export const soulWorker = functions
     let hasTransientError = false;
     let firstTransientError = null;
 
-    for (const r of results) {
+    for (let idx = 0; idx < results.length; idx++) {
+      const r = results[idx];
       if (r.status === "rejected") {
         const err = r.reason;
         if (err.code && PERMANENT_CODES.includes(err.code)) {
           console.error(`[soul-worker] permanent error, skipping:`, err.message);
+          if (studentIds[idx]) {
+            await updateWorkItem(JOB_KEY, executionId, studentIds[idx], buildWorkItemUpdate("failed", {
+              failureCategory: classifyError(err),
+              detail: err.message,
+            })).catch(() => {});
+          }
         } else {
           console.error(`[soul-worker] transient error:`, err.message);
           hasTransientError = true;
           if (!firstTransientError) firstTransientError = err;
+          // Do NOT write terminal workItem for transient errors -
+          // Pub/Sub will retry and the idempotency guard handles it
         }
       }
     }
@@ -519,7 +561,7 @@ const WAVE_SIZE = 25; // match maxInstances
 const WAVE_GAP_MS = 90_000;
 const sleep = (ms) => new Promise((resolve) => setTimeout(resolve, ms));
 
-async function publishInWaves(studentIds, logPrefix, { targetMonth }) {
+async function publishInWaves(studentIds, logPrefix, { targetMonth, executionId }) {
   if (!targetMonth) {
     throw new Error("publishInWaves: targetMonth is required");
   }
@@ -543,7 +585,7 @@ async function publishInWaves(studentIds, logPrefix, { targetMonth }) {
     await Promise.all(
       wave.map(async (batch) => {
         try {
-          const payload = JSON.stringify({ studentIds: batch, targetMonth });
+          const payload = JSON.stringify({ studentIds: batch, targetMonth, executionId });
           await soulTopic.publishMessage({ data: Buffer.from(payload) });
           published++;
         } catch (err) {
@@ -564,23 +606,38 @@ async function publishInWaves(studentIds, logPrefix, { targetMonth }) {
 
 export const regenerateSoulsMonthly = functions
   .region("asia-south1")
-  .runWith({ timeoutSeconds: 540, memory: "512MB" })
+  .runWith({ timeoutSeconds: 540, memory: "512MB", secrets: [TELEGRAM_BOT_TOKEN] })
   .pubsub.schedule("0 2 1 * *")
   .timeZone("Asia/Kolkata")
   .onRun(async () => {
+    const JOB_KEY = "soulRegen";
     const startTime = Date.now();
     const targetMonth = getCurrentMonthIST();
+    const executionId = computeExecutionId(JOB_KEY);
     console.log(`[soul-dispatcher] starting monthly dispatch run for ${targetMonth}`);
 
-    const studentIds = await fetchActiveStudentIds();
-    console.log(`[soul-dispatcher] ${studentIds.length} active students total`);
+    try {
+      const studentIds = await fetchActiveStudentIds();
+      console.log(`[soul-dispatcher] ${studentIds.length} active students total`);
 
-    const result = await publishInWaves(studentIds, "[soul-dispatcher]", { targetMonth });
+      // Ledger: create execution + seed workItems in parallel with publishing
+      await createExecution(JOB_KEY, executionId, studentIds.length);
+      const [, result] = await Promise.all([
+        seedWorkItems(JOB_KEY, executionId, studentIds),
+        publishInWaves(studentIds, "[soul-dispatcher]", { targetMonth, executionId }),
+      ]);
 
-    const duration = ((Date.now() - startTime) / 1000).toFixed(1);
-    const logFn = result.publishFailed > 0 ? console.error : console.log;
-    logFn(`[soul-dispatcher] done in ${duration}s for ${targetMonth}: ${result.published} batches published (${studentIds.length} students), ${result.publishFailed} failed`);
-    return null;
+      const duration = ((Date.now() - startTime) / 1000).toFixed(1);
+      const logFn = result.publishFailed > 0 ? console.error : console.log;
+      logFn(`[soul-dispatcher] done in ${duration}s for ${targetMonth}: ${result.published} batches published (${studentIds.length} students), ${result.publishFailed} failed`);
+      return null;
+    } catch (err) {
+      console.error("[soul-dispatcher] Fatal error:", err);
+      await markExecutionFailed(JOB_KEY, executionId, err).catch(() => {});
+      const msg = formatCrashSignal(JOB_KEY, executionId, classifyError(err), err.message);
+      await broadcastAlert(TELEGRAM_BOT_TOKEN.value(), db, msg).catch(() => {});
+      throw err;
+    }
   });
 
 // -----------------------------------------------

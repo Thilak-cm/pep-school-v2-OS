@@ -106,3 +106,12 @@ export { weeklyDigestClassroomAdmin, weeklyDigestSuperadmin, triggerDigestTest }
 
 // Data Integrity Checks (#161)
 export { dataIntegrityChecks } from "./integrity/index.js";
+
+// Execution Ledger Verifiers (#229)
+export {
+  verifyCleanupDeletedChats,
+  verifySoulRegeneration,
+  verifyMonthlyPlans,
+  verifyWeeklyStudentAI,
+  verifyWeeklyDigests,
+} from "./verification/index.js";

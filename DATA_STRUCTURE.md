@@ -45,6 +45,9 @@ See [Pep OS Access-Control Policy](docs/security/access-control-policy.md).
 - `students/{studentId}/ai_summaries/weekly_snapshot/history/{weekKey}` // weekly snapshot archives
 - `alerts/{alertId}`                                    // universal alert bus for DIP + Alerts page (PEP-296)
 - `feedback/{feedbackId}`
+- `jobs/{jobKey}`                                      // execution ledger for scheduled CFs (#229)
+- `jobs/{jobKey}/executions/{executionId}`              // per-period run lifecycle
+- `jobs/{jobKey}/executions/{executionId}/workItems/{targetId}` // per-target work item state
  - `config/{docId}`
 - `classrooms/{classroomId}/digests/weekly_email`     // weekly digest email content (PEP-297)
 - `classrooms/{classroomId}/digests/weekly_email/history/{weekKey}` // digest archives
@@ -289,7 +292,7 @@ Subcollections
 - `ai_summaries/{reportDocId}` – AI-generated parent progress reports. Doc ID format: `report_{timestamp}` (term) or `baseline_report_{month}_{year}_{hash}` (baseline). Shape: `{ reportText: string, status: 'ok' | 'no_notes', noteCount: number, reportType: 'term' | 'baseline', programId: ProgramId, classroomId: string | null, studentId: string, kind: 'report', sourceNoteIds: string[], dateRangeStart: Timestamp, dateRangeEnd: Timestamp, generatedAt: Timestamp, generatedBy: string, generatedByName?: string, model: string, temperature: number, timezone: string, driveDocId?: string, driveDocLink?: string, reportEval?: { sentimentScore: number | null, sentimentLabel: string | null, areaBalanceScore: number | null, areaBalanceLabel: string | null, missingInputFlags: string[], scoreRationale: { sentiment: string, areaBalance: string } } }`. The `reportType` field was added in PEP-325; `'monthly'` was renamed to `'baseline'` in #152 — legacy docs with `'monthly'` are normalized to `'baseline'` at read time. The `reportEval` nested object is set on baseline reports by the independent judge at export time (#152); term reports get scores via the readiness checker instead. The `driveDocId` and `driveDocLink` fields are set when the report is exported to Google Drive.
 - `ai_summaries/{type}_report_readiness` – on-demand observation quality check, fanned out per report type: `term_report_readiness` or `baseline_report_readiness` (PEP-68, #152). Shape: `{ status: 'ok' | 'no_notes', sentimentScore: number | null, areaBalanceScore: number | null, missingInputFlags: string[], noteCount: number, noteCountAtCheck: number, checkedAt: Timestamp, dateRangeStart: Timestamp, dateRangeEnd: Timestamp, programId: string, model: string, generatedBy: string (userId), generatedByName: string | null }`. Cached per student per report type; staleness tracked via `noteCountAtCheck` vs current observation count. On each recheck, the previous doc (if `status: "ok"`) is archived to `{type}_report_readiness/history/{timestamp}` before overwrite (PEP-233). Legacy docs at `report_readiness` (pre-#152) should be migrated to `term_report_readiness` via `scripts/admin/migrate-readiness-docs.mjs`.
 - `ai_summaries/{type}_report_readiness/history/{timestamp}` – archived readiness check snapshots (PEP-233). Shape: full copy of the previous readiness doc contents plus `{ archivedAt: Timestamp, reason: string }`. Only `status: "ok"` docs are archived; `"no_notes"` results are not archived. Created automatically before each recheck overwrites the primary doc.
-- `ai_summaries/writing_analysis` – per-program writing analysis (PEP-132, PEP-263). Config resolved via `config/writing_analysis_{programId}`. Overwritten each cycle; previous doc archived to `history/` subcollection on weekly scheduled runs only (not on-demand callable). Shape: `{ narrative: string, improvements: string[], concerns: string[], recommendations: Array<{ area: string, action: string, montessoriApproach: string, rationale: string, priority: number }> | string[], dimensionRatings: Record<string, { score: number, trend: "improving"|"stable"|"declining", evidence: string }>, sampleCount: number, copiedCount: number, studentAge: { years: number, months: number } | null, generatedAt: Timestamp, sourceMediaIds: string[], model: string, programId: string | null, status: "completed", ...programSpecificFields }`. Program-specific fields (e.g., `stageSummary`, `motorHandwritingAnalysis`, `languageCompositionAnalysis`, `confidence`) are preserved via spread from the VLM response. Consumed by the weekly plan generator (PEP-128).
+- `ai_summaries/writing_analysis` – per-program writing analysis (PEP-132, PEP-263). Config resolved via `config/writing_analysis_{programId}`. Overwritten each cycle; previous doc archived to `history/` subcollection on weekly scheduled runs only (not on-demand callable). Shape: `{ narrative: string, improvements: string[], concerns: string[], recommendations: Array<{ area: string, action: string, montessoriApproach: string, rationale: string, priority: number }> | string[], dimensionRatings: Record<string, { score: number, trend: "improving"|"stable"|"declining", evidence: string }>, sampleCount: number, copiedCount: number, studentAge: { years: number, months: number } | null, generatedAt: Timestamp, sourceMediaIds: string[], model: string, programId: string | null, periodKey?: string, status: "completed", ...programSpecificFields }`. `periodKey` is an ISO week key (e.g. "2026-W35"), present from v13.x (#229). Program-specific fields (e.g., `stageSummary`, `motorHandwritingAnalysis`, `languageCompositionAnalysis`, `confidence`) are preserved via spread from the VLM response. Consumed by the weekly plan generator (PEP-128).
 - `ai_summaries/writing_analysis/history/{isoTimestamp}` – archived writing analysis snapshots (PEP-263). Shape: full copy of previous `writing_analysis` doc plus `{ archivedAt: Timestamp }`. Created automatically before each weekly scheduled regeneration — on-demand callable does NOT archive.
 - `ai_summaries/monthly_plan` – AI-generated monthly plan for toddler and primary students (PEP-260). Generated on demand via the `generateMonthlyPlan` callable. Overwritten each generation; previous plan archived to `history/` subcollection before overwrite. Config resolved via `config/monthly_plan`. Shape: `{ studentId: string, studentName: string, age: string, month: string (YYYY-MM), planningMode: "observationBased" | "coldStart", dataSufficiency: { meaningfulObservationCount: number, summary: string }, dataWindow: { from: string, to: string, observationCount: number }, affinities: string[], sections: Array<{ name: string, position: number, monthlyAim: string, items: Array<{ work: string, basis: "observed" | "ageBenchmark" | "diagnostic" | "conditional", why: string, hook: string, offer: string, next: string, watch: string }> }>, generatedAt: string (ISO), generatedBy: string (uid) | 'system:batchCron', generatedByName: string, model: string, totalTokens: number, status: 'generated', driveDocId?: string, driveDocLink?: string, driveChecklistId?: string, driveChecklistLink?: string, driveExportedAt?: string (ISO), driveExportedBy?: string (uid) | 'system:batchCron' }`. `planningMode` and `dataSufficiency` added in PEP-280 for cold-start classification — the LLM classifies based on observation count and joining date. `basis` field expanded to include `ageBenchmark` for age-appropriate recommendations (PEP-280). Drive fields are populated by `exportMonthlyPlanToDrive` or the batch cron (PEP-279).
 - `ai_summaries/monthly_plan/monthly_plan_feedback/{autoId}` – admin feedback on monthly plans (PEP-282). Append-only — each submission creates a new doc. Shape: `{ difficulty?: "too_easy" | "about_right" | "too_tough", pace?: "too_slow" | "good_pace" | "too_fast", section: "General" | "Language" | "Sensorial" | "Math" | "Practical Life" | "Grace & Courtesy", text?: string, planMonth: string (YYYY-MM) | null, createdBy: string (uid), createdByName: string, createdAt: Timestamp (serverTimestamp) }`. At least one of `difficulty`, `pace`, or `text` is present (validated client-side). Not yet consumed by plan generation CF — future integration planned.
@@ -872,6 +875,64 @@ Guidance
 - Keep feedback global (not branch-scoped) per product decision.
 
 Access policy: See [Pep OS Access-Control Policy](docs/security/access-control-policy.md).
+
+---
+
+## 🔧 Execution Ledger (`/jobs/{jobKey}`) (#229)
+Purpose: Server-only execution records for scheduled Cloud Functions. Tracks every run's lifecycle, per-target work items, and verification outcomes. Default-deny in Firestore rules (no frontend access). TTL-managed: execution docs expire after 13 months, workItem docs after 90 days.
+
+### `jobs/{jobKey}`
+```typescript
+interface JobRoot {
+  jobKey: string;           // e.g. "baseballCards", "soulRegen"
+  lastExecutionId: string;  // most recent executionId (period key)
+}
+```
+
+### `jobs/{jobKey}/executions/{executionId}`
+ExecutionId is a deterministic period key (e.g. "2026-W35" for weekly, "2026-09" for monthly).
+
+```typescript
+interface Execution {
+  jobKey: string;
+  executionId: string;
+  correlationId: string;              // UUID for log correlation
+  state: "running" | "success" | "failed";
+  startedAt: Timestamp;
+  finalizedAt: Timestamp | null;      // set by verifier on terminal state
+  expectedCount: number;
+  completedCount: number;
+  skippedCount: number;
+  failedCount: number;
+  missingCount: number;
+  unverifiedCount?: number;           // set by verifier when claimed successes fail re-verification
+  dominantFailureCategory: string | null;
+  monitoringDelivery: string | null;  // reserved for #268 (HealthchecksProvider)
+  expiresAt: Timestamp;               // TTL: 13 months from creation
+}
+```
+
+### `jobs/{jobKey}/executions/{executionId}/workItems/{targetId}`
+Doc ID is the target identifier (e.g. studentId).
+
+```typescript
+interface WorkItem {
+  targetId: string;
+  state: "pending" | "success" | "skipped" | "failed";
+  startedAt: Timestamp | null;
+  completedAt: Timestamp | null;
+  failureCategory: string | null;     // e.g. "provider_quota", "data_missing", "unknown"
+  detail: string | null;              // sanitized error detail (no PII), max 500 chars
+  evidence: Record<string, any> | null; // verification evidence (e.g. doc path, field checks)
+  expiresAt: Timestamp;               // TTL: 90 days from creation
+}
+```
+
+Guidance
+- Period-key functions per jobKey are defined in `functions/shared/ledger.js` (`PERIOD_KEY_FNS`). Weekly jobs use ISO week keys, monthly jobs use `YYYY-MM`.
+- Workers update workItems via `set({ merge: true })` so ordering with seed writes is irrelevant.
+- The verifier engine (`functions/verification/engine.js`) re-verifies all claimed successes against destination stores using per-job contracts (`functions/verification/contracts.js`).
+- Failure categories are machine-readable strings returned by `classifyError()` in `functions/shared/ledger.js`.
 
 ---
 

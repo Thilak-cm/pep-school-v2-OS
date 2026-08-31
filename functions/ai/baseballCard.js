@@ -1,4 +1,5 @@
 import * as functions from "firebase-functions/v1";
+import { defineSecret } from "firebase-functions/params";
 import { db } from "../shared/firebase.js";
 import { OPENAI_API_KEY, getOpenAiKey, buildChatBody, CHAT_ENDPOINT } from "../shared/openai.js";
 import { BASEBALL_CARD_DEFAULTS } from "../config/baseballCardConstants.js";
@@ -11,6 +12,19 @@ import {
 } from "../shared/studentHelpers.js";
 import { fetchActiveStudentIds, runWithConcurrency } from "../shared/scheduling.js";
 import { writeHeatmapCache, patchHeatmapStudent } from "../heatmap/index.js";
+import {
+  computeExecutionId,
+  createExecution,
+  seedWorkItems,
+  updateWorkItem,
+  buildWorkItemUpdate,
+  markExecutionFailed,
+  classifyError,
+} from "../shared/ledger.js";
+import { broadcastAlert } from "../shared/telegram.js";
+import { formatCrashSignal } from "../shared/verifierTelegram.js";
+
+const TELEGRAM_BOT_TOKEN = defineSecret("TELEGRAM_BOT_TOKEN");
 
 // -----------------------------------------------
 // AI: Baseball Card (Last 6 Weeks summary)
@@ -297,6 +311,7 @@ async function runBaseballCards({
   archiveHistory = false,
   requesterInfo = null,
   forceRefresh = false,
+  ledger = null,
 }) {
   const ids = Array.isArray(studentIds) && studentIds.length ? studentIds : await fetchActiveStudentIds();
   if (!dryRun) {
@@ -349,6 +364,11 @@ async function runBaseballCards({
             evidenceCount: payload.noteCount,
           });
           await writeWeeklySnapshot(studentId, payload, signals, archiveHistory, requesterInfo, existingSnapshot, classroomId);
+          if (ledger) {
+            await updateWorkItem(ledger.jobKey, ledger.executionId, studentId, buildWorkItemUpdate("success", {
+              evidence: { status: "no_notes" },
+            })).catch(() => {});
+          }
         }
         return;
       }
@@ -388,12 +408,23 @@ async function runBaseballCards({
           evidenceCount: payload.noteCount,
         });
         await writeWeeklySnapshot(studentId, payload, signals, archiveHistory, requesterInfo, existingSnapshot, classroomId);
+        if (ledger) {
+          await updateWorkItem(ledger.jobKey, ledger.executionId, studentId, buildWorkItemUpdate("success", {
+            evidence: { status: "ok", noteCount: formatted.length },
+          }));
+        }
       }
     } catch (err) {
       errorCount++;
       console.error(`[baseballCard] run failed for student ${studentId}`, err);
       if (dryRun && collectResults) {
         results.push({ studentId, status: "error", error: err?.message || "Unknown error" });
+      }
+      if (ledger) {
+        await updateWorkItem(ledger.jobKey, ledger.executionId, studentId, buildWorkItemUpdate("failed", {
+          failureCategory: classifyError(err),
+          detail: err.message,
+        })).catch(() => {});
       }
     }
   }, concurrency);
@@ -559,33 +590,51 @@ export const regenerateBaseballCardForStudent = functions
 
 export const generateBaseballCards = functions
   .region("asia-south1")
-  .runWith({ timeoutSeconds: 540, memory: "1GB", secrets: [OPENAI_API_KEY] })
+  .runWith({ timeoutSeconds: 540, memory: "1GB", secrets: [OPENAI_API_KEY, TELEGRAM_BOT_TOKEN] })
   .pubsub.schedule("0 0 * * 0")
   .timeZone(BASEBALL_CARD_DEFAULTS.timezone)
   .onRun(async () => {
-    const openAiKey = getOpenAiKey();
-    if (!openAiKey) {
-      console.error("[baseballCard] OpenAI key not configured");
-      return null;
-    }
+    const JOB_KEY = "baseballCards";
+    const executionId = computeExecutionId(JOB_KEY);
 
-    console.log("[baseballCard] generating for active students (per-program config)");
-
-    await runBaseballCards({
-      dryRun: false,
-      collectResults: false,
-      concurrency: 12,
-      archiveHistory: true,
-    });
-
-    console.log("[baseballCard] generation run complete");
-
-    // Build heatmap cache from fresh snapshots (PEP-303)
     try {
-      await writeHeatmapCache();
-    } catch (err) {
-      console.error("[baseballCard] heatmap cache write failed:", err);
-    }
+      const openAiKey = getOpenAiKey();
+      if (!openAiKey) {
+        console.error("[baseballCard] OpenAI key not configured");
+        return null;
+      }
 
-    return null;
+      console.log("[baseballCard] generating for active students (per-program config)");
+
+      // Seed ledger: fetch IDs first so we can create execution + workItems
+      const ids = await fetchActiveStudentIds();
+      await createExecution(JOB_KEY, executionId, ids.length);
+      await seedWorkItems(JOB_KEY, executionId, ids);
+
+      await runBaseballCards({
+        studentIds: ids,
+        dryRun: false,
+        collectResults: false,
+        concurrency: 12,
+        archiveHistory: true,
+        ledger: { jobKey: JOB_KEY, executionId },
+      });
+
+      console.log("[baseballCard] generation run complete");
+
+      // Build heatmap cache from fresh snapshots (PEP-303)
+      try {
+        await writeHeatmapCache();
+      } catch (err) {
+        console.error("[baseballCard] heatmap cache write failed:", err);
+      }
+
+      return null;
+    } catch (err) {
+      console.error("[baseballCard] Fatal error:", err);
+      await markExecutionFailed(JOB_KEY, executionId, err).catch(() => {});
+      const msg = formatCrashSignal(JOB_KEY, executionId, classifyError(err), err.message);
+      await broadcastAlert(TELEGRAM_BOT_TOKEN.value(), db, msg).catch(() => {});
+      throw err;
+    }
   });

@@ -10,36 +10,16 @@ import * as functions from "firebase-functions/v1";
 import { defineSecret } from "firebase-functions/params";
 import { db } from "../shared/firebase.js";
 import { ALL_CHECKS } from "./checks.js";
+import { sendTelegramAlert as sendTelegramAlertShared } from "../shared/telegram.js";
 
 const TELEGRAM_BOT_TOKEN = defineSecret("TELEGRAM_BOT_TOKEN");
 
 /**
  * Send a message via Coach Pepper Telegram bot.
- * @param {string} chatId
- * @param {string} text - Telegram HTML-formatted message
+ * Thin wrapper that resolves the secret and delegates to shared helper.
  */
 async function sendTelegramAlert(chatId, text) {
-  const token = TELEGRAM_BOT_TOKEN.value();
-  if (!token) {
-    console.error("[integrity] TELEGRAM_BOT_TOKEN not set, skipping alert");
-    return;
-  }
-
-  const url = `https://api.telegram.org/bot${token}/sendMessage`;
-  const res = await fetch(url, {
-    method: "POST",
-    headers: { "Content-Type": "application/json" },
-    body: JSON.stringify({
-      chat_id: chatId,
-      text,
-      parse_mode: "HTML",
-    }),
-  });
-
-  if (!res.ok) {
-    const body = await res.text();
-    console.error(`[integrity] Telegram send failed: ${res.status} ${body}`);
-  }
+  await sendTelegramAlertShared(TELEGRAM_BOT_TOKEN.value(), chatId, text);
 }
 
 function escapeHtml(s) {

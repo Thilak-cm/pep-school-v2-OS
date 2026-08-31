@@ -80,6 +80,12 @@ const EXPECTED_EXPORTS = [
   "getAssessmentDownloadUrl",
   "getStructuredAssessmentSource",
   "publishStructuredAssessment",
+  // Execution Ledger Verifiers (#229)
+  "verifyCleanupDeletedChats",
+  "verifySoulRegeneration",
+  "verifyMonthlyPlans",
+  "verifyWeeklyStudentAI",
+  "verifyWeeklyDigests",
 ];
 
 describe("barrel file (functions/index.js)", () => {
