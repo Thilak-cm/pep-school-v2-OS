@@ -1,4 +1,5 @@
 import * as functions from "firebase-functions/v1";
+import { defineSecret } from "firebase-functions/params";
 import { db, Timestamp } from "../shared/firebase.js";
 import { buildChatBody } from "../shared/openai.js";
 import { OPENROUTER_API_KEY, getOpenRouterKey, OPENROUTER_ENDPOINT } from "../shared/openrouter.js";
@@ -38,6 +39,10 @@ import {
   markExecutionFailed,
   classifyError,
 } from "../shared/ledger.js";
+import { broadcastAlert } from "../shared/telegram.js";
+import { formatCrashSignal } from "../shared/verifierTelegram.js";
+
+const TELEGRAM_BOT_TOKEN = defineSecret("TELEGRAM_BOT_TOKEN");
 
 // -----------------------------------------------
 // Student Soul: Generate soul narrative for a single student (PEP-149)
@@ -476,7 +481,10 @@ export const soulWorker = functions
     // match against it. This is simpler than a legacy fallback and produces
     // identical behavior - old docs get regenerated once, then are idempotent.
     const JOB_KEY = "soulRegen";
-    const executionId = computeExecutionId(JOB_KEY);
+    // Prefer executionId from the dispatcher's message to avoid drift
+    // if the worker runs after midnight. Fallback for in-flight messages
+    // from before this deploy that lack the field.
+    const executionId = message.json.executionId || computeExecutionId(JOB_KEY);
 
     const results = await Promise.allSettled(
       studentIds.map(async (studentId) => {
@@ -511,15 +519,13 @@ export const soulWorker = functions
     let hasTransientError = false;
     let firstTransientError = null;
 
-    for (const r of results) {
+    for (let idx = 0; idx < results.length; idx++) {
+      const r = results[idx];
       if (r.status === "rejected") {
         const err = r.reason;
         if (err.code && PERMANENT_CODES.includes(err.code)) {
           console.error(`[soul-worker] permanent error, skipping:`, err.message);
-          // Write failed workItem for permanent errors. Extract studentId from
-          // the promise index (use results array position).
-          const idx = results.indexOf(r);
-          if (idx >= 0 && studentIds[idx]) {
+          if (studentIds[idx]) {
             await updateWorkItem(JOB_KEY, executionId, studentIds[idx], buildWorkItemUpdate("failed", {
               failureCategory: classifyError(err),
               detail: err.message,
@@ -555,7 +561,7 @@ const WAVE_SIZE = 25; // match maxInstances
 const WAVE_GAP_MS = 90_000;
 const sleep = (ms) => new Promise((resolve) => setTimeout(resolve, ms));
 
-async function publishInWaves(studentIds, logPrefix, { targetMonth }) {
+async function publishInWaves(studentIds, logPrefix, { targetMonth, executionId }) {
   if (!targetMonth) {
     throw new Error("publishInWaves: targetMonth is required");
   }
@@ -579,7 +585,7 @@ async function publishInWaves(studentIds, logPrefix, { targetMonth }) {
     await Promise.all(
       wave.map(async (batch) => {
         try {
-          const payload = JSON.stringify({ studentIds: batch, targetMonth });
+          const payload = JSON.stringify({ studentIds: batch, targetMonth, executionId });
           await soulTopic.publishMessage({ data: Buffer.from(payload) });
           published++;
         } catch (err) {
@@ -600,7 +606,7 @@ async function publishInWaves(studentIds, logPrefix, { targetMonth }) {
 
 export const regenerateSoulsMonthly = functions
   .region("asia-south1")
-  .runWith({ timeoutSeconds: 540, memory: "512MB" })
+  .runWith({ timeoutSeconds: 540, memory: "512MB", secrets: [TELEGRAM_BOT_TOKEN] })
   .pubsub.schedule("0 2 1 * *")
   .timeZone("Asia/Kolkata")
   .onRun(async () => {
@@ -618,7 +624,7 @@ export const regenerateSoulsMonthly = functions
       await createExecution(JOB_KEY, executionId, studentIds.length);
       const [, result] = await Promise.all([
         seedWorkItems(JOB_KEY, executionId, studentIds),
-        publishInWaves(studentIds, "[soul-dispatcher]", { targetMonth }),
+        publishInWaves(studentIds, "[soul-dispatcher]", { targetMonth, executionId }),
       ]);
 
       const duration = ((Date.now() - startTime) / 1000).toFixed(1);
@@ -628,6 +634,8 @@ export const regenerateSoulsMonthly = functions
     } catch (err) {
       console.error("[soul-dispatcher] Fatal error:", err);
       await markExecutionFailed(JOB_KEY, executionId, err).catch(() => {});
+      const msg = formatCrashSignal(JOB_KEY, executionId, classifyError(err), err.message);
+      await broadcastAlert(TELEGRAM_BOT_TOKEN.value(), db, msg).catch(() => {});
       throw err;
     }
   });

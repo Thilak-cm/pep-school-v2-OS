@@ -18,6 +18,11 @@ const TELEGRAM_BOT_TOKEN = defineSecret("TELEGRAM_BOT_TOKEN");
 const RETENTION_DAYS = 31;
 const JOB_KEY = "cleanupDeletedChats";
 
+// Firestore doc IDs cannot contain slashes. Chat doc paths like
+// "students/abc123/chats/xyz789" must be escaped before use as
+// ledger workItem IDs to avoid creating nested subcollections.
+const safeDocId = (path) => path.replace(/\//g, "__");
+
 export async function deleteDocumentRecursively(docRef) {
   const subcollections = await docRef.listCollections();
   for (const subcollection of subcollections) {
@@ -39,11 +44,11 @@ export async function cleanupDeletedChatDocuments(snapshot, executionId) {
         // subcollection introduced by #220.
         await deleteDocumentRecursively(doc.ref);
         deletedCount += 1;
-        await updateWorkItem(JOB_KEY, executionId, doc.ref.path, buildWorkItemUpdate("success"));
+        await updateWorkItem(JOB_KEY, executionId, safeDocId(doc.ref.path), buildWorkItemUpdate("success"));
       } catch (error) {
         errorCount += 1;
         console.error(`[cleanupDeletedChats] Failed to delete ${doc.ref.path}`, error);
-        await updateWorkItem(JOB_KEY, executionId, doc.ref.path, buildWorkItemUpdate("failed", {
+        await updateWorkItem(JOB_KEY, executionId, safeDocId(doc.ref.path), buildWorkItemUpdate("failed", {
           failureCategory: classifyError(error),
           detail: error.message,
         }));
@@ -68,7 +73,7 @@ export const cleanupDeletedChats = functions
         .get();
 
       // Ledger: create execution + seed workItems (chat doc paths as IDs)
-      const targetPaths = snapshot.docs.map((d) => d.ref.path);
+      const targetPaths = snapshot.docs.map((d) => safeDocId(d.ref.path));
       await createExecution(JOB_KEY, executionId, targetPaths.length);
       await seedWorkItems(JOB_KEY, executionId, targetPaths);
 

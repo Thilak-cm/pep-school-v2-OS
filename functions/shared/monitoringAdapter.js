@@ -12,7 +12,7 @@
 class NoOpProvider {
   // eslint-disable-next-line no-unused-vars
   async emit(event, payload) {
-    console.log(`[monitoring:noop] ${event}`);
+    // no-op
   }
 }
 

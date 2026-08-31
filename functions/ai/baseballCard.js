@@ -367,7 +367,7 @@ async function runBaseballCards({
           if (ledger) {
             await updateWorkItem(ledger.jobKey, ledger.executionId, studentId, buildWorkItemUpdate("success", {
               evidence: { status: "no_notes" },
-            }));
+            })).catch(() => {});
           }
         }
         return;

@@ -73,7 +73,7 @@ export function verifySoul(docs, executionId) {
   // no_notes is a valid outcome - soul still gets written
   if (soul.status !== "ok" && soul.status !== "no_notes") {
     // Check for content presence as fallback (older docs may lack status)
-    if (!soul.content && soul.status !== "no_notes") {
+    if (!soul.content) {
       return { pass: false, reason: "soul_empty_content" };
     }
   }
@@ -209,9 +209,10 @@ export const CONTRACTS = {
 
   cleanupDeletedChats: {
     async verify(workItem, _executionId, _executionStart) {
-      // The workItem.id is the chat doc path recorded at seeding time.
-      // Success means the doc no longer exists.
-      const snap = await db.doc(workItem.id).get();
+      // The workItem.id is the chat doc path recorded at seeding time,
+      // with slashes replaced by "__" to avoid nested subcollections.
+      // Decode back to a Firestore path for the existence check.
+      const snap = await db.doc(workItem.id.replace(/__/g, "/")).get();
       return verifyDeletion(snap.exists);
     },
   },

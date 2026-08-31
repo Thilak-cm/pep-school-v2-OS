@@ -395,6 +395,8 @@ export const weeklyDigestClassroomAdmin = functions
     const weekKey = getWeekKey();
     const sessionId = `digest-${weekKey}`;
 
+    const executionId = computeExecutionId(JOB_KEY);
+
     const trace = langfuse.trace({
       name: "weekly-digest-classrooms",
       sessionId,
@@ -415,9 +417,6 @@ export const weeklyDigestClassroomAdmin = functions
         id: d.id,
         ...d.data(),
       }));
-
-      // Ledger: create execution + seed workItems (one per classroom)
-      const executionId = computeExecutionId(JOB_KEY);
       await createExecution(JOB_KEY, executionId, classrooms.length);
       await seedWorkItems(JOB_KEY, executionId, classrooms.map((c) => c.id));
 
@@ -593,7 +592,6 @@ export const weeklyDigestClassroomAdmin = functions
       console.error("[weeklyDigestClassroomAdmin] Fatal error:", err);
       trace.update({ output: err.message, level: "ERROR" });
       await langfuse.flushAsync();
-      const executionId = computeExecutionId(JOB_KEY);
       await markExecutionFailed(JOB_KEY, executionId, err).catch(() => {});
       const msg = formatCrashSignal(JOB_KEY, executionId, classifyError(err), err.message);
       await broadcastAlert(TELEGRAM_BOT_TOKEN.value(), db, msg).catch(() => {});

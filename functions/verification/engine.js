@@ -79,6 +79,12 @@ async function verifyJob(jobKey, telegramToken, db, now) {
     return;
   }
 
+  // Still running at verify time — proceed anyway so still-pending workItems
+  // surface as missing, producing a red signal that alerts the operator.
+  if (execution.state === "running") {
+    console.warn(`[verifier] ${jobKey} execution ${executionId} still running at verify time, proceeding with verification`);
+  }
+
   const workItems = await getWorkItems(jobKey, executionId);
   const contract = CONTRACTS[jobKey];
 

@@ -24,18 +24,13 @@ const EXECUTION_TTL_MONTHS = 13;
 const WORK_ITEM_TTL_DAYS = 90;
 const MAX_BATCH_SIZE = 500;
 
-/** Machine-readable failure categories. */
-export const FAILURE_CATEGORIES = [
-  "provider_quota",
-  "provider_error",
-  "generation_error",
-  "data_missing",
-  "write_failed",
-  "export_failed",
-  "unverified",
-  "never_started",
-  "unknown",
-];
+/**
+ * Machine-readable failure categories (reference only):
+ * provider_quota, provider_error, generation_error, data_missing,
+ * write_failed, export_failed, unverified, never_started, unknown.
+ *
+ * Not exported - classifyError() returns these as string literals.
+ */
 
 // ---------------------------------------------------------------------------
 // Period-key dispatch (pure)
@@ -106,7 +101,7 @@ const QUOTA_PATTERNS = [
 /**
  * Classify an error into a failure category.
  * @param {Error|{code?:string, message?:string, status?:number}} err
- * @returns {string} one of FAILURE_CATEGORIES
+ * @returns {string} One of: provider_quota, provider_error, generation_error, data_missing, write_failed, export_failed, unverified, never_started, unknown
  */
 export function classifyError(err) {
   if (!err) return "unknown";
@@ -358,9 +353,11 @@ export async function getWorkItems(jobKey, executionId) {
  */
 export async function markExecutionFailed(jobKey, executionId, error) {
   const category = classifyError(error);
-  await executionRef(jobKey, executionId).update({
+  // set+merge so this works even if the execution doc was never created
+  // (e.g., crash before createExecution ran).
+  await executionRef(jobKey, executionId).set({
     state: "failed",
     finalizedAt: Timestamp.now(),
     dominantFailureCategory: category,
-  });
+  }, {merge: true});
 }
