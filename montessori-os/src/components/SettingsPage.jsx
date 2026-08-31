@@ -37,9 +37,28 @@ import { trackEvent } from '../utils/analytics';
 import { isSuperAdmin, isAdminRole, isClassroomAdmin, getRoleLabel } from '../utils/roleUtils';
 import useNotify from '../notifications/useNotify';
 import { fuzzySearchStudents } from '../utils/fuzzySearch';
+import { DatePicker, LocalizationProvider } from '@mui/x-date-pickers';
+import { AdapterDateFns } from '@mui/x-date-pickers/AdapterDateFns';
 
 // UIDs that see dev-only UI triggers for ad-hoc testing (soul gen, digest, etc.)
 const DEV_UIDS = ['T1iLA2qjTqMvgS4hamw2PEtNsov1', 'HA1TiA1xbkRJ8n1MPaBi1PdGlo92'];
+
+/**
+ * Derive the current IST year/month for the soul generation month picker.
+ *
+ * Why IST instead of local time: the backend (soul.js getCurrentMonthIST)
+ * validates targetMonth against IST months. Using local time here would cause
+ * divergence for up to 5.5h at month boundaries - the picker could show a month
+ * the backend rejects, or hide a month the backend accepts.
+ *
+ * We shift Date.now() by the IST offset (+5:30) and read UTC getters, so the
+ * result is always the IST calendar month regardless of the browser's timezone.
+ */
+function getISTMonthInfo() {
+  const IST_OFFSET_MS = 5.5 * 60 * 60 * 1000;
+  const istNow = new Date(Date.now() + IST_OFFSET_MS);
+  return { year: istNow.getUTCFullYear(), month: istNow.getUTCMonth() };
+}
 
 function SettingsPage({ user, userRole, classrooms = [], onNavigate, onSignOut }) {
   const [confirmOpen, setConfirmOpen] = useState(false);
@@ -49,6 +68,10 @@ function SettingsPage({ user, userRole, classrooms = [], onNavigate, onSignOut }
   const [soulRunning, setSoulRunning] = useState(false);
   const [soulSelectedStudent, setSoulSelectedStudent] = useState(null);
   const [soulStudentSearch, setSoulStudentSearch] = useState('');
+  const [soulTargetMonth, setSoulTargetMonth] = useState(() => {
+    const { year, month } = getISTMonthInfo();
+    return new Date(year, month, 1);
+  });
   const [allStudents, setAllStudents] = useState([]);
   const [studentsLoading, setStudentsLoading] = useState(false);
   const [notesThisWeek, setNotesThisWeek] = useState(null);
@@ -57,6 +80,30 @@ function SettingsPage({ user, userRole, classrooms = [], onNavigate, onSignOut }
   const isSuperAdminUser = isSuperAdmin(userRole);
   const isAdmin = isAdminRole(userRole);
   const isDevUser = DEV_UIDS.includes(user?.uid);
+
+  // IST-derived bounds for the soul generation month picker.
+  // Backend validates targetMonth against IST months (see soul.js getCurrentMonthIST),
+  // so picker bounds must also be IST-aligned to avoid rejection at month boundaries.
+  // Computed per render (not memoized) so bounds can't go stale if the page
+  // stays mounted across an IST month rollover; two Date constructions are cheap.
+  const { year: istYear, month: istMonth } = getISTMonthInfo();
+  const soulMonthBounds = {
+    min: new Date(istYear, istMonth, 1),
+    // Last day of next IST month: day 0 of (month + 2) rolls back to last day of (month + 1)
+    max: new Date(istYear, istMonth + 2, 0),
+  };
+
+  // Reset picker state each time the soul dialog opens, so stale month
+  // selections from a previous open don't carry over. Same pattern as
+  // testbench SoulGenerationDialog (resets on [open, studentId]).
+  useEffect(() => {
+    if (soulDialogOpen) {
+      const { year, month } = getISTMonthInfo();
+      setSoulTargetMonth(new Date(year, month, 1));
+      setSoulSelectedStudent(null);
+      setSoulStudentSearch('');
+    }
+  }, [soulDialogOpen]);
 
   const loadStudents = useCallback(async () => {
     if (allStudents.length > 0) return;
@@ -266,21 +313,21 @@ function SettingsPage({ user, userRole, classrooms = [], onNavigate, onSignOut }
                 onClick={() => onNavigate('/broadcastComposer')}
               />
               {isDevUser && (
-                <>
-                  <SettingsRow
-                    icon={<Send size={20} />}
-                    iconColor="var(--color-violet)"
-                    label={digestRunning ? 'Digest Running...' : 'Test Weekly Digest'}
-                    onClick={() => setDigestConfirmOpen(true)}
-                  />
-                  <SettingsRow
-                    icon={<FlaskConical size={20} />}
-                    iconColor="var(--color-violet)"
-                    label={soulRunning ? 'Soul Gen Running...' : 'Test Soul Generation'}
-                    onClick={() => { loadStudents(); setSoulDialogOpen(true); }}
-                  />
-                </>
+                <SettingsRow
+                  icon={<Send size={20} />}
+                  iconColor="var(--color-violet)"
+                  label={digestRunning ? 'Digest Running...' : 'Test Weekly Digest'}
+                  onClick={() => setDigestConfirmOpen(true)}
+                />
               )}
+              {/* Superadmin-gated (not DEV_UIDS) to match the backend
+                  triggerSoulGeneration callable's superadmin check (#264 review). */}
+              <SettingsRow
+                icon={<FlaskConical size={20} />}
+                iconColor="var(--color-violet)"
+                label={soulRunning ? 'Soul Gen Running...' : 'Test Soul Generation'}
+                onClick={() => { loadStudents(); setSoulDialogOpen(true); }}
+              />
             </>
           )}
         </Paper>
@@ -392,6 +439,19 @@ function SettingsPage({ user, userRole, classrooms = [], onNavigate, onSignOut }
             )}
             sx={{ mt: 1 }}
           />
+          <LocalizationProvider dateAdapter={AdapterDateFns}>
+            <DatePicker
+              views={['month', 'year']}
+              label="Target month"
+              value={soulTargetMonth}
+              onChange={(val) => val && setSoulTargetMonth(val)}
+              minDate={soulMonthBounds.min}
+              maxDate={soulMonthBounds.max}
+              disabled={soulRunning}
+              slotProps={{ textField: { size: 'small', fullWidth: true } }}
+              sx={{ mt: 2 }}
+            />
+          </LocalizationProvider>
         </DialogContent>
         <DialogActions sx={{ px: 3, pb: 3, gap: 1 }}>
           <Button onClick={() => setSoulDialogOpen(false)} variant="outlined" disabled={soulRunning} sx={{ minWidth: 80 }}>
@@ -406,9 +466,10 @@ function SettingsPage({ user, userRole, classrooms = [], onNavigate, onSignOut }
               setSoulDialogOpen(false);
               try {
                 const call = httpsCallable(cloudFunctions, 'triggerSoulGeneration', { timeout: 540_000 });
-                const result = await call({ studentIds: [soulSelectedStudent.id] });
+                const tm = `${soulTargetMonth.getFullYear()}-${String(soulTargetMonth.getMonth() + 1).padStart(2, '0')}`;
+                const result = await call({ studentIds: [soulSelectedStudent.id], targetMonth: tm });
                 const d = result.data;
-                const msg = `Soul gen dispatched: ${d.studentsDispatched} student in ${d.batchesPublished} batch (${d.durationSec}s)`;
+                const msg = `Soul gen dispatched for ${d.targetMonth}: ${d.studentsDispatched} student in ${d.batchesPublished} batch (${d.durationSec}s)`;
                 if (d.batchesFailed > 0) {
                   notify.error(`${msg} - ${d.batchesFailed} batches FAILED`);
                 } else {

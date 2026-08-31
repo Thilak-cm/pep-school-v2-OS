@@ -35,6 +35,8 @@ import { chunkStudentIds, parseSoulWorkerMessage } from "./soulFanout.js";
 // Replaces the old per-dimension profile system (PEP-124)
 // -----------------------------------------------
 
+const IST_OFFSET_MS = 5.5 * 60 * 60 * 1000; // UTC+5:30
+
 const SOUL_TOPIC = "soul-workers";
 const pubsub = new PubSub();
 const soulTopic = pubsub.topic(SOUL_TOPIC);
@@ -156,7 +158,7 @@ async function callSoulGeneration(observations, interviews, guidelinesContent, s
   }
 }
 
-async function writeSoulAndGuidelines(studentId, soulContent, programId, templateConfig, observationCount, interviewCount, lastObsAt, lastInterviewAt, classroomId = null) {
+async function writeSoulAndGuidelines(studentId, soulContent, programId, templateConfig, observationCount, interviewCount, lastObsAt, lastInterviewAt, classroomId = null, generatedForMonth = null) {
   const aiSummariesRef = db.collection("students").doc(studentId).collection("ai_summaries");
   const soulRef = aiSummariesRef.doc("soul");
   const guidelinesRef = aiSummariesRef.doc("guidelines");
@@ -171,7 +173,10 @@ async function writeSoulAndGuidelines(studentId, soulContent, programId, templat
   if (existingSoul.exists) {
     const prevData = existingSoul.data();
     const historyRef = soulRef.collection("history").doc(now.toMillis().toString());
-    batch.set(historyRef, buildHistorySnapshot(prevData, `Weekly regeneration on ${new Date().toISOString().split("T")[0]}`));
+    const reason = generatedForMonth
+      ? `Soul generation for ${generatedForMonth} on ${new Date().toISOString().split("T")[0]}`
+      : `Soul generation on ${new Date().toISOString().split("T")[0]}`;
+    batch.set(historyRef, buildHistorySnapshot(prevData, reason));
   }
 
   // Extract structured data from LLM response — each extractor only touches its own block
@@ -192,6 +197,7 @@ async function writeSoulAndGuidelines(studentId, soulContent, programId, templat
   soulDoc.createdAt = existingSoul.exists ? (existingSoul.data().createdAt || now) : now;
   soulDoc.updatedAt = now;
   soulDoc.classroomId = classroomId;
+  if (generatedForMonth) soulDoc.generatedForMonth = generatedForMonth;
   batch.set(soulRef, soulDoc);
 
   // Snapshot previous open_questions to history before overwrite (#215)
@@ -207,6 +213,7 @@ async function writeSoulAndGuidelines(studentId, soulContent, programId, templat
   const oqDoc = buildOpenQuestionsDoc({ areas: openQuestionAreas, programId });
   oqDoc.updatedAt = now;
   oqDoc.classroomId = classroomId;
+  if (generatedForMonth) oqDoc.generatedForMonth = generatedForMonth;
   batch.set(openQuestionsRef, oqDoc);
   const areaCount = Object.keys(openQuestionAreas).length;
   if (areaCount) {
@@ -279,8 +286,14 @@ export const generateStudentProfile = functions
       }
     }
 
+    // Optional targetMonth for testbench — format validation only, no range constraint.
+    const targetMonth = data?.targetMonth || getCurrentMonthIST();
+    if (!/^\d{4}-(0[1-9]|1[0-2])$/.test(targetMonth)) {
+      throw new functions.https.HttpsError("invalid-argument", "targetMonth must be YYYY-MM format");
+    }
+
     const windowDays = data?.windowDays ?? 365;
-    return await generateSoulForStudent(studentId, apiKey, { windowDays });
+    return await generateSoulForStudent(studentId, apiKey, { windowDays, generatedForMonth: targetMonth });
   });
 
 // -----------------------------------------------
@@ -288,7 +301,7 @@ export const generateStudentProfile = functions
 // Reused by the on-demand callable and the Pub/Sub worker.
 // -----------------------------------------------
 
-async function generateSoulForStudent(studentId, apiKey, { windowDays = 365 } = {}) {
+async function generateSoulForStudent(studentId, apiKey, { windowDays = 365, generatedForMonth = null } = {}) {
   const t0 = Date.now();
   const lap = (label) => console.log(`[soul] ${studentId} ${label} +${Date.now() - t0}ms`);
 
@@ -332,6 +345,7 @@ async function generateSoulForStudent(studentId, apiKey, { windowDays = 365 } = 
       templateConfig,
       0, 0, null, null,
       studentInfo.classroomId,
+      generatedForMonth,
     );
     return { status: "no_notes", studentId, programId: studentInfo.programId, noteCount: 0, interviewCount: 0 };
   }
@@ -355,6 +369,7 @@ async function generateSoulForStudent(studentId, apiKey, { windowDays = 365 } = 
     studentId, soulContent, studentInfo.programId, templateConfig,
     formatted.length, formattedInterviews.length, lastObsAt, lastInterviewAt,
     studentInfo.classroomId,
+    generatedForMonth,
   );
   lap("writeSoulAndGuidelines");
 
@@ -382,16 +397,29 @@ async function generateSoulForStudent(studentId, apiKey, { windowDays = 365 } = 
 // -----------------------------------------------
 
 /**
- * Check whether a Firestore Timestamp falls in the current month (IST).
+ * Return the current month in IST as a "YYYY-MM" string.
+ * Used by the cron dispatcher and as default for callables.
+ *
+ * Uses UTC getters on an IST-shifted Date so the result is correct
+ * regardless of the Cloud Functions runtime TZ (which defaults to UTC
+ * but is not guaranteed by the platform).
  */
-function isCurrentMonthIST(firestoreTimestamp) {
-  if (!firestoreTimestamp) return false;
-  const IST_OFFSET_MS = 5.5 * 60 * 60 * 1000;
-  const now = new Date();
-  const istNow = new Date(now.getTime() + IST_OFFSET_MS);
-  const ts = firestoreTimestamp.toDate ? firestoreTimestamp.toDate() : new Date(firestoreTimestamp);
-  const istTs = new Date(ts.getTime() + IST_OFFSET_MS);
-  return istNow.getFullYear() === istTs.getFullYear() && istNow.getMonth() === istTs.getMonth();
+function getCurrentMonthIST() {
+  const istNow = new Date(Date.now() + IST_OFFSET_MS);
+  return `${istNow.getUTCFullYear()}-${String(istNow.getUTCMonth() + 1).padStart(2, "0")}`;
+}
+
+/**
+ * Return the next month from current IST date as a "YYYY-MM" string.
+ * Used for targetMonth range validation (current + next month only).
+ *
+ * Date.UTC handles month overflow: month 12 rolls to Jan of next year,
+ * so Dec -> Jan works correctly without manual year arithmetic.
+ */
+function getNextMonthIST() {
+  const istNow = new Date(Date.now() + IST_OFFSET_MS);
+  const next = new Date(Date.UTC(istNow.getUTCFullYear(), istNow.getUTCMonth() + 1, 1));
+  return `${next.getUTCFullYear()}-${String(next.getUTCMonth() + 1).padStart(2, "0")}`;
 }
 
 export const soulWorker = functions
@@ -407,11 +435,17 @@ export const soulWorker = functions
     // Parse message - validation errors are permanent, so ACK (return null)
     // to prevent infinite Pub/Sub retries on malformed messages.
     let studentIds;
-    let force;
+    let targetMonth;
     try {
-      ({ studentIds, force } = parseSoulWorkerMessage(message));
+      ({ studentIds, targetMonth } = parseSoulWorkerMessage(message));
     } catch (parseErr) {
-      console.error("[soul-worker] bad message, ACKing to stop retries:", parseErr.message);
+      // Include parse error and whether targetMonth was present so deploy-overlap
+      // messages (old format, pre-#264) are distinguishable from truly malformed ones.
+      console.error(
+        "[soul-worker] bad message, ACKing to stop retries:",
+        parseErr.message,
+        { hasTargetMonth: Boolean(message?.json?.targetMonth) },
+      );
       return null;
     }
 
@@ -421,24 +455,27 @@ export const soulWorker = functions
       return null;
     }
 
-    console.log(`[soul-worker] processing batch of ${studentIds.length}: ${studentIds.join(", ")}${force ? " (force)" : ""}`);
+    console.log(`[soul-worker] processing batch of ${studentIds.length} for ${targetMonth}: ${studentIds.join(", ")}`);
 
     // Process all students in the batch in parallel.
-    // Per-student idempotency guard: skip if soul.updatedAt is in the current month.
-    // Manual triggers pass force=true to bypass this guard.
+    // Per-student idempotency guard: skip if existing soul's generatedForMonth
+    // already matches the targetMonth from the dispatcher.
+    //
+    // No fallback to updatedAt for old docs missing generatedForMonth (#264):
+    // A missing field is simply a non-match, which correctly triggers regeneration.
+    // The first run after deployment writes generatedForMonth; subsequent runs
+    // match against it. This is simpler than a legacy fallback and produces
+    // identical behavior - old docs get regenerated once, then are idempotent.
     const results = await Promise.allSettled(
       studentIds.map(async (studentId) => {
-        // Idempotency guard (skipped when force=true, e.g. manual Settings trigger)
-        if (!force) {
-          const existingSoul = await db.collection("students").doc(studentId)
-            .collection("ai_summaries").doc("soul").get();
-          if (existingSoul.exists && isCurrentMonthIST(existingSoul.data().updatedAt)) {
-            console.log(`[soul-worker] ${studentId} already has soul for current month, skipping`);
-            return { studentId, status: "skipped" };
-          }
+        const existingSoul = await db.collection("students").doc(studentId)
+          .collection("ai_summaries").doc("soul").get();
+        if (existingSoul.exists && existingSoul.data().generatedForMonth === targetMonth) {
+          console.log(`[soul-worker] ${studentId} already has soul for ${targetMonth}, skipping`);
+          return { studentId, status: "skipped" };
         }
 
-        const result = await generateSoulForStudent(studentId, apiKey);
+        const result = await generateSoulForStudent(studentId, apiKey, { generatedForMonth: targetMonth });
         return { studentId, ...result };
       }),
     );
@@ -482,7 +519,10 @@ const WAVE_SIZE = 25; // match maxInstances
 const WAVE_GAP_MS = 90_000;
 const sleep = (ms) => new Promise((resolve) => setTimeout(resolve, ms));
 
-async function publishInWaves(studentIds, logPrefix, { force = false } = {}) {
+async function publishInWaves(studentIds, logPrefix, { targetMonth }) {
+  if (!targetMonth) {
+    throw new Error("publishInWaves: targetMonth is required");
+  }
   const chunks = chunkStudentIds(studentIds);
   // Group chunks into waves of WAVE_SIZE
   const waves = [];
@@ -503,7 +543,7 @@ async function publishInWaves(studentIds, logPrefix, { force = false } = {}) {
     await Promise.all(
       wave.map(async (batch) => {
         try {
-          const payload = JSON.stringify({ studentIds: batch, ...(force && { force: true }) });
+          const payload = JSON.stringify({ studentIds: batch, targetMonth });
           await soulTopic.publishMessage({ data: Buffer.from(payload) });
           published++;
         } catch (err) {
@@ -529,16 +569,17 @@ export const regenerateSoulsMonthly = functions
   .timeZone("Asia/Kolkata")
   .onRun(async () => {
     const startTime = Date.now();
-    console.log("[soul-dispatcher] starting monthly dispatch run");
+    const targetMonth = getCurrentMonthIST();
+    console.log(`[soul-dispatcher] starting monthly dispatch run for ${targetMonth}`);
 
     const studentIds = await fetchActiveStudentIds();
     console.log(`[soul-dispatcher] ${studentIds.length} active students total`);
 
-    const result = await publishInWaves(studentIds, "[soul-dispatcher]");
+    const result = await publishInWaves(studentIds, "[soul-dispatcher]", { targetMonth });
 
     const duration = ((Date.now() - startTime) / 1000).toFixed(1);
     const logFn = result.publishFailed > 0 ? console.error : console.log;
-    logFn(`[soul-dispatcher] done in ${duration}s: ${result.published} batches published (${studentIds.length} students), ${result.publishFailed} failed`);
+    logFn(`[soul-dispatcher] done in ${duration}s for ${targetMonth}: ${result.published} batches published (${studentIds.length} students), ${result.publishFailed} failed`);
     return null;
   });
 
@@ -560,27 +601,43 @@ export const triggerSoulGeneration = functions
       throw new functions.https.HttpsError("permission-denied", "Only superadmins can trigger soul generation");
     }
 
+    // Validate required targetMonth parameter (#264)
+    const targetMonth = data?.targetMonth;
+    if (!targetMonth || typeof targetMonth !== "string") {
+      throw new functions.https.HttpsError("invalid-argument", "targetMonth is required (YYYY-MM format)");
+    }
+    if (!/^\d{4}-(0[1-9]|1[0-2])$/.test(targetMonth)) {
+      throw new functions.https.HttpsError("invalid-argument", "targetMonth must be YYYY-MM format");
+    }
+    const currentMonth = getCurrentMonthIST();
+    const nextMonth = getNextMonthIST();
+    if (targetMonth !== currentMonth && targetMonth !== nextMonth) {
+      throw new functions.https.HttpsError("invalid-argument", `targetMonth must be current (${currentMonth}) or next month (${nextMonth})`);
+    }
+
     const startTime = Date.now();
     let studentIds;
 
     if (data?.studentIds && Array.isArray(data.studentIds) && data.studentIds.length > 0) {
-      // Specific students requested - publish unconditionally (no idempotency pre-filter)
       studentIds = data.studentIds.map((id) => String(id).trim()).filter(Boolean);
-      console.log(`[soul-dispatcher] manual trigger for ${studentIds.length} specific students`);
+      console.log(`[soul-dispatcher] manual trigger for ${studentIds.length} specific students, targetMonth=${targetMonth}`);
     } else {
-      // All active students - no pre-filter (worker handles idempotency)
       studentIds = await fetchActiveStudentIds();
-      console.log(`[soul-dispatcher] manual trigger for all ${studentIds.length} active students`);
+      console.log(`[soul-dispatcher] manual trigger for all ${studentIds.length} active students, targetMonth=${targetMonth}`);
     }
 
-    // Manual triggers always force-regenerate, bypassing the monthly idempotency guard.
-    const result = await publishInWaves(studentIds, "[soul-dispatcher]", { force: true });
+    // targetMonth is the single intent signal — providing it means "generate for
+    // this month regardless of existing state." The worker's idempotency guard
+    // checks generatedForMonth against targetMonth; a match skips, a mismatch
+    // regenerates. No separate force flag needed. (#264)
+    const result = await publishInWaves(studentIds, "[soul-dispatcher]", { targetMonth });
 
     const duration = ((Date.now() - startTime) / 1000).toFixed(1);
-    console.log(`[soul-dispatcher] manual trigger done in ${duration}s (force): ${result.published} batches published (${studentIds.length} students), ${result.publishFailed} failed`);
+    console.log(`[soul-dispatcher] manual trigger done in ${duration}s for ${targetMonth}: ${result.published} batches published (${studentIds.length} students), ${result.publishFailed} failed`);
 
     return {
       status: result.publishFailed > 0 ? "partial" : "ok",
+      targetMonth,
       studentsDispatched: studentIds.length,
       batchesPublished: result.published,
       batchesFailed: result.publishFailed,

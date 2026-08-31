@@ -28,7 +28,7 @@ Firebase Functions v1 Pub/Sub schedules and use asynchronous `onRun` handlers.
 | IST schedule | Function | Module | Execution pattern | Purpose |
 |---|---|---|---|---|
 | Day 1 at 00:00 | `cleanupDeletedChats` | `functions/chat/cleanupDeletedChats.js` | Direct async work | Hard-deletes soft-deleted chats older than 31 days, including subcollections. |
-| Day 1 at 02:00 | `regenerateSoulsMonthly` | `functions/students/soul.js` | Async dispatcher | Finds active students and publishes batches to the `soul-workers` Pub/Sub topic. Actual generation runs in `soulWorker`, which is Pub/Sub-triggered rather than cron-triggered. |
+| Day 1 at 02:00 | `regenerateSoulsMonthly` | `functions/students/soul.js` | Async dispatcher | Finds active students and publishes batches to the `soul-workers` Pub/Sub topic. Each batch message carries a `targetMonth` (YYYY-MM) used by the worker for idempotency - students whose soul doc already has `generatedForMonth === targetMonth` are skipped. Actual generation runs in `soulWorker`, which is Pub/Sub-triggered rather than cron-triggered. |
 | Last day at 00:00 | `batchGenerateMonthlyPlans` | `functions/monthlyPlan/index.js` | Async dispatcher | Cron expression fires on days 28–31; an IST runtime guard allows processing only on the actual last day. Publishes eligible students to the monthly-plan worker topic. Actual generation and Drive export run in `monthlyPlanWorker`, which is Pub/Sub-triggered rather than cron-triggered. |
 
 ## Source-of-truth details

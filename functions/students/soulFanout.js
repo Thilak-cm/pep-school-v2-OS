@@ -36,5 +36,8 @@ export function parseSoulWorkerMessage(message) {
   if (!Array.isArray(payload.studentIds) || !payload.studentIds.length) {
     throw new Error("Invalid Pub/Sub message: studentIds must be a non-empty array");
   }
-  return { studentIds: payload.studentIds, force: payload.force === true };
+  if (!payload.targetMonth || typeof payload.targetMonth !== "string") {
+    throw new Error("Invalid Pub/Sub message: targetMonth is required and must be a string");
+  }
+  return { studentIds: payload.studentIds, targetMonth: payload.targetMonth };
 }

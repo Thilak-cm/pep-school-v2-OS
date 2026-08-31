@@ -207,11 +207,24 @@ test("buildHistorySnapshot captures previous state", async () => {
     updatedBy: "cloud-function:soul-generate",
   };
 
-  const snapshot = buildHistorySnapshot(prevDoc, "Weekly regeneration");
+  const snapshot = buildHistorySnapshot(prevDoc, "Soul generation for 2026-08 on 2026-08-30");
   assert.equal(snapshot.content, "Old soul content");
-  assert.equal(snapshot.reason, "Weekly regeneration");
+  assert.equal(snapshot.reason, "Soul generation for 2026-08 on 2026-08-30");
   assert.ok(snapshot.updatedAt, "should have updatedAt");
   assert.ok(snapshot.updatedBy, "should have updatedBy");
+});
+
+test("buildHistorySnapshot stores fallback reason without month verbatim", async () => {
+  const { buildHistorySnapshot } = await import("../utils/soulHelpers.js");
+  const prevDoc = {
+    content: "Old soul content",
+    updatedAt: new Date("2026-04-15"),
+    updatedBy: "cloud-function:soul-generate",
+  };
+
+  // Fallback branch of the history reason (generatedForMonth = null path).
+  const snapshot = buildHistorySnapshot(prevDoc, "Soul generation on 2026-08-30");
+  assert.equal(snapshot.reason, "Soul generation on 2026-08-30");
 });
 
 // ---------------------------------------------------------------------------
