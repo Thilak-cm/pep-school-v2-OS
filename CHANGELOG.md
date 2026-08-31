@@ -1,5 +1,17 @@
 # Changelog
 
+# 13.0.1 — 2026-08-30
+
+### Added
+- Soul generation month picker in Settings: superadmins select a target month (current or next, IST-bounded) to pre-generate next month's souls ahead of the monthly cron (#264).
+- `generatedForMonth` ("YYYY-MM") field on soul and open_questions docs serves as the idempotency token — the worker skips students already generated for the target month (#264).
+- Question Deck subtitle reads the month from `generatedForMonth`, appending the year for cross-year pre-generation (#264).
+
+### Changed
+- `triggerSoulGeneration` requires `targetMonth`; `generateStudentProfile` accepts it optionally, defaulting to the current IST month. The `force` flag and `updatedAt`-based month check are removed (#264).
+- Soul history snapshot reason now reads `Soul generation for {YYYY-MM} on {date}` instead of "Weekly regeneration" (#264).
+- "Test Soul Generation" in Settings is visible to all superadmins (previously dev-UID-only), matching the backend permission check (#264).
+
 # 12.5.0 — 2026-08-27
 
 ### Added
