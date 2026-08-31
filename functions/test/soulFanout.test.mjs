@@ -58,26 +58,29 @@ describe("chunkStudentIds", () => {
 // ---------------------------------------------------------------------------
 
 describe("parseSoulWorkerMessage", () => {
-  test("parses valid message with studentIds array", () => {
-    const message = { json: { studentIds: ["s1", "s2", "s3"] } };
+  test("parses valid message with studentIds and targetMonth", () => {
+    const message = { json: { studentIds: ["s1", "s2", "s3"], targetMonth: "2026-09" } };
     const result = parseSoulWorkerMessage(message);
-    assert.deepStrictEqual(result, { studentIds: ["s1", "s2", "s3"], force: false });
+    assert.deepStrictEqual(result, { studentIds: ["s1", "s2", "s3"], targetMonth: "2026-09" });
   });
 
-  test("parses force flag when true", () => {
-    const message = { json: { studentIds: ["s1"], force: true } };
-    const result = parseSoulWorkerMessage(message);
-    assert.deepStrictEqual(result, { studentIds: ["s1"], force: true });
+  test("returns targetMonth string as-is", () => {
+    const message = { json: { studentIds: ["s1"], targetMonth: "2027-01" } };
+    assert.equal(parseSoulWorkerMessage(message).targetMonth, "2027-01");
   });
 
-  test("force defaults to false when absent", () => {
-    const message = { json: { studentIds: ["s1"] } };
-    assert.equal(parseSoulWorkerMessage(message).force, false);
+  test("throws on missing targetMonth", () => {
+    assert.throws(
+      () => parseSoulWorkerMessage({ json: { studentIds: ["s1"] } }),
+      /targetMonth is required/,
+    );
   });
 
-  test("force defaults to false for non-boolean values", () => {
-    const message = { json: { studentIds: ["s1"], force: "yes" } };
-    assert.equal(parseSoulWorkerMessage(message).force, false);
+  test("throws on non-string targetMonth", () => {
+    assert.throws(
+      () => parseSoulWorkerMessage({ json: { studentIds: ["s1"], targetMonth: 202609 } }),
+      /targetMonth is required/,
+    );
   });
 
   test("throws on missing JSON payload", () => {
@@ -93,21 +96,21 @@ describe("parseSoulWorkerMessage", () => {
 
   test("throws on missing studentIds field", () => {
     assert.throws(
-      () => parseSoulWorkerMessage({ json: { foo: "bar" } }),
+      () => parseSoulWorkerMessage({ json: { targetMonth: "2026-09" } }),
       /studentIds must be a non-empty array/,
     );
   });
 
   test("throws on empty studentIds array", () => {
     assert.throws(
-      () => parseSoulWorkerMessage({ json: { studentIds: [] } }),
+      () => parseSoulWorkerMessage({ json: { studentIds: [], targetMonth: "2026-09" } }),
       /studentIds must be a non-empty array/,
     );
   });
 
   test("throws on non-array studentIds (string)", () => {
     assert.throws(
-      () => parseSoulWorkerMessage({ json: { studentIds: "s1s2s3" } }),
+      () => parseSoulWorkerMessage({ json: { studentIds: "s1s2s3", targetMonth: "2026-09" } }),
       /studentIds must be a non-empty array/,
     );
   });

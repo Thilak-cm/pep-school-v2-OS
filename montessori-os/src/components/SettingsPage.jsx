@@ -37,6 +37,8 @@ import { trackEvent } from '../utils/analytics';
 import { isSuperAdmin, isAdminRole, isClassroomAdmin, getRoleLabel } from '../utils/roleUtils';
 import useNotify from '../notifications/useNotify';
 import { fuzzySearchStudents } from '../utils/fuzzySearch';
+import { DatePicker, LocalizationProvider } from '@mui/x-date-pickers';
+import { AdapterDateFns } from '@mui/x-date-pickers/AdapterDateFns';
 
 // UIDs that see dev-only UI triggers for ad-hoc testing (soul gen, digest, etc.)
 const DEV_UIDS = ['T1iLA2qjTqMvgS4hamw2PEtNsov1', 'HA1TiA1xbkRJ8n1MPaBi1PdGlo92'];
@@ -49,6 +51,7 @@ function SettingsPage({ user, userRole, classrooms = [], onNavigate, onSignOut }
   const [soulRunning, setSoulRunning] = useState(false);
   const [soulSelectedStudent, setSoulSelectedStudent] = useState(null);
   const [soulStudentSearch, setSoulStudentSearch] = useState('');
+  const [soulTargetMonth, setSoulTargetMonth] = useState(new Date());
   const [allStudents, setAllStudents] = useState([]);
   const [studentsLoading, setStudentsLoading] = useState(false);
   const [notesThisWeek, setNotesThisWeek] = useState(null);
@@ -392,6 +395,19 @@ function SettingsPage({ user, userRole, classrooms = [], onNavigate, onSignOut }
             )}
             sx={{ mt: 1 }}
           />
+          <LocalizationProvider dateAdapter={AdapterDateFns}>
+            <DatePicker
+              views={['month', 'year']}
+              label="Target month"
+              value={soulTargetMonth}
+              onChange={(val) => val && setSoulTargetMonth(val)}
+              minDate={new Date()}
+              maxDate={new Date(new Date().getFullYear(), new Date().getMonth() + 1, 1)}
+              disabled={soulRunning}
+              slotProps={{ textField: { size: 'small', fullWidth: true } }}
+              sx={{ mt: 2 }}
+            />
+          </LocalizationProvider>
         </DialogContent>
         <DialogActions sx={{ px: 3, pb: 3, gap: 1 }}>
           <Button onClick={() => setSoulDialogOpen(false)} variant="outlined" disabled={soulRunning} sx={{ minWidth: 80 }}>
@@ -406,9 +422,10 @@ function SettingsPage({ user, userRole, classrooms = [], onNavigate, onSignOut }
               setSoulDialogOpen(false);
               try {
                 const call = httpsCallable(cloudFunctions, 'triggerSoulGeneration', { timeout: 540_000 });
-                const result = await call({ studentIds: [soulSelectedStudent.id] });
+                const tm = `${soulTargetMonth.getFullYear()}-${String(soulTargetMonth.getMonth() + 1).padStart(2, '0')}`;
+                const result = await call({ studentIds: [soulSelectedStudent.id], targetMonth: tm });
                 const d = result.data;
-                const msg = `Soul gen dispatched: ${d.studentsDispatched} student in ${d.batchesPublished} batch (${d.durationSec}s)`;
+                const msg = `Soul gen dispatched for ${d.targetMonth}: ${d.studentsDispatched} student in ${d.batchesPublished} batch (${d.durationSec}s)`;
                 if (d.batchesFailed > 0) {
                   notify.error(`${msg} - ${d.batchesFailed} batches FAILED`);
                 } else {

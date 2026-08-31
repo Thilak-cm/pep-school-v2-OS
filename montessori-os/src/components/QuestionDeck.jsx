@@ -88,15 +88,22 @@ function formatRelativeDate(ts) {
   return `${day} ${month} ${year}`;
 }
 
+const MONTH_NAMES = ['January', 'February', 'March', 'April', 'May', 'June', 'July', 'August', 'September', 'October', 'November', 'December'];
+
 /**
- * Derive month label from a Firestore timestamp for the "July's questions" subtitle.
+ * Derive month label for the "September's questions" subtitle.
+ * Prefers generatedForMonth ("YYYY-MM") when available (#264),
+ * falls back to updatedAt timestamp for older docs.
  */
-function getMonthLabel(ts) {
-  if (!ts) return '';
-  const date = ts?.toDate ? ts.toDate() : ts instanceof Date ? ts : new Date(ts);
+function getMonthLabel(generatedForMonth, updatedAt) {
+  if (generatedForMonth) {
+    const monthIdx = Number(generatedForMonth.split('-')[1]) - 1;
+    if (monthIdx >= 0 && monthIdx < 12) return `${MONTH_NAMES[monthIdx]}'s questions`;
+  }
+  if (!updatedAt) return '';
+  const date = updatedAt?.toDate ? updatedAt.toDate() : updatedAt instanceof Date ? updatedAt : new Date(updatedAt);
   if (isNaN(date.getTime())) return '';
-  const months = ['January', 'February', 'March', 'April', 'May', 'June', 'July', 'August', 'September', 'October', 'November', 'December'];
-  return `${months[date.getMonth()]}'s questions`;
+  return `${MONTH_NAMES[date.getMonth()]}'s questions`;
 }
 
 /**
@@ -500,7 +507,7 @@ function QuestionDeck({
 
   const isEmpty = !data || !data.areas || Object.keys(data.areas).length === 0;
   const studentName = student?.displayName || 'this student';
-  const monthLabel = getMonthLabel(data?.updatedAt);
+  const monthLabel = getMonthLabel(data?.generatedForMonth, data?.updatedAt);
 
   // Sort areas: most progress first, then alphabetically (#216)
   const sortedAreas = Object.entries(areas).sort(([aName, aQs], [bName, bQs]) => {
