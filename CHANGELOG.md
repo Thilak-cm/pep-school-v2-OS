@@ -1,5 +1,20 @@
 # Changelog
 
+# 13.1.0 — 2026-08-31
+
+### Added
+- Durable execution ledger at `jobs/{jobKey}/executions/{executionId}/workItems/{workItemId}` tracks every scheduled job run with per-target work items, verification outcomes, and TTL-based cleanup (#229).
+- Five verifier Cloud Functions (`verifyCleanupDeletedChats`, `verifySoulRegeneration`, `verifyMonthlyPlans`, `verifyWeeklyStudentAI`, `verifyWeeklyDigests`) finalize executions using a shared engine with three-layer output verification and missed-start detection (#229).
+- Automated green/red Telegram signals on every execution completion, with PII-free formatting, counts, and dominant failure category (#229).
+- Provider-neutral monitoring adapter seam with no-op provider, ready for Healthchecks.io integration (#229).
+- Shared Telegram helpers (`broadcastAlert`, `getAlertChatIds`) extracted from integrity module for reuse across all job and verifier CFs (#229).
+- `periodKey` field on writing analysis docs for verifier staleness detection (#229).
+
+### Changed
+- `generateWritingAnalysis` schedule moved from Monday 00:00 to Sunday 00:30 IST so weekly digests consume same-week writing analysis results (#229).
+- All seven scheduled jobs now seed execution and work-item ledger records, with crash-path Telegram signals on fatal errors (#229).
+- Pub/Sub workers (`soulWorker`, `monthlyPlanWorker`) receive `executionId` from the dispatcher payload to prevent cross-boundary drift on retries (#229).
+
 # 13.0.1 — 2026-08-30
 
 ### Added
