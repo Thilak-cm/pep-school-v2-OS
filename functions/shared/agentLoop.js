@@ -12,7 +12,8 @@ import {
   getOpenRouterKey,
   OPENROUTER_ENDPOINT,
 } from "./openrouter.js";
-import { buildChatBody } from "./openai.js";
+import { buildChatBody } from "./llm.js";
+import { resolveModel } from "./modelRegistry.js";
 
 const MAX_ITERATIONS = 15;
 
@@ -41,6 +42,9 @@ export async function runAgentLoop({
   const apiKey = getOpenRouterKey();
   if (!apiKey) throw new Error("OPENROUTER_API_KEY not configured");
 
+  // Resolve model alias through the central registry (#187)
+  const resolvedModelId = await resolveModel("weekly_digest", model.model);
+
   const toolCallLog = [];
   const iterationTrace = collectTrace ? [] : null;
   let iteration = 0;
@@ -51,7 +55,7 @@ export async function runAgentLoop({
     const iterStart = collectTrace ? Date.now() : 0;
 
     const body = buildChatBody({
-      model: model.model,
+      model: resolvedModelId,
       messages,
       temperature: model.temperature,
       max_completion_tokens: model.maxTokens,

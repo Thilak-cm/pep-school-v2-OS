@@ -11,7 +11,7 @@ import { db } from '../firebase';
 import useNotify from '../notifications/useNotify';
 import { isSuperAdmin } from '../utils/roleUtils';
 import { CHAT_MODEL_INFO, DEFAULT_CHAT_MESSAGE_LIMIT, DEFAULT_OBSERVATION_WINDOW_DAYS, CHAT_SYSTEM_PROMPT } from '../../../functions/config/chatConstants';
-import { AVAILABLE_MODELS } from '../../../scripts/config/modelConstants';
+import { AVAILABLE_MODELS } from '../services/modelRegistry';
 import { DEFAULT_CHAT_TOOL_IDS } from '../../../functions/config/toolCatalog.js';
 import {
   CHAT_TOOL_OPTIONS,

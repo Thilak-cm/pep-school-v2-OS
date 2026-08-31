@@ -6,7 +6,7 @@
  */
 import * as functions from "firebase-functions/v1";
 import { db } from "../shared/firebase.js";
-import { buildChatBody } from "../shared/openai.js";
+import { buildChatBody } from "../shared/llm.js";
 import { OPENROUTER_ENDPOINT } from "../shared/openrouter.js";
 import { calculateAge } from "../utils/handwritingAnalysisHelpers.js";
 import { getModelSupportsJson } from "../config/testBenchModels.js";

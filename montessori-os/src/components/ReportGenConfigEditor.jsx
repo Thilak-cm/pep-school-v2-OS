@@ -30,7 +30,7 @@ import { httpsCallable } from 'firebase/functions';
 import { db, cloudFunctions } from '../firebase';
 import { isSuperAdmin } from '../utils/roleUtils';
 import { REPORT_DEFAULTS, REPORT_PROMPT_DOCS } from '../../../scripts/config/reportConstants';
-import { AVAILABLE_MODELS } from '../../../scripts/config/modelConstants';
+import { AVAILABLE_MODELS } from '../services/modelRegistry';
 import useNotify from '../notifications/useNotify';
 import { fuzzySearchStudents } from '../utils/fuzzySearch';
 import { friendlyFunctionError } from '../utils/cloudFunctionErrors';

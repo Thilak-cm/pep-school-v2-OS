@@ -5,7 +5,8 @@ import { OPENROUTER_API_KEY, getOpenRouterKey } from "../shared/openrouter.js";
 
 const LANGFUSE_SECRET_KEY = defineSecret("LANGFUSE_SECRET_KEY");
 const LANGFUSE_PUBLIC_KEY = defineSecret("LANGFUSE_PUBLIC_KEY");
-import { FRONTIER_MODEL } from "../config/modelConstants.js";
+// Testbench default model - inline alias (#187)
+const TESTBENCH_DEFAULT_MODEL = "gpt-5.4";
 import { getOpenRouterModelId, getModelSupportsJson } from "../config/testBenchModels.js";
 import { testBenchSoul } from "../students/soul.js";
 import { testBenchHandwriting } from "../ai/handwriting.js";
@@ -45,7 +46,7 @@ export const testBenchRun = functions
     }
     const studentId = String(data?.studentId || "").trim();
     const systemPrompt = String(data?.systemPrompt || "").trim();
-    const model = String(data?.model || FRONTIER_MODEL).trim();
+    const model = String(data?.model || TESTBENCH_DEFAULT_MODEL).trim();
     const temperature = typeof data?.temperature === "number" ? data.temperature : 0.3;
     const maxTokens = data?.max_tokens || 2000;
 

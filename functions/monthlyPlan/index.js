@@ -21,8 +21,9 @@
  */
 import * as functions from "firebase-functions/v1";
 import { db } from "../shared/firebase.js";
-import { buildChatBody } from "../shared/openai.js";
-import { OPENROUTER_ENDPOINT, OPENROUTER_API_KEY, getOpenRouterKey } from "../shared/openrouter.js";
+import { buildChatBody, OPENROUTER_API_KEY, LANGFUSE_SECRET_KEY, LANGFUSE_PUBLIC_KEY } from "../shared/llm.js";
+import { resolveModel } from "../shared/modelRegistry.js";
+import { getOpenRouterKey, OPENROUTER_ENDPOINT } from "../shared/openrouter.js";
 import { calculateAge } from "../utils/handwritingAnalysisHelpers.js";
 import { buildUserPrompt } from "./helpers.js";
 import {
@@ -119,7 +120,7 @@ async function generatePlanInternal(studentId, targetMonth, generatedBy, generat
   // 1. Load config
   const config = await getMonthlyPlanConfig();
   const systemPrompt = config.systemPrompt;
-  const model = config.model || "gpt-5.4";
+  const model = await resolveModel("monthly_plan", config.model || "gpt-5.4");
   const temperature = config.temperature ?? 0.3;
   const maxTokens = config.max_tokens || 8000;
 
@@ -521,7 +522,7 @@ export const generateMonthlyPlan = functions
   .runWith({
     timeoutSeconds: 300,
     memory: "1GB",
-    secrets: [OPENROUTER_API_KEY],
+    secrets: [OPENROUTER_API_KEY, LANGFUSE_SECRET_KEY, LANGFUSE_PUBLIC_KEY],
   })
   .https.onCall(async (data, context) => {
     // Auth + role gate
@@ -721,7 +722,7 @@ export const monthlyPlanWorker = functions
     timeoutSeconds: 300,
     memory: "1GB",
     maxInstances: 5,
-    secrets: [OPENROUTER_API_KEY],
+    secrets: [OPENROUTER_API_KEY, LANGFUSE_SECRET_KEY, LANGFUSE_PUBLIC_KEY],
   })
   .pubsub.topic(MONTHLY_PLAN_TOPIC)
   .onPublish(async (message) => {

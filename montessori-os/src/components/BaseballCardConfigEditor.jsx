@@ -19,7 +19,7 @@ import { doc, getDoc, setDoc } from 'firebase/firestore';
 import { db } from '../firebase';
 import { isSuperAdmin } from '../utils/roleUtils';
 import { BASEBALL_CARD_DEFAULTS } from '../../../scripts/config/baseballCardConstants';
-import { AVAILABLE_MODELS } from '../../../scripts/config/modelConstants';
+import { AVAILABLE_MODELS } from '../services/modelRegistry';
 import { BASEBALL_SYSTEM_PROMPT_FALLBACK } from '../../../scripts/config/baseballCardPrompt';
 import useNotify from '../notifications/useNotify';
 

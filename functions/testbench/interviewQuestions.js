@@ -6,7 +6,7 @@
  * prepends it to the message history, and calls OpenRouter.
  */
 import { db } from "../shared/firebase.js";
-import { buildChatBody } from "../shared/openai.js";
+import { buildChatBody } from "../shared/llm.js";
 import { OPENROUTER_ENDPOINT } from "../shared/openrouter.js";
 import { fetchStudentInterviews, getStudentWithProgram } from "../shared/studentHelpers.js";
 import { formatInterviewForPrompt } from "../utils/interviewHelpers.js";

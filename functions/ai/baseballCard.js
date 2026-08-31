@@ -1,7 +1,15 @@
 import * as functions from "firebase-functions/v1";
 import { db } from "../shared/firebase.js";
-import { OPENAI_API_KEY, getOpenAiKey, buildChatBody, CHAT_ENDPOINT } from "../shared/openai.js";
-import { BASEBALL_CARD_DEFAULTS } from "../config/baseballCardConstants.js";
+import { runLLM, OPENROUTER_API_KEY, LANGFUSE_SECRET_KEY, LANGFUSE_PUBLIC_KEY } from "../shared/llm.js";
+
+// Fallback defaults - used when Firestore config doc lacks fields
+const BASEBALL_CARD_DEFAULTS = {
+  model: "gpt-5.4-mini",
+  temperature: 0,
+  windowDays: 42,
+  timezone: "Asia/Kolkata",
+  max_tokens: 1000,
+};
 import { getIstIsoWeekKey } from "../utils/weekKey.js";
 import { Timestamp } from "firebase-admin/firestore";
 import {
@@ -68,11 +76,6 @@ async function getBaseballCardConfig(programId, { forceRefresh = false } = {}) {
 }
 
 async function callBaseballCard(notes, config, prompt, windowDays, studentContext) {
-  const openAiKey = getOpenAiKey();
-  if (!openAiKey) {
-    throw new functions.https.HttpsError("failed-precondition", "OpenAI key not configured");
-  }
-
   const safeContext = {
     studentName: studentContext?.studentName || "Unknown student",
     dob: studentContext?.dob || "dob unavailable in context",
@@ -84,43 +87,19 @@ async function callBaseballCard(notes, config, prompt, windowDays, studentContex
     .replaceAll("<STUDENT_AGE>", safeContext.age);
   const userPrompt = `Generate the last ${windowDays}-day summary.\n\nStudent:\n${JSON.stringify(safeContext)}\n\nNotes (JSON array):\n${JSON.stringify(notes)}`;
 
-  const body = buildChatBody({
-    model: config.model || BASEBALL_CARD_DEFAULTS.model,
+  const { content: rawContent } = await runLLM({
+    featureId: "baseball_card",
     messages: [
       { role: "system", content: renderedSystem },
-      { role: "user", content: userPrompt }
+      { role: "user", content: userPrompt },
     ],
+    model: config.model || BASEBALL_CARD_DEFAULTS.model,
     temperature: Number.isFinite(config.temperature) ? config.temperature : BASEBALL_CARD_DEFAULTS.temperature,
-    max_completion_tokens: Number.isFinite(config.max_tokens) ? config.max_tokens : BASEBALL_CARD_DEFAULTS.max_tokens,
-    response_format: { type: "json_object" },
+    maxTokens: Number.isFinite(config.max_tokens) ? config.max_tokens : BASEBALL_CARD_DEFAULTS.max_tokens,
+    responseFormat: { type: "json_object" },
+    traceName: "baseball-card",
+    traceMetadata: { studentId: studentContext?.studentId, windowDays, noteCount: notes.length },
   });
-
-  let response;
-  try {
-    response = await fetch(CHAT_ENDPOINT, {
-      method: "POST",
-      headers: {
-        "Authorization": `Bearer ${openAiKey}`,
-        "Content-Type": "application/json",
-      },
-      body: JSON.stringify(body),
-    });
-  } catch (e) {
-    console.error("[baseballCard] network error", e);
-    throw new functions.https.HttpsError("unavailable", "AI service unavailable");
-  }
-
-  if (!response.ok) {
-    const errText = await response.text().catch(() => "");
-    console.error("[baseballCard] OpenAI error", response.status, errText?.slice?.(0, 400));
-    throw new functions.https.HttpsError("internal", `AI error: ${response.status}`);
-  }
-
-  const json = await response.json();
-  const rawContent = json?.choices?.[0]?.message?.content?.trim();
-  if (!rawContent) {
-    throw new functions.https.HttpsError("internal", "AI returned no content");
-  }
 
   let parsed;
   try {
@@ -407,7 +386,7 @@ async function runBaseballCards({
 
 export const previewBaseballCard = functions
   .region("asia-south1")
-  .runWith({ timeoutSeconds: 300, memory: "1GB", secrets: [OPENAI_API_KEY] })
+  .runWith({ timeoutSeconds: 300, memory: "1GB", secrets: [OPENROUTER_API_KEY, LANGFUSE_SECRET_KEY, LANGFUSE_PUBLIC_KEY] })
   .https.onCall(async (data, context) => {
     if (!context.auth) {
       throw new functions.https.HttpsError("unauthenticated", "User must be authenticated");
@@ -417,11 +396,6 @@ export const previewBaseballCard = functions
     const requesterRole = requesterSnap.data()?.role;
     if (!requesterSnap.exists || requesterRole !== "superadmin") {
       throw new functions.https.HttpsError("permission-denied", "Only super admins can preview baseball cards");
-    }
-
-    const openAiKey = getOpenAiKey();
-    if (!openAiKey) {
-      throw new functions.https.HttpsError("failed-precondition", "OpenAI key not configured");
     }
 
     const studentId = String(data?.studentId || "").trim();
@@ -489,7 +463,7 @@ export const previewBaseballCard = functions
 
 export const regenerateBaseballCardForStudent = functions
   .region("asia-south1")
-  .runWith({ timeoutSeconds: 300, memory: "1GB", secrets: [OPENAI_API_KEY] })
+  .runWith({ timeoutSeconds: 300, memory: "1GB", secrets: [OPENROUTER_API_KEY, LANGFUSE_SECRET_KEY, LANGFUSE_PUBLIC_KEY] })
   .https.onCall(async (data, context) => {
     if (!context.auth) {
       throw new functions.https.HttpsError("unauthenticated", "User must be authenticated");
@@ -507,11 +481,6 @@ export const regenerateBaseballCardForStudent = functions
       displayName: requesterData.displayName || requesterData.name || null,
       role: requesterRole,
     };
-
-    const openAiKey = getOpenAiKey();
-    if (!openAiKey) {
-      throw new functions.https.HttpsError("failed-precondition", "OpenAI key not configured");
-    }
 
     const studentId = String(data?.studentId || "").trim();
     if (!studentId) {
@@ -559,16 +528,10 @@ export const regenerateBaseballCardForStudent = functions
 
 export const generateBaseballCards = functions
   .region("asia-south1")
-  .runWith({ timeoutSeconds: 540, memory: "1GB", secrets: [OPENAI_API_KEY] })
+  .runWith({ timeoutSeconds: 540, memory: "1GB", secrets: [OPENROUTER_API_KEY, LANGFUSE_SECRET_KEY, LANGFUSE_PUBLIC_KEY] })
   .pubsub.schedule("0 0 * * 0")
   .timeZone(BASEBALL_CARD_DEFAULTS.timezone)
   .onRun(async () => {
-    const openAiKey = getOpenAiKey();
-    if (!openAiKey) {
-      console.error("[baseballCard] OpenAI key not configured");
-      return null;
-    }
-
     console.log("[baseballCard] generating for active students (per-program config)");
 
     await runBaseballCards({

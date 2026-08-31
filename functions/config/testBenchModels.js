@@ -1,11 +1,12 @@
-// Test bench model catalogue — all providers routed through OpenRouter (PEP-210).
-// Production config editors use AVAILABLE_MODELS from modelConstants.js (OpenAI only).
-
-import { AVAILABLE_MODELS } from "./modelConstants.js";
+// Test bench model catalogue - all providers routed through OpenRouter (PEP-210).
+// OpenAI entries inlined here after modelConstants.js was deleted (#187).
 
 export const TEST_BENCH_MODELS = [
-  // Include all production OpenAI models
-  ...AVAILABLE_MODELS,
+  // OpenAI (inlined from former AVAILABLE_MODELS)
+  { id: "gpt-5.4", label: "GPT-5.4 (Latest frontier)", tier: "frontier", provider: "OpenAI", openRouterId: "openai/gpt-5.4", supportsJsonMode: true },
+  { id: "gpt-5.3-instant", label: "GPT-5.3 Instant (Fast frontier)", tier: "frontier", provider: "OpenAI", openRouterId: "openai/gpt-5.3-chat", supportsJsonMode: true },
+  { id: "gpt-5.4-mini", label: "GPT-5.4 Mini (Fast/cheap)", tier: "mini", provider: "OpenAI", openRouterId: "openai/gpt-5.4-mini", supportsJsonMode: true },
+  { id: "gpt-5.4-nano", label: "GPT-5.4 Nano (Fastest/cheapest)", tier: "mini", provider: "OpenAI", openRouterId: "openai/gpt-5.4-nano", supportsJsonMode: true },
   // Google Gemini
   { id: "gemini-2.5-flash", label: "Gemini 2.5 Flash", tier: "mini", provider: "Google", openRouterId: "google/gemini-2.5-flash", supportsJsonMode: true },
   { id: "gemini-2.5-pro", label: "Gemini 2.5 Pro", tier: "frontier", provider: "Google", openRouterId: "google/gemini-2.5-pro", supportsJsonMode: true },

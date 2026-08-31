@@ -1,7 +1,8 @@
 import * as functions from "firebase-functions/v1";
 import { db, Timestamp } from "../shared/firebase.js";
-import { buildChatBody } from "../shared/openai.js";
-import { OPENROUTER_API_KEY, getOpenRouterKey, OPENROUTER_ENDPOINT } from "../shared/openrouter.js";
+import { buildChatBody, OPENROUTER_API_KEY, LANGFUSE_SECRET_KEY, LANGFUSE_PUBLIC_KEY } from "../shared/llm.js";
+import { resolveModel } from "../shared/modelRegistry.js";
+import { getOpenRouterKey, OPENROUTER_ENDPOINT } from "../shared/openrouter.js";
 import {
   SOUL_DEFAULTS,
   VALID_PROGRAMS,
@@ -100,7 +101,8 @@ async function callSoulGeneration(observations, interviews, guidelinesContent, s
   // Read instruction prompt + model settings from Firestore, fall back to hardcoded
   const soulConfig = await getSoulConfig(studentContext.programId);
   const systemPromptTemplate = soulConfig?.systemPrompt || null;
-  const model = soulConfig?.model || SOUL_DEFAULTS.model;
+  const modelAlias = soulConfig?.model || SOUL_DEFAULTS.model;
+  const model = await resolveModel("soul_generation", modelAlias);
   const temperature = soulConfig?.temperature ?? SOUL_DEFAULTS.temperature;
   const maxTokens = soulConfig?.max_tokens || SOUL_DEFAULTS.max_tokens;
 
@@ -233,7 +235,7 @@ async function writeSoulAndGuidelines(studentId, soulContent, programId, templat
 
 export const generateStudentProfile = functions
   .region("asia-south1")
-  .runWith({ timeoutSeconds: 120, memory: "512MB", secrets: [OPENROUTER_API_KEY] })
+  .runWith({ timeoutSeconds: 120, memory: "512MB", secrets: [OPENROUTER_API_KEY, LANGFUSE_SECRET_KEY, LANGFUSE_PUBLIC_KEY] })
   .https.onCall(async (data, context) => {
     if (!context.auth) {
       throw new functions.https.HttpsError("unauthenticated", "User must be authenticated");
@@ -400,7 +402,7 @@ export const soulWorker = functions
     timeoutSeconds: 300,
     memory: "1GB",
     maxInstances: 25,
-    secrets: [OPENROUTER_API_KEY],
+    secrets: [OPENROUTER_API_KEY, LANGFUSE_SECRET_KEY, LANGFUSE_PUBLIC_KEY],
   })
   .pubsub.topic(SOUL_TOPIC)
   .onPublish(async (message) => {

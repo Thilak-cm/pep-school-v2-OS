@@ -1,15 +1,16 @@
 import * as functions from "firebase-functions/v1";
-import { defineSecret } from "firebase-functions/params";
+// defineSecret imports come from shared/llm.js (OPENROUTER_API_KEY, LANGFUSE_SECRET_KEY, LANGFUSE_PUBLIC_KEY)
 import { db } from "../shared/firebase.js";
-import { buildChatBody } from "../shared/openai.js";
-import { OPENROUTER_API_KEY, getOpenRouterKey, OPENROUTER_ENDPOINT } from "../shared/openrouter.js";
+import { buildChatBody } from "../shared/llm.js";
+import { OPENROUTER_API_KEY, LANGFUSE_SECRET_KEY, LANGFUSE_PUBLIC_KEY } from "../shared/llm.js";
+import { getOpenRouterKey, OPENROUTER_ENDPOINT } from "../shared/openrouter.js";
 import { createLangfuse } from "../shared/langfuse.js";
+import { resolveModel } from "../shared/modelRegistry.js";
 
 import { REPORT_DEFAULTS, READINESS_DEFAULTS, JUDGE_DEFAULTS, getReadinessDocId, DRIVE_CONSTANTS, buildCsvFilename, buildArchiveCsvFilename, buildBaselineCsvFilename, buildBaselineArchiveCsvFilename } from "../config/reportConstants.js";
 import { getDefaultDateRange, parseReportResponse, parseReadinessResponse, parseJudgeResponse, getReportPromptDocId, getJudgePromptDocId, getReadinessPromptDocId, mergeReportConfig, formatCsvRow, updateCsvContent, removeCsvRow, appendCsvContent, normalizeEndOfDay, assembleReportSystemContent, buildReadinessArchive } from "../utils/reportHelpers.js";
 
-const LANGFUSE_SECRET_KEY = defineSecret("LANGFUSE_SECRET_KEY");
-const LANGFUSE_PUBLIC_KEY = defineSecret("LANGFUSE_PUBLIC_KEY");
+// LANGFUSE_SECRET_KEY and LANGFUSE_PUBLIC_KEY imported from shared/llm.js
 import {
   getDriveClients,
   getOrCreateClassroomFolder,
@@ -172,8 +173,9 @@ async function callReportGeneration(notes, prompt, studentContext, dateRange, co
     JSON.stringify(notes),
   ].join("\n");
 
+  const resolvedModel = await resolveModel("report", config.model || REPORT_DEFAULTS.model);
   const body = buildChatBody({
-    model: config.model || REPORT_DEFAULTS.model,
+    model: resolvedModel,
     messages: [
       { role: "system", content: systemContent },
       { role: "user", content: userContent },
@@ -279,8 +281,9 @@ async function callReportJudge(reportText, notes, studentContext, programId) {
     JSON.stringify(notes),
   ].join("\n");
 
+  const judgeModelAlias = judgeConfig.model || JUDGE_DEFAULTS.model;
   const config = {
-    model: judgeConfig.model || JUDGE_DEFAULTS.model,
+    model: await resolveModel("baseline_judge", judgeModelAlias),
     temperature: Number.isFinite(judgeConfig.temperature) ? judgeConfig.temperature : JUDGE_DEFAULTS.temperature,
     max_tokens: Number.isFinite(judgeConfig.max_tokens) ? judgeConfig.max_tokens : JUDGE_DEFAULTS.max_tokens,
   };
@@ -516,7 +519,7 @@ export const generateStudentReport = functions
 
 export const previewStudentReport = functions
   .region("asia-south1")
-  .runWith({ timeoutSeconds: 300, memory: "1GB", secrets: [OPENROUTER_API_KEY] })
+  .runWith({ timeoutSeconds: 300, memory: "1GB", secrets: [OPENROUTER_API_KEY, LANGFUSE_SECRET_KEY, LANGFUSE_PUBLIC_KEY] })
   .https.onCall(async (data, context) => {
     if (!context.auth) {
       throw new functions.https.HttpsError("unauthenticated", "User must be authenticated");
@@ -986,7 +989,7 @@ async function writeReadinessDoc(studentId, payload, displayName, reportType) {
 
 export const checkReportReadiness = functions
   .region("asia-south1")
-  .runWith({ timeoutSeconds: 60, memory: "512MB", secrets: [OPENROUTER_API_KEY] })
+  .runWith({ timeoutSeconds: 60, memory: "512MB", secrets: [OPENROUTER_API_KEY, LANGFUSE_SECRET_KEY, LANGFUSE_PUBLIC_KEY] })
   .https.onCall(async (data, context) => {
     if (!context.auth) {
       throw new functions.https.HttpsError("unauthenticated", "User must be authenticated");
@@ -1050,8 +1053,9 @@ export const checkReportReadiness = functions
       JSON.stringify(formatted),
     ].join("\n");
 
+    const readinessModel = await resolveModel("readiness", prompt.model);
     const body = buildChatBody({
-      model: prompt.model,
+      model: readinessModel,
       messages: [
         { role: "system", content: systemContent },
         { role: "user", content: userContent },

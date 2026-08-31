@@ -1,9 +1,10 @@
 import * as functions from "firebase-functions/v1";
-import { defineSecret } from "firebase-functions/params";
 
 import { db, auth } from "../shared/firebase.js";
-import { OPENROUTER_API_KEY, getOpenRouterKey, OPENROUTER_ENDPOINT } from "../shared/openrouter.js";
+import { OPENROUTER_API_KEY, LANGFUSE_SECRET_KEY, LANGFUSE_PUBLIC_KEY } from "../shared/llm.js";
+import { getOpenRouterKey, OPENROUTER_ENDPOINT } from "../shared/openrouter.js";
 import { createLangfuse } from "../shared/langfuse.js";
+import { resolveModel } from "../shared/modelRegistry.js";
 import {
   CHAT_MODEL_INFO,
   CHAT_SYSTEM_PROMPT,
@@ -25,8 +26,7 @@ import { ChatLatencyRecorder, jsonUtf8ByteLength } from "./chatTelemetry.js";
 import { validateTelemetryErrorCategory } from "../config/chatTelemetry.js";
 import { validateSystemPromptTemplate } from "./promptAssembly.js";
 
-const LANGFUSE_SECRET_KEY = defineSecret("LANGFUSE_SECRET_KEY");
-const LANGFUSE_PUBLIC_KEY = defineSecret("LANGFUSE_PUBLIC_KEY");
+// LANGFUSE_SECRET_KEY and LANGFUSE_PUBLIC_KEY imported from shared/llm.js
 let firstInvocation = true;
 
 function corsOrigin(req) {
@@ -325,8 +325,8 @@ export const childChatStream = functions
       // Provider, config, and observability resolution deliberately happen only
       // after the durable persisting turn exists.
       const chatConfig = await loadChatConfig(context.programId, telemetry);
-      model = chatConfig.model;
-      telemetry.setDimensions({ model: chatConfig.model });
+      model = await resolveModel("chat", chatConfig.model);
+      telemetry.setDimensions({ model });
       const apiKey = getOpenRouterKey();
       if (!apiKey) {
         throw runtimeError("chat/provider-not-configured", "OpenRouter key is not configured");
