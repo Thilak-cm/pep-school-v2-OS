@@ -441,7 +441,16 @@ export const soulWorker = functions
   .runWith({
     timeoutSeconds: 300,
     memory: "1GB",
-    maxInstances: 25,
+    // maxInstances is the concurrency throttle (#270): with one student per
+    // message, this caps concurrent LLM calls at 10. OpenRouter holds an
+    // estimated-max-cost reservation per in-flight request; 250 concurrent
+    // calls (25 instances x 10-student parallel batches) exhausted a $30
+    // balance via holds alone, causing the Sept 2026 402 cascade. Pub/Sub
+    // queues undelivered messages until instances free up - "no available
+    // instance" logs during a run are this throttle working, not a failure.
+    // 10 was chosen over 5 so the full run (~486 students x ~70s / 10) ends
+    // ~1h before verifySoulRegeneration fires at 04:00 IST.
+    maxInstances: 10,
     secrets: [OPENROUTER_API_KEY],
   })
   .pubsub.topic(SOUL_TOPIC)
@@ -471,7 +480,10 @@ export const soulWorker = functions
 
     console.log(`[soul-worker] processing batch of ${studentIds.length} for ${targetMonth}: ${studentIds.join(", ")}`);
 
-    // Process all students in the batch in parallel.
+    // Process students sequentially (#270). Messages normally carry one
+    // student each; the loop also handles legacy multi-student messages
+    // still in flight from before the batch-size change. Sequential (not
+    // Promise.allSettled) so concurrency is governed solely by maxInstances.
     // Per-student idempotency guard: skip if existing soul's generatedForMonth
     // already matches the targetMonth from the dispatcher.
     //
@@ -486,8 +498,15 @@ export const soulWorker = functions
     // from before this deploy that lack the field.
     const executionId = message.json.executionId || computeExecutionId(JOB_KEY);
 
-    const results = await Promise.allSettled(
-      studentIds.map(async (studentId) => {
+    // Permanent errors are ACKed (workItem marked failed); transient errors
+    // make the whole message retry - already-done students are skipped on
+    // redelivery via the idempotency guard.
+    const PERMANENT_CODES = ["not-found", "failed-precondition"];
+    let hasTransientError = false;
+    let firstTransientError = null;
+
+    for (const studentId of studentIds) {
+      try {
         const existingSoul = await db.collection("students").doc(studentId)
           .collection("ai_summaries").doc("soul").get();
         if (existingSoul.exists && existingSoul.data().generatedForMonth === targetMonth) {
@@ -495,7 +514,7 @@ export const soulWorker = functions
           await updateWorkItem(JOB_KEY, executionId, studentId, buildWorkItemUpdate("skipped", {
             detail: "already_generated",
           })).catch(() => {});
-          return { studentId, status: "skipped" };
+          continue;
         }
 
         const result = await generateSoulForStudent(studentId, apiKey, { generatedForMonth: targetMonth });
@@ -509,28 +528,13 @@ export const soulWorker = functions
             evidence: { status: result.status, generatedForMonth: targetMonth },
           })).catch(() => {});
         }
-        return { studentId, ...result };
-      }),
-    );
-
-    // Classify results: if any transient error occurred, throw to trigger Pub/Sub retry.
-    // Already-done students will be skipped on retry via the idempotency guard.
-    const PERMANENT_CODES = ["not-found", "failed-precondition"];
-    let hasTransientError = false;
-    let firstTransientError = null;
-
-    for (let idx = 0; idx < results.length; idx++) {
-      const r = results[idx];
-      if (r.status === "rejected") {
-        const err = r.reason;
+      } catch (err) {
         if (err.code && PERMANENT_CODES.includes(err.code)) {
           console.error(`[soul-worker] permanent error, skipping:`, err.message);
-          if (studentIds[idx]) {
-            await updateWorkItem(JOB_KEY, executionId, studentIds[idx], buildWorkItemUpdate("failed", {
-              failureCategory: classifyError(err),
-              detail: err.message,
-            })).catch(() => {});
-          }
+          await updateWorkItem(JOB_KEY, executionId, studentId, buildWorkItemUpdate("failed", {
+            failureCategory: classifyError(err),
+            detail: err.message,
+          })).catch(() => {});
         } else {
           console.error(`[soul-worker] transient error:`, err.message);
           hasTransientError = true;
@@ -542,59 +546,40 @@ export const soulWorker = functions
     }
 
     if (hasTransientError) {
-      throw firstTransientError; // Pub/Sub will retry the batch
+      throw firstTransientError; // Pub/Sub will retry the message
     }
 
     return null;
   });
 
 // -----------------------------------------------
-// Shared dispatcher helper: publish in waves with jitter (#203)
-// Publishes maxInstances batches at a time, waits 90s between waves
-// so workers finish before the next wave arrives.
+// Shared dispatcher helper: publish one message per student (#203, #270)
+// Wave pacing (25 batches / 90s gaps) was removed in #270: soulWorker's
+// maxInstances now throttles delivery, so all messages publish immediately
+// and Pub/Sub queues whatever the workers can't absorb yet.
 // -----------------------------------------------
 
-const WAVE_SIZE = 25; // match maxInstances
-// 90s between waves. With 540s timeout and ~2s publish overhead per wave,
-// the dispatcher can handle ~6 waves = 6 * 25 * 10 = 1,500 students safely
-// (theoretical max ~1,750 before timeout). Current school size: ~478.
-const WAVE_GAP_MS = 90_000;
-const sleep = (ms) => new Promise((resolve) => setTimeout(resolve, ms));
-
-async function publishInWaves(studentIds, logPrefix, { targetMonth, executionId }) {
+async function publishSoulMessages(studentIds, logPrefix, { targetMonth, executionId }) {
   if (!targetMonth) {
-    throw new Error("publishInWaves: targetMonth is required");
+    throw new Error("publishSoulMessages: targetMonth is required");
   }
   const chunks = chunkStudentIds(studentIds);
-  // Group chunks into waves of WAVE_SIZE
-  const waves = [];
-  for (let i = 0; i < chunks.length; i += WAVE_SIZE) {
-    waves.push(chunks.slice(i, i + WAVE_SIZE));
-  }
   let published = 0;
   let publishFailed = 0;
 
-  for (let w = 0; w < waves.length; w++) {
-    const wave = waves[w];
-    if (w > 0) {
-      console.log(`${logPrefix} waiting ${WAVE_GAP_MS / 1000}s before wave ${w + 1}/${waves.length}`);
-      await sleep(WAVE_GAP_MS);
-    }
-    console.log(`${logPrefix} publishing wave ${w + 1}/${waves.length}: ${wave.length} batches`);
-
-    await Promise.all(
-      wave.map(async (batch) => {
-        try {
-          const payload = JSON.stringify({ studentIds: batch, targetMonth, executionId });
-          await soulTopic.publishMessage({ data: Buffer.from(payload) });
-          published++;
-        } catch (err) {
-          publishFailed++;
-          console.error(`${logPrefix} publish failed for batch [${batch.join(", ")}]:`, err.message);
-        }
-      }),
-    );
-  }
+  console.log(`${logPrefix} publishing ${chunks.length} messages`);
+  await Promise.all(
+    chunks.map(async (batch) => {
+      try {
+        const payload = JSON.stringify({ studentIds: batch, targetMonth, executionId });
+        await soulTopic.publishMessage({ data: Buffer.from(payload) });
+        published++;
+      } catch (err) {
+        publishFailed++;
+        console.error(`${logPrefix} publish failed for batch [${batch.join(", ")}]:`, err.message);
+      }
+    }),
+  );
 
   return { published, publishFailed };
 }
@@ -624,12 +609,12 @@ export const regenerateSoulsMonthly = functions
       await createExecution(JOB_KEY, executionId, studentIds.length);
       const [, result] = await Promise.all([
         seedWorkItems(JOB_KEY, executionId, studentIds),
-        publishInWaves(studentIds, "[soul-dispatcher]", { targetMonth, executionId }),
+        publishSoulMessages(studentIds, "[soul-dispatcher]", { targetMonth, executionId }),
       ]);
 
       const duration = ((Date.now() - startTime) / 1000).toFixed(1);
       const logFn = result.publishFailed > 0 ? console.error : console.log;
-      logFn(`[soul-dispatcher] done in ${duration}s for ${targetMonth}: ${result.published} batches published (${studentIds.length} students), ${result.publishFailed} failed`);
+      logFn(`[soul-dispatcher] done in ${duration}s for ${targetMonth}: ${result.published} messages published (${studentIds.length} students), ${result.publishFailed} failed`);
       return null;
     } catch (err) {
       console.error("[soul-dispatcher] Fatal error:", err);
@@ -687,10 +672,10 @@ export const triggerSoulGeneration = functions
     // this month regardless of existing state." The worker's idempotency guard
     // checks generatedForMonth against targetMonth; a match skips, a mismatch
     // regenerates. No separate force flag needed. (#264)
-    const result = await publishInWaves(studentIds, "[soul-dispatcher]", { targetMonth });
+    const result = await publishSoulMessages(studentIds, "[soul-dispatcher]", { targetMonth });
 
     const duration = ((Date.now() - startTime) / 1000).toFixed(1);
-    console.log(`[soul-dispatcher] manual trigger done in ${duration}s for ${targetMonth}: ${result.published} batches published (${studentIds.length} students), ${result.publishFailed} failed`);
+    console.log(`[soul-dispatcher] manual trigger done in ${duration}s for ${targetMonth}: ${result.published} messages published (${studentIds.length} students), ${result.publishFailed} failed`);
 
     return {
       status: result.publishFailed > 0 ? "partial" : "ok",

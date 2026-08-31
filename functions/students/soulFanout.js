@@ -9,11 +9,18 @@
 /**
  * Split an array of student IDs into batches of `batchSize`.
  *
+ * Default is 1 (#270): one student per Pub/Sub message so a transient
+ * failure retries exactly one student, and soulWorker's maxInstances is
+ * the sole concurrency throttle. Batching (formerly 10) existed to limit
+ * message count when the worker processed students in parallel; that
+ * caused the OpenRouter credit-hold 402 cascade. The payload keeps the
+ * `studentIds` array shape so legacy in-flight messages stay parseable.
+ *
  * @param {string[]} ids - student IDs to chunk
- * @param {number} [batchSize=10] - max students per chunk
+ * @param {number} [batchSize=1] - max students per chunk
  * @returns {string[][]} array of batches
  */
-export function chunkStudentIds(ids, batchSize = 10) {
+export function chunkStudentIds(ids, batchSize = 1) {
   const chunks = [];
   for (let i = 0; i < ids.length; i += batchSize) {
     chunks.push(ids.slice(i, i + batchSize));

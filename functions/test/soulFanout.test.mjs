@@ -44,12 +44,12 @@ describe("chunkStudentIds", () => {
     assert.deepStrictEqual(chunks[0], ["abc"]);
   });
 
-  test("default batchSize is 10", () => {
+  test("default batchSize is 1 (one student per message, #270)", () => {
     const ids = Array.from({ length: 17 }, (_, i) => `s${i}`);
     const chunks = chunkStudentIds(ids);
-    assert.equal(chunks.length, 2);
-    assert.equal(chunks[0].length, 10);
-    assert.equal(chunks[1].length, 7);
+    assert.equal(chunks.length, 17);
+    assert.deepStrictEqual(chunks[0], ["s0"]);
+    assert.deepStrictEqual(chunks[16], ["s16"]);
   });
 });
 
