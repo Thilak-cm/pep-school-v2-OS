@@ -1,4 +1,4 @@
-// Barrel file — re-exports all Cloud Functions from domain modules.
+// Barrel file - re-exports all Cloud Functions from domain modules.
 // Firebase deploys from this entry point (package.json "main": "index.js").
 
 // Auth
