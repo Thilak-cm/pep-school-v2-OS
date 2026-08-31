@@ -1,7 +1,7 @@
 # Pep OS Overview
 
-Generated: 2026-08-31T06:08:33.862Z
-App version: 13.0.1
+Generated: 2026-08-31T22:54:36.458Z
+App version: 13.1.0
 
 ## App Snapshot
 
@@ -155,6 +155,11 @@ App version: 13.0.1
 
 ## Recent Changes
 
+### 13.1.0 (2026-08-31)
+- Durable execution ledger at `jobs/{jobKey}/executions/{executionId}/workItems/{workItemId}` tracks every scheduled job run with per-target work items, verification outcomes, and TTL-based cleanup (#229).
+- Five verifier Cloud Functions (`verifyCleanupDeletedChats`, `verifySoulRegeneration`, `verifyMonthlyPlans`, `verifyWeeklyStudentAI`, `verifyWeeklyDigests`) finalize executions using a shared engine with three-layer output verification and missed-start detection (#229).
+- Automated green/red Telegram signals on every execution completion, with PII-free formatting, counts, and dominant failure category (#229).
+
 ### 13.0.1 (2026-08-30)
 - Soul generation month picker in Settings: superadmins select a target month (current or next, IST-bounded) to pre-generate next month's souls ahead of the monthly cron (#264).
 - `generatedForMonth` ("YYYY-MM") field on soul and open_questions docs serves as the idempotency token — the worker skips students already generated for the target month (#264).
@@ -168,8 +173,4 @@ App version: 13.0.1
 ### 12.4.2 (2026-08-22)
 - Student and Classroom Timelines now show complete multi-photo MediaNote batches with image counts, carousel positions, and correct per-image editing/deletion targets (#249).
 - Classroom Timeline tabs now switch only through their headers, preventing tab gestures from competing with media carousel swipes (#249).
-
-### 12.4.1 (2026-08-19)
-- MediaNote photo editing now respects student-gated analysis, preserves corrected crop/rotation output, and keeps per-photo analysis revisions isolated (#236).
-- Student Timeline media batches hydrate complete sibling sets and support swipe navigation and refresh-after-delete behavior; the remaining carousel regression follow-up is tracked in #249.
 
