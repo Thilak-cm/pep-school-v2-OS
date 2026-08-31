@@ -37,7 +37,7 @@ export function parseSoulWorkerMessage(message) {
     throw new Error("Invalid Pub/Sub message: studentIds must be a non-empty array");
   }
   if (!payload.targetMonth || typeof payload.targetMonth !== "string") {
-    throw new Error("Invalid Pub/Sub message: targetMonth is required and must be a YYYY-MM string");
+    throw new Error("Invalid Pub/Sub message: targetMonth is required and must be a string");
   }
   return { studentIds: payload.studentIds, targetMonth: payload.targetMonth };
 }

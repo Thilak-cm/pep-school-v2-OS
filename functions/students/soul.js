@@ -35,6 +35,8 @@ import { chunkStudentIds, parseSoulWorkerMessage } from "./soulFanout.js";
 // Replaces the old per-dimension profile system (PEP-124)
 // -----------------------------------------------
 
+const IST_OFFSET_MS = 5.5 * 60 * 60 * 1000; // UTC+5:30
+
 const SOUL_TOPIC = "soul-workers";
 const pubsub = new PubSub();
 const soulTopic = pubsub.topic(SOUL_TOPIC);
@@ -397,22 +399,27 @@ async function generateSoulForStudent(studentId, apiKey, { windowDays = 365, gen
 /**
  * Return the current month in IST as a "YYYY-MM" string.
  * Used by the cron dispatcher and as default for callables.
+ *
+ * Uses UTC getters on an IST-shifted Date so the result is correct
+ * regardless of the Cloud Functions runtime TZ (which defaults to UTC
+ * but is not guaranteed by the platform).
  */
 function getCurrentMonthIST() {
-  const IST_OFFSET_MS = 5.5 * 60 * 60 * 1000;
   const istNow = new Date(Date.now() + IST_OFFSET_MS);
-  return `${istNow.getFullYear()}-${String(istNow.getMonth() + 1).padStart(2, "0")}`;
+  return `${istNow.getUTCFullYear()}-${String(istNow.getUTCMonth() + 1).padStart(2, "0")}`;
 }
 
 /**
  * Return the next month from current IST date as a "YYYY-MM" string.
  * Used for targetMonth range validation (current + next month only).
+ *
+ * Date.UTC handles month overflow: month 12 rolls to Jan of next year,
+ * so Dec -> Jan works correctly without manual year arithmetic.
  */
 function getNextMonthIST() {
-  const IST_OFFSET_MS = 5.5 * 60 * 60 * 1000;
   const istNow = new Date(Date.now() + IST_OFFSET_MS);
-  const next = new Date(istNow.getFullYear(), istNow.getMonth() + 1, 1);
-  return `${next.getFullYear()}-${String(next.getMonth() + 1).padStart(2, "0")}`;
+  const next = new Date(Date.UTC(istNow.getUTCFullYear(), istNow.getUTCMonth() + 1, 1));
+  return `${next.getUTCFullYear()}-${String(next.getUTCMonth() + 1).padStart(2, "0")}`;
 }
 
 export const soulWorker = functions
@@ -432,7 +439,13 @@ export const soulWorker = functions
     try {
       ({ studentIds, targetMonth } = parseSoulWorkerMessage(message));
     } catch (parseErr) {
-      console.error("[soul-worker] bad message, ACKing to stop retries:", parseErr.message);
+      // Include parse error and whether targetMonth was present so deploy-overlap
+      // messages (old format, pre-#264) are distinguishable from truly malformed ones.
+      console.error(
+        "[soul-worker] bad message, ACKing to stop retries:",
+        parseErr.message,
+        { hasTargetMonth: Boolean(message?.json?.targetMonth) },
+      );
       return null;
     }
 
@@ -507,6 +520,9 @@ const WAVE_GAP_MS = 90_000;
 const sleep = (ms) => new Promise((resolve) => setTimeout(resolve, ms));
 
 async function publishInWaves(studentIds, logPrefix, { targetMonth }) {
+  if (!targetMonth) {
+    throw new Error("publishInWaves: targetMonth is required");
+  }
   const chunks = chunkStudentIds(studentIds);
   // Group chunks into waves of WAVE_SIZE
   const waves = [];

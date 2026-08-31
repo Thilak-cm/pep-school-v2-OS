@@ -97,8 +97,15 @@ const MONTH_NAMES = ['January', 'February', 'March', 'April', 'May', 'June', 'Ju
  */
 function getMonthLabel(generatedForMonth, updatedAt) {
   if (generatedForMonth) {
-    const monthIdx = Number(generatedForMonth.split('-')[1]) - 1;
-    if (monthIdx >= 0 && monthIdx < 12) return `${MONTH_NAMES[monthIdx]}'s questions`;
+    const [yearStr, monthStr] = generatedForMonth.split('-');
+    const monthIdx = Number(monthStr) - 1;
+    if (monthIdx >= 0 && monthIdx < 12) {
+      // Append the year only when it differs from the current year, so
+      // cross-year pre-generation (e.g. Dec generating January) is unambiguous.
+      const year = Number(yearStr);
+      const yearSuffix = year !== new Date().getFullYear() ? ` ${year}` : '';
+      return `${MONTH_NAMES[monthIdx]}${yearSuffix}'s questions`;
+    }
   }
   if (!updatedAt) return '';
   const date = updatedAt?.toDate ? updatedAt.toDate() : updatedAt instanceof Date ? updatedAt : new Date(updatedAt);
