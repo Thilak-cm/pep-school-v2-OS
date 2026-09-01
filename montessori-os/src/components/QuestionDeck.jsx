@@ -620,7 +620,7 @@ function QuestionDeck({
         {/* Content */}
         {!loading && !error && !isEmpty && (
           <>
-            {/* Header - restyled tagline + month subtitle (#216) */}
+            {/* Header - restyled tagline + month mini header (#216, month promoted per user request) */}
             <Typography
               sx={{
                 fontSize: '0.78rem',
@@ -634,8 +634,9 @@ function QuestionDeck({
             {monthLabel && (
               <Typography
                 sx={{
-                  fontSize: '0.75rem',
-                  color: 'var(--color-text-faint)',
+                  fontSize: '0.9rem',
+                  fontWeight: 700,
+                  color: 'var(--color-text)',
                   mb: 2,
                 }}
               >
