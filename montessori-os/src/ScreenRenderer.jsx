@@ -265,7 +265,7 @@ function renderScreen(screen, ctx) {
       );
 
     case "graduateStudents":
-      return <GraduateStudentsPage currentUser={ctx.user} userRole={ctx.role} />;
+      return <GraduateStudentsPage userRole={ctx.role} manageableClassrooms={ctx.manageableClassrooms} />;
 
     case "feedback":
       return (

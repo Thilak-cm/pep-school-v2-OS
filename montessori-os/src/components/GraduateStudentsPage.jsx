@@ -63,7 +63,7 @@ function addOneDay(dateStr) {
   return `${yy}-${mm}-${dd}`;
 }
 
-export default function GraduateStudentsPage({ _currentUser, _userRole }) {
+export default function GraduateStudentsPage({ userRole, manageableClassrooms }) {
   const notify = useNotify();
   const [loading, setLoading] = useState(true);
   const [classrooms, setClassrooms] = useState([]);
@@ -184,7 +184,18 @@ export default function GraduateStudentsPage({ _currentUser, _userRole }) {
     }
   };
 
-  const destOptions = useMemo(() => classrooms.filter(c => !!c?.id && c.id !== sourceClassroomId && (c.status || 'active') === 'active'), [classrooms, sourceClassroomId]);
+  // Classroomadmins only see classrooms they manage (firestore rules require
+  // managesClassroom on BOTH source and destination for the transfer batch).
+  // Without this filter the dropdown offers unmanageable classrooms - including
+  // other branches' identically-named ones - and the transfer fails with an
+  // opaque "Missing or insufficient permissions" error at commit time.
+  const visibleClassrooms = useMemo(() => {
+    if (userRole !== 'classroomadmin') return classrooms;
+    const managed = new Set(Array.isArray(manageableClassrooms) ? manageableClassrooms : []);
+    return classrooms.filter(c => managed.has(c.id));
+  }, [classrooms, userRole, manageableClassrooms]);
+
+  const destOptions = useMemo(() => visibleClassrooms.filter(c => !!c?.id && c.id !== sourceClassroomId && (c.status || 'active') === 'active'), [visibleClassrooms, sourceClassroomId]);
 
   return (
     <Box sx={{ display: 'flex', flexDirection: 'column', gap: 2 }}>
@@ -220,7 +231,7 @@ export default function GraduateStudentsPage({ _currentUser, _userRole }) {
                     value={sourceClassroomId}
                     onChange={(e) => setSourceClassroomId(e.target.value)}
                   >
-                    {classrooms.map((c) => (
+                    {visibleClassrooms.map((c) => (
                       <MenuItem key={c.id} value={c.id}>
                         {(c.name || c.id)}{c.programId ? ` · ${c.programId}` : ''}
                       </MenuItem>
