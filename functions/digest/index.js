@@ -16,15 +16,9 @@
  */
 
 import * as functions from "firebase-functions/v1";
-import { defineSecret } from "firebase-functions/params";
 import { db, Timestamp } from "../shared/firebase.js";
-import {
-  OPENROUTER_API_KEY,
-} from "../shared/openrouter.js";
+import { OPENROUTER_API_KEY, LANGFUSE_SECRET_KEY, LANGFUSE_PUBLIC_KEY } from "../shared/llm.js";
 import { SENDGRID_API_KEY, sendEmail } from "../shared/sendgrid.js";
-
-const LANGFUSE_SECRET_KEY = defineSecret("LANGFUSE_SECRET_KEY");
-const LANGFUSE_PUBLIC_KEY = defineSecret("LANGFUSE_PUBLIC_KEY");
 import { runWithConcurrency } from "../shared/scheduling.js";
 import { runAgentLoop } from "../shared/agentLoop.js";
 import { DIGEST_TOOLS, createToolExecutor } from "./tools.js";

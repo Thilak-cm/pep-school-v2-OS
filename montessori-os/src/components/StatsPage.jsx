@@ -758,7 +758,7 @@ const StatsPage = ({ user, role, manageableClassrooms = [], onBack, onNavigateTo
         </Box>
         {/* Legend */}
         <Box sx={{ mt: 1, display: 'flex', justifyContent: 'center' }}>
-          <Box sx={{ display: 'flex', gap: 2, alignItems: 'center', px: 1.5, py: 0.5, borderRadius: 999, border: '1px solid var(--color-border)', backgroundColor: 'white' }}>
+          <Box sx={{ display: 'grid', gridTemplateColumns: 'auto auto', gap: 0.5, columnGap: 2, alignItems: 'center', px: 1.5, py: 0.75, borderRadius: 2, border: '1px solid var(--color-border)', backgroundColor: 'white' }}>
             <Box sx={{ display: 'flex', alignItems: 'center', gap: 0.6 }}>
               <Box sx={{ width: 10, height: 10, borderRadius: '50%', backgroundColor: '#4f46e5' }} />
               <Typography variant="caption" sx={{ color: 'text.secondary', fontWeight: 600 }}>Observations</Typography>
@@ -1084,36 +1084,37 @@ const StatsPage = ({ user, role, manageableClassrooms = [], onBack, onNavigateTo
                     </Box>
                   )}
                   
-                  {/* Simple Legend */}
-                  <Box sx={{ mt: 2, display: 'flex', justifyContent: 'center', gap: 4 }}>
-                    {pieChartData.map((item, index) => (
-                      <Box key={index} sx={{ textAlign: 'center' }}>
-                        <Box sx={{ 
-                          width: 16, 
-                          height: 16, 
-                          bgcolor: item.color, 
-                          borderRadius: '50%',
-                          mx: 'auto',
-                          mb: 1,
-                          border: '2px solid white',
-                          boxShadow: '0 2px 4px rgba(0,0,0,0.1)'
-                        }} />
-                        <Typography variant="body2" sx={{ fontWeight: 600, color: item.color, mb: 0.5 }}>
-                          {item.value}
-                        </Typography>
-                        <Typography variant="caption" sx={{ display: 'block', fontWeight: 600, color: 'text.secondary', mb: 0.5 }}>
-                          {(() => {
-                            const total = pieChartData.reduce((sum, x) => sum + (Number(x?.value) || 0), 0);
-                            if (!total) return '0%';
-                            const pct = (Number(item?.value) || 0) / total;
-                            return `${Math.round(pct * 100)}%`;
-                          })()}
-                        </Typography>
-                        <Typography variant="caption" color="text.secondary">
-                          {item.name}
-                        </Typography>
-                      </Box>
-                    ))}
+                  {/* Vertical breakdown list */}
+                  <Box sx={{ mt: 2, display: 'flex', flexDirection: 'column', gap: 1 }}>
+                    {pieChartData.map((item, index) => {
+                      const total = pieChartData.reduce((sum, x) => sum + (Number(x?.value) || 0), 0);
+                      const pct = total ? Math.round(((Number(item?.value) || 0) / total) * 100) : 0;
+                      return (
+                        <Box
+                          key={index}
+                          sx={{
+                            display: 'flex',
+                            alignItems: 'center',
+                            gap: 1.5,
+                            px: 1.5,
+                            py: 1,
+                            borderRadius: 1.5,
+                            backgroundColor: 'grey.50',
+                          }}
+                        >
+                          <Box sx={{ width: 10, height: 10, borderRadius: '50%', backgroundColor: item.color, flexShrink: 0 }} />
+                          <Typography variant="body2" sx={{ fontWeight: 600, color: 'text.primary', flex: 1 }}>
+                            {item.name}
+                          </Typography>
+                          <Typography variant="body2" sx={{ fontWeight: 700, color: item.color, minWidth: 40, textAlign: 'right' }}>
+                            {(item.value || 0).toLocaleString()}
+                          </Typography>
+                          <Typography variant="caption" sx={{ fontWeight: 600, color: 'text.secondary', minWidth: 32, textAlign: 'right' }}>
+                            {pct}%
+                          </Typography>
+                        </Box>
+                      );
+                    })}
                   </Box>
                 </Box>
 

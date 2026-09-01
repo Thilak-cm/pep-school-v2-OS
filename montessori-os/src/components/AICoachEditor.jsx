@@ -10,7 +10,7 @@ import { db, cloudFunctions } from '../firebase';
 import { httpsCallable } from 'firebase/functions';
 import useNotify from '../notifications/useNotify';
 import { COACH_MODEL_INFO } from '../../../scripts/config/coachConstants';
-import { AVAILABLE_MODELS } from '../../../scripts/config/modelConstants';
+import { AVAILABLE_MODELS } from '../services/modelRegistry';
 import { isSuperAdmin } from '../utils/roleUtils';
 
 const SectionCard = ({ title, subtitle, children }) => (

@@ -1,5 +1,7 @@
-import { FRONTIER_MODEL } from "../../../functions/config/modelConstants.js";
 import { TEST_BENCH_MODELS } from "../../../functions/config/testBenchModels.js";
+
+// Inline default after modelConstants.js deletion (#187)
+const FRONTIER_MODEL = "gpt-5.4";
 
 // Group models by provider for the dropdown
 const PROVIDER_ORDER = ["OpenAI", "Google", "Anthropic", "Meta", "Mistral", "DeepSeek"];

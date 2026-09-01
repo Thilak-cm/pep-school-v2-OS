@@ -1,2 +1,8 @@
-// Frontend shim re-exporting the baseball card defaults shared with Cloud Functions.
-export { BASEBALL_CARD_DEFAULTS } from '../../functions/config/baseballCardConstants.js';
+// Inline defaults after functions/config/baseballCardConstants.js deletion (#187)
+export const BASEBALL_CARD_DEFAULTS = {
+  model: "gpt-5.4-mini",
+  temperature: 0,
+  windowDays: 42,
+  timezone: "Asia/Kolkata",
+  max_tokens: 1000,
+};

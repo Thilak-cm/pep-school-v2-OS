@@ -18,7 +18,8 @@
  */
 import admin from "firebase-admin";
 import readline from "node:readline";
-import { FRONTIER_MODEL } from "../../functions/config/modelConstants.js";
+// Inline default after modelConstants.js deletion (#187)
+const FRONTIER_MODEL = "gpt-5.4";
 import { assembleSystemPrompt } from "../../functions/testbench/promptAssembly.js";
 
 // ---------------------------------------------------------------------------

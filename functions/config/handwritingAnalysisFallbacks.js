@@ -1,10 +1,9 @@
 // Fallback config for batch writing analysis (PEP-132, PEP-263)
 // Used when config/writing_analysis_{program} Firestore doc is missing or fetch fails.
 
-import { FRONTIER_MODEL } from "./modelConstants.js";
-
+// Inline alias after modelConstants.js deletion (#187)
 export const HANDWRITING_ANALYSIS_DEFAULTS = {
-  model: FRONTIER_MODEL,
+  model: "gpt-5.4",
   temperature: 0.3,
   max_tokens: 2000,
   minSamples: 3,

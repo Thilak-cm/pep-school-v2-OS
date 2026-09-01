@@ -1,11 +1,11 @@
 // Shared defaults for the parent report generation feature
-import { FRONTIER_MODEL, MINI_MODEL } from "./modelConstants.js";
+// Inline aliases after modelConstants.js deletion (#187)
 
 // Academic year starts on this month (0-indexed). Single source of truth.
 export const AY_START_MONTH = 5; // June
 
 export const REPORT_DEFAULTS = {
-  model: FRONTIER_MODEL,
+  model: "gpt-5.4",
   temperature: 0.7,
   max_tokens: 4096,
   timezone: "Asia/Kolkata",
@@ -36,7 +36,7 @@ export const BASELINE_JUDGE_PROMPT_DOCS = {
 };
 
 export const JUDGE_DEFAULTS = {
-  model: MINI_MODEL,
+  model: "gpt-5.4-mini",
   temperature: 0.3,
   max_tokens: 1024,
 };
@@ -66,7 +66,7 @@ export const READINESS_PROMPT_DOCS = {
 };
 
 export const READINESS_DEFAULTS = {
-  model: MINI_MODEL,
+  model: "gpt-5.4-mini",
   temperature: 0.3,
   max_tokens: 1024,
 };

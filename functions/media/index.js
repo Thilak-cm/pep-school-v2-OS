@@ -1,16 +1,15 @@
 import * as functions from "firebase-functions/v1";
 import { db, storage, Timestamp } from "../shared/firebase.js";
-import { OPENAI_API_KEY, getOpenAiKey, buildChatBody, runChatCompletion, CHAT_ENDPOINT } from "../shared/openai.js";
-import { MINI_MODEL, NANO_MODEL } from "../config/modelConstants.js";
+import { runLLM, OPENROUTER_API_KEY, LANGFUSE_SECRET_KEY, LANGFUSE_PUBLIC_KEY } from "../shared/llm.js";
 
 // -------------------------------------------------
 // PDF helpers (title + essence) for media notes
 // -------------------------------------------------
-const PDF_TITLE_MODEL = { model: MINI_MODEL, temperature: 0.4, max_tokens: 48 };
-const PDF_ESSENCE_MODEL = { model: MINI_MODEL, temperature: 0.35, max_tokens: 220 };
+// Fallback defaults - inline to avoid modelConstants.js dependency (#187)
+const PDF_TITLE_MODEL = { model: "gpt-5.4-mini", temperature: 0.4, max_tokens: 48 };
+const PDF_ESSENCE_MODEL = { model: "gpt-5.4-mini", temperature: 0.35, max_tokens: 220 };
 // Per-photo classification (PEP-146): Call 1 only (gpt-5.4-nano)
-// Call 2 (handwriting analysis) removed — deferred to PEP-132 batch analysis
-const PHOTO_CLASSIFICATION_MODEL = { model: NANO_MODEL, temperature: 0.2, max_tokens: 400 };
+const PHOTO_CLASSIFICATION_MODEL = { model: "gpt-5.4-nano", temperature: 0.2, max_tokens: 400 };
 
 const CLASSIFICATION_FALLBACK_PROMPT = `You classify Montessori classroom photos. Return JSON with exactly three fields:
 
@@ -48,54 +47,25 @@ async function loadPhotoConfig(docId, fallbackPrompt, fallbackModel) {
 
 /**
  * Run a VLM call with image(s) and return parsed JSON.
+ * Routes through the shared runLLM helper (OpenRouter + Langfuse tracing).
  */
-async function runVLMCall(systemPrompt, userContent, modelInfo) {
-  const openAiKey = getOpenAiKey();
-  if (!openAiKey) {
-    throw new functions.https.HttpsError("failed-precondition", "OpenAI key not configured");
-  }
-
+async function runVLMCall(systemPrompt, userContent, modelInfo, featureId = "photo_classification") {
   const enhancedPrompt = systemPrompt.includes("JSON") || systemPrompt.includes("json")
     ? systemPrompt
     : systemPrompt + "\n\nIMPORTANT: You must respond with valid JSON only.";
 
-  const body = buildChatBody({
-    model: modelInfo.model,
+  const { content: rawContent } = await runLLM({
+    featureId,
     messages: [
       { role: "system", content: enhancedPrompt },
       { role: "user", content: userContent },
     ],
+    model: modelInfo.model,
     temperature: modelInfo.temperature,
-    max_completion_tokens: modelInfo.maxTokens,
-    response_format: { type: "json_object" },
+    maxTokens: modelInfo.maxTokens || modelInfo.max_tokens,
+    responseFormat: { type: "json_object" },
+    traceName: featureId,
   });
-
-  let response;
-  try {
-    response = await fetch(CHAT_ENDPOINT, {
-      method: "POST",
-      headers: {
-        "Authorization": `Bearer ${openAiKey}`,
-        "Content-Type": "application/json",
-      },
-      body: JSON.stringify(body),
-    });
-  } catch (err) {
-    console.error("[runVLMCall] network error", err);
-    throw new functions.https.HttpsError("unavailable", "AI service unavailable");
-  }
-
-  if (!response.ok) {
-    const errText = await response.text().catch(() => "");
-    console.error("[runVLMCall] OpenAI error", response.status, errText?.slice?.(0, 300));
-    throw new functions.https.HttpsError("internal", `AI error: ${response.status}`);
-  }
-
-  const json = await response.json();
-  const rawContent = json?.choices?.[0]?.message?.content?.trim();
-  if (!rawContent) {
-    throw new functions.https.HttpsError("internal", "AI returned no content");
-  }
 
   try {
     return JSON.parse(rawContent);
@@ -181,7 +151,7 @@ const analyzePhotoVLMHandler = async (data, context) => {
   return { results };
 };
 
-const photoVLMRunWith = { timeoutSeconds: 60, memory: "512MB", secrets: [OPENAI_API_KEY] };
+const photoVLMRunWith = { timeoutSeconds: 60, memory: "512MB", secrets: [OPENROUTER_API_KEY, LANGFUSE_SECRET_KEY, LANGFUSE_PUBLIC_KEY] };
 
 export const analyzePhotoVLM = functions
   .region("asia-south1")
@@ -196,7 +166,7 @@ export const detectHandwritingVLM = functions
 
 export const suggestPdfTitle = functions
   .region("asia-south1")
-  .runWith({ timeoutSeconds: 60, memory: "512MB", secrets: [OPENAI_API_KEY] })
+  .runWith({ timeoutSeconds: 60, memory: "512MB", secrets: [OPENROUTER_API_KEY, LANGFUSE_SECRET_KEY, LANGFUSE_PUBLIC_KEY] })
   .https.onCall(async (data, context) => {
     if (!context.auth) {
       throw new functions.https.HttpsError("unauthenticated", "User must be authenticated");
@@ -217,20 +187,24 @@ export const suggestPdfTitle = functions
       text,
     ].filter(Boolean).join("\n");
 
-    const title = await runChatCompletion(
-      [
+    const { content: title } = await runLLM({
+      featureId: "media_pdf",
+      messages: [
         { role: "system", content: systemPrompt },
         { role: "user", content: userPrompt },
       ],
-      PDF_TITLE_MODEL
-    );
+      model: PDF_TITLE_MODEL.model,
+      temperature: PDF_TITLE_MODEL.temperature,
+      maxTokens: PDF_TITLE_MODEL.max_tokens,
+      traceName: "pdf-title",
+    });
 
     return { title: title.split("\n")[0].trim() };
   });
 
 export const extractPdfEssence = functions
   .region("asia-south1")
-  .runWith({ timeoutSeconds: 60, memory: "512MB", secrets: [OPENAI_API_KEY] })
+  .runWith({ timeoutSeconds: 60, memory: "512MB", secrets: [OPENROUTER_API_KEY, LANGFUSE_SECRET_KEY, LANGFUSE_PUBLIC_KEY] })
   .https.onCall(async (data, context) => {
     if (!context.auth) {
       throw new functions.https.HttpsError("unauthenticated", "User must be authenticated");
@@ -241,16 +215,20 @@ export const extractPdfEssence = functions
     }
     const text = rawText.slice(0, MAX_PDF_TEXT_LENGTH);
 
-    const systemPrompt = "You summarize short PDF notes for Montessori teachers. Write 2–3 clear sentences (max ~120 words) covering the main idea and actions. No bullets, no markdown.";
+    const systemPrompt = "You summarize short PDF notes for Montessori teachers. Write 2-3 clear sentences (max ~120 words) covering the main idea and actions. No bullets, no markdown.";
     const userPrompt = `Extracted text:\n${text}`;
 
-    const essence = await runChatCompletion(
-      [
+    const { content: essence } = await runLLM({
+      featureId: "media_pdf",
+      messages: [
         { role: "system", content: systemPrompt },
         { role: "user", content: userPrompt },
       ],
-      PDF_ESSENCE_MODEL
-    );
+      model: PDF_ESSENCE_MODEL.model,
+      temperature: PDF_ESSENCE_MODEL.temperature,
+      maxTokens: PDF_ESSENCE_MODEL.max_tokens,
+      traceName: "pdf-essence",
+    });
 
     return { essence_text: essence.trim() };
   });

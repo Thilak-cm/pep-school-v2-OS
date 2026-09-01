@@ -1,6 +1,5 @@
 import { describe, it } from "node:test";
 import assert from "node:assert/strict";
-import { FRONTIER_MODEL } from "../config/modelConstants.js";
 import {
   TEST_BENCH_MODELS,
   getOpenRouterModelId,
@@ -58,7 +57,7 @@ describe("testBenchModels", () => {
 
   describe("getOpenRouterModelId", () => {
     it("should return the openRouterId for a known model", () => {
-      const result = getOpenRouterModelId(FRONTIER_MODEL);
+      const result = getOpenRouterModelId("gpt-5.4");
       assert.ok(result.includes("/"), `expected vendor/model format, got: ${result}`);
     });
 
