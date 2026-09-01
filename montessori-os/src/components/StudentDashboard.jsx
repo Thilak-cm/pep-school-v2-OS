@@ -56,7 +56,6 @@ const CHIP_BASE = {
 };
 
 const PLAN_PROGRAMS = ['toddler', 'primary'];
-const QUESTIONS_PROGRAMS = ['toddler', 'primary'];
 
 const QUICK_JUMP_CELL_SX = {
   position: 'relative',
@@ -133,14 +132,6 @@ function StudentDashboard({ student, onOpenTimeline, onOpenFeedback, onOpenChat,
   const [studentProgramId, setStudentProgramId] = useState(null);
   const [programResolved, setProgramResolved] = useState(false);
   const hasPlanTab = PLAN_PROGRAMS.includes(studentProgramId);
-  // Questions are currently available to toddler/primary teachers and classroom
-  // admins. The quick-jump stays visible for everyone so its position does not
-  // shift while the program resolves; unsupported programs receive a notice.
-  const canViewQuestions = isSuperAdmin(userRole) || (
-    ['teacher', 'classroomadmin'].includes(userRole) &&
-    programResolved &&
-    QUESTIONS_PROGRAMS.includes(studentProgramId)
-  );
   const snapshotTabs = hasPlanTab ? SNAPSHOT_TABS_WITH_PLAN : SNAPSHOT_TABS_NO_PLAN;
   const handlePlanFeedbackChipClick = () => {
     setPlanFeedbackOpen(true);
@@ -1633,21 +1624,17 @@ function StudentDashboard({ student, onOpenTimeline, onOpenFeedback, onOpenChat,
         gap: 1,
         flexShrink: 0,
       }}>
-        <Box ref={canViewQuestions ? questionsButtonRef : null} sx={QUICK_JUMP_CELL_SX}>
+        <Box ref={questionsButtonRef} sx={QUICK_JUMP_CELL_SX}>
           <QuickJumpButton
             icon={<Lightbulb size={22} />}
             label="Questions"
             iconColor="var(--color-primary)"
             onClick={() => {
               trackEvent('student_dashboard_card_click', { card: 'questions', studentId }).catch(() => {});
-              if (canViewQuestions) {
-                onOpenQuestions?.();
-              } else {
-                notify.info('Questions are not available for this program yet. Coming soon.');
-              }
+              onOpenQuestions?.();
             }}
           />
-          {canViewQuestions && !questionsCoachmark.isDismissed && (
+          {!questionsCoachmark.isDismissed && (
             <Box sx={{
               position: 'absolute', top: 4, right: 4,
               px: 0.75, py: 0.25, borderRadius: '8px',
@@ -1700,15 +1687,13 @@ function StudentDashboard({ student, onOpenTimeline, onOpenFeedback, onOpenChat,
         </Box>
       </Box>
 
-      {canViewQuestions && (
-        <Coachmark
-          coachmarkKey="open_questions_v1"
-          title="Open Questions"
-          body="See what Pep still needs to learn about this student. Answer questions to help the AI build a deeper understanding."
-          anchorRef={questionsButtonRef}
-          placement="top"
-        />
-      )}
+      <Coachmark
+        coachmarkKey="open_questions_v1"
+        title="Open Questions"
+        body="See what Pep still needs to learn about this student. Answer questions to help the AI build a deeper understanding."
+        anchorRef={questionsButtonRef}
+        placement="top"
+      />
     </Box>
   );
 }

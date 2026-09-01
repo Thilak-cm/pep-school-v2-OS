@@ -123,20 +123,18 @@ describe('StudentDashboard Plan tab (PEP-260)', () => {
   });
 });
 
-describe('StudentDashboard Questions pilot gate', () => {
-  it('keeps Questions visible in the first position while preserving its program availability gate', async () => {
+describe('StudentDashboard Questions access', () => {
+  it('keeps Questions visible in the first position with no program or role gate', async () => {
     const src = await readFile(dashboardPath, 'utf8');
-    assert.match(src, /const QUESTIONS_PROGRAMS = \['toddler', 'primary'\]/);
-    assert.match(src, /\[['"]teacher['"], ['"]classroomadmin['"]\]\.includes\(userRole\)[\s\S]*?programResolved[\s\S]*?QUESTIONS_PROGRAMS\.includes\(studentProgramId\)/);
-    assert.match(src, /isSuperAdmin\(userRole\)/);
-    assert.match(src, /<Box ref=\{canViewQuestions \? questionsButtonRef : null\}[\s\S]*?label="Questions"/);
+    assert.doesNotMatch(src, /QUESTIONS_PROGRAMS/);
+    assert.doesNotMatch(src, /canViewQuestions/);
+    assert.match(src, /<Box ref=\{questionsButtonRef\}[\s\S]*?label="Questions"/);
   });
 
-  it('opens Questions for eligible users and shows a coming-soon notice otherwise', async () => {
+  it('opens Questions for everyone', async () => {
     const src = await readFile(dashboardPath, 'utf8');
-    assert.match(src, /if \(canViewQuestions\) \{[\s\S]*?onOpenQuestions\?\.\(\)/);
-    assert.match(src, /notify\.info\('Questions are not available for this program yet\. Coming soon\.'\)/);
-    assert.match(src, /trackEvent\('student_dashboard_card_click', \{ card: 'questions', studentId \}\)/);
+    assert.match(src, /trackEvent\('student_dashboard_card_click', \{ card: 'questions', studentId \}\)[\s\S]*?onOpenQuestions\?\.\(\)/);
+    assert.doesNotMatch(src, /Questions are not available for this program yet/);
   });
 });
 
