@@ -1123,6 +1123,23 @@ Routing and gating (Coach)
 Admin UI
 - `AICoachEditor` provides the UI for selecting a program, toggling enablement, editing per-program config, and selecting model/temperature.
 
+`config/model_registry` (#187)
+Central per-feature model registry. Maps each LLM feature to its OpenRouter slug via floating aliases. Source of truth is `brain/model-registry.json`; synced to Firestore via `node scripts/ops/push-model-registry.mjs --yes`. Cloud Functions read it through `functions/shared/modelRegistry.js:resolveModel()` with a 5-min TTL cache.
+
+```typescript
+// /config/model_registry
+interface ModelRegistryDoc {
+  [featureId: string]: {             // e.g., "coach", "text_cleanup", "chat"
+    [alias: string]: string;         // alias -> OpenRouter slug, e.g., "gpt-5.4" -> "openai/gpt-5.4"
+                                     // "default" is a reserved alias used as fallback
+  };
+  _updatedAt: string;                // ISO timestamp of last push
+  _updatedBy: string;                // "push-model-registry.mjs"
+}
+```
+
+Features: `text_cleanup`, `coach`, `baseball_card`, `writing_analysis`, `photo_classification`, `media_pdf`, `chat`, `soul_generation`, `monthly_plan`, `weekly_digest`, `report`, `baseline_judge`, `readiness`.
+
 ---
 
 ## 🧠 Brain — Knowledge Base (`/brain/{program}`) (#157)

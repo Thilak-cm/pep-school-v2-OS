@@ -8,8 +8,8 @@ import { RotateCcw as Restore, Save, Zap as Bolt, FlaskConical as Science } from
 import { doc, getDoc, setDoc, updateDoc, serverTimestamp } from 'firebase/firestore';
 import { db } from '../firebase';
 import { forceRefreshKey } from '../services/promptProvider';
-import { cleanUpText, CLEANUP_MODEL_INFO } from '../textCleanup';
-import { AVAILABLE_MODELS } from '../../../scripts/config/modelConstants';
+import { cleanUpText } from '../textCleanup';
+import { AVAILABLE_MODELS, CLEANUP_MODEL_INFO } from '../services/modelRegistry';
 import { isSuperAdmin } from '../utils/roleUtils';
 import { reportCaughtError } from '../utils/reportCaughtError.js';
 

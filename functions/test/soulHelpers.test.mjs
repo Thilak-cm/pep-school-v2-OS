@@ -1,14 +1,13 @@
 import test from "node:test";
 import assert from "node:assert/strict";
-import { FRONTIER_MODEL } from "../config/modelConstants.js";
 
 // ---------------------------------------------------------------------------
 // Soul model constants
 // ---------------------------------------------------------------------------
 
-test("SOUL_DEFAULTS.model is the frontier model", async () => {
+test("SOUL_DEFAULTS.model is a frontier-tier alias", async () => {
   const { SOUL_DEFAULTS } = await import("../utils/soulHelpers.js");
-  assert.equal(SOUL_DEFAULTS.model, FRONTIER_MODEL, "SOUL_DEFAULTS.model must match FRONTIER_MODEL");
+  assert.equal(SOUL_DEFAULTS.model, "gpt-5.4", "SOUL_DEFAULTS.model must be the frontier alias");
   assert.ok(!SOUL_DEFAULTS.model.includes("mini"), "SOUL_DEFAULTS.model should not be a mini model");
   assert.ok(!SOUL_DEFAULTS.model.includes("nano"), "SOUL_DEFAULTS.model should not be a nano model");
 });

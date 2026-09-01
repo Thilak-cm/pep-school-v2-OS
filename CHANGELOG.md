@@ -9,9 +9,17 @@
 - Provider-neutral monitoring adapter seam with no-op provider, ready for Healthchecks.io integration (#229).
 - Shared Telegram helpers (`broadcastAlert`, `getAlertChatIds`) extracted from integrity module for reuse across all job and verifier CFs (#229).
 - `periodKey` field on writing analysis docs for verifier staleness detection (#229).
+- Central per-feature model registry (`brain/model-registry.json` + `config/model_registry` in Firestore) mapping 13 production LLM features to OpenRouter slugs with a dry-run-by-default push script (#187).
+- Shared `resolveModel()` resolver with 5-min TTL cache, `default` alias fallback, slug pass-through, and fail-fast on missing registry (#187).
+- Shared traced `runLLM()` helper consolidating model resolution, OpenRouter API call, Langfuse generation tracing, model-drift detection, and error mapping into a single entry point (#187).
+- Full Langfuse generation-level tracing across all 16 production LLM Cloud Functions, including whisper transcribe/translate, soul generation, monthly plan, reports, readiness check, and baseline judge (#187).
 
 ### Changed
 - `generateWritingAnalysis` schedule moved from Monday 00:00 to Sunday 00:30 IST so weekly digests consume same-week writing analysis results (#229).
+- All production LLM calls now route through OpenRouter; zero remaining requests to `api.openai.com/v1/chat/completions` except whisper STT (#187).
+- `OPENAI_API_KEY` scoped exclusively to the two whisper Cloud Functions; all other CFs use `OPENROUTER_API_KEY` (#187).
+- Deleted `functions/config/modelConstants.js`, `baseballCardConstants.js`, and `coachConstants.js`; model defaults inlined at call sites (#187).
+- Admin config editor dropdowns now source model options from a frontend model registry (#187).
 - All seven scheduled jobs now seed execution and work-item ledger records, with crash-path Telegram signals on fatal errors (#229).
 - Pub/Sub workers (`soulWorker`, `monthlyPlanWorker`) receive `executionId` from the dispatcher payload to prevent cross-boundary drift on retries (#229).
 

@@ -22,8 +22,7 @@
 import * as functions from "firebase-functions/v1";
 import { defineSecret } from "firebase-functions/params";
 import { db } from "../shared/firebase.js";
-import { buildChatBody } from "../shared/openai.js";
-import { OPENROUTER_ENDPOINT, OPENROUTER_API_KEY, getOpenRouterKey } from "../shared/openrouter.js";
+import { runLLM, OPENROUTER_API_KEY, LANGFUSE_SECRET_KEY, LANGFUSE_PUBLIC_KEY } from "../shared/llm.js";
 import { calculateAge } from "../utils/handwritingAnalysisHelpers.js";
 import { buildUserPrompt } from "./helpers.js";
 import {
@@ -243,52 +242,22 @@ async function generatePlanInternal(studentId, targetMonth, generatedBy, generat
     precedingPlan,
   });
 
-  // 5. Call LLM via OpenRouter
-  const apiKey = getOpenRouterKey();
-  if (!apiKey) {
-    throw new functions.https.HttpsError("failed-precondition", "OPENROUTER_API_KEY not configured");
-  }
-
-  const body = buildChatBody({
-    model,
+  // 5. Call LLM via runLLM (traced through Langfuse)
+  const { content: rawContent, usage } = await runLLM({
+    featureId: "monthly_plan",
     messages: [
       { role: "system", content: systemPrompt },
       { role: "user", content: userPrompt },
     ],
+    model,
     temperature,
-    max_completion_tokens: maxTokens,
-    response_format: { type: "json_object" },
+    maxTokens,
+    responseFormat: { type: "json_object" },
+    traceName: "monthly-plan",
+    traceMetadata: { studentId, targetMonth },
   });
 
-  let response;
-  try {
-    response = await fetch(OPENROUTER_ENDPOINT, {
-      method: "POST",
-      headers: {
-        "Authorization": `Bearer ${apiKey}`,
-        "Content-Type": "application/json",
-      },
-      body: JSON.stringify(body),
-    });
-  } catch (err) {
-    console.error("[generatePlanInternal] network error", err);
-    throw new functions.https.HttpsError("unavailable", "AI service unavailable: " + (err.message || "network error"));
-  }
-
-  if (!response.ok) {
-    const errText = await response.text().catch(() => "");
-    throw new functions.https.HttpsError("internal", `LLM error: ${response.status} — ${errText?.slice?.(0, 200)}`);
-  }
-
-  const json = await response.json().catch(() => {
-    throw new functions.https.HttpsError("internal", "LLM returned non-JSON response");
-  });
-  const rawContent = json?.choices?.[0]?.message?.content?.trim();
-  const totalTokens = json?.usage?.total_tokens || 0;
-
-  if (!rawContent) {
-    throw new functions.https.HttpsError("internal", "LLM returned empty response");
-  }
+  const totalTokens = usage?.total_tokens || 0;
 
   // 6. Parse LLM response
   let planData;
@@ -535,7 +504,7 @@ export const generateMonthlyPlan = functions
   .runWith({
     timeoutSeconds: 300,
     memory: "1GB",
-    secrets: [OPENROUTER_API_KEY],
+    secrets: [OPENROUTER_API_KEY, LANGFUSE_SECRET_KEY, LANGFUSE_PUBLIC_KEY],
   })
   .https.onCall(async (data, context) => {
     // Auth + role gate
@@ -753,7 +722,7 @@ export const monthlyPlanWorker = functions
     timeoutSeconds: 300,
     memory: "1GB",
     maxInstances: 5,
-    secrets: [OPENROUTER_API_KEY],
+    secrets: [OPENROUTER_API_KEY, LANGFUSE_SECRET_KEY, LANGFUSE_PUBLIC_KEY],
   })
   .pubsub.topic(MONTHLY_PLAN_TOPIC)
   .onPublish(async (message) => {

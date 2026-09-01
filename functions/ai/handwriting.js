@@ -1,7 +1,7 @@
 import * as functions from "firebase-functions/v1";
 import { defineSecret } from "firebase-functions/params";
 import { db, storage, Timestamp } from "../shared/firebase.js";
-import { OPENAI_API_KEY, getOpenAiKey, buildChatBody, CHAT_ENDPOINT } from "../shared/openai.js";
+import { runLLM, buildChatBody, OPENROUTER_API_KEY, LANGFUSE_SECRET_KEY, LANGFUSE_PUBLIC_KEY } from "../shared/llm.js";
 import { OPENROUTER_ENDPOINT } from "../shared/openrouter.js";
 import {
   HANDWRITING_ANALYSIS_DEFAULTS,
@@ -126,54 +126,25 @@ export async function downloadImageAsBase64(storagePath) {
 
 /**
  * Run a VLM call with image(s) and return parsed JSON.
+ * Routes through the shared runLLM helper (OpenRouter + Langfuse tracing).
  */
 async function runVLMCall(systemPrompt, userContent, modelInfo) {
-  const openAiKey = getOpenAiKey();
-  if (!openAiKey) {
-    throw new functions.https.HttpsError("failed-precondition", "OpenAI key not configured");
-  }
-
   const enhancedPrompt = systemPrompt.includes("JSON") || systemPrompt.includes("json")
     ? systemPrompt
     : systemPrompt + "\n\nIMPORTANT: You must respond with valid JSON only.";
 
-  const body = buildChatBody({
-    model: modelInfo.model,
+  const { content: rawContent } = await runLLM({
+    featureId: "writing_analysis",
     messages: [
       { role: "system", content: enhancedPrompt },
       { role: "user", content: userContent },
     ],
+    model: modelInfo.model,
     temperature: modelInfo.temperature,
-    max_completion_tokens: modelInfo.maxTokens,
-    response_format: { type: "json_object" },
+    maxTokens: modelInfo.maxTokens,
+    responseFormat: { type: "json_object" },
+    traceName: "writing-analysis",
   });
-
-  let response;
-  try {
-    response = await fetch(CHAT_ENDPOINT, {
-      method: "POST",
-      headers: {
-        "Authorization": `Bearer ${openAiKey}`,
-        "Content-Type": "application/json",
-      },
-      body: JSON.stringify(body),
-    });
-  } catch (err) {
-    console.error("[runVLMCall] network error", err);
-    throw new functions.https.HttpsError("unavailable", "AI service unavailable");
-  }
-
-  if (!response.ok) {
-    const errText = await response.text().catch(() => "");
-    console.error("[runVLMCall] OpenAI error", response.status, errText?.slice?.(0, 300));
-    throw new functions.https.HttpsError("internal", `AI error: ${response.status}`);
-  }
-
-  const json = await response.json();
-  const rawContent = json?.choices?.[0]?.message?.content?.trim();
-  if (!rawContent) {
-    throw new functions.https.HttpsError("internal", "AI returned no content");
-  }
 
   try {
     return JSON.parse(rawContent);
@@ -371,7 +342,7 @@ async function runWritingAnalysisForStudent(studentId, { dryRun = false, program
 
 export const batchAnalyzeWriting = functions
   .region("asia-south1")
-  .runWith({ timeoutSeconds: 300, memory: "1GB", secrets: [OPENAI_API_KEY] })
+  .runWith({ timeoutSeconds: 300, memory: "1GB", secrets: [OPENROUTER_API_KEY, LANGFUSE_SECRET_KEY, LANGFUSE_PUBLIC_KEY] })
   .https.onCall(async (data, context) => {
     if (!context.auth) {
       throw new functions.https.HttpsError("unauthenticated", "User must be authenticated");
@@ -421,7 +392,7 @@ export const batchAnalyzeWriting = functions
 
 export const generateWritingAnalysis = functions
   .region("asia-south1")
-  .runWith({ timeoutSeconds: 540, memory: "1GB", secrets: [OPENAI_API_KEY, TELEGRAM_BOT_TOKEN] })
+  .runWith({ timeoutSeconds: 540, memory: "1GB", secrets: [OPENROUTER_API_KEY, LANGFUSE_SECRET_KEY, LANGFUSE_PUBLIC_KEY, TELEGRAM_BOT_TOKEN] })
   .pubsub.schedule("30 0 * * 0")
   .timeZone("Asia/Kolkata")
   .onRun(async () => {
@@ -429,12 +400,6 @@ export const generateWritingAnalysis = functions
     const executionId = computeExecutionId(JOB_KEY);
 
     try {
-      const openAiKey = getOpenAiKey();
-      if (!openAiKey) {
-        console.error("[writingAnalysis] OpenAI key not configured");
-        return null;
-      }
-
       const studentIds = await fetchActiveStudentIds();
       console.log(`[writingAnalysis] running for ${studentIds.length} active student(s)`);
 

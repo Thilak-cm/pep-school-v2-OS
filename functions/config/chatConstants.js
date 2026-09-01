@@ -1,9 +1,9 @@
 // Shared constants for Child Chat feature
 // This file is the single source of truth for chat configuration
-import { FRONTIER_MODEL } from "./modelConstants.js";
+// Inline alias after modelConstants.js deletion (#187)
 
 export const CHAT_MODEL_INFO = {
-  model: FRONTIER_MODEL,
+  model: "gpt-5.4",
   temperature: 0.7,
   max_tokens: 2000
 };

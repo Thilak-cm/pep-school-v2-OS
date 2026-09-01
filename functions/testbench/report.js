@@ -5,7 +5,7 @@
  * then calls the LLM via OpenRouter to generate a parent report.
  */
 import { db } from "../shared/firebase.js";
-import { buildChatBody } from "../shared/openai.js";
+import { buildChatBody } from "../shared/llm.js";
 import { OPENROUTER_ENDPOINT } from "../shared/openrouter.js";
 import {
   getStudentWithProgram,

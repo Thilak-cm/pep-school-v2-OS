@@ -1,11 +1,10 @@
 // Soul/guidelines generation helpers (PEP-149)
 // Replaces profileConstants.js + profileHelpers.js
 
-import { FRONTIER_MODEL } from "../config/modelConstants.js";
-
-// Fallback defaults — used when config/soul_generation doc is missing
+// Fallback defaults - used when config/soul_generation doc is missing
+// Inline alias; resolved to OpenRouter slug via model registry at runtime (#187)
 export const SOUL_DEFAULTS = {
-  model: FRONTIER_MODEL,
+  model: "gpt-5.4",
   temperature: 0,
   max_tokens: 12000,
 };

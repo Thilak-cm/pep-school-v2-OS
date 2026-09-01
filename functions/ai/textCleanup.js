@@ -1,10 +1,9 @@
 import * as functions from "firebase-functions/v1";
 import { db } from "../shared/firebase.js";
-import { OPENAI_API_KEY, getOpenAiKey, buildChatBody, CHAT_ENDPOINT } from "../shared/openai.js";
-import { MINI_MODEL } from "../config/modelConstants.js";
+import { runLLM, OPENROUTER_API_KEY, LANGFUSE_SECRET_KEY, LANGFUSE_PUBLIC_KEY } from "../shared/llm.js";
 
-// Fallback defaults — used only when Firestore config doc lacks model fields (PEP-139)
-const CLEANUP_MODEL_INFO = { model: MINI_MODEL, temperature: 0, max_tokens: 1000 };
+// Fallback defaults - used only when Firestore config doc lacks model fields (PEP-139)
+const CLEANUP_MODEL_INFO = { model: "gpt-5.4-nano", temperature: 0, max_tokens: 1000 };
 
 // In-memory TTL cache for prompts to reduce Firestore reads
 const PROMPT_TTL_MS = 24 * 60 * 60 * 1000; // 1 day
@@ -43,14 +42,10 @@ async function getTextSummarizerPromptsServer({ forceRefresh = false } = {}) {
 
 export const aiTextCleanup = functions
   .region("asia-south1")
-  .runWith({ timeoutSeconds: 60, memory: "512MB", secrets: [OPENAI_API_KEY] })
+  .runWith({ timeoutSeconds: 60, memory: "512MB", secrets: [OPENROUTER_API_KEY, LANGFUSE_SECRET_KEY, LANGFUSE_PUBLIC_KEY] })
   .https.onCall(async (data, context) => {
     if (!context.auth) {
       throw new functions.https.HttpsError("unauthenticated", "User must be authenticated");
-    }
-    const openAiKey = getOpenAiKey();
-    if (!openAiKey) {
-      throw new functions.https.HttpsError("failed-precondition", "OpenAI key not configured");
     }
 
     const text = String(data?.text || "").trim();
@@ -67,46 +62,22 @@ export const aiTextCleanup = functions
     const renderedUser = String(config.userPrompt)
       .replaceAll("${" + "text}", text);
 
-    const body = buildChatBody({
-      model: config.model,
+    const { content, resolvedModel } = await runLLM({
+      featureId: "text_cleanup",
       messages: [
         { role: "system", content: config.systemPrompt || "" },
-        { role: "user", content: renderedUser }
+        { role: "user", content: renderedUser },
       ],
+      model: config.model,
       temperature: config.temperature,
-      max_completion_tokens: config.max_tokens,
+      maxTokens: config.max_tokens,
+      traceName: "text-cleanup",
+      traceMetadata: { textLength: text.length, promptVersion: config.version },
     });
 
-    let response;
-    try {
-      response = await fetch(CHAT_ENDPOINT, {
-        method: "POST",
-        headers: {
-          "Authorization": `Bearer ${openAiKey}`,
-          "Content-Type": "application/json",
-        },
-        body: JSON.stringify(body),
-      });
-    } catch (e) {
-      console.error("[aiTextCleanup] network error", e);
-      throw new functions.https.HttpsError("unavailable", "AI service unavailable");
-    }
-
-    if (!response.ok) {
-      const errText = await response.text().catch(() => "");
-      console.error("[aiTextCleanup] OpenAI error", response.status, errText?.slice?.(0, 300));
-      throw new functions.https.HttpsError("internal", `AI error: ${response.status}`);
-    }
-
-    const json = await response.json();
-    const cleanedText = json?.choices?.[0]?.message?.content?.trim();
-    if (!cleanedText) {
-      throw new functions.https.HttpsError("internal", "AI returned no content");
-    }
-
-  return {
-    cleanedText,
-    model: config.model,
-    promptVersion: config.version || 1,
-  };
-});
+    return {
+      cleanedText: content,
+      model: resolvedModel,
+      promptVersion: config.version || 1,
+    };
+  });

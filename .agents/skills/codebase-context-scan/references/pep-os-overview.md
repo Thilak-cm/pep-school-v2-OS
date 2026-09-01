@@ -1,12 +1,12 @@
 # Pep OS Overview
 
-Generated: 2026-08-31T22:54:36.458Z
+Generated: 2026-09-01T01:05:47.039Z
 App version: 13.1.0
 
 ## App Snapshot
 
 - Mobile-first web app for Montessori classrooms (repo root package: `pep-os`, app package: `montessori-os`).
-- Frontend stack: React 19.1.0, MUI 7.3.0, Firebase 11.10.0, Vite 6.0.0.
+- Frontend stack: React 19.1.0, MUI 7.2.0, Firebase 11.10.0, Vite 6.0.0.
 - Product focus: fast classroom note capture, timeline review, analytics, and AI-assisted educator workflows.
 
 ## Roles
@@ -156,14 +156,9 @@ App version: 13.1.0
 ## Recent Changes
 
 ### 13.1.0 (2026-08-31)
-- Durable execution ledger at `jobs/{jobKey}/executions/{executionId}/workItems/{workItemId}` tracks every scheduled job run with per-target work items, verification outcomes, and TTL-based cleanup (#229).
-- Five verifier Cloud Functions (`verifyCleanupDeletedChats`, `verifySoulRegeneration`, `verifyMonthlyPlans`, `verifyWeeklyStudentAI`, `verifyWeeklyDigests`) finalize executions using a shared engine with three-layer output verification and missed-start detection (#229).
-- Automated green/red Telegram signals on every execution completion, with PII-free formatting, counts, and dominant failure category (#229).
-
-### 13.0.1 (2026-08-30)
-- Soul generation month picker in Settings: superadmins select a target month (current or next, IST-bounded) to pre-generate next month's souls ahead of the monthly cron (#264).
-- `generatedForMonth` ("YYYY-MM") field on soul and open_questions docs serves as the idempotency token — the worker skips students already generated for the target month (#264).
-- Question Deck subtitle reads the month from `generatedForMonth`, appending the year for cross-year pre-generation (#264).
+- Central per-feature model registry (`brain/model-registry.json` + `config/model_registry` in Firestore) mapping 13 production LLM features to OpenRouter slugs with a dry-run-by-default push script (#187).
+- Shared `resolveModel()` resolver with 5-min TTL cache, `default` alias fallback, slug pass-through, and fail-fast on missing registry (#187).
+- Shared traced `runLLM()` helper consolidating model resolution, OpenRouter API call, Langfuse generation tracing, model-drift detection, and error mapping into a single entry point (#187).
 
 ### 12.5.0 (2026-08-27)
 - Paginated delta stats refresh (`updateStatsDelta`) replaces the monolithic `recomputeStats` that was crashing with OOM errors at ~400MB heap (#256).
@@ -173,4 +168,8 @@ App version: 13.1.0
 ### 12.4.2 (2026-08-22)
 - Student and Classroom Timelines now show complete multi-photo MediaNote batches with image counts, carousel positions, and correct per-image editing/deletion targets (#249).
 - Classroom Timeline tabs now switch only through their headers, preventing tab gestures from competing with media carousel swipes (#249).
+
+### 12.4.1 (2026-08-19)
+- MediaNote photo editing now respects student-gated analysis, preserves corrected crop/rotation output, and keeps per-photo analysis revisions isolated (#236).
+- Student Timeline media batches hydrate complete sibling sets and support swipe navigation and refresh-after-delete behavior; the remaining carousel regression follow-up is tracked in #249.
 

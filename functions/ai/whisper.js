@@ -1,6 +1,8 @@
 import * as functions from "firebase-functions/v1";
 import { db } from "../shared/firebase.js";
 import { OPENAI_API_KEY, getOpenAiKey, base64ToBlob } from "../shared/openai.js";
+import { LANGFUSE_SECRET_KEY, LANGFUSE_PUBLIC_KEY } from "../shared/llm.js";
+import { createLangfuse } from "../shared/langfuse.js";
 
 // -----------------------------------------------
 // AI: Whisper STT (server-side OpenAI invocation)
@@ -42,7 +44,7 @@ const MAX_CALLABLE_BYTES = 9.5 * 1024 * 1024;
 
 export const aiWhisperTranscribe = functions
   .region("asia-south1")
-  .runWith({ timeoutSeconds: 300, memory: "512MB", secrets: [OPENAI_API_KEY] })
+  .runWith({ timeoutSeconds: 300, memory: "512MB", secrets: [OPENAI_API_KEY, LANGFUSE_SECRET_KEY, LANGFUSE_PUBLIC_KEY] })
   .https.onCall(async (data, context) => {
     if (!context.auth) throw new functions.https.HttpsError("unauthenticated", "User must be authenticated");
     const openAiKey = getOpenAiKey();
@@ -56,6 +58,22 @@ export const aiWhisperTranscribe = functions
     const rawBytes = Buffer.byteLength(audioBase64, "base64");
     if (rawBytes > MAX_CALLABLE_BYTES) {
       throw new functions.https.HttpsError("invalid-argument", "Audio too large; please use a shorter recording");
+    }
+
+    // Langfuse tracing (#187)
+    let langfuse = null;
+    let generation = null;
+    if (process.env.LANGFUSE_SECRET_KEY && process.env.LANGFUSE_PUBLIC_KEY) {
+      langfuse = createLangfuse();
+      const trace = langfuse.trace({
+        name: "whisper-transcribe",
+        metadata: { mimeType, languageCode, audioBytes: rawBytes },
+      });
+      generation = trace.generation({
+        name: "whisper-transcription",
+        model: WHISPER_MODEL_INFO.model,
+        metadata: { audioBytes: rawBytes, mimeType, languageCode },
+      });
     }
 
     const blob = base64ToBlob(audioBase64, mimeType);
@@ -78,23 +96,34 @@ export const aiWhisperTranscribe = functions
         body: form,
       });
     } catch (e) {
+      generation?.end({ output: { error: e.message }, statusMessage: "network_error" });
+      if (langfuse) await langfuse.flushAsync().catch(() => {});
       console.error("[aiWhisperTranscribe] network error", e);
       throw new functions.https.HttpsError("unavailable", "STT service unavailable");
     }
     if (!response.ok) {
       const errText = await response.text().catch(() => "");
+      generation?.end({ output: { error: errText?.slice?.(0, 300) }, statusMessage: `http_${response.status}` });
+      if (langfuse) await langfuse.flushAsync().catch(() => {});
       console.error("[aiWhisperTranscribe] OpenAI error", response.status, errText?.slice?.(0, 300));
       throw new functions.https.HttpsError("internal", `STT error: ${response.status}`);
     }
     const json = await response.json();
     const text = (json?.text || "").trim();
     const detectedLanguage = json?.language || undefined;
+
+    generation?.end({
+      output: text,
+      metadata: { detectedLanguage, textLength: text.length },
+    });
+    if (langfuse) await langfuse.flushAsync().catch(() => {});
+
     return { text, languageCode, detectedLanguage };
   });
 
 export const aiWhisperTranslate = functions
   .region("asia-south1")
-  .runWith({ timeoutSeconds: 300, memory: "512MB", secrets: [OPENAI_API_KEY] })
+  .runWith({ timeoutSeconds: 300, memory: "512MB", secrets: [OPENAI_API_KEY, LANGFUSE_SECRET_KEY, LANGFUSE_PUBLIC_KEY] })
   .https.onCall(async (data, context) => {
     if (!context.auth) throw new functions.https.HttpsError("unauthenticated", "User must be authenticated");
     const openAiKey = getOpenAiKey();
@@ -107,6 +136,22 @@ export const aiWhisperTranslate = functions
     const rawBytes = Buffer.byteLength(audioBase64, "base64");
     if (rawBytes > MAX_CALLABLE_BYTES) {
       throw new functions.https.HttpsError("invalid-argument", "Audio too large; please use a shorter recording");
+    }
+
+    // Langfuse tracing (#187)
+    let langfuse = null;
+    let generation = null;
+    if (process.env.LANGFUSE_SECRET_KEY && process.env.LANGFUSE_PUBLIC_KEY) {
+      langfuse = createLangfuse();
+      const trace = langfuse.trace({
+        name: "whisper-translate",
+        metadata: { mimeType, audioBytes: rawBytes },
+      });
+      generation = trace.generation({
+        name: "whisper-translation",
+        model: WHISPER_MODEL_INFO.model,
+        metadata: { audioBytes: rawBytes, mimeType },
+      });
     }
 
     const blob = base64ToBlob(audioBase64, mimeType);
@@ -126,16 +171,27 @@ export const aiWhisperTranslate = functions
         body: form,
       });
     } catch (e) {
+      generation?.end({ output: { error: e.message }, statusMessage: "network_error" });
+      if (langfuse) await langfuse.flushAsync().catch(() => {});
       console.error("[aiWhisperTranslate] network error", e);
       throw new functions.https.HttpsError("unavailable", "STT service unavailable");
     }
     if (!response.ok) {
       const errText = await response.text().catch(() => "");
+      generation?.end({ output: { error: errText?.slice?.(0, 300) }, statusMessage: `http_${response.status}` });
+      if (langfuse) await langfuse.flushAsync().catch(() => {});
       console.error("[aiWhisperTranslate] OpenAI error", response.status, errText?.slice?.(0, 300));
       throw new functions.https.HttpsError("internal", `STT error: ${response.status}`);
     }
     const json = await response.json();
     const text = (json?.text || "").trim();
     const language = json?.language || undefined;
+
+    generation?.end({
+      output: text,
+      metadata: { detectedLanguage: language, textLength: text.length },
+    });
+    if (langfuse) await langfuse.flushAsync().catch(() => {});
+
     return { text, detectedLanguage: language };
   });
