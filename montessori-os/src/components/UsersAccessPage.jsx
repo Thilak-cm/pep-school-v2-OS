@@ -112,7 +112,9 @@ const UsersAccessPage = ({ onBack, currentUser, userRole, manageableClassrooms =
   const [_branchesLoading, setBranchesLoading] = useState(true);
   const [teachers, setTeachers] = useState([]);
   const [teacherSearch, setTeacherSearch] = useState('');
-  const [statusFilter, setStatusFilter] = useState('all');
+  // Status filters are multi-select arrays; default hides inactive (soft-deleted)
+  // users so they read as "deleted" in the UI. Selecting both chips shows all.
+  const [statusFilter, setStatusFilter] = useState(['active']);
   const [onlyNoClassrooms, setOnlyNoClassrooms] = useState(false);
   const [classroomFilterOpen, setClassroomFilterOpen] = useState(false);
   const [selectedClassroomFilterIds, setSelectedClassroomFilterIds] = useState([]);
@@ -124,7 +126,7 @@ const UsersAccessPage = ({ onBack, currentUser, userRole, manageableClassrooms =
   // Students
   const [students, setStudents] = useState([]);
   const [studentSearch, setStudentSearch] = useState('');
-  const [studentStatusFilter, setStudentStatusFilter] = useState('all');
+  const [studentStatusFilter, setStudentStatusFilter] = useState(['active']);
   const [studentClassroomFilterOpen, setStudentClassroomFilterOpen] = useState(false);
   const [selectedStudentClassroomFilterIds, setSelectedStudentClassroomFilterIds] = useState([]);
 
@@ -1198,7 +1200,9 @@ const UsersAccessPage = ({ onBack, currentUser, userRole, manageableClassrooms =
     snap.forEach(d => {
       const data = d.data() || {};
       const comp = `${(data.firstName||'').trim().toLowerCase()} ${(data.lastName||'').trim().toLowerCase()}`.trim();
-      if (comp === normalized.trim()) matches.push(d.id);
+      if (comp === normalized.trim()) {
+        matches.push({ id: d.id, status: data.status, inactivatedAt: data.inactivatedAt, updatedAt: data.updatedAt });
+      }
     });
 
     const proceed = async () => {
@@ -1268,9 +1272,32 @@ const UsersAccessPage = ({ onBack, currentUser, userRole, manageableClassrooms =
     };
 
     if (matches.length > 0) {
+      const enteredName = `${studentForm.firstName} ${studentForm.lastName || ''}`.trim();
+      const activeMatches = matches.filter(m => m.status !== 'inactive');
+      const inactiveMatches = matches.filter(m => m.status === 'inactive');
+      // inactivatedAt is only written by the UI removal flow; fall back to
+      // updatedAt for migrated/older docs, and omit the date if neither exists.
+      const removalDateText = (m) => {
+        const ts = m?.inactivatedAt || m?.updatedAt;
+        return ts ? ` on ${formatDate(ts)}` : '';
+      };
+      let title;
+      let message;
+      if (activeMatches.length > 0) {
+        title = 'Possible duplicate';
+        message = `A student named "${enteredName}" already exists in this classroom. Proceed anyway?`;
+        if (inactiveMatches.length > 0) {
+          message += ` Note: a removed student with this name also exists (removed${removalDateText(inactiveMatches[0])}).`;
+        }
+      } else {
+        title = 'Student previously removed';
+        message = `"${enteredName}" was in this classroom before but was removed${removalDateText(inactiveMatches[0])}. ` +
+          'If this is the same student returning, ask a super admin to restore them so their history is preserved. ' +
+          'If this is a different student, confirm to create a new one.';
+      }
       openConfirm(
-        'Possible duplicate',
-        `Found ${matches.length} student(s) with the same name in this classroom. Proceed?`,
+        title,
+        message,
         async () => { await proceed(); setConfirmOpen(false); }
       );
     } else {
@@ -1372,9 +1399,8 @@ const UsersAccessPage = ({ onBack, currentUser, userRole, manageableClassrooms =
         }
       }
 
-      const status = (t.status || 'active');
-      if (statusFilter === 'active' && status !== 'active') return false;
-      if (statusFilter === 'inactive' && status === 'active') return false;
+      const isActive = (t.status || 'active') === 'active';
+      if (!statusFilter.includes(isActive ? 'active' : 'inactive')) return false;
 
       const assigned = getTeacherClassroomIds(t.id);
       if (onlyNoClassrooms && assigned.length > 0) return false;
@@ -1400,8 +1426,7 @@ const UsersAccessPage = ({ onBack, currentUser, userRole, manageableClassrooms =
       }
 
       const isActive = (s.status || 'active') === 'active';
-      if (studentStatusFilter === 'active' && !isActive) return false;
-      if (studentStatusFilter === 'inactive' && isActive) return false;
+      if (!studentStatusFilter.includes(isActive ? 'active' : 'inactive')) return false;
 
       if (selectedStudentClassroomFilterIds.length > 0 && !selectedStudentClassroomFilterIds.includes(s.classroomId)) {
         return false;
@@ -1438,7 +1463,18 @@ const UsersAccessPage = ({ onBack, currentUser, userRole, manageableClassrooms =
     );
   };
 
-  const StatusFilterChips = ({ value, onChange, options = ['all', 'active', 'inactive'] }) => {
+  // Multi-select status chips. "All" was removed as confusing - selecting both
+  // Active and Inactive is the explicit way to see everything. At least one
+  // chip must stay selected so the list is never silently empty.
+  const StatusFilterChips = ({ value, onChange, options = ['active', 'inactive'] }) => {
+    const toggle = (opt) => {
+      if (value.includes(opt)) {
+        if (value.length === 1) return; // keep at least one selected
+        onChange(value.filter(v => v !== opt));
+      } else {
+        onChange([...value, opt]);
+      }
+    };
     return (
       <>
         {options.map(opt => (
@@ -1447,9 +1483,9 @@ const UsersAccessPage = ({ onBack, currentUser, userRole, manageableClassrooms =
             label={opt.charAt(0).toUpperCase() + opt.slice(1)}
             size="small"
             clickable
-            onClick={() => onChange(opt)}
-            color={value === opt ? 'primary' : 'default'}
-            variant={value === opt ? 'filled' : 'outlined'}
+            onClick={() => toggle(opt)}
+            color={value.includes(opt) ? 'primary' : 'default'}
+            variant={value.includes(opt) ? 'filled' : 'outlined'}
           />
         ))}
       </>
