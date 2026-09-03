@@ -25,6 +25,19 @@ const SECTION_COLORS = {
 };
 const DEFAULT_SECTION_COLOR = { red: 51 / 255, green: 51 / 255, blue: 51 / 255 };
 
+/**
+ * Strip control chars that the Docs API silently discards on insertText
+ * (U+0000-U+0008, U+000B, U+000C, U+000E-U+001F, U+007F; tab and newline kept).
+ *
+ * Why this exists: batchUpdate indices are client-side predictions of
+ * server-side state. If the server drops a char we counted, every subsequent
+ * index drifts and the whole batch fails ("Index N must be less than the end
+ * index of the referenced segment"). Seen in prod when an LLM emitted U+001A
+ * in plan `work` fields (student 2026-GUL-007, Sept 2026).
+ */
+// eslint-disable-next-line no-control-regex -- matching control chars is the entire purpose here
+const sanitizeText = (s) => (s || "").replace(/[\x00-\x08\x0B\x0C\x0E-\x1F\x7F]/g, "");
+
 /** Shared style constants */
 const STYLE = {
   // Header
@@ -92,8 +105,9 @@ export function buildDetailedPlanRequests(plan, meta) {
   let idx = 1;
 
   const ins = (text) => {
-    requests.push({ insertText: { location: { index: idx }, text } });
-    const len = text.length;
+    const safe = sanitizeText(text);
+    requests.push({ insertText: { location: { index: idx }, text: safe } });
+    const len = safe.length;
     return { start: idx, end: idx + len, advance: () => { idx += len; } };
   };
 
@@ -573,7 +587,7 @@ export function buildChecklistRequests(plan, meta) {
     } else if (entry.type === "section") {
       textInserts.push({ idx: paraIdx, text: entry.section.name.toUpperCase(), row: r, col: 0, type: "section", section: entry.section });
     } else if (entry.type === "item") {
-      textInserts.push({ idx: paraIdx, text: `☐  ${entry.item.work}`, row: r, col: 0, type: "item", section: entry.section });
+      textInserts.push({ idx: paraIdx, text: `☐  ${sanitizeText(entry.item.work)}`, row: r, col: 0, type: "item", section: entry.section });
     }
   }
 
@@ -608,7 +622,8 @@ export function buildChecklistRequests(plan, meta) {
       cellRanges.push({ start: paraStart, end: paraStart + text.length, type: "section", section: entry.section });
       offset += text.length;
     } else if (entry.type === "item") {
-      const text = `☐  ${entry.item.work}`;
+      // Must match the sanitized text inserted above, or style ranges drift.
+      const text = `☐  ${sanitizeText(entry.item.work)}`;
       cellRanges.push({ start: paraStart, end: paraStart + text.length, type: "item", section: entry.section });
       offset += text.length;
     }

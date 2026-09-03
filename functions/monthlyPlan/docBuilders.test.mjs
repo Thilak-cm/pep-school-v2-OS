@@ -444,6 +444,76 @@ test("estimateChecklistHeight fits within page budget at minimum settings", () =
   assert.ok(height <= usableHeight, `Height ${height}pt should fit within ${usableHeight}pt usable page height`);
 });
 
+// ---------------------------------------------------------------------------
+// Control-char sanitization (regression: Sept 2026, student 2026-GUL-007)
+// ---------------------------------------------------------------------------
+// The Docs API silently strips control chars (U+0000-U+001F except \t and \n)
+// during insertText, making the real doc shorter than the local index tracker
+// expects. An LLM emitted U+001A in `work` fields, causing batchUpdate to fail
+// with "Index N must be less than the end index of the referenced segment".
+
+const CONTROL_CHAR_PLAN = {
+  ...SAMPLE_PLAN,
+  sections: [
+    {
+      ...SAMPLE_PLAN.sections[0],
+      items: [
+        { ...SAMPLE_PLAN.sections[0].items[0], work: "Sandpaper Letters \u001a phonogram box" },
+        { ...SAMPLE_PLAN.sections[0].items[1], work: "Metal insets \u001a\u001a tracing", why: "Why \u0000 text" },
+      ],
+    },
+  ],
+};
+
+// eslint-disable-next-line no-control-regex -- matching control chars is the entire purpose here
+const CONTROL_CHAR_RE = /[\x00-\x08\x0B\x0C\x0E-\x1F\x7F]/;
+
+test("buildDetailedPlanRequests strips Docs-incompatible control chars from all inserted text", () => {
+  const requests = buildDetailedPlanRequests(CONTROL_CHAR_PLAN, STUDENT_META);
+  for (const r of requests) {
+    if (r.insertText) {
+      assert.ok(
+        !CONTROL_CHAR_RE.test(r.insertText.text),
+        `insertText must not contain control chars: ${JSON.stringify(r.insertText.text)}`,
+      );
+    }
+  }
+});
+
+test("buildDetailedPlanRequests keeps index tracking consistent after sanitization", () => {
+  const requests = buildDetailedPlanRequests(CONTROL_CHAR_PLAN, STUDENT_META);
+  // Simulate server-side doc growth: since all text is now sanitized, the
+  // server keeps every char, so no request may reference an index beyond the
+  // simulated doc length.
+  let docLen = 1; // Docs bodies start at index 1
+  for (const r of requests) {
+    if (r.insertText) {
+      assert.ok(
+        r.insertText.location.index <= docLen,
+        `insert index ${r.insertText.location.index} exceeds doc length ${docLen}`,
+      );
+      docLen += r.insertText.text.length;
+    } else if (r.updateTextStyle) {
+      assert.ok(
+        r.updateTextStyle.range.endIndex <= docLen,
+        `style endIndex ${r.updateTextStyle.range.endIndex} exceeds doc length ${docLen}`,
+      );
+    }
+  }
+});
+
+test("buildChecklistRequests strips Docs-incompatible control chars from all inserted text", () => {
+  const requests = buildChecklistRequests(CONTROL_CHAR_PLAN, STUDENT_META);
+  for (const r of requests) {
+    if (r.insertText) {
+      assert.ok(
+        !CONTROL_CHAR_RE.test(r.insertText.text),
+        `insertText must not contain control chars: ${JSON.stringify(r.insertText.text)}`,
+      );
+    }
+  }
+});
+
 test("buildChecklistRequests has no footer text", () => {
   const requests = buildChecklistRequests(SAMPLE_PLAN, STUDENT_META);
   const allText = requests
