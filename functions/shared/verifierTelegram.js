@@ -113,3 +113,20 @@ export function formatCrashSignal(jobKey, executionId, failureCategory, detail) 
   if (detail) parts.push(`Detail: ${escapeHtml(detail).slice(0, 200)}`);
   return parts.join("\n");
 }
+
+/**
+ * Build an alert for a self-healed classroom Drive folder.
+ * Sent at export time when a cached driveFolderId proved dead and the
+ * folder hierarchy was recreated. Mentions the trash window so a human
+ * can still untrash the original for full recovery of old exports.
+ * @param {string} classroomName
+ * @param {string} source - which export path healed it (e.g. "monthly plan export")
+ * @returns {string} HTML-formatted message
+ */
+export function formatFolderHealedSignal(classroomName, source) {
+  return [
+    `<b>Drive Folder Healed</b>`,
+    `Classroom folder for ${escapeHtml(classroomName)} was missing from Drive - recreated automatically during ${escapeHtml(source)}.`,
+    `If it was deleted recently, the original (with old exports) may still be in the shared drive trash (30-day window).`,
+  ].join("\n");
+}

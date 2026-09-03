@@ -14,6 +14,9 @@ import * as functions from "firebase-functions/v1";
 import { defineSecret } from "firebase-functions/params";
 import { db } from "../shared/firebase.js";
 import { runVerifier } from "./engine.js";
+import { runDriveIntegrityCheck } from "./driveIntegrity.js";
+import { getDriveClients } from "../utils/driveHelpers.js";
+import { broadcastAlert } from "../shared/telegram.js";
 import { isLastDayOfMonthIST } from "../utils/periodKeys.js";
 
 const TELEGRAM_BOT_TOKEN = defineSecret("TELEGRAM_BOT_TOKEN");
@@ -99,5 +102,34 @@ export const verifyWeeklyDigests = functions
   .timeZone("Asia/Kolkata")
   .onRun(async () => {
     await runVerifier(["digestClassroomAdmin", "digestSuperadmin"], TELEGRAM_BOT_TOKEN.value(), db);
+    return null;
+  });
+
+/**
+ * Weekly Drive integrity check - probes every cached Drive ID pointer
+ * (shared drive root, classroom folders, current-month plan/checklist docs,
+ * current-AY report docs) and signals dead/access-lost/moved pointers.
+ *
+ * Read-only + always signals (green heartbeat): detection within 7 days
+ * preserves the 30-day untrash window that export-time self-healing cannot.
+ * Monday 09:00 IST so a human is awake to act on a red.
+ * Standalone (not a CONTRACTS entry): there is no producer job to verify.
+ */
+export const verifyDriveIntegrity = functions
+  .region("asia-south1")
+  .runWith({ timeoutSeconds: 540, memory: "1GB", secrets: [TELEGRAM_BOT_TOKEN] })
+  .pubsub.schedule("0 9 * * 1")
+  .timeZone("Asia/Kolkata")
+  .onRun(async () => {
+    try {
+      const { drive } = await getDriveClients();
+      const { message } = await runDriveIntegrityCheck(db, drive);
+      await broadcastAlert(TELEGRAM_BOT_TOKEN.value(), db, message);
+    } catch (err) {
+      console.error("[verifyDriveIntegrity] crashed:", err);
+      const crashMsg = `<b>Drive Integrity Check Crashed</b>\n${String(err.message || err).slice(0, 300)}`;
+      await broadcastAlert(TELEGRAM_BOT_TOKEN.value(), db, crashMsg).catch(() => {});
+      throw err;
+    }
     return null;
   });

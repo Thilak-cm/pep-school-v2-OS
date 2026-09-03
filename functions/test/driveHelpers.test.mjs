@@ -372,3 +372,87 @@ describe("buildDocInsertRequests formatting", () => {
     assert.equal(imageRequests.length, 0, "no logo without options");
   });
 });
+
+// ---------------------------------------------------------------------------
+// ensureClassroomFolderId (stale driveFolderId cache self-healing)
+// ---------------------------------------------------------------------------
+
+import { ensureClassroomFolderId } from "../utils/driveHelpers.js";
+
+function healMockDrive({ getImpl, foundFolderId = "walked-id" }) {
+  return {
+    files: {
+      get: getImpl,
+      // getOrCreateClassroomFolder walks 3 levels via files.list; returning a
+      // hit at each level resolves the classroom folder to foundFolderId.
+      list: async () => ({ data: { files: [{ id: foundFolderId, name: "x" }] } }),
+      create: async () => ({ data: { id: "created-id" } }),
+    },
+  };
+}
+
+function healMockDb(updates) {
+  return {
+    collection: () => ({
+      doc: () => ({
+        update: async (data) => { updates.push(data); },
+      }),
+    }),
+  };
+}
+
+const NAMES = { branchName: "Kokapet", programName: "Primary", classroomName: "Nilgiris" };
+
+describe("ensureClassroomFolderId", () => {
+  it("returns cached ID untouched when the folder is alive", async () => {
+    const updates = [];
+    const drive = healMockDrive({
+      getImpl: async () => ({ data: { id: "cached-1", trashed: false } }),
+    });
+    const result = await ensureClassroomFolderId(drive, healMockDb(updates), "nilgiris", { driveFolderId: "cached-1" }, NAMES);
+    assert.deepEqual(result, { folderId: "cached-1", healed: false });
+    assert.equal(updates.length, 0);
+  });
+
+  it("heals on 404: recreates by name, persists, reports healed", async () => {
+    const updates = [];
+    const err = new Error("File not found");
+    err.code = 404;
+    const drive = healMockDrive({ getImpl: async () => { throw err; } });
+    const result = await ensureClassroomFolderId(drive, healMockDb(updates), "nilgiris", { driveFolderId: "dead-id" }, NAMES);
+    assert.deepEqual(result, { folderId: "walked-id", healed: true });
+    assert.deepEqual(updates, [{ driveFolderId: "walked-id" }]);
+  });
+
+  it("treats a trashed folder as dead and heals", async () => {
+    const updates = [];
+    const drive = healMockDrive({
+      getImpl: async () => ({ data: { id: "cached-1", trashed: true } }),
+    });
+    const result = await ensureClassroomFolderId(drive, healMockDb(updates), "nilgiris", { driveFolderId: "cached-1" }, NAMES);
+    assert.equal(result.healed, true);
+    assert.equal(result.folderId, "walked-id");
+  });
+
+  it("rethrows non-404 errors instead of recreating (no duplicate hierarchies)", async () => {
+    const updates = [];
+    const err = new Error("rate limited");
+    err.code = 429;
+    const drive = healMockDrive({ getImpl: async () => { throw err; } });
+    await assert.rejects(
+      () => ensureClassroomFolderId(drive, healMockDb(updates), "nilgiris", { driveFolderId: "cached-1" }, NAMES),
+      /rate limited/,
+    );
+    assert.equal(updates.length, 0);
+  });
+
+  it("creates and persists when no cached ID exists, without healed flag", async () => {
+    const updates = [];
+    const drive = healMockDrive({
+      getImpl: async () => { throw new Error("files.get must not be called without a cached ID"); },
+    });
+    const result = await ensureClassroomFolderId(drive, healMockDb(updates), "nilgiris", {}, NAMES);
+    assert.deepEqual(result, { folderId: "walked-id", healed: false });
+    assert.deepEqual(updates, [{ driveFolderId: "walked-id" }]);
+  });
+});
