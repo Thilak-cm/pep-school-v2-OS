@@ -126,6 +126,61 @@ export async function getOrCreateClassroomFolder(drive, branchName, programName,
 }
 
 /**
+ * Resolve a classroom's Drive folder ID, healing a stale cache.
+ *
+ * The cached classrooms/{id}.driveFolderId is a hint, not truth - the folder
+ * can be deleted by anyone with Drive access, leaving a dangling pointer that
+ * permanently breaks every export for the classroom (Sept 2026 incident:
+ * Himalayas + Nilgiris folders deleted, 39 students lost 2 months of Drive
+ * exports). Design choices:
+ *
+ * - Validate the cached ID with one files.get before trusting it.
+ * - Heal ONLY on proof the folder is gone (404 or trashed). Transient or
+ *   permission errors (403/429/5xx) rethrow - recreating on a flaky call
+ *   would fork duplicate folder hierarchies.
+ * - Recreation goes through getOrCreateClassroomFolder (find-or-create BY
+ *   NAME at every level), so it converges instead of duplicating and repairs
+ *   any depth of damage.
+ * - Persisting the fresh ID intentionally fires the classroom onUpdate
+ *   trigger, which re-syncs teacher Drive permissions onto the new folder.
+ *
+ * @param {object} drive - Drive API client
+ * @param {object} db - Firestore instance (injected for testability)
+ * @param {string} classroomId
+ * @param {object} classroomData - classroom doc data (may hold driveFolderId)
+ * @param {{branchName: string, programName: string, classroomName: string}} names
+ * @returns {Promise<{folderId: string, healed: boolean}>} healed=true only
+ *   when a present-but-dead cached ID was replaced (callers alert on this).
+ */
+export async function ensureClassroomFolderId(drive, db, classroomId, classroomData, names) {
+  const cachedId = classroomData?.driveFolderId || null;
+
+  if (cachedId) {
+    try {
+      const meta = await drive.files.get({
+        fileId: cachedId,
+        supportsAllDrives: true,
+        fields: "id, trashed",
+      });
+      if (!meta.data.trashed) {
+        return { folderId: cachedId, healed: false };
+      }
+      console.error(`[ensureClassroomFolderId] cached folder ${cachedId} for classroom ${classroomId} is trashed - recreating`);
+    } catch (err) {
+      const status = err?.code ?? err?.response?.status;
+      if (status !== 404) throw err;
+      console.error(`[ensureClassroomFolderId] cached folder ${cachedId} for classroom ${classroomId} is gone (404) - recreating`);
+    }
+  }
+
+  const folderId = await getOrCreateClassroomFolder(
+    drive, names.branchName, names.programName, names.classroomName,
+  );
+  await db.collection("classrooms").doc(classroomId).update({ driveFolderId: folderId });
+  return { folderId, healed: Boolean(cachedId) };
+}
+
+/**
  * Create a Google Doc with the report content in the specified folder.
  * Returns { docId, docLink }.
  * @param {object} [formatOpts] - Optional formatting: { programName, academicYear }

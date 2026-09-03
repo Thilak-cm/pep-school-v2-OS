@@ -438,6 +438,29 @@ const StatsPage = ({ user, role, manageableClassrooms = [], onBack, onNavigateTo
 
 
 
+  const NoteTypeLegend = ({ mt = 1 }) => (
+    <Box sx={{ mt, display: 'flex', justifyContent: 'center' }}>
+      <Box sx={{ display: 'grid', gridTemplateColumns: 'auto auto', gap: 0.5, columnGap: 2, alignItems: 'center', px: 1.5, py: 0.75, borderRadius: 2, border: '1px solid var(--color-border)', backgroundColor: 'white' }}>
+        <Box sx={{ display: 'flex', alignItems: 'center', gap: 0.6 }}>
+          <Box sx={{ width: 10, height: 10, borderRadius: '50%', backgroundColor: '#4f46e5' }} />
+          <Typography variant="caption" sx={{ color: 'text.secondary', fontWeight: 600 }}>Observations</Typography>
+        </Box>
+        <Box sx={{ display: 'flex', alignItems: 'center', gap: 0.6 }}>
+          <Box sx={{ width: 10, height: 10, borderRadius: '50%', backgroundColor: '#059669' }} />
+          <Typography variant="caption" sx={{ color: 'text.secondary', fontWeight: 600 }}>Lessons</Typography>
+        </Box>
+        <Box sx={{ display: 'flex', alignItems: 'center', gap: 0.6 }}>
+          <Box sx={{ width: 10, height: 10, borderRadius: '50%', backgroundColor: '#ec4899' }} />
+          <Typography variant="caption" sx={{ color: 'text.secondary', fontWeight: 600 }}>Media</Typography>
+        </Box>
+        <Box sx={{ display: 'flex', alignItems: 'center', gap: 0.6 }}>
+          <Box sx={{ width: 10, height: 10, borderRadius: '50%', backgroundColor: '#d97706' }} />
+          <Typography variant="caption" sx={{ color: 'text.secondary', fontWeight: 600 }}>Assessments</Typography>
+        </Box>
+      </Box>
+    </Box>
+  );
+
   const ClassroomComparisonChart = () => {
     const filteredClassroomStats = useMemo(() => {
       if (isAdmin && selectedBranchId) {
@@ -593,45 +616,7 @@ const StatsPage = ({ user, role, manageableClassrooms = [], onBack, onNavigateTo
             </RechartsBarChart>
           </ResponsiveContainer>
         </Box>
-        <Box sx={{ mt: 0, display: 'flex', justifyContent: 'center' }}>
-          <Box
-            sx={{
-              display: 'flex',
-              gap: 2,
-              alignItems: 'center',
-              px: 1.5,
-              py: 0.5,
-              borderRadius: 999,
-              border: '1px solid var(--color-border)',
-              backgroundColor: 'white'
-            }}
-          >
-            <Box sx={{ display: 'flex', alignItems: 'center', gap: 0.6 }}>
-              <Box sx={{ width: 10, height: 10, borderRadius: '50%', backgroundColor: 'var(--color-primary)' }} />
-              <Typography variant="caption" sx={{ color: 'text.secondary', fontWeight: 600 }}>
-                Observations
-              </Typography>
-            </Box>
-            <Box sx={{ display: 'flex', alignItems: 'center', gap: 0.6 }}>
-              <Box sx={{ width: 10, height: 10, borderRadius: '50%', backgroundColor: 'var(--color-secondary)' }} />
-              <Typography variant="caption" sx={{ color: 'text.secondary', fontWeight: 600 }}>
-                Lesson Notes
-              </Typography>
-            </Box>
-            <Box sx={{ display: 'flex', alignItems: 'center', gap: 0.6 }}>
-              <Box sx={{ width: 10, height: 10, borderRadius: '50%', backgroundColor: 'var(--color-pink)' }} />
-              <Typography variant="caption" sx={{ color: 'text.secondary', fontWeight: 600 }}>
-                Media Notes
-              </Typography>
-            </Box>
-            <Box sx={{ display: 'flex', alignItems: 'center', gap: 0.6 }}>
-              <Box sx={{ width: 10, height: 10, borderRadius: '50%', backgroundColor: '#d97706' }} />
-              <Typography variant="caption" sx={{ color: 'text.secondary', fontWeight: 600 }}>
-                Assessments
-              </Typography>
-            </Box>
-          </Box>
-        </Box>
+        <NoteTypeLegend mt={0} />
       </Box>
     );
   };
@@ -757,26 +742,7 @@ const StatsPage = ({ user, role, manageableClassrooms = [], onBack, onNavigateTo
           </ResponsiveContainer>
         </Box>
         {/* Legend */}
-        <Box sx={{ mt: 1, display: 'flex', justifyContent: 'center' }}>
-          <Box sx={{ display: 'grid', gridTemplateColumns: 'auto auto', gap: 0.5, columnGap: 2, alignItems: 'center', px: 1.5, py: 0.75, borderRadius: 2, border: '1px solid var(--color-border)', backgroundColor: 'white' }}>
-            <Box sx={{ display: 'flex', alignItems: 'center', gap: 0.6 }}>
-              <Box sx={{ width: 10, height: 10, borderRadius: '50%', backgroundColor: '#4f46e5' }} />
-              <Typography variant="caption" sx={{ color: 'text.secondary', fontWeight: 600 }}>Observations</Typography>
-            </Box>
-            <Box sx={{ display: 'flex', alignItems: 'center', gap: 0.6 }}>
-              <Box sx={{ width: 10, height: 10, borderRadius: '50%', backgroundColor: '#059669' }} />
-              <Typography variant="caption" sx={{ color: 'text.secondary', fontWeight: 600 }}>Lessons</Typography>
-            </Box>
-            <Box sx={{ display: 'flex', alignItems: 'center', gap: 0.6 }}>
-              <Box sx={{ width: 10, height: 10, borderRadius: '50%', backgroundColor: '#ec4899' }} />
-              <Typography variant="caption" sx={{ color: 'text.secondary', fontWeight: 600 }}>Media</Typography>
-            </Box>
-            <Box sx={{ display: 'flex', alignItems: 'center', gap: 0.6 }}>
-              <Box sx={{ width: 10, height: 10, borderRadius: '50%', backgroundColor: '#d97706' }} />
-              <Typography variant="caption" sx={{ color: 'text.secondary', fontWeight: 600 }}>Assessments</Typography>
-            </Box>
-          </Box>
-        </Box>
+        <NoteTypeLegend />
       </Box>
     );
   };

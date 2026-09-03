@@ -1,8 +1,13 @@
 import * as functions from "firebase-functions/v1";
 // defineSecret imports come from shared/llm.js (OPENROUTER_API_KEY, LANGFUSE_SECRET_KEY, LANGFUSE_PUBLIC_KEY)
+import { defineSecret } from "firebase-functions/params";
 import { db } from "../shared/firebase.js";
 import { runLLM, OPENROUTER_API_KEY, LANGFUSE_SECRET_KEY, LANGFUSE_PUBLIC_KEY } from "../shared/llm.js";
 import { createLangfuse } from "../shared/langfuse.js";
+import { broadcastAlert } from "../shared/telegram.js";
+import { formatFolderHealedSignal } from "../shared/verifierTelegram.js";
+
+const TELEGRAM_BOT_TOKEN = defineSecret("TELEGRAM_BOT_TOKEN");
 
 import { REPORT_DEFAULTS, READINESS_DEFAULTS, JUDGE_DEFAULTS, getReadinessDocId, DRIVE_CONSTANTS, buildCsvFilename, buildArchiveCsvFilename, buildBaselineCsvFilename, buildBaselineArchiveCsvFilename } from "../config/reportConstants.js";
 import { getDefaultDateRange, parseReportResponse, parseReadinessResponse, parseJudgeResponse, getReportPromptDocId, getJudgePromptDocId, getReadinessPromptDocId, mergeReportConfig, formatCsvRow, updateCsvContent, removeCsvRow, appendCsvContent, normalizeEndOfDay, assembleReportSystemContent, buildReadinessArchive } from "../utils/reportHelpers.js";
@@ -10,7 +15,7 @@ import { getDefaultDateRange, parseReportResponse, parseReadinessResponse, parse
 // LANGFUSE_SECRET_KEY and LANGFUSE_PUBLIC_KEY imported from shared/llm.js
 import {
   getDriveClients,
-  getOrCreateClassroomFolder,
+  ensureClassroomFolderId,
   getOrCreateFolder,
   createReportDoc,
   downloadCsvContent,
@@ -505,7 +510,7 @@ export const previewStudentReport = functions
  */
 export const exportReportToDrive = functions
   .region("asia-south1")
-  .runWith({ timeoutSeconds: 240, memory: "1GB", secrets: [OPENROUTER_API_KEY, LANGFUSE_SECRET_KEY, LANGFUSE_PUBLIC_KEY] })
+  .runWith({ timeoutSeconds: 240, memory: "1GB", secrets: [OPENROUTER_API_KEY, LANGFUSE_SECRET_KEY, LANGFUSE_PUBLIC_KEY, TELEGRAM_BOT_TOKEN] })
   .https.onCall(async (data, context) => {
     if (!context.auth) {
       throw new functions.https.HttpsError("unauthenticated", "User must be authenticated");
@@ -657,14 +662,15 @@ export const exportReportToDrive = functions
     // Get or create Drive folder hierarchy: Branch → Program → Classroom
     const { drive, docs } = await getDriveClients();
 
-    let classroomFolderId = classroomData?.driveFolderId;
-    if (!classroomFolderId) {
-      classroomFolderId = await getOrCreateClassroomFolder(
-        drive, branchName, programName, classroomName,
-      );
-      await db.collection("classrooms").doc(classroomId).update({
-        driveFolderId: classroomFolderId,
-      });
+    // Validate-or-recreate: the cached driveFolderId can dangle if the folder
+    // is deleted in Drive (Sept 2026 Kokapet incident). See helper docs.
+    const { folderId: classroomFolderId, healed: folderHealed } = await ensureClassroomFolderId(
+      drive, db, classroomId, classroomData,
+      { branchName, programName, classroomName },
+    );
+    if (folderHealed) {
+      const healMsg = formatFolderHealedSignal(classroomName, "report export");
+      await broadcastAlert(TELEGRAM_BOT_TOKEN.value(), db, healMsg).catch(() => {});
     }
 
     // Create student subfolder inside classroom folder

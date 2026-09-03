@@ -24,6 +24,7 @@ Firebase Functions v1 Pub/Sub schedules and use asynchronous `onRun` handlers.
 | Sunday at 00:30 | `generateWritingAnalysis` | `functions/ai/handwriting.js` | Direct async work | Runs writing analysis for all active students and archives prior scheduled results. Moved from Monday 00:00 to Sunday 00:30 so digests consume same-week results (#229). |
 | Sunday at 01:00 | `verifyWeeklyStudentAI` | `functions/verification/index.js` | Verifier | Verifies baseball-card and writing-analysis outputs for all active students (#229). |
 | Sunday at 19:15 | `verifyWeeklyDigests` | `functions/verification/index.js` | Verifier | Verifies classroom-admin and superadmin digest outputs (#229). |
+| Monday at 09:00 | `verifyDriveIntegrity` | `functions/verification/index.js` | Verifier | Probes every cached Drive ID pointer (shared drive root, classroom folders, current-month plan/checklist docs, current-AY report docs) and signals dead, access-lost, or moved pointers to Telegram. Read-only with a weekly green heartbeat; detection within 7 days preserves the 30-day Drive trash window. |
 
 ## Monthly
 
@@ -49,6 +50,7 @@ Firebase Functions v1 Pub/Sub schedules and use asynchronous `onRun` handlers.
 | `generateWritingAnalysis` | `30 0 * * 0` | `functions/ai/handwriting.js` |
 | `verifyWeeklyStudentAI` | `0 1 * * 0` | `functions/verification/index.js` |
 | `verifyWeeklyDigests` | `15 19 * * 0` | `functions/verification/index.js` |
+| `verifyDriveIntegrity` | `0 9 * * 1` | `functions/verification/index.js` |
 | `cleanupDeletedChats` | `0 0 1 * *` | `functions/chat/cleanupDeletedChats.js` |
 | `verifyCleanupDeletedChats` | `30 0 1 * *` | `functions/verification/index.js` |
 | `regenerateSoulsMonthly` | `0 2 1 * *` | `functions/students/soul.js` |

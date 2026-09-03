@@ -27,7 +27,7 @@ import { calculateAge } from "../utils/handwritingAnalysisHelpers.js";
 import { buildUserPrompt } from "./helpers.js";
 import {
   getDriveClients,
-  getOrCreateClassroomFolder,
+  ensureClassroomFolderId,
   getOrCreateFolder,
   createShortcut,
   capitalize,
@@ -54,7 +54,7 @@ import {
   classifyError,
 } from "../shared/ledger.js";
 import { broadcastAlert } from "../shared/telegram.js";
-import { formatCrashSignal } from "../shared/verifierTelegram.js";
+import { formatCrashSignal, formatFolderHealedSignal } from "../shared/verifierTelegram.js";
 
 const TELEGRAM_BOT_TOKEN = defineSecret("TELEGRAM_BOT_TOKEN");
 
@@ -372,15 +372,12 @@ async function exportPlanToDriveInternal(studentId, exportedBy) {
   // 3. Get/create Drive folder hierarchy
   const { drive, docs } = await getDriveClients();
 
-  let classroomFolderId = classroomData?.driveFolderId;
-  if (!classroomFolderId) {
-    classroomFolderId = await getOrCreateClassroomFolder(
-      drive, branchName, programName, classroomName,
-    );
-    await db.collection("classrooms").doc(classroomId).update({
-      driveFolderId: classroomFolderId,
-    });
-  }
+  // Validate-or-recreate: the cached driveFolderId can dangle if the folder
+  // is deleted in Drive (Sept 2026 Kokapet incident). See helper docs.
+  const { folderId: classroomFolderId, healed: folderHealed } = await ensureClassroomFolderId(
+    drive, db, classroomId, classroomData,
+    { branchName, programName, classroomName },
+  );
 
   // Create "Monthly Plans" → "{Month YYYY}" subfolder (canonical location)
   const monthlyPlansFolderId = await getOrCreateFolder(drive, classroomFolderId, "Monthly Plans");
@@ -491,9 +488,9 @@ async function exportPlanToDriveInternal(studentId, exportedBy) {
     driveExportedBy: exportedBy || "unknown",
   });
 
-  console.log(`[exportPlanToDriveInternal] ${studentId}: plan=${driveDocId}, checklist=${driveChecklistId}`);
+  console.log(`[exportPlanToDriveInternal] ${studentId}: plan=${driveDocId}, checklist=${driveChecklistId}${folderHealed ? " (classroom folder healed)" : ""}`);
 
-  return { driveDocId, driveDocLink, driveChecklistId, driveChecklistLink };
+  return { driveDocId, driveDocLink, driveChecklistId, driveChecklistLink, folderHealed, classroomName };
 }
 
 // ---------------------------------------------------------------------------
@@ -548,7 +545,7 @@ export const generateMonthlyPlan = functions
 
 export const exportMonthlyPlanToDrive = functions
   .region("asia-south1")
-  .runWith({ timeoutSeconds: 120, memory: "512MB" })
+  .runWith({ timeoutSeconds: 120, memory: "512MB", secrets: [TELEGRAM_BOT_TOKEN] })
   .https.onCall(async (data, context) => {
     // Auth + role gate
     if (!context.auth) {
@@ -566,6 +563,12 @@ export const exportMonthlyPlanToDrive = functions
     }
 
     const result = await exportPlanToDriveInternal(studentId, callerUid);
+
+    // Alert on self-healed classroom folder - best-effort, never fails the export
+    if (result.folderHealed) {
+      const msg = formatFolderHealedSignal(result.classroomName, "manual monthly plan export");
+      await broadcastAlert(TELEGRAM_BOT_TOKEN.value(), db, msg).catch(() => {});
+    }
 
     return {
       status: "ok",
@@ -722,7 +725,7 @@ export const monthlyPlanWorker = functions
     timeoutSeconds: 300,
     memory: "1GB",
     maxInstances: 5,
-    secrets: [OPENROUTER_API_KEY, LANGFUSE_SECRET_KEY, LANGFUSE_PUBLIC_KEY],
+    secrets: [OPENROUTER_API_KEY, LANGFUSE_SECRET_KEY, LANGFUSE_PUBLIC_KEY, TELEGRAM_BOT_TOKEN],
   })
   .pubsub.topic(MONTHLY_PLAN_TOPIC)
   .onPublish(async (message) => {
@@ -784,11 +787,22 @@ export const monthlyPlanWorker = functions
 
     // Step 2: Export to Drive via shared internal helper
     try {
-      await exportPlanToDriveInternal(studentId, "system:batchCron");
+      const exportResult = await exportPlanToDriveInternal(studentId, "system:batchCron");
       console.log(`[monthlyPlanWorker] exported to Drive for ${studentId}`);
       await updateWorkItem(JOB_KEY, executionId, studentId, buildWorkItemUpdate("success", {
-        evidence: { month: targetMonth, driveExported: true },
+        // folderHealed stamps the ledger when a stale classroom folder cache
+        // was self-repaired mid-export, so heals stay auditable even though
+        // the export itself succeeds (green signal otherwise hides them).
+        evidence: {
+          month: targetMonth,
+          driveExported: true,
+          ...(exportResult.folderHealed ? { folderHealed: true } : {}),
+        },
       })).catch(() => {});
+      if (exportResult.folderHealed) {
+        const msg = formatFolderHealedSignal(exportResult.classroomName, "monthly plan export (cron)");
+        await broadcastAlert(TELEGRAM_BOT_TOKEN.value(), db, msg).catch(() => {});
+      }
     } catch (driveErr) {
       // Plan was generated but Drive export failed — log but don't re-throw
       // (plan is saved; Drive export can be retried manually)
