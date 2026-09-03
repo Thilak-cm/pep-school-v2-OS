@@ -272,18 +272,21 @@ export default function GraduateStudentsPage({ userRole, manageableClassrooms })
     }
   };
 
-  // Classroomadmins only see classrooms they manage (firestore rules require
-  // managesClassroom on BOTH source and destination for the transfer batch).
-  // Without this filter the dropdown offers unmanageable classrooms - including
-  // other branches' identically-named ones - and the transfer fails with an
-  // opaque "Missing or insufficient permissions" error at commit time.
-  const visibleClassrooms = useMemo(() => {
+  // SOURCE dropdown: classroomadmins only see classrooms they manage (firestore
+  // rules enforce managesClassroom on the source side of the transfer batch).
+  // Without this filter the transfer fails with an opaque "Missing or
+  // insufficient permissions" error at commit time.
+  const sourceOptions = useMemo(() => {
     if (userRole !== 'classroomadmin') return classrooms;
     const managed = new Set(Array.isArray(manageableClassrooms) ? manageableClassrooms : []);
     return classrooms.filter(c => managed.has(c.id));
   }, [classrooms, userRole, manageableClassrooms]);
 
-  const destOptions = useMemo(() => visibleClassrooms.filter(c => !!c?.id && c.id !== sourceClassroomId && (c.status || 'active') === 'active'), [visibleClassrooms, sourceClassroomId]);
+  // DESTINATION dropdown: all active classrooms, deliberately NOT scoped to
+  // manageableClassrooms. Explicit school request: classroomadmins graduate
+  // students to classrooms outside their purview (rules enforce source only).
+  // After the move the admin loses access to the student - accepted behavior.
+  const destOptions = useMemo(() => classrooms.filter(c => !!c?.id && c.id !== sourceClassroomId && (c.status || 'active') === 'active'), [classrooms, sourceClassroomId]);
 
   return (
     <Box sx={{ display: 'flex', flexDirection: 'column', gap: 2 }}>
@@ -320,7 +323,7 @@ export default function GraduateStudentsPage({ userRole, manageableClassrooms })
                     onChange={(e) => setSourceClassroomId(e.target.value)}
                     MenuProps={{ PaperProps: { sx: { maxHeight: 340 } } }}
                   >
-                    {groupedClassroomItems(visibleClassrooms)}
+                    {groupedClassroomItems(sourceOptions)}
                   </Select>
                 </FormControl>
 

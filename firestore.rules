@@ -181,8 +181,20 @@ service cloud.firestore {
 
       allow update: if isSuperAdmin() || (
         isClassroomAdmin() &&
-        managesClassroom(requestClassroomForStudent()) &&
-        managesClassroom(existingClassroomForStudent())
+        managesClassroom(existingClassroomForStudent()) &&
+        (
+          managesClassroom(requestClassroomForStudent()) ||
+          // Graduation out of purview (explicit school request): a classroomadmin
+          // may move a student from a managed classroom to ANY classroom.
+          // Source is enforced; destination is not. Guardrails:
+          // - pure transfer only: no other student fields may ride along
+          // - destination classroom must exist (a typo'd ID would orphan the
+          //   student with no undo, since the admin loses access after the move)
+          // Losing all access to the student post-move is accepted behavior.
+          (request.resource.data.diff(resource.data).affectedKeys()
+            .hasOnly(['classroomId', 'branchId', 'updatedAt']) &&
+           exists(/databases/$(database)/documents/classrooms/$(request.resource.data.classroomId)))
+        )
       );
 
       allow delete: if isSuperAdmin() ||
@@ -203,7 +215,15 @@ service cloud.firestore {
         // Create validation
         // Use request.resource.data.classroomId (not parent doc lookup) so placement
         // can be created in the same transaction that creates the student doc.
-        allow create: if managesClassroom(request.resource.data.classroomId) &&
+        // Second branch: graduation out of purview - the destination placement's
+        // classroomId is unmanaged, so authorize via the student's CURRENT
+        // (pre-batch) classroom instead. Branch order matters: the first branch
+        // must short-circuit for same-transaction student creation, where
+        // studentClassroomId() would error on the not-yet-existing student doc.
+        allow create: if (
+            managesClassroom(request.resource.data.classroomId) ||
+            (isClassroomAdmin() && managesClassroom(studentClassroomId(studentId)))
+          ) &&
           request.resource.data.keys().hasAll(['classroomId','startDate']) &&
           (request.resource.data.classroomId is string) &&
           (request.resource.data.startDate is string &&

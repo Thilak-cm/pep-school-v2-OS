@@ -102,17 +102,48 @@ test('Context 0 — teacherB cannot read studentA timeline before transfer', asy
   }));
 });
 
-test('Transfer event — source-only classroomAdminA cannot move studentA into unmanaged classroomB', async () => {
-  const { transfers } = operationsFor('classroomAdminA');
-  await assertFails(transfers.transferStudents(transferRequest));
+test('Transfer event — classroomAdminB cannot pull studentA out of unmanaged source classroomA', async () => {
+  // Rules enforce the SOURCE classroom only. Managing the destination does not
+  // grant transfer rights over students in someone else's classroom.
+  // The production operation cannot even READ the student, so it records a
+  // per-student failure and commits an empty batch (which trivially succeeds) -
+  // assert on the outcome, not on the promise rejecting.
+  const { transfers } = operationsFor('classroomAdminB');
+  const result = await transfers.transferStudents(transferRequest);
+  assert.equal(result.successCount, 0);
+  assert.equal(result.failures.length, 1);
+
+  // Direct rule-level check: the student update itself is denied because the
+  // EXISTING classroom is unmanaged, even though the destination is managed.
+  const db = createAuthenticatedDb('classroomAdminB');
+  await assertFails(updateDoc(doc(db, 'students', 'studentA'), {
+    classroomId: 'classroomB',
+    updatedAt: serverTimestamp(),
+  }));
 });
 
-test.todo(
-  'Transfer event — destination classroomAdminB can move studentA into managed classroomB (#176 rule change)',
-);
+test('Transfer event — classroomAdminA cannot smuggle other field edits into a transfer write', async () => {
+  // The out-of-purview transfer arm only allows classroomId/branchId/updatedAt.
+  const db = createAuthenticatedDb('classroomAdminA');
+  await assertFails(updateDoc(doc(db, 'students', 'studentA'), {
+    classroomId: 'classroomB',
+    firstName: 'Smuggled',
+    updatedAt: serverTimestamp(),
+  }));
+});
 
-test('Transfer event — superAdmin executes the same production operation to advance the lifecycle', async () => {
-  const { transfers } = operationsFor('superAdmin');
+test('Transfer event — classroomAdminA cannot transfer studentA to a nonexistent classroom', async () => {
+  const { transfers } = operationsFor('classroomAdminA');
+  await assertFails(transfers.transferStudents({
+    ...transferRequest,
+    destinationClassroomId: 'classroomGhost',
+  }));
+});
+
+test('Transfer event — classroomAdminA moves studentA to unmanaged classroomB (source-only enforcement)', async () => {
+  // Explicit school request: classroomadmins graduate students OUT of their
+  // purview. This runs the same production batch superadmins use.
+  const { transfers } = operationsFor('classroomAdminA');
   const result = await assertSucceeds(transfers.transferStudents(transferRequest));
   assert.equal(result.successCount, 1);
   assert.deepEqual(result.failures, []);
@@ -151,6 +182,17 @@ test('Context 1 — transfer updates student and placement state but preserves o
   assert.equal(newPlacement.data().endDate, null);
   assert.equal(newPlacement.data().status, 'active');
   assert.equal(oldObservation.data().classroomId, 'classroomA');
+});
+
+test('Context 1 — classroomAdminA loses all access to studentA after graduating them out', async () => {
+  // Accepted consequence of out-of-purview graduation: no undo on the source
+  // admin's side. Only a superadmin or the destination's admin can move back.
+  const db = createAuthenticatedDb('classroomAdminA');
+  await assertFails(getDoc(doc(db, 'students', 'studentA')));
+  await assertFails(updateDoc(doc(db, 'students', 'studentA'), {
+    classroomId: 'classroomA',
+    updatedAt: serverTimestamp(),
+  }));
 });
 
 test('Context 1 — teacherA keeps classroomA history but loses studentA timeline access', async () => {
