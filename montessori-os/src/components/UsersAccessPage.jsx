@@ -6,6 +6,7 @@ import {
   Select, MenuItem, FormControl, InputLabel
 } from '@mui/material';
 import { ArrowLeft as ArrowBack, UserPlus as PersonAdd, GraduationCap as School, UserCog as ManageAccounts, Users as Groups, Trash2 as Delete, Pencil as Edit, ChevronDown as ExpandMore } from '../icons';
+import ClassroomSelect from './ui/ClassroomSelect';
 import { httpsCallable } from 'firebase/functions';
 import { db, cloudFunctions } from '../firebase';
 import useNotify from '../notifications/useNotify.js';
@@ -2064,14 +2065,30 @@ const UsersAccessPage = ({ onBack, currentUser, userRole, manageableClassrooms =
               {(role === 'classroomadmin' || role === 'teacher') && (
                 <>
                   <Grid item xs={12}>
-                    <Typography variant="h6" sx={{ mb: 1, fontWeight: 600 }}>
-                      {role === 'classroomadmin' ? 'Classroom Admin Details' : 'Teacher Details'}
-                    </Typography>
+                    <Box sx={{ display: 'flex', gap: 2 }}>
+                      <TextField
+                        label="First Name"
+                        size="small"
+                        fullWidth
+                        value={userForm.firstName}
+                        onChange={(e) => setUserForm(p => ({ ...p, firstName: e.target.value }))}
+                        error={!!validationErrors.firstName}
+                        helperText={validationErrors.firstName}
+                      />
+                      <TextField
+                        label="Last Name (optional)"
+                        size="small"
+                        fullWidth
+                        value={userForm.lastName}
+                        onChange={(e) => setUserForm(p => ({ ...p, lastName: e.target.value }))}
+                      />
+                    </Box>
                   </Grid>
                   <Grid item xs={12}>
                     <TextField
                       label="Email"
                       placeholder="name@pepschoolv2.com, @ribbons.education, or @accelschool.in"
+                      size="small"
                       fullWidth
                       value={userForm.email}
                       onChange={(e) => setUserForm(p => ({ ...p, email: e.target.value }))}
@@ -2079,209 +2096,54 @@ const UsersAccessPage = ({ onBack, currentUser, userRole, manageableClassrooms =
                       helperText={validationErrors.email}
                     />
                   </Grid>
-                  <Grid item xs={12} sm={6}>
-                    <TextField
-                      label="First Name"
-                      fullWidth
-                      value={userForm.firstName}
-                      onChange={(e) => setUserForm(p => ({ ...p, firstName: e.target.value }))}
-                      error={!!validationErrors.firstName}
-                      helperText={validationErrors.firstName}
+                  <Grid item xs={12}>
+                    <ClassroomSelect
+                      classrooms={classrooms}
+                      value={role === 'classroomadmin' ? selectedAdminClassrooms : selectedClassrooms}
+                      onChange={(val) => {
+                        if (role === 'classroomadmin') {
+                          setSelectedAdminClassrooms(typeof val === 'string' ? val.split(',') : val);
+                        } else {
+                          setSelectedClassrooms(typeof val === 'string' ? val.split(',') : val);
+                        }
+                      }}
+                      label="Assign Classrooms"
+                      multiple
+                      error={!!validationErrors.classrooms}
+                      helperText={validationErrors.classrooms}
                     />
                   </Grid>
-                  <Grid item xs={12} sm={6}>
-                    <TextField
-                      label="Last Name (optional)"
-                      fullWidth
-                      value={userForm.lastName}
-                      onChange={(e) => setUserForm(p => ({ ...p, lastName: e.target.value }))}
-                    />
-                  </Grid>
-
-                  {role === 'classroomadmin' && (
-                    <Grid item xs={12}>
-                      <Divider sx={{ my: 2 }} />
-                      <Typography variant="subtitle1" sx={{ mb: 1 }}>Assign Classrooms</Typography>
-                      <Box
-                        sx={{
-                          backgroundColor: 'white',
-                          p: 0.75,
-                          borderRadius: 1.5,
-                          border: '1px solid var(--color-border)',
-                          maxHeight: 184,
-                          overflowY: 'auto'
-                        }}
-                      >
-                        <List dense disablePadding>
-                          {classrooms.map((cls) => (
-                            <ListItem key={cls.id} disablePadding>
-                              <ListItemButton
-                                dense
-                                onClick={() => handleAdminClassroomToggle(cls.id)}
-                              >
-                                <ListItemIcon sx={{ minWidth: 32 }}>
-                                  <Checkbox
-                                    edge="start"
-                                    tabIndex={-1}
-                                    disableRipple
-                                    checked={selectedAdminClassrooms.includes(cls.id)}
-                                  />
-                                </ListItemIcon>
-                                <ListItemText
-                                  primary={cls.name}
-                                  primaryTypographyProps={{ variant: 'body2' }}
-                                />
-                              </ListItemButton>
-                            </ListItem>
-                          ))}
-                        </List>
-                      </Box>
-                      {validationErrors.classrooms && (
-                        <Typography variant="caption" color="error">{validationErrors.classrooms}</Typography>
-                      )}
-                    </Grid>
-                  )}
-
-                  {role === 'teacher' && (
-                    <Grid item xs={12}>
-                      <Divider sx={{ my: 2 }} />
-                      <Typography variant="subtitle1" sx={{ mb: 1 }}>Assign Classrooms</Typography>
-                      {loading ? (
-                        <LoadingSpinner />
-                      ) : (
-                        <>
-                          <Box
-                            sx={{
-                              backgroundColor: 'white',
-                              p: 0.75,
-                              borderRadius: 1.5,
-                              border: '1px solid var(--color-border)',
-                              maxHeight: 184,
-                              overflowY: 'auto'
-                            }}
-                          >
-                            <List dense disablePadding>
-                              {classrooms.map((c) => (
-                                <ListItem key={c.id} disablePadding>
-                                  <ListItemButton
-                                    dense
-                                    onClick={() => handleClassroomToggle(c.id)}
-                                  >
-                                    <ListItemIcon sx={{ minWidth: 32 }}>
-                                      <Checkbox
-                                        edge="start"
-                                        tabIndex={-1}
-                                        disableRipple
-                                        checked={selectedClassrooms.includes(c.id)}
-                                      />
-                                    </ListItemIcon>
-                                    <ListItemText
-                                      primary={`${c.name} (${c.studentCount} students)`}
-                                      primaryTypographyProps={{ variant: 'body2' }}
-                                    />
-                                  </ListItemButton>
-                                </ListItem>
-                              ))}
-                            </List>
-                          </Box>
-                          {validationErrors.classrooms && (
-                            <Typography variant="caption" color="error">{validationErrors.classrooms}</Typography>
-                          )}
-                        </>
-                      )}
-                    </Grid>
-                  )}
                 </>
               )}
 
               {role === 'student' && (
                 <>
                   <Grid item xs={12}>
-                    <Typography variant="h6" sx={{ mb: 1, fontWeight: 600 }}>Student Details</Typography>
-                  </Grid>
-                  <Grid item xs={12} sm={6}>
-                    <TextField
-                      label="First Name"
-                      fullWidth
-                      value={studentForm.firstName}
-                      onChange={(e) => setStudentForm(p => ({ ...p, firstName: e.target.value }))}
-                      error={!!validationErrors.stuFirstName}
-                      helperText={validationErrors.stuFirstName}
-                    />
-                  </Grid>
-                  <Grid item xs={12} sm={6}>
-                    <TextField
-                      label="Last Name (optional)"
-                      fullWidth
-                      value={studentForm.lastName}
-                      onChange={(e) => setStudentForm(p => ({ ...p, lastName: e.target.value }))}
-                    />
-                  </Grid>
-                  <Grid item xs={12}>
-                    <Typography variant="subtitle2" sx={{ mb: 1 }}>Classroom</Typography>
-                    <Box
-                      sx={{
-                        backgroundColor: 'white',
-                        p: 0.75,
-                        borderRadius: 1.5,
-                        border: '1px solid var(--color-border)',
-                        maxHeight: 184,
-                        overflowY: 'auto'
-                      }}
-                    >
-                      <List dense disablePadding>
-                        {classrooms.map((c) => (
-                          <ListItem key={c.id} disablePadding>
-                            <ListItemButton
-                              dense
-                              onClick={() => setStudentForm((p) => ({ ...p, classroomId: c.id, branchId: c.branchId || '' }))}
-                            >
-                              <ListItemIcon sx={{ minWidth: 32 }}>
-                                <Checkbox
-                                  edge="start"
-                                  tabIndex={-1}
-                                  disableRipple
-                                  checked={studentForm.classroomId === c.id}
-                                />
-                              </ListItemIcon>
-                              <ListItemText
-                                primary={`${c.name} (${c.studentCount} students)`}
-                                primaryTypographyProps={{ variant: 'body2' }}
-                              />
-                            </ListItemButton>
-                          </ListItem>
-                        ))}
-                      </List>
+                    <Box sx={{ display: 'flex', gap: 2 }}>
+                      <TextField
+                        label="First Name"
+                        size="small"
+                        fullWidth
+                        value={studentForm.firstName}
+                        onChange={(e) => setStudentForm(p => ({ ...p, firstName: e.target.value }))}
+                        error={!!validationErrors.stuFirstName}
+                        helperText={validationErrors.stuFirstName}
+                      />
+                      <TextField
+                        label="Last Name (optional)"
+                        size="small"
+                        fullWidth
+                        value={studentForm.lastName}
+                        onChange={(e) => setStudentForm(p => ({ ...p, lastName: e.target.value }))}
+                      />
                     </Box>
-                    {validationErrors.classroomId && (
-                      <Typography variant="caption" color="error">{validationErrors.classroomId}</Typography>
-                    )}
                   </Grid>
-                  {studentForm.classroomId && studentForm.branchId && (
-                    <Grid item xs={12}>
-                      <Typography variant="subtitle2" sx={{ mb: 1 }}>Branch</Typography>
-                      <Box
-                        sx={{
-                          backgroundColor: 'var(--color-bg)',
-                          p: 1.5,
-                          borderRadius: 1.5,
-                          border: '1px solid var(--color-border)',
-                        }}
-                      >
-                        <Typography variant="body2" color="text.secondary">
-                          {(() => {
-                            const branch = branches.find(b => b.id === studentForm.branchId);
-                            return branch ? (branch.name || branch.id).toUpperCase() : studentForm.branchId.toUpperCase();
-                          })()}
-                        </Typography>
-                      </Box>
-                    </Grid>
-                  )}
                   <Grid item xs={12}>
                     <TextField
                       type="date"
                       label="Date of Birth"
                       required
+                      size="small"
                       InputLabelProps={{ shrink: true }}
                       fullWidth
                       value={studentForm.dob}
@@ -2291,14 +2153,42 @@ const UsersAccessPage = ({ onBack, currentUser, userRole, manageableClassrooms =
                       inputProps={{ max: new Date().toISOString().split('T')[0] }}
                     />
                   </Grid>
-                  {/* Parent 1 (required) */}
                   <Grid item xs={12}>
-                    <Divider sx={{ my: 2 }} />
-                    <Typography variant="subtitle1" sx={{ fontWeight: 600 }}>Parent 1</Typography>
+                    <ClassroomSelect
+                      classrooms={classrooms}
+                      value={studentForm.classroomId}
+                      onChange={(val) => {
+                        const cls = classrooms.find(c => c.id === val);
+                        setStudentForm((p) => ({ ...p, classroomId: val, branchId: cls?.branchId || '' }));
+                      }}
+                      label="Classroom"
+                      error={!!validationErrors.classroomId}
+                      helperText={validationErrors.classroomId}
+                    />
                   </Grid>
-                  <Grid item xs={12} sm={4}>
+
+                  {/* Parent 1 */}
+                  <Grid item xs={12}>
+                    <Typography
+                      variant="caption"
+                      sx={{
+                        fontWeight: 700,
+                        textTransform: 'uppercase',
+                        letterSpacing: '0.08em',
+                        color: 'text.secondary',
+                        display: 'block',
+                        borderBottom: '1px solid',
+                        borderColor: 'divider',
+                        pb: 0.5,
+                      }}
+                    >
+                      Parent / Guardian 1
+                    </Typography>
+                  </Grid>
+                  <Grid item xs={12}>
                     <TextField
                       label="Name"
+                      size="small"
                       fullWidth
                       required
                       value={studentForm.parent1Name}
@@ -2307,58 +2197,76 @@ const UsersAccessPage = ({ onBack, currentUser, userRole, manageableClassrooms =
                       helperText={validationErrors.parent1Name}
                     />
                   </Grid>
-                  <Grid item xs={12} sm={4}>
-                    <TextField
-                      label="Email"
-                      fullWidth
-                      required
-                      type="email"
-                      value={studentForm.parent1Email}
-                      onChange={(e) => setStudentForm(p => ({ ...p, parent1Email: e.target.value }))}
-                      error={!!validationErrors.parent1Email}
-                      helperText={validationErrors.parent1Email}
-                    />
-                  </Grid>
-                  <Grid item xs={12} sm={4}>
-                    <TextField
-                      label="Phone"
-                      fullWidth
-                      value={studentForm.parent1Phone}
-                      onChange={(e) => setStudentForm(p => ({ ...p, parent1Phone: e.target.value }))}
-                    />
+                  <Grid item xs={12}>
+                    <Box sx={{ display: 'flex', gap: 2 }}>
+                      <TextField
+                        label="Email"
+                        size="small"
+                        fullWidth
+                        required
+                        type="email"
+                        value={studentForm.parent1Email}
+                        onChange={(e) => setStudentForm(p => ({ ...p, parent1Email: e.target.value }))}
+                        error={!!validationErrors.parent1Email}
+                        helperText={validationErrors.parent1Email}
+                      />
+                      <TextField
+                        label="Phone"
+                        size="small"
+                        fullWidth
+                        value={studentForm.parent1Phone}
+                        onChange={(e) => setStudentForm(p => ({ ...p, parent1Phone: e.target.value }))}
+                      />
+                    </Box>
                   </Grid>
 
-                  {/* Parent 2 (optional) */}
+                  {/* Parent 2 */}
                   <Grid item xs={12}>
-                    <Divider sx={{ my: 2 }} />
-                    <Typography variant="subtitle1" sx={{ fontWeight: 600 }}>Parent 2 (optional)</Typography>
+                    <Typography
+                      variant="caption"
+                      sx={{
+                        fontWeight: 700,
+                        textTransform: 'uppercase',
+                        letterSpacing: '0.08em',
+                        color: 'text.disabled',
+                        display: 'block',
+                        borderBottom: '1px solid',
+                        borderColor: 'divider',
+                        pb: 0.5,
+                      }}
+                    >
+                      Parent / Guardian 2 (optional)
+                    </Typography>
                   </Grid>
-                  <Grid item xs={12} sm={4}>
+                  <Grid item xs={12}>
                     <TextField
                       label="Name"
+                      size="small"
                       fullWidth
                       value={studentForm.parent2Name}
                       onChange={(e) => setStudentForm(p => ({ ...p, parent2Name: e.target.value }))}
                     />
                   </Grid>
-                  <Grid item xs={12} sm={4}>
-                    <TextField
-                      label="Email"
-                      fullWidth
-                      type="email"
-                      value={studentForm.parent2Email}
-                      onChange={(e) => setStudentForm(p => ({ ...p, parent2Email: e.target.value }))}
-                      error={!!validationErrors.parent2Email}
-                      helperText={validationErrors.parent2Email}
-                    />
-                  </Grid>
-                  <Grid item xs={12} sm={4}>
-                    <TextField
-                      label="Phone"
-                      fullWidth
-                      value={studentForm.parent2Phone}
-                      onChange={(e) => setStudentForm(p => ({ ...p, parent2Phone: e.target.value }))}
-                    />
+                  <Grid item xs={12}>
+                    <Box sx={{ display: 'flex', gap: 2 }}>
+                      <TextField
+                        label="Email"
+                        size="small"
+                        fullWidth
+                        type="email"
+                        value={studentForm.parent2Email}
+                        onChange={(e) => setStudentForm(p => ({ ...p, parent2Email: e.target.value }))}
+                        error={!!validationErrors.parent2Email}
+                        helperText={validationErrors.parent2Email}
+                      />
+                      <TextField
+                        label="Phone"
+                        size="small"
+                        fullWidth
+                        value={studentForm.parent2Phone}
+                        onChange={(e) => setStudentForm(p => ({ ...p, parent2Phone: e.target.value }))}
+                      />
+                    </Box>
                   </Grid>
                 </>
               )}
