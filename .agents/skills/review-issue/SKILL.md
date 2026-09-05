@@ -7,16 +7,30 @@ description: "Independent code review in a fresh session: audit diff against Git
 
 ## Goal
 
-Provide an independent quality gate between implementation and production. This skill runs in a **fresh Claude session** (not the one that wrote the code) and orchestrates subagents to audit the diff, fix issues, and re-audit in a loop until the code is clean — then ships it.
+Attack the implementation. This skill exists to prove the code is wrong, incomplete, or out of spec - and only ships it when it genuinely can't find anything to challenge. It runs in a **fresh Claude session** (not the one that wrote the code) with zero sympathy for the implementer's intent.
+
+The posture is adversarial by design: assume the implementation has gaps, misunderstood requirements, missed edge cases, or deviated from the spec. The burden of proof is on the code, not the reviewer. A "looks reasonable" pass is a failure of the review process. If the implementation is truly bulletproof, the adversarial posture costs nothing. If it's not, it catches what a neutral review would miss.
 
 The orchestrator itself stays thin. Heavy work (reading diffs, auditing code, making fixes) is delegated to subagents so the main context is protected and the audit loop can run as many times as needed without degradation.
+
+## Adversarial Stance
+
+The reviewer's job is NOT to confirm the implementation works. It is to find reasons why it doesn't. Concretely:
+
+- **Challenge every acceptance criterion.** Don't check "is AC1 covered?" - check "what would make AC1 fail, and does the code handle that?"
+- **Distrust the tests.** Passing tests prove the happy path. What paths aren't tested? What inputs would break the assumptions the tests rely on?
+- **Question scope compliance.** Did the implementation add anything not in the spec? Did it subtly reinterpret a requirement? Did it "improve" something that should have been left alone?
+- **Assume blast radius.** Every change touches more than the diff shows. The impact checker exists because the reviewer should be paranoid about downstream effects.
+- **Hold the verification strategy accountable.** If the spec included a verification strategy (verifier artifacts, isolation mechanisms, instrumentation), check that the implementation actually built them. Missing verification infrastructure is a blocker.
+
+If the audit comes back clean on the first pass, that's suspicious - not reassuring. Push harder.
 
 ## When to Use
 
 - After `/plan-issue` + `/implement-issue` completes in a separate session
 - You are in a **new Claude session** (fresh context, no implementation bias)
 - The feature branch has committed or uncommitted changes ready for review
-- You want the only quality gate before prod to be rigorous
+- You want the only quality gate before prod to be adversarial
 
 ## Prerequisites
 
@@ -106,16 +120,18 @@ Only if Phase 1 determined exploration is needed.
 
 ### Phase 2: Parallel Audit
 
-The audit is split into two parallel agents with different scopes to enable overlapped fixing.
+The audit is split into two parallel agents with different scopes to enable overlapped fixing. Both agents are briefed with the adversarial stance: their job is to find what's wrong, not confirm what's right.
 
 **2a. Spawn both auditors in parallel (same moment):**
 
 | Agent | Scope | Input | Why |
 |-------|-------|-------|-----|
-| **Quick auditor** (`code-auditor`) | `quick` | Diff only | Fast mechanical checks — dead code, debug artifacts, unused imports, obvious async errors |
-| **Deep auditor** (`code-auditor`) | `deep` | Diff + GitHub issue + overview + explore summary | Reasoning-heavy checks — scope alignment, correctness, security, patterns, test coverage |
+| **Quick auditor** (`code-auditor`) | `quick` | Diff only | Fast mechanical checks - dead code, debug artifacts, unused imports, obvious async errors |
+| **Deep auditor** (`code-auditor`) | `deep` | Diff + GitHub issue + overview + explore summary | Adversarial checks - scope deviation, requirement misinterpretation, missing edge cases, security gaps, untested paths, missing verification infrastructure |
 
 Both agents output structured reports in the audit report contract format. The quick auditor omits the `Scope Alignment` section.
+
+**Adversarial brief to deep auditor:** Include this framing when dispatching the deep auditor: "Your job is to attack this implementation. Assume it has gaps. For each acceptance criterion, identify what would make it fail. For each code path, identify what isn't tested. For scope alignment, check not just that the spec was followed but that nothing was added, reinterpreted, or subtly changed beyond what the spec called for. If the spec included a Verification Strategy section, confirm the implementation built the specified verifier artifacts, isolation mechanisms, and instrumentation. Missing verification infrastructure is a blocker."
 
 **2b. As each auditor returns, act immediately:**
 
@@ -390,9 +406,11 @@ Check whether the diff involves Firestore schema changes. Run this check automat
 
 ## Guardrails
 
-- **Fresh session required:** This skill assumes it's running in a session that did NOT implement the code. The audit's value comes from independence.
+- **Adversarial posture is non-negotiable.** The reviewer works against the implementation, not alongside it. A clean first-pass result should trigger skepticism ("did I look hard enough?"), not satisfaction.
+- **Fresh session required:** This skill assumes it's running in a session that did NOT implement the code. The audit's value comes from independence and hostility.
 - **Subagents do the heavy lifting:** The orchestrator does NOT read the full diff itself. It passes the diff to the audit agent. This protects main context.
 - **Each audit is fresh:** Re-audits spawn a new audit agent. No memory of previous audits. This prevents the audit from becoming lenient after seeing fixes.
+- **Verification strategy compliance:** If the GitHub issue includes a Verification Strategy section (verifier artifacts, isolation mechanisms, instrumentation), the audit must check that every specified item was actually built. Missing verification infrastructure is a blocker, not a warning.
 - **Impact check always runs:** The impact checker runs on every diff. It conditionally skips internal phases (e.g., rule cascade analysis only runs if rules changed), but Phase 1 (change classification) and Phase 2 (transitive consumer tracing) always execute. If Phase 1 finds NO external-facing changes, the agent returns NO_IMPACT quickly.
 - **Max 3 fix iterations:** If 3 rounds of fix+audit don't resolve everything, stop and escalate to the user. Don't loop forever.
 - **Do not merge:** This skill opens a PR. It does NOT merge into `dev`. That's `/merge-issue`'s job.
