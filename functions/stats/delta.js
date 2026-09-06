@@ -65,9 +65,9 @@ export function isCountableObservation(observation = {}) {
 }
 
 const emptyCounts = () => ({voice: 0, text: 0, lesson: 0, media: 0, total: 0});
-const emptyTeacherCounts = () => ({observations: 0, lessons: 0, media: 0, handwritten: 0});
+const emptyTeacherCounts = () => ({observations: 0, lessons: 0, media: 0, handwritten: 0, assessments: 0, questionsAnswered: 0});
 const emptyStudentCounts = () => ({totalMentions: 0, mediaMentions: 0, handwrittenMentions: 0});
-const emptyTeacherDayCounts = () => ({observations: 0, lessons: 0, media: 0, handwritten: 0});
+const emptyTeacherDayCounts = () => ({observations: 0, lessons: 0, media: 0, handwritten: 0, assessments: 0, questionsAnswered: 0});
 const emptyStudentDayCounts = () => ({mentions: 0, media: 0, handwritten: 0});
 const dayKey = (atMs) => String(Math.floor(atMs / DAY_MS));
 const windowCutoffDay = (nowMs, days) => Math.floor(nowMs / DAY_MS) - days + 1;
@@ -84,6 +84,11 @@ function emptyClassroomDelta(now) {
     effortActivityByType: Object.fromEntries(["voice", "text", "lesson", "media"].map((type) => [type, createActivityTiers(now)])),
     teacherTotals: new Map(), teacherRecent: new Map(),
     studentTotals: new Map(), studentRecent: new Map(),
+    // Ephemeral per-teacher student ID sets (#274). Consumed by reconcile's
+    // buildClassroomCache to compute studentsReached integer counts, then
+    // discarded — never persisted into aggregationState, so the delta path
+    // cannot (and must not) update these counts. They refresh weekly.
+    teacherStudentReach: new Map(),
     actionCount: 0, mentionCount: 0,
   };
 }
@@ -121,6 +126,20 @@ export function addObservationToDelta(state, observation, {countAction = true} =
   const type = classifyNote(observation);
 
   aggregate.mentionCount++;
+  // Reach counts every fan-out mention (not just the canonical group doc):
+  // a group note reaching 4 students covers all 4, even though it is one action.
+  if (observation.createdBy && observation.studentId) {
+    if (!aggregate.teacherStudentReach.has(observation.createdBy)) {
+      aggregate.teacherStudentReach.set(observation.createdBy, {all: new Set(), days: new Map()});
+    }
+    const reach = aggregate.teacherStudentReach.get(observation.createdBy);
+    reach.all.add(observation.studentId);
+    if (isInDayWindow(observedAtMs, state.now.getTime(), 30)) {
+      const key = dayKey(observedAtMs);
+      if (!reach.days.has(key)) reach.days.set(key, new Set());
+      reach.days.get(key).add(observation.studentId);
+    }
+  }
   incrementMap(aggregate.studentTotals, observation.studentId, emptyStudentCounts, (counts) => {
     counts.totalMentions++;
     if (type === "media") {
@@ -144,21 +163,20 @@ export function addObservationToDelta(state, observation, {countAction = true} =
   aggregate.effortCounts.total++;
   incrementActivityTiers(aggregate.effortActivity, observation, state.now);
   if (aggregate.effortActivityByType[type]) incrementActivityTiers(aggregate.effortActivityByType[type], observation, state.now);
-  incrementMap(aggregate.teacherTotals, observation.createdBy, emptyTeacherCounts, (counts) => {
+  // questionsAnswered overlaps the type counters (any note type can answer an
+  // open question), so it increments alongside — not instead of — the type.
+  const applyTeacherCounts = (counts) => {
     if (type === "lesson") counts.lessons++;
+    else if (type === "assessment") counts.assessments++;
     else if (type === "media") {
       counts.media++;
       if (observation.handwritten === true) counts.handwritten++;
     } else counts.observations++;
-  });
+    if (observation.openQuestion) counts.questionsAnswered++;
+  };
+  incrementMap(aggregate.teacherTotals, observation.createdBy, emptyTeacherCounts, applyTeacherCounts);
   if (isInDayWindow(observedAtMs, state.now.getTime(), 30)) {
-    incrementRecent(aggregate.teacherRecent, observation.createdBy, observedAtMs, emptyTeacherDayCounts, (counts) => {
-      if (type === "lesson") counts.lessons++;
-      else if (type === "media") {
-        counts.media++;
-        if (observation.handwritten === true) counts.handwritten++;
-      } else counts.observations++;
-    });
+    incrementRecent(aggregate.teacherRecent, observation.createdBy, observedAtMs, emptyTeacherDayCounts, applyTeacherCounts);
   }
   return state;
 }
@@ -174,6 +192,10 @@ export function finalizeDelta(state) {
       teacherRecent: serializeRecent(aggregate.teacherRecent),
       studentTotals: Object.fromEntries(aggregate.studentTotals),
       studentRecent: serializeRecent(aggregate.studentRecent),
+      teacherStudentReach: Object.fromEntries([...aggregate.teacherStudentReach.entries()].map(([id, reach]) => [id, {
+        all: [...reach.all],
+        days: Object.fromEntries([...reach.days.entries()].map(([key, ids]) => [key, [...ids]])),
+      }])),
     }])),
   };
 }
@@ -204,8 +226,12 @@ function mergeRecent(existing = {}, added = {}, cutoffDay, currentDay, factory) 
   return merged;
 }
 
+// studentsReached7d/30d intentionally do NOT flow through teacherWindows: this
+// function runs on every delta merge, but distinct-student counts require the
+// ephemeral ID sets that only exist during full reconciliation (#274). See
+// studentReachWindows below, consumed exclusively by buildClassroomCache.
 function teacherWindows(days, nowMs) {
-  const result = {observations7d: 0, lessons7d: 0, media7d: 0, handwritten7d: 0, observations30d: 0, lessons30d: 0, media30d: 0, handwritten30d: 0};
+  const result = {observations7d: 0, lessons7d: 0, media7d: 0, handwritten7d: 0, assessments7d: 0, questionsAnswered7d: 0, observations30d: 0, lessons30d: 0, media30d: 0, handwritten30d: 0, assessments30d: 0, questionsAnswered30d: 0};
   for (const [key, counts] of Object.entries(days || {})) {
     const day = Number(key);
     if (day > Math.floor(nowMs / DAY_MS)) continue;
@@ -215,7 +241,30 @@ function teacherWindows(days, nowMs) {
       result[`lessons${suffix}`] += counts.lessons || 0;
       result[`media${suffix}`] += counts.media || 0;
       result[`handwritten${suffix}`] += counts.handwritten || 0;
+      result[`assessments${suffix}`] += counts.assessments || 0;
+      result[`questionsAnswered${suffix}`] += counts.questionsAnswered || 0;
     }
+  }
+  return result;
+}
+
+/**
+ * Distinct students reached per window from a serialized reach entry
+ * ({all: [ids], days: {dayKey: [ids]}}) produced by finalizeDelta (#274).
+ * Reconciliation-owned: results are persisted as integers only.
+ */
+export function studentReachWindows(entry, nowMs) {
+  const result = {studentsReached: entry?.all?.length || 0, studentsReached7d: 0, studentsReached30d: 0};
+  if (!entry?.days) return result;
+  const currentDay = Math.floor(nowMs / DAY_MS);
+  for (const [days, field] of [[7, "studentsReached7d"], [30, "studentsReached30d"]]) {
+    const union = new Set();
+    for (const [key, ids] of Object.entries(entry.days)) {
+      const day = Number(key);
+      if (day > currentDay || day < windowCutoffDay(nowMs, days)) continue;
+      for (const id of ids) union.add(id);
+    }
+    result[field] = union.size;
   }
   return result;
 }
@@ -264,7 +313,7 @@ export function reconcileCrossClassroomCounts(caches, now = new Date()) {
     for (const [teacherId, events] of Object.entries(cache.aggregationState?.teacherRecent || {})) {
       const windows = teacherWindows(events, nowMs);
       if (!activity.has(teacherId)) activity.set(teacherId, new Map());
-      activity.get(teacherId).set(cache.classroomId, {notes7d: windows.observations7d + windows.lessons7d + windows.media7d, notes30d: windows.observations30d + windows.lessons30d + windows.media30d});
+      activity.get(teacherId).set(cache.classroomId, {notes7d: windows.observations7d + windows.lessons7d + windows.media7d + windows.assessments7d, notes30d: windows.observations30d + windows.lessons30d + windows.media30d + windows.assessments30d});
     }
   }
   return caches.map((cache) => ({...cache, teachers: (cache.teachers || []).map((teacher) => {

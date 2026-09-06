@@ -159,6 +159,9 @@ App version: 13.2.0
 - Shared dispatcher/worker fan-out helper (`functions/shared/fanout.js`) with canonical `dispatchFanout` and `makeFanoutWorker` lifecycle, replacing ad-hoc implementations in soul and monthlyPlan (#279).
 - `baseballCardWorker` (Pub/Sub, `maxInstances: 10`, 300s/512MB) processes one student per invocation with `weekKey`-based idempotency guard (#279).
 - `writingAnalysisWorker` (Pub/Sub, `maxInstances: 10`, 300s/1GB) processes one student per invocation with `periodKey`-based idempotency guard (#279).
+- Weekly teacher stats email sent every Monday at 12:00 IST with per-classroom activity tables and an HTML/CSS bar chart showing daily note counts (#274).
+- Classroom admins receive a combined email with their own stats (if teaching) plus all teachers in their manageable classrooms (#274).
+- `triggerTeacherStatsTest` callable CF for superadmin email preview, plus `test-teacher-stats-email.mjs` ops script for local testing (#274).
 
 ### 13.1.0 (2026-08-31)
 - Durable execution ledger at `jobs/{jobKey}/executions/{executionId}/workItems/{workItemId}` tracks every scheduled job run with per-target work items, verification outcomes, and TTL-based cleanup (#229).

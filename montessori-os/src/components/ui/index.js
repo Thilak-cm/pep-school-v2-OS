@@ -21,6 +21,7 @@ export { default as QuickJumpButton } from './QuickJumpButton';
 export { default as HFSearchInput } from './HFSearchInput';
 export { default as HFFilterChip } from './HFFilterChip';
 export { default as HFRangeBar } from './HFRangeBar';
+export { default as ClassroomSelect } from './ClassroomSelect';
 
 // Charts (Recharts-based)
 export { default as LineChart } from './LineChart';

@@ -109,6 +109,9 @@ export { weeklyDigestClassroomAdmin, weeklyDigestSuperadmin, triggerDigestTest }
 // Heatmap Cache (#279: standalone rebuild after bb workers drain)
 export { rebuildHeatmapCache } from "./heatmap/index.js";
 
+// Weekly Teacher Stats Email (#274)
+export { weeklyTeacherStats, triggerTeacherStatsTest } from "./digest/teacherStats.js";
+
 // Data Integrity Checks (#161)
 export { dataIntegrityChecks } from "./integrity/index.js";
 

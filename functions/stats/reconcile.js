@@ -11,6 +11,7 @@ import {
   isCountableObservation,
   isPendingMedia,
   reconcileCrossClassroomCounts,
+  studentReachWindows,
 } from "./delta.js";
 
 export const FIRESTORE_RETRY_ATTEMPTS = 3;
@@ -159,7 +160,7 @@ export async function collectClassroomAggregate(classroomId, {
 }
 
 function createTeacherRow(user, id) {
-  return {id, name: user?.displayName || user?.email || "Unknown", email: user?.email || "", status: user?.status || "active", observations: 0, lessons: 0, media: 0, handwritten: 0, observations7d: 0, lessons7d: 0, media7d: 0, handwritten7d: 0, observations30d: 0, lessons30d: 0, media30d: 0, handwritten30d: 0, otherNotes7d: 0, otherCount7d: 0, otherNotes30d: 0, otherCount30d: 0};
+  return {id, name: user?.displayName || user?.email || "Unknown", email: user?.email || "", status: user?.status || "active", observations: 0, lessons: 0, media: 0, handwritten: 0, assessments: 0, questionsAnswered: 0, observations7d: 0, lessons7d: 0, media7d: 0, handwritten7d: 0, assessments7d: 0, questionsAnswered7d: 0, observations30d: 0, lessons30d: 0, media30d: 0, handwritten30d: 0, assessments30d: 0, questionsAnswered30d: 0, studentsReached: 0, studentsReached7d: 0, studentsReached30d: 0, otherNotes7d: 0, otherCount7d: 0, otherNotes30d: 0, otherCount30d: 0};
 }
 
 function createStudentRow(student) {
@@ -177,6 +178,11 @@ export function buildClassroomCache(classroom, students, usersById, aggregate, n
     aggregationState: {version: AGGREGATION_STATE_VERSION, teacherRecent: {}, studentRecent: {}},
   };
   const cache = applyDeltaToCache(base, aggregate, now);
+  // studentsReached integers come from the ephemeral ID sets serialized by
+  // finalizeDelta; the sets are discarded here and never enter
+  // aggregationState, so the delta path leaves these counts untouched (#274).
+  const reach = aggregate?.teacherStudentReach || {};
+  cache.teachers = cache.teachers.map((teacher) => ({...teacher, ...studentReachWindows(reach[teacher.id], now.getTime())}));
   cache.teachers = cache.teachers.filter((teacher) => {
     const isGhost = !usersById.has(teacher.id) || teacher.id.startsWith("pending_");
     return !isGhost || teacher.observations + teacher.lessons + teacher.media > 0;

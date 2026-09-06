@@ -10,6 +10,10 @@
 - `triggerBaseballCards` and `triggerWritingAnalysis` superadmin callables for manual re-dispatch of failed students (#279).
 - Ops script `scripts/ops/trigger-baseball-cards.mjs` for incident recovery (#279).
 - Jobs execution ledger MCP tools for querying dispatcher/worker fan-out state (#279).
+- Weekly teacher stats email sent every Monday at 12:00 IST with per-classroom activity tables and an HTML/CSS bar chart showing daily note counts (#274).
+- Classroom admins receive a combined email with their own stats (if teaching) plus all teachers in their manageable classrooms (#274).
+- `triggerTeacherStatsTest` callable CF for superadmin email preview, plus `test-teacher-stats-email.mjs` ops script for local testing (#274).
+- Six new fields on `statsCache` teacher entries: `assessments7d/30d`, `questionsAnswered7d/30d`, `studentsReached7d/30d` (#274).
 
 ### Changed
 - `generateBaseballCards` converted from direct loop to Pub/Sub dispatcher at Sun 00:00 IST (#279).
@@ -17,6 +21,8 @@
 - `regenerateSoulsMonthly` and `batchGenerateMonthlyPlans` migrated onto shared fan-out helper; soul's legacy `studentIds[]` payload and `executionId` fallback dropped (#279).
 - `verifyWeeklyStudentAI` moved from Sun 01:00 to Sun 03:00 IST to account for async worker drain (#279).
 - `PERMANENT_CODES` in fan-out helper includes `"internal"` to prevent indefinite Pub/Sub retries on LLM parse failures (#279).
+- `reconcileStats` schedule moved from Sunday 04:00 IST to Saturday 00:00 IST so Sunday digests and Monday teacher stats emails consume the same consistent weekly snapshot (#274).
+- Assessment-type notes now route to dedicated `assessments` counter instead of `observations`; digest and cross-classroom formulas updated to include assessments in totals (#274).
 
 ### Removed
 - `functions/students/soulFanout.js` - superseded by shared fan-out helper (#279).

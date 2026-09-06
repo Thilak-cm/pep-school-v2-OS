@@ -70,6 +70,9 @@ const EXPECTED_EXPORTS = [
   "weeklyDigestClassroomAdmin",
   "weeklyDigestSuperadmin",
   "triggerDigestTest",
+  // Weekly Teacher Stats Email (#274)
+  "weeklyTeacherStats",
+  "triggerTeacherStatsTest",
   // Student — Denormalized counter maintenance (#161)
   "onStudentWrite",
   // Data Integrity Checks (#161)
