@@ -12,6 +12,27 @@
 
 const DAY_MS = 24 * 60 * 60 * 1000;
 const WEEKDAY_LABELS = ["Mon", "Tue", "Wed", "Thu", "Fri", "Sat", "Sun"];
+
+/** ISO 8601 week number for a UTC date. */
+function isoWeekNumber(date) {
+  const d = new Date(Date.UTC(date.getUTCFullYear(), date.getUTCMonth(), date.getUTCDate()));
+  d.setUTCDate(d.getUTCDate() + 4 - (d.getUTCDay() || 7));
+  const yearStart = new Date(Date.UTC(d.getUTCFullYear(), 0, 1));
+  return Math.ceil(((d - yearStart) / DAY_MS + 1) / 7);
+}
+
+/** Human-readable week label, e.g. "Aug 25-31, W35 of 2026". */
+export function formatWeekLabel(weekStartDay) {
+  const start = new Date(weekStartDay * DAY_MS);
+  const end = new Date((weekStartDay + 6) * DAY_MS);
+  const week = isoWeekNumber(start);
+  const month = (date) => date.toLocaleString("en-US", {month: "short", timeZone: "UTC"});
+  const yearTag = `W${week} of ${end.getUTCFullYear()}`;
+  if (start.getUTCMonth() === end.getUTCMonth()) {
+    return `${month(start)} ${start.getUTCDate()}-${end.getUTCDate()}, ${yearTag}`;
+  }
+  return `${month(start)} ${start.getUTCDate()} - ${month(end)} ${end.getUTCDate()}, ${yearTag}`;
+}
 const NOTE_FIELDS = ["observations", "lessons", "media", "assessments"];
 
 const fmt = (value) => Number(value || 0).toLocaleString("en-US");

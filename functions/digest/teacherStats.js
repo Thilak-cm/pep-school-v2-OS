@@ -33,6 +33,7 @@ import {formatCrashSignal} from "../shared/verifierTelegram.js";
 import {
   buildDailySeries,
   buildTeacherSections,
+  formatWeekLabel,
   previousWeekStartDay,
   renderAdminEmail,
   renderTeacherEmail,
@@ -42,33 +43,12 @@ import {
 const TELEGRAM_BOT_TOKEN = defineSecret("TELEGRAM_BOT_TOKEN");
 const REGION = "asia-south1";
 const JOB_KEY = "teacherStats";
-const DAY_MS = 24 * 60 * 60 * 1000;
 const EMAIL_CONCURRENCY = 5;
 
 // Default test subjects (from #274): Hemapriya TS (Periwinkle, high volume)
 // for the teacher view; Yamini (4 classrooms, also on rosters) for admin view.
 const DEFAULT_TEST_TEACHER_UID = "4H2oo6S3sAR4K5ac1mrGCljdGit1";
 const DEFAULT_TEST_ADMIN_UID = "EgZZGIxevqdSaBUZRXZ0st0Ax2c2";
-
-/** ISO 8601 week number for a UTC date. */
-function isoWeekNumber(date) {
-  const d = new Date(Date.UTC(date.getUTCFullYear(), date.getUTCMonth(), date.getUTCDate()));
-  d.setUTCDate(d.getUTCDate() + 4 - (d.getUTCDay() || 7));
-  const yearStart = new Date(Date.UTC(d.getUTCFullYear(), 0, 1));
-  return Math.ceil(((d - yearStart) / DAY_MS + 1) / 7);
-}
-
-function formatWeekLabel(weekStartDay) {
-  const start = new Date(weekStartDay * DAY_MS);
-  const end = new Date((weekStartDay + 6) * DAY_MS);
-  const week = isoWeekNumber(start);
-  const month = (date) => date.toLocaleString("en-US", {month: "short", timeZone: "UTC"});
-  const yearTag = `W${week} of ${end.getUTCFullYear()}`;
-  if (start.getUTCMonth() === end.getUTCMonth()) {
-    return `${month(start)} ${start.getUTCDate()}-${end.getUTCDate()}, ${yearTag}`;
-  }
-  return `${month(start)} ${start.getUTCDate()} - ${month(end)} ${end.getUTCDate()}, ${yearTag}`;
-}
 
 async function loadContext(database) {
   const [cachesSnap, usersSnap] = await Promise.all([
@@ -178,7 +158,7 @@ export async function sendTeacherStats({teacherUids = null, adminUids = null, ov
         await updateWorkItem(JOB_KEY, ledger.executionId, recipient.id, buildWorkItemUpdate("failed", {
           failureCategory: classifyError(err),
           errorMessage: err.message,
-        })).catch(() => {});
+        })).catch((ledgerErr) => console.error(JSON.stringify({event: "teacher_stats_ledger_write_failed", recipientId: recipient.id, message: ledgerErr.message})));
       }
     }
   }, EMAIL_CONCURRENCY);
@@ -198,9 +178,9 @@ export const weeklyTeacherStats = functions.region(REGION)
     const executionId = computeExecutionId(JOB_KEY);
     try {
       const results = await sendTeacherStats({ledger: {executionId}});
-      console.log(JSON.stringify({event: "teacher_stats_sent", executionId, ...results, failures: undefined}));
+      console.log(JSON.stringify({event: "teacher_stats_sent", executionId, sent: results.sent, failed: results.failed}));
     } catch (err) {
-      console.error("[weeklyTeacherStats] Fatal error:", err);
+      console.error(JSON.stringify({event: "teacher_stats_fatal", executionId, message: err.message, code: err.code || "unknown"}));
       await markExecutionFailed(JOB_KEY, executionId, err).catch(() => {});
       const msg = formatCrashSignal(JOB_KEY, executionId, classifyError(err), err.message);
       await broadcastAlert(TELEGRAM_BOT_TOKEN.value(), db, msg).catch(() => {});

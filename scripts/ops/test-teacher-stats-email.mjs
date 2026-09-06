@@ -45,6 +45,7 @@ const {sendTeacherStats} = await import("../../functions/digest/teacherStats.js"
 const {
   buildDailySeries,
   buildTeacherSections,
+  formatWeekLabel,
   previousWeekStartDay,
   renderAdminEmail,
   renderTeacherEmail,
@@ -66,18 +67,7 @@ if (flags["dry-run"]) {
   const teacherUser = users.get(flags.teacher);
   const teacherSections = buildTeacherSections(caches, flags.teacher);
   const teacherSeries = buildDailySeries(caches, flags.teacher, weekStart);
-  const DAY_MS = 86400000;
-  const startDate = new Date(weekStart * DAY_MS);
-  const endDate = new Date((weekStart + 6) * DAY_MS);
-  const d = new Date(Date.UTC(startDate.getUTCFullYear(), startDate.getUTCMonth(), startDate.getUTCDate()));
-  d.setUTCDate(d.getUTCDate() + 4 - (d.getUTCDay() || 7));
-  const yearStart = new Date(Date.UTC(d.getUTCFullYear(), 0, 1));
-  const week = Math.ceil(((d - yearStart) / DAY_MS + 1) / 7);
-  const month = (dt) => dt.toLocaleString("en-US", {month: "short", timeZone: "UTC"});
-  const yearTag = `W${week} of ${endDate.getUTCFullYear()}`;
-  const weekLabel = startDate.getUTCMonth() === endDate.getUTCMonth()
-    ? `${month(startDate)} ${startDate.getUTCDate()}-${endDate.getUTCDate()}, ${yearTag}`
-    : `${month(startDate)} ${startDate.getUTCDate()} - ${month(endDate)} ${endDate.getUTCDate()}, ${yearTag}`;
+  const weekLabel = formatWeekLabel(weekStart);
 
   const teacherHtml = renderTeacherEmail({
     teacherName: teacherUser?.displayName || flags.teacher,
@@ -130,18 +120,7 @@ const [cachesSnap, usersSnap] = await Promise.all([
 const caches = cachesSnap.docs.map((doc) => doc.data());
 const users = new Map(usersSnap.docs.map((doc) => [doc.id, {id: doc.id, ...doc.data()}]));
 const weekStart = previousWeekStartDay(Date.now());
-const DAY_MS = 86400000;
-const startDate = new Date(weekStart * DAY_MS);
-const endDate = new Date((weekStart + 6) * DAY_MS);
-const d = new Date(Date.UTC(startDate.getUTCFullYear(), startDate.getUTCMonth(), startDate.getUTCDate()));
-d.setUTCDate(d.getUTCDate() + 4 - (d.getUTCDay() || 7));
-const yearStart = new Date(Date.UTC(d.getUTCFullYear(), 0, 1));
-const week = Math.ceil(((d - yearStart) / DAY_MS + 1) / 7);
-const month = (dt) => dt.toLocaleString("en-US", {month: "short", timeZone: "UTC"});
-const yearTag = `W${week} of ${endDate.getUTCFullYear()}`;
-const weekLabel = startDate.getUTCMonth() === endDate.getUTCMonth()
-  ? `${month(startDate)} ${startDate.getUTCDate()}-${endDate.getUTCDate()}, ${yearTag}`
-  : `${month(startDate)} ${startDate.getUTCDate()} - ${month(endDate)} ${endDate.getUTCDate()}, ${yearTag}`;
+const weekLabel = formatWeekLabel(weekStart);
 
 const toRecipient = (uid) => {
   const u = users.get(uid) || {};

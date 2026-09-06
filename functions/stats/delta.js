@@ -313,7 +313,7 @@ export function reconcileCrossClassroomCounts(caches, now = new Date()) {
     for (const [teacherId, events] of Object.entries(cache.aggregationState?.teacherRecent || {})) {
       const windows = teacherWindows(events, nowMs);
       if (!activity.has(teacherId)) activity.set(teacherId, new Map());
-      activity.get(teacherId).set(cache.classroomId, {notes7d: windows.observations7d + windows.lessons7d + windows.media7d, notes30d: windows.observations30d + windows.lessons30d + windows.media30d});
+      activity.get(teacherId).set(cache.classroomId, {notes7d: windows.observations7d + windows.lessons7d + windows.media7d + windows.assessments7d, notes30d: windows.observations30d + windows.lessons30d + windows.media30d + windows.assessments30d});
     }
   }
   return caches.map((cache) => ({...cache, teachers: (cache.teachers || []).map((teacher) => {
