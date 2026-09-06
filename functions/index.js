@@ -31,15 +31,17 @@ export {
 // AI — Coach Review
 export { aiCoachReview } from "./ai/coach.js";
 
-// AI — Baseball Card
+// AI — Baseball Card (#279: dispatcher/worker fan-out)
 export {
   previewBaseballCard,
   regenerateBaseballCardForStudent,
   generateBaseballCards,
+  baseballCardWorker,
+  triggerBaseballCards,
 } from "./ai/baseballCard.js";
 
-// AI — Writing Analysis (PEP-263: per-program config + weekly scheduled)
-export { batchAnalyzeWriting, generateWritingAnalysis } from "./ai/handwriting.js";
+// AI — Writing Analysis (#279: dispatcher/worker fan-out)
+export { batchAnalyzeWriting, generateWritingAnalysis, writingAnalysisWorker, triggerWritingAnalysis } from "./ai/handwriting.js";
 
 // Reports
 export {
@@ -103,6 +105,9 @@ export { cleanupDeletedChats } from "./chat/cleanupDeletedChats.js";
 
 // Weekly Digest (PEP-297)
 export { weeklyDigestClassroomAdmin, weeklyDigestSuperadmin, triggerDigestTest } from "./digest/index.js";
+
+// Heatmap Cache (#279: standalone rebuild after bb workers drain)
+export { rebuildHeatmapCache } from "./heatmap/index.js";
 
 // Data Integrity Checks (#161)
 export { dataIntegrityChecks } from "./integrity/index.js";

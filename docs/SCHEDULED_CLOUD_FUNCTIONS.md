@@ -17,12 +17,13 @@ Firebase Functions v1 Pub/Sub schedules and use asynchronous `onRun` handlers.
 
 | IST schedule | Function | Module | Execution pattern | Purpose |
 |---|---|---|---|---|
-| Sunday at 00:00 | `generateBaseballCards` | `functions/ai/baseballCard.js` | Direct async work | Generates baseball-card summaries for active students and rebuilds the heatmap cache. |
+| Sunday at 00:00 | `generateBaseballCards` | `functions/ai/baseballCard.js` | Async dispatcher | Seeds the ledger and publishes one message per active student to `baseball-card-workers`. Each `baseballCardWorker` invocation (Pub/Sub-triggered, `maxInstances: 10`, 300s/512MB) generates one student's snapshot with per-message retry/ACK semantics (#279). |
 | Sunday at 04:00 | `reconcileStats` | `functions/stats/index.js` | Classroom-by-classroom paginated rebuild | Reconciles every stats cache from source observations and seeds the delta checkpoint. |
 | Sunday at 18:00 | `weeklyDigestClassroomAdmin` | `functions/digest/index.js` | Direct async work | Generates, stores, and emails classroom-admin weekly digests. |
 | Sunday at 18:45 | `weeklyDigestSuperadmin` | `functions/digest/index.js` | Direct async work | Generates and emails a consolidated superadmin digest from classroom digests. The 45-minute offset is not a guaranteed completion dependency on the first digest job. |
-| Sunday at 00:30 | `generateWritingAnalysis` | `functions/ai/handwriting.js` | Direct async work | Runs writing analysis for all active students and archives prior scheduled results. Moved from Monday 00:00 to Sunday 00:30 so digests consume same-week results (#229). |
-| Sunday at 01:00 | `verifyWeeklyStudentAI` | `functions/verification/index.js` | Verifier | Verifies baseball-card and writing-analysis outputs for all active students (#229). |
+| Sunday at 01:00 | `generateWritingAnalysis` | `functions/ai/handwriting.js` | Async dispatcher | Seeds the ledger and publishes one message per active student to `writing-analysis-workers`. Each `writingAnalysisWorker` invocation (Pub/Sub-triggered, `maxInstances: 10`, 300s/1GB) runs one student's VLM analysis with per-message retry/ACK semantics (#279). Moved from 00:30 to 01:00 to stagger LLM load against baseball-card workers dispatched at 00:00; still hours ahead of digests at 18:00 (#229 requirement). |
+| Sunday at 02:30 | `rebuildHeatmapCache` | `functions/heatmap/index.js` | Direct async work | Rebuilds per-classroom heatmap cache docs from fresh weekly_snapshot data. Separated from `generateBaseballCards` when that job converted to dispatcher/worker fan-out - no single invocation observes batch completion anymore (#279, PEP-303). |
+| Sunday at 03:00 | `verifyWeeklyStudentAI` | `functions/verification/index.js` | Verifier | Verifies baseball-card and writing-analysis outputs for all active students. Moved from 01:00 to 03:00 to account for async worker drain time (~1h per job at maxInstances 10) and the 02:30 heatmap rebuild (#229, #279). |
 | Sunday at 19:15 | `verifyWeeklyDigests` | `functions/verification/index.js` | Verifier | Verifies classroom-admin and superadmin digest outputs (#229). |
 | Monday at 09:00 | `verifyDriveIntegrity` | `functions/verification/index.js` | Verifier | Probes every cached Drive ID pointer (shared drive root, classroom folders, current-month plan/checklist docs, current-AY report docs) and signals dead, access-lost, or moved pointers to Telegram. Read-only with a weekly green heartbeat; detection within 7 days preserves the 30-day Drive trash window. |
 
@@ -47,8 +48,9 @@ Firebase Functions v1 Pub/Sub schedules and use asynchronous `onRun` handlers.
 | `reconcileStats` | `0 4 * * 0` | `functions/stats/index.js` |
 | `weeklyDigestClassroomAdmin` | `0 18 * * 0` | `functions/digest/index.js` |
 | `weeklyDigestSuperadmin` | `45 18 * * 0` | `functions/digest/index.js` |
-| `generateWritingAnalysis` | `30 0 * * 0` | `functions/ai/handwriting.js` |
-| `verifyWeeklyStudentAI` | `0 1 * * 0` | `functions/verification/index.js` |
+| `generateWritingAnalysis` | `0 1 * * 0` | `functions/ai/handwriting.js` |
+| `rebuildHeatmapCache` | `30 2 * * 0` | `functions/heatmap/index.js` |
+| `verifyWeeklyStudentAI` | `0 3 * * 0` | `functions/verification/index.js` |
 | `verifyWeeklyDigests` | `15 19 * * 0` | `functions/verification/index.js` |
 | `verifyDriveIntegrity` | `0 9 * * 1` | `functions/verification/index.js` |
 | `cleanupDeletedChats` | `0 0 1 * *` | `functions/chat/cleanupDeletedChats.js` |

@@ -19,20 +19,22 @@ import {
   getStudentWithProgram,
 } from "../shared/studentHelpers.js";
 import { fetchActiveStudentIds, runWithConcurrency } from "../shared/scheduling.js";
-import { writeHeatmapCache, patchHeatmapStudent } from "../heatmap/index.js";
+import { patchHeatmapStudent } from "../heatmap/index.js";
 import {
   computeExecutionId,
-  createExecution,
-  seedWorkItems,
-  updateWorkItem,
-  buildWorkItemUpdate,
   markExecutionFailed,
   classifyError,
 } from "../shared/ledger.js";
+import { dispatchFanout, makeFanoutWorker } from "../shared/fanout.js";
+import { PubSub } from "@google-cloud/pubsub";
 import { broadcastAlert } from "../shared/telegram.js";
 import { formatCrashSignal } from "../shared/verifierTelegram.js";
 
 const TELEGRAM_BOT_TOKEN = defineSecret("TELEGRAM_BOT_TOKEN");
+
+const BASEBALL_CARD_TOPIC = "baseball-card-workers";
+const pubsub = new PubSub();
+const baseballCardTopic = pubsub.topic(BASEBALL_CARD_TOPIC);
 
 // -----------------------------------------------
 // AI: Baseball Card (Last 6 Weeks summary)
@@ -281,6 +283,102 @@ async function buildSignalsPayload(studentId, baseSignals) {
   };
 }
 
+/**
+ * Generate and (unless dryRun) persist ONE student's baseball card.
+ * Extracted from the batch loop (#279) so the Pub/Sub worker, the callables,
+ * and the batch helper all share identical per-student behavior.
+ *
+ * @return {Promise<{status: string, payload: object}>} status "ok" | "no_notes".
+ * @throws on generation/write failure - callers decide retry semantics.
+ */
+async function runBaseballCardForStudent(studentId, {
+  windowDays,
+  dryRun = false,
+  archiveHistory = false,
+  requesterInfo = null,
+  forceRefresh = false,
+} = {}) {
+  const studentContext = await getStudentWithProgram(studentId);
+  const { programId, classroomId } = studentContext;
+
+  if (!programId) {
+    throw new Error(`Cannot resolve programId for student ${studentId} (classroomId: ${classroomId})`);
+  }
+
+  const config = await getBaseballCardConfig(programId, { forceRefresh });
+  const prompt = { systemPrompt: config.systemPrompt };
+  const effectiveWindowDays = Number.isFinite(windowDays) && windowDays > 0 ? windowDays : config.windowDays;
+
+  const notes = await fetchStudentNotesForWindow(studentId, effectiveWindowDays);
+
+  if (!notes.length) {
+    const payload = {
+      summary: "",
+      redFlag: { severity: null, reason: null },
+      coverageGaps: [],
+      noteCount: 0,
+      windowDays: effectiveWindowDays,
+      timezone: config.timezone,
+      model: config.model,
+      temperature: config.temperature,
+      generatedAt: new Date(),
+      status: "no_notes",
+    };
+    if (!dryRun) {
+      const { signals, existingSnapshot } = await buildSignalsPayload(studentId, {
+        redFlag: payload.redFlag,
+        coverageGaps: payload.coverageGaps,
+        noteCount: payload.noteCount,
+        windowDays: payload.windowDays,
+        timezone: payload.timezone,
+        model: payload.model,
+        temperature: payload.temperature,
+        generatedAt: payload.generatedAt,
+        status: payload.status,
+        evidenceCount: payload.noteCount,
+      });
+      await writeWeeklySnapshot(studentId, payload, signals, archiveHistory, requesterInfo, existingSnapshot, classroomId);
+    }
+    return { status: "no_notes", payload };
+  }
+
+  const formatted = notes.map(formatObservationForPrompt);
+  const aiResult = await callBaseballCard(formatted, config, prompt, effectiveWindowDays, studentContext);
+  const sourceNoteIds = notes.map((n) => n.id).filter(Boolean);
+
+  const payload = {
+    summary: aiResult.summary,
+    redFlag: aiResult.redFlag,
+    coverageGaps: aiResult.coverageGaps,
+    noteCount: formatted.length,
+    windowDays: effectiveWindowDays,
+    timezone: config.timezone,
+    model: config.model,
+    temperature: config.temperature,
+    generatedAt: new Date(),
+    status: "ok",
+    sourceNoteIds,
+    rawContent: aiResult.rawContent,
+  };
+
+  if (!dryRun) {
+    const { signals, existingSnapshot } = await buildSignalsPayload(studentId, {
+      redFlag: aiResult.redFlag,
+      coverageGaps: aiResult.coverageGaps,
+      noteCount: payload.noteCount,
+      windowDays: payload.windowDays,
+      timezone: payload.timezone,
+      model: payload.model,
+      temperature: payload.temperature,
+      generatedAt: payload.generatedAt,
+      status: payload.status,
+      evidenceCount: payload.noteCount,
+    });
+    await writeWeeklySnapshot(studentId, payload, signals, archiveHistory, requesterInfo, existingSnapshot, classroomId);
+  }
+  return { status: "ok", payload };
+}
+
 async function runBaseballCards({
   studentIds,
   windowDays,
@@ -290,7 +388,6 @@ async function runBaseballCards({
   archiveHistory = false,
   requesterInfo = null,
   forceRefresh = false,
-  ledger = null,
 }) {
   const ids = Array.isArray(studentIds) && studentIds.length ? studentIds : await fetchActiveStudentIds();
   if (!dryRun) {
@@ -301,109 +398,17 @@ async function runBaseballCards({
 
   await runWithConcurrency(ids, async (studentId) => {
     try {
-      const studentContext = await getStudentWithProgram(studentId);
-      const { programId, classroomId } = studentContext;
-
-      if (!programId) {
-        throw new Error(`Cannot resolve programId for student ${studentId} (classroomId: ${classroomId})`);
-      }
-
-      const config = await getBaseballCardConfig(programId, { forceRefresh });
-      const prompt = { systemPrompt: config.systemPrompt };
-      const effectiveWindowDays = Number.isFinite(windowDays) && windowDays > 0 ? windowDays : config.windowDays;
-
-      const notes = await fetchStudentNotesForWindow(studentId, effectiveWindowDays);
-
-      if (!notes.length) {
-        const payload = {
-          summary: "",
-          redFlag: { severity: null, reason: null },
-          coverageGaps: [],
-          noteCount: 0,
-          windowDays: effectiveWindowDays,
-          timezone: config.timezone,
-          model: config.model,
-          temperature: config.temperature,
-          generatedAt: new Date(),
-          status: "no_notes",
-        };
-        if (dryRun && collectResults) {
-          results.push({ studentId, status: "no_notes", payload });
-        } else if (!dryRun) {
-          const { signals, existingSnapshot } = await buildSignalsPayload(studentId, {
-            redFlag: payload.redFlag,
-            coverageGaps: payload.coverageGaps,
-            noteCount: payload.noteCount,
-            windowDays: payload.windowDays,
-            timezone: payload.timezone,
-            model: payload.model,
-            temperature: payload.temperature,
-            generatedAt: payload.generatedAt,
-            status: payload.status,
-            evidenceCount: payload.noteCount,
-          });
-          await writeWeeklySnapshot(studentId, payload, signals, archiveHistory, requesterInfo, existingSnapshot, classroomId);
-          if (ledger) {
-            await updateWorkItem(ledger.jobKey, ledger.executionId, studentId, buildWorkItemUpdate("success", {
-              evidence: { status: "no_notes" },
-            })).catch(() => {});
-          }
-        }
-        return;
-      }
-
-      const formatted = notes.map(formatObservationForPrompt);
-      const aiResult = await callBaseballCard(formatted, config, prompt, effectiveWindowDays, studentContext);
-      const sourceNoteIds = notes.map((n) => n.id).filter(Boolean);
-
-      const payload = {
-        summary: aiResult.summary,
-        redFlag: aiResult.redFlag,
-        coverageGaps: aiResult.coverageGaps,
-        noteCount: formatted.length,
-        windowDays: effectiveWindowDays,
-        timezone: config.timezone,
-        model: config.model,
-        temperature: config.temperature,
-        generatedAt: new Date(),
-        status: "ok",
-        sourceNoteIds,
-        rawContent: aiResult.rawContent,
-      };
-
+      const { status, payload } = await runBaseballCardForStudent(studentId, {
+        windowDays, dryRun, archiveHistory, requesterInfo, forceRefresh,
+      });
       if (dryRun && collectResults) {
-        results.push({ studentId, status: "ok", payload });
-      } else if (!dryRun) {
-        const { signals, existingSnapshot } = await buildSignalsPayload(studentId, {
-          redFlag: aiResult.redFlag,
-          coverageGaps: aiResult.coverageGaps,
-          noteCount: payload.noteCount,
-          windowDays: payload.windowDays,
-          timezone: payload.timezone,
-          model: payload.model,
-          temperature: payload.temperature,
-          generatedAt: payload.generatedAt,
-          status: payload.status,
-          evidenceCount: payload.noteCount,
-        });
-        await writeWeeklySnapshot(studentId, payload, signals, archiveHistory, requesterInfo, existingSnapshot, classroomId);
-        if (ledger) {
-          await updateWorkItem(ledger.jobKey, ledger.executionId, studentId, buildWorkItemUpdate("success", {
-            evidence: { status: "ok", noteCount: formatted.length },
-          }));
-        }
+        results.push({ studentId, status, payload });
       }
     } catch (err) {
       errorCount++;
       console.error(`[baseballCard] run failed for student ${studentId}`, err);
       if (dryRun && collectResults) {
         results.push({ studentId, status: "error", error: err?.message || "Unknown error" });
-      }
-      if (ledger) {
-        await updateWorkItem(ledger.jobKey, ledger.executionId, studentId, buildWorkItemUpdate("failed", {
-          failureCategory: classifyError(err),
-          detail: err.message,
-        })).catch(() => {});
       }
     }
   }, concurrency);
@@ -557,9 +562,16 @@ export const regenerateBaseballCardForStudent = functions
     };
   });
 
+/**
+ * Dispatcher: seeds the ledger and publishes one message per active student
+ * (#279 - converted from a direct loop that ran ~1h for 488 students inside
+ * one 540s-capped invocation). Heatmap cache rebuild moved to the standalone
+ * rebuildHeatmapCache cron (Sun 02:30 IST) since no single invocation
+ * observes batch completion anymore.
+ */
 export const generateBaseballCards = functions
   .region("asia-south1")
-  .runWith({ timeoutSeconds: 540, memory: "1GB", secrets: [OPENROUTER_API_KEY, LANGFUSE_SECRET_KEY, LANGFUSE_PUBLIC_KEY, TELEGRAM_BOT_TOKEN] })
+  .runWith({ timeoutSeconds: 120, memory: "512MB", secrets: [TELEGRAM_BOT_TOKEN] })
   .pubsub.schedule("0 0 * * 0")
   .timeZone(BASEBALL_CARD_DEFAULTS.timezone)
   .onRun(async () => {
@@ -567,31 +579,18 @@ export const generateBaseballCards = functions
     const executionId = computeExecutionId(JOB_KEY);
 
     try {
-      console.log("[baseballCard] generating for active students (per-program config)");
-
-      // Seed ledger: fetch IDs first so we can create execution + workItems
       const ids = await fetchActiveStudentIds();
-      await createExecution(JOB_KEY, executionId, ids.length);
-      await seedWorkItems(JOB_KEY, executionId, ids);
+      console.log(`[baseballCard] dispatching for ${ids.length} active student(s)`);
 
-      await runBaseballCards({
-        studentIds: ids,
-        dryRun: false,
-        collectResults: false,
-        concurrency: 12,
-        archiveHistory: true,
-        ledger: { jobKey: JOB_KEY, executionId },
+      const result = await dispatchFanout({
+        jobKey: JOB_KEY,
+        topic: baseballCardTopic,
+        executionId,
+        targetIds: ids,
+        buildPayload: (studentId) => ({ studentId, executionId }),
       });
 
-      console.log("[baseballCard] generation run complete");
-
-      // Build heatmap cache from fresh snapshots (PEP-303)
-      try {
-        await writeHeatmapCache();
-      } catch (err) {
-        console.error("[baseballCard] heatmap cache write failed:", err);
-      }
-
+      console.log(`[baseballCard] dispatch done: ${result.published} published, ${result.publishFailed} failed to publish`);
       return null;
     } catch (err) {
       console.error("[baseballCard] Fatal error:", err);
@@ -600,4 +599,105 @@ export const generateBaseballCards = functions
       await broadcastAlert(TELEGRAM_BOT_TOKEN.value(), db, msg).catch(() => {});
       throw err;
     }
+  });
+
+/**
+ * Worker: generates ONE student's baseball card per invocation (#279).
+ * 512MB (text-only LLM); maxInstances caps concurrent OpenRouter calls
+ * (see soulWorker's #270 credit-hold rationale). Intentional same-week
+ * regeneration stays on the regenerateBaseballCardForStudent callable,
+ * which bypasses the ledger and this guard.
+ */
+export const baseballCardWorker = functions
+  .region("asia-south1")
+  .runWith({
+    timeoutSeconds: 300,
+    memory: "512MB",
+    maxInstances: 10,
+    secrets: [OPENROUTER_API_KEY, LANGFUSE_SECRET_KEY, LANGFUSE_PUBLIC_KEY],
+  })
+  .pubsub.topic(BASEBALL_CARD_TOPIC)
+  .onPublish(makeFanoutWorker({
+    jobKey: "baseballCards",
+    // Idempotency guard: weekly_snapshot stamps weekKey with the ISO week
+    // (same value as executionId). Prevents duplicate LLM spend on Pub/Sub
+    // at-least-once redelivery - the direct loop had no such guard.
+    isAlreadyDone: async ({ studentId, executionId }) => {
+      const snap = await db.collection("students").doc(studentId)
+        .collection("ai_summaries").doc("weekly_snapshot").get();
+      return snap.exists && snap.data().weekKey === executionId;
+    },
+    process: async ({ studentId }) => {
+      const { status, payload } = await runBaseballCardForStudent(studentId, {
+        archiveHistory: true,
+      });
+      return {
+        state: "success",
+        evidence: status === "ok"
+          ? { status, noteCount: payload.noteCount }
+          : { status },
+      };
+    },
+  }));
+
+// ---------------------------------------------------------------------------
+// Manual trigger: superadmin-only callable dispatcher (#279)
+// Publishes to the worker topic with a caller-specified executionId (ISO week
+// key, e.g. "2026-W36"). The worker's idempotency guard checks
+// weekly_snapshot.weekKey against this executionId, so students who already
+// have a card for that week are skipped - only failures/missing get processed.
+// Does NOT seed a new ledger execution: workItems from the original scheduled
+// run still exist, and the worker's workItem updates overwrite them.
+// ---------------------------------------------------------------------------
+
+export const triggerBaseballCards = functions
+  .region("asia-south1")
+  .runWith({ timeoutSeconds: 120, memory: "512MB" })
+  .https.onCall(async (data, context) => {
+    if (!context.auth) {
+      throw new functions.https.HttpsError("unauthenticated", "User must be authenticated");
+    }
+    const requesterSnap = await db.collection("users").doc(context.auth.uid).get();
+    if (!requesterSnap.exists || requesterSnap.data()?.role !== "superadmin") {
+      throw new functions.https.HttpsError("permission-denied", "Only superadmins can trigger baseball card generation");
+    }
+
+    // targetWeek defaults to current ISO week; pass a past week (e.g. "2026-W36")
+    // to retry only the students that failed that week's run.
+    const targetWeek = data?.targetWeek || computeExecutionId("baseballCards");
+    if (!/^\d{4}-W\d{2}$/.test(targetWeek)) {
+      throw new functions.https.HttpsError("invalid-argument", "targetWeek must be YYYY-WNN format (e.g. 2026-W36)");
+    }
+
+    let studentIds;
+    if (data?.studentIds && Array.isArray(data.studentIds) && data.studentIds.length > 0) {
+      studentIds = data.studentIds.map((id) => String(id).trim()).filter(Boolean);
+      console.log(`[baseballCard-trigger] manual dispatch for ${studentIds.length} specific students, targetWeek=${targetWeek}`);
+    } else {
+      studentIds = await fetchActiveStudentIds();
+      console.log(`[baseballCard-trigger] manual dispatch for all ${studentIds.length} active students, targetWeek=${targetWeek}`);
+    }
+
+    let published = 0;
+    let publishFailed = 0;
+    await Promise.all(
+      studentIds.map(async (studentId) => {
+        try {
+          const payload = JSON.stringify({ studentId, executionId: targetWeek });
+          await baseballCardTopic.publishMessage({ data: Buffer.from(payload) });
+          published++;
+        } catch (err) {
+          publishFailed++;
+          console.error(`[baseballCard-trigger] publish failed for ${studentId}:`, err.message);
+        }
+      }),
+    );
+
+    return {
+      status: publishFailed > 0 ? "partial" : "ok",
+      targetWeek,
+      studentsDispatched: studentIds.length,
+      published,
+      publishFailed,
+    };
   });
