@@ -8,199 +8,88 @@ user_invocable: true
 
 ## Goal
 
-Take an existing issue and grill it relentlessly until it converges on exactly one implementation path. Speccing is not done until a developer or agent could plan the implementation and arrive at a single approach — no forks, no "Option A vs Option B", no architectural judgment calls left to the implementer.
+Take an existing issue and grill it relentlessly until it converges on exactly one implementation path. Speccing is not done until a developer or agent could plan the implementation and arrive at a single approach — no forks, no "Option A vs Option B", no judgment calls left to the implementer. Focus on what should happen and why; extract enough constraints and decisions that *how* becomes obvious.
 
-Focus on what should happen and why it matters. Extract enough constraints and decisions that *how* becomes obvious.
+Requires a GitHub issue identifier (e.g., `#42`); ask if not provided.
 
-## Argument
+## Context Loading (Before Grilling)
 
-Requires a GitHub issue identifier as argument (e.g., `#42`). If not provided, ask the user for one.
+1. Fetch the issue from GitHub: title, description, priority, labels, state, assignee. Check for a `Source: Meeting Transcript —` marker (from `/draft-github-issues`).
+2. Read `.agents/skills/codebase-context-scan/references/pep-os-overview.md` without asking. Infer `area_tag` values from the Area Map.
+3. **Spawn codebase-explorer agents by complexity:**
+   - **Simple** (1 area, clear bugfix/tweak): no explorer — overview suffices.
+   - **Moderate** (1-2 areas, need current behavior/data shapes for precise ACs): 1 explorer, depth `overview`.
+   - **Complex** (2+ areas, cross-area data flows, unclear constraints): 1 explorer per area **in parallel**, depth `deep`.
+   - **Cross-cutting** (shared infrastructure + a feature area): 2 parallel `deep` explorers.
 
-## Principles
+   Pass each explorer: the overview text, its 1-2 target areas, issue context, focus `"refinement"`, depth, and any files mentioned in the issue. Merge results before grilling.
+4. **Draw a rough system diagram** for this issue before the first question: relevant entry points, components, services, Cloud Functions, Firestore/Storage data, security boundaries, downstream consumers. Compact Mermaid or ASCII. Label uncertain boundaries `needs clarity` rather than inventing connections. Identify which blocks are understood and which need user decisions.
+5. Track the grill as a rough sequence of information blocks adapted to the issue (typical: current behavior, desired outcome, primary flow, edge/error states, roles and data, constraints, scope/priority, convergence). Show a rough progress bar only at block transitions (e.g., `Spec progress: [####------] 3/8 blocks — Current behavior complete; moving to desired outcome.`), not after every answer. Never imply completeness just because the bar is full.
 
-- **Grill relentlessly.** Walk down every branch of the decision tree. Resolve dependencies between decisions one by one. Do not batch questions — ask one at a time.
-- **Provide a recommended answer for each question.** Don't just ask "what should X do?" — say "I'd recommend X does Y because Z. Does that match your intent?"
-- **If the codebase can answer it, explore instead of asking.** Don't ask the user what a function does or how a component works — read the code and state what you found. Only ask the user for *intent* and *decisions*, not facts.
-- **Be concrete about outcomes and boundaries.** Vague acceptance criteria = ambiguous implementation paths. Every AC should be specific enough to test.
-- **Keep scope tight.** Split work if acceptance criteria exceed five items or the issue spans unrelated concerns.
-- **Preserve existing context** from the original issue (especially MoM sources).
+## Grill — One Question at a Time
 
-## Context Loading (Required Before Grilling)
-
-1. Fetch the issue via GitHub using the provided identifier.
-2. Load the high-level overview without asking for permission:
-   - `.agents/skills/codebase-context-scan/references/pep-os-overview.md`
-3. Infer likely `area_tag` values from the issue using the overview `## Area Map`.
-   - Area mapping examples:
-     - "voice note", "voice transcription" → "observation-capture"
-     - "timeline", "student timeline" → "timelines-and-media"
-     - "permission", "role", "admin" → "auth-and-access"
-     - "firebase", "rules", "security" → "firebase-infrastructure"
-     - "export", "report", "PDF" → "reporting-and-export"
-     - "coach", "AI", "nudge" → "ai-coach"
-
-4. **Assess complexity and spawn codebase-explorer agents accordingly.**
-
-   The codebase-explorer agent supports two depth modes: `overview` (fast skim of key files + data structure) and `deep` (full import tracing, data flow mapping, test/security rule checking). Use this matrix to decide:
-
-   | Complexity | Signal | What to spawn |
-   |-----------|--------|---------------|
-   | **Simple** | 1 area, issue is a clear bugfix or small tweak, overview gives enough context | No explorer needed — overview alone is sufficient |
-   | **Moderate** | 1-2 areas, need to understand current behavior or data shapes to write precise ACs | 1 explorer with `exploration_depth: "overview"` |
-   | **Complex** | 2+ areas, issue involves data flows across areas, new feature touching existing patterns, or unclear constraints | 1 explorer per area, **in parallel**, with `exploration_depth: "deep"` |
-   | **Cross-cutting** | Issue affects shared infrastructure (auth, navigation, saveQueue, Cloud Functions) plus a feature area | 2 explorers in parallel: one `deep` on the infrastructure area, one `deep` on the feature area |
-
-   **Data to pass to each codebase-explorer agent:**
-   - `overview_content`: The full text of `pep-os-overview.md` (already loaded in step 2)
-   - `target_areas`: The area tag(s) this explorer is responsible for (1-2 per agent, not all areas dumped into one)
-   - `issue_context`: Issue title + current description + any labels
-   - `exploration_focus`: `"refinement"`
-   - `exploration_depth`: `"overview"` or `"deep"` per the matrix above
-   - `specific_files`: Any files explicitly mentioned in the issue description
-
-   **Parallel dispatch:** When spawning multiple explorers, launch one `codebase-explorer` custom subagent per area concurrently using the host's native subagent mechanism. Wait for all results. Each explorer handles its own area(s) independently and returns a focused summary for the orchestrator to merge before the grilling phase.
-
-5. Do not ask generic questions that ignore known app context (existing pages, roles, patterns, and current behavior).
-
-6. Before asking the first grill question, draw a rough system diagram for this issue.
-   - Use the codebase findings to show the relevant user entry points, frontend components, shared services, Cloud Functions, Firestore/Storage data, security boundaries, and downstream consumers.
-   - Keep unrelated system areas out of the diagram. If a boundary or dependency is uncertain, label it `needs clarity` rather than inventing a connection.
-   - Prefer a compact Mermaid flowchart when it will render clearly; otherwise use an ASCII block-and-arrow diagram.
-   - After the diagram, briefly identify which blocks are understood and which blocks need decisions from the user. Then begin the grill with exactly one question.
-
-7. Track the grill as a rough sequence of information blocks, adapting the blocks to the issue. Typical blocks are: current behavior, desired outcome, primary flow, edge/error states, roles and data, constraints and integrations, scope/priority, and single-path convergence. Do not expose a fabricated total question count.
-
-8. Show a rough progress bar only when a meaningful milestone is reached — normally after completing one information block and before moving to the next, or when the planning probe confirms convergence. Do not show it after every answer. The progress update should name the completed block and the block being opened, for example:
-   `Spec progress: [####------] 3/8 blocks — Current behavior complete; moving to desired outcome.`
-   Use an approximate denominator, revise it if the issue expands, and never imply that the spec is complete merely because the bar is full. Keep asking one question at a time after the progress update.
-
-## Workflow
-
-### 1. Fetch & Understand
-
-- Fetch the issue from GitHub using the provided identifier.
-- Read the current title, description, priority, labels, state, and assignee.
-- Check the description for a `Source: Meeting Transcript —` marker (created by `/draft-github-issues`).
-- Summarize the current state of the issue to the user before starting the grill.
-- Include the rough system diagram from Context Loading immediately before the first grill question. The diagram is an orientation artifact, not a technical implementation plan.
-
-### 2. Grill — One Question at a Time
-
-Interview the user relentlessly about every aspect of this issue. Walk down each branch of the decision tree, resolving dependencies between decisions one by one.
-
-Begin by naming the first information block and asking one question. At each later block transition, show the rough progress bar described in Context Loading. Progress bars are milestone markers only; omit them while continuing within the same block.
+Summarize the issue's current state and show the system diagram, then begin with exactly one question.
 
 **Rules:**
-- **One question per message.** Asking multiple questions at once is bewildering. Wait for feedback on each question before continuing.
-- **Provide your recommended answer.** For every question, state what you'd recommend and why. The user can accept, reject, or modify. This keeps the conversation efficient — the user often just confirms.
-- **Codebase-first.** Before asking the user anything factual about the current system, check the code. Only ask the user for *decisions* — intent, priorities, constraints, preferences, and tradeoffs. Never ask "how does X work?" — read X and state what you found.
-- **Ground questions in exploration findings.** Instead of "What should happen when X?", say "Currently X does Y (found in `path/to/file.js:42`). Should this change, and if so, how?"
-- **Follow the decision tree.** Each answer may open new branches. Follow them. Don't skip ahead.
-- **For bugs:** Nail down reproducible steps, expected vs actual behavior, environment details, and fix constraints.
-- **For features:** Nail down who benefits, desired behavior, edge cases, error states, constraints, and what explicitly should NOT change.
-- **Confirm priority and labels** during the grill if they seem misaligned.
+- **One question per message.** Wait for each answer before continuing.
+- **Provide your recommended answer** with reasoning for every question — the user can accept, reject, or modify.
+- **Codebase-first.** Never ask factual questions about the current system — read the code and state what you found. Only ask for *decisions*: intent, priorities, constraints, tradeoffs. Ground questions in findings: "Currently X does Y (`file.js:42`). Should this change?"
+- **Follow the decision tree.** Each answer may open new branches — follow them, don't skip ahead.
+- **For bugs:** reproducible steps, expected vs actual, environment, fix constraints. **For features:** who benefits, desired behavior, edge cases, error states, constraints, what explicitly should NOT change.
+- Confirm priority and labels if they seem misaligned.
 
-**What to grill on (non-exhaustive — adapt to the issue):**
-- Exact behavior in happy path and edge cases
-- Error states and how they surface to the user
-- Data shape changes and migration concerns
-- Which roles are affected and how access control applies
-- Interaction with existing features (does this change anything else?)
-- Constraints: performance, backwards compatibility, platform limits
-- What is explicitly out of scope
-- Ordering and priority of competing concerns (e.g., "if we can't have both X and Y, which wins?")
+Grill on (adapt to the issue): happy path and edge cases, error surfacing, data shape changes and migrations, roles and access control, interaction with existing features, performance/compatibility constraints, explicit out-of-scope, and which concern wins when two compete.
 
-### 3. Planning Probe — Convergence Check
+## Planning Probe — Convergence Check
 
-After gathering enough information, mentally run through implementation. This is an internal check, not shown to the user as a formal plan.
+After gathering enough information, mentally run through implementation (internal check — do NOT output a plan; that's `/plan-issue`'s job). Ask: **"Is there more than one reasonable way to implement this?"**
 
-**Steps:**
-1. Given the current requirements, identify the files and approach needed.
-2. Ask yourself: **"Is there more than one reasonable way to implement this?"**
-3. If YES — there are multiple viable paths:
-   - Identify the **specific ambiguous decisions** that cause the fork. What piece of missing information or unresolved preference creates the branching?
-   - Go back to Step 2 (Grill) and ask about those specific decisions. Tell the user: "I want to nail down one more thing — [specific question about the fork]."
-   - Repeat until convergence.
-4. If NO — there is one clear path:
-   - Proceed to drafting the refined description.
+- **YES:** identify the specific ambiguous decisions causing the fork and return to grilling: "I want to nail down one more thing — [the fork]." Repeat until convergence.
+- **NO:** proceed to drafting.
 
-**Convergence means:** The acceptance criteria, constraints, and decisions captured are specific enough that implementation planning would produce exactly one approach — not "Option A vs Option B", but a single clear path.
+Convergence means the ACs, constraints, and decisions are specific enough that planning would produce exactly one approach.
 
-**Important:** The planning probe is a mental exercise during refinement. Do NOT output a full technical plan — that's `/plan-issue`'s job. The probe just validates that enough information has been extracted.
+## Draft, Review, Update
 
-### 4. Draft the Spec
-
-- Build a refined title (if the current one is vague) and complete description using the template below.
-- Include only relevant sections (feature or bug specific).
-- If scope is too broad, propose splitting into smaller issues.
-- If the issue has a MoM source marker, preserve the original context snippet under a **"### MoM Reference"** subsection.
-- **The description should be specific enough that `/plan-issue` produces one path.** If you find yourself hedging ("either X or Y could work"), you haven't grilled enough — go back.
-
-### 5. Review with the User
-
-- Present the full refined draft (title, description, priority, labels, state) before updating anything in GitHub.
-- Apply user edits until approved.
-
-### 6. Update in GitHub
-
-- Update the issue only after explicit user approval.
-- Update description, title, priority, labels, and assignee as confirmed.
-- Move state from **Backlog to Todo** (unless the user specifies otherwise).
-- If the issue was already in Todo or a later state, keep the current state.
-- Return the updated issue identifier and confirm the changes.
+1. Build a refined title (if vague) and description using the template. Include only relevant sections. Propose splitting if scope is too broad. If you find yourself hedging ("either X or Y could work"), you haven't grilled enough — go back.
+2. Present the full draft (title, description, priority, labels, state) and apply edits until approved. **Never update GitHub before explicit approval.**
+3. Update the issue: description, title, priority, labels, assignee as confirmed. Move **Backlog → Todo** (keep current state if already Todo or later). Confirm the changes.
 
 ## Issue Template
 
 ```markdown
 ## Summary
-[1-2 sentences: what this accomplishes and why it matters]
+[1-2 sentences: what this accomplishes and why]
 
 ### Feature Details
 - User Story: As a [role], I want [capability] so that [benefit]
-- Acceptance Criteria
-  - [ ] [Measurable requirement — specific enough to test]
+- Acceptance Criteria: [ ] [Measurable, testable requirements]
 
 ### Bug Details
-- Steps to Reproduce
-- Expected Behavior
-- Actual Behavior
+- Steps to Reproduce / Expected Behavior / Actual Behavior
 
 ### Root Cause
-[What's actually wrong and why — from codebase exploration, not guesswork]
+[From codebase exploration, not guesswork]
 
 ### Decisions Made
-[Key decisions resolved during speccing that constrain implementation to one path.
- Format: "Decision: [what was decided]. Why: [rationale]."
- These prevent the implementer from re-opening resolved questions.]
+[Decisions resolved during speccing that constrain implementation to one path.
+ "Decision: [what]. Why: [rationale]." These prevent re-opening resolved questions.]
 
 ### Context
-[Background, screenshots, links, and current workarounds]
+[Background, screenshots, links, workarounds]
 
 ### Out of Scope
-[What this issue does not cover — be explicit]
+[Explicit]
 
 ### MoM Reference
-[Original meeting transcript context — only if issue was created by /draft-github-issues]
+[Original meeting context — only if draft-sourced; never discard it]
 ```
 
-## Defaults
+## Defaults & Guardrails
 
-- Title: imperative and concise, ideally under 60 characters
-- State: promote Backlog → Todo after speccing; keep current state if already Todo or later
-- Assignee: keep existing assignee; set to `me` if currently unassigned
-- Labels: Bug, Feature, Improvement based on issue type
-- Priority: always confirm before updating
-- Context source: always start from `pep-os-overview.md`, then codebase-explorer agent(s) at `overview` or `deep` depth based on complexity — parallel explorers for multi-area issues
-
-## Guardrails
-
-- Do not update the GitHub issue before showing a draft and receiving explicit approval.
-- Confirm state and label if the issue type is ambiguous.
-- If related issues exist, call them out and suggest linking.
-- Auto-read overview without asking; spawn codebase-explorer agent when deeper context is needed — don't ask the user for permission to explore, just do it.
-- Keep existing assignee unless the user explicitly requests a change; set to `me` if unassigned.
-- Never discard the original MoM context snippet from draft-sourced issues.
-- If the issue identifier is invalid or not found, inform the user and ask for a correct one.
-- **Never ask multiple questions in one message.** One question, one recommended answer, wait for response.
-- **Never ask the user factual questions about the codebase.** Read the code yourself. Only ask for intent and decisions.
-- **Do not draft the description until the planning probe confirms single-path convergence.**
+- Title: imperative, ideally under 60 characters. Labels: Bug/Feature/Improvement by type. Priority: always confirm before updating. Assignee: keep existing; set to `me` if unassigned.
+- Keep scope tight — split if ACs exceed five items or the issue spans unrelated concerns.
+- Call out related issues and suggest linking.
+- Explore without asking permission; never ask multiple questions in one message; never ask the user codebase facts.
+- Do not draft the description until the planning probe confirms single-path convergence.
+- If the issue identifier is invalid, ask for a correct one.
