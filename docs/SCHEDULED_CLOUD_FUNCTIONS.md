@@ -18,12 +18,13 @@ Firebase Functions v1 Pub/Sub schedules and use asynchronous `onRun` handlers.
 | IST schedule | Function | Module | Execution pattern | Purpose |
 |---|---|---|---|---|
 | Sunday at 00:00 | `generateBaseballCards` | `functions/ai/baseballCard.js` | Direct async work | Generates baseball-card summaries for active students and rebuilds the heatmap cache. |
-| Sunday at 04:00 | `reconcileStats` | `functions/stats/index.js` | Classroom-by-classroom paginated rebuild | Reconciles every stats cache from source observations and seeds the delta checkpoint. |
+| Saturday at 00:00 | `reconcileStats` | `functions/stats/index.js` | Classroom-by-classroom paginated rebuild | Reconciles every stats cache from source observations and seeds the delta checkpoint. Moved from Sunday 04:00 (#274) so the snapshot captures the full Mon-Fri school week and both Sunday digests and the Monday teacher stats email consume the same consistent weekly data. |
 | Sunday at 18:00 | `weeklyDigestClassroomAdmin` | `functions/digest/index.js` | Direct async work | Generates, stores, and emails classroom-admin weekly digests. |
 | Sunday at 18:45 | `weeklyDigestSuperadmin` | `functions/digest/index.js` | Direct async work | Generates and emails a consolidated superadmin digest from classroom digests. The 45-minute offset is not a guaranteed completion dependency on the first digest job. |
 | Sunday at 00:30 | `generateWritingAnalysis` | `functions/ai/handwriting.js` | Direct async work | Runs writing analysis for all active students and archives prior scheduled results. Moved from Monday 00:00 to Sunday 00:30 so digests consume same-week results (#229). |
 | Sunday at 01:00 | `verifyWeeklyStudentAI` | `functions/verification/index.js` | Verifier | Verifies baseball-card and writing-analysis outputs for all active students (#229). |
 | Sunday at 19:15 | `verifyWeeklyDigests` | `functions/verification/index.js` | Verifier | Verifies classroom-admin and superadmin digest outputs (#229). |
+| Monday at 12:00 | `weeklyTeacherStats` | `functions/digest/teacherStats.js` | Direct async work | Emails every active teacher their weekly activity stats (HTML/CSS bar chart + per-classroom tables) and every classroomadmin a combined roster view, reading the statsCache written by Saturday's reconcile (#274). ~81 emails, under the Resend free-tier 100/day cap. |
 | Monday at 09:00 | `verifyDriveIntegrity` | `functions/verification/index.js` | Verifier | Probes every cached Drive ID pointer (shared drive root, classroom folders, current-month plan/checklist docs, current-AY report docs) and signals dead, access-lost, or moved pointers to Telegram. Read-only with a weekly green heartbeat; detection within 7 days preserves the 30-day Drive trash window. |
 
 ## Monthly
@@ -44,9 +45,10 @@ Firebase Functions v1 Pub/Sub schedules and use asynchronous `onRun` handlers.
 | `dataIntegrityChecks` | `0 6 * * *` | `functions/integrity/index.js` |
 | `cleanupStaleAssessmentUploads` | `15 3 * * *` | `functions/assessments/index.js` |
 | `generateBaseballCards` | `0 0 * * 0` | `functions/ai/baseballCard.js` |
-| `reconcileStats` | `0 4 * * 0` | `functions/stats/index.js` |
+| `reconcileStats` | `0 0 * * 6` | `functions/stats/index.js` |
 | `weeklyDigestClassroomAdmin` | `0 18 * * 0` | `functions/digest/index.js` |
 | `weeklyDigestSuperadmin` | `45 18 * * 0` | `functions/digest/index.js` |
+| `weeklyTeacherStats` | `0 12 * * 1` | `functions/digest/teacherStats.js` |
 | `generateWritingAnalysis` | `30 0 * * 0` | `functions/ai/handwriting.js` |
 | `verifyWeeklyStudentAI` | `0 1 * * 0` | `functions/verification/index.js` |
 | `verifyWeeklyDigests` | `15 19 * * 0` | `functions/verification/index.js` |
@@ -72,7 +74,7 @@ Firebase Functions v1 Pub/Sub schedules and use asynchronous `onRun` handlers.
   checkpoint and compact rolling state. Existing classroom cache docs lack the
   `aggregationState.version: 2` field that `applyDeltaToCache` requires; without
   a prior reconcile, every `updateStatsDelta` call will fail until the next
-  scheduled Sunday run. Deploy Firestore indexes first and wait for READY status
+  scheduled Saturday run (00:00 IST). Deploy Firestore indexes first and wait for READY status
   before triggering reconcile.
 - Stats publication uses one Firestore transaction and therefore fails safely
   before writing when more than 450 classroom documents, a 900 KiB classroom

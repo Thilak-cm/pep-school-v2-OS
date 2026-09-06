@@ -1,5 +1,6 @@
 import assert from "node:assert/strict";
 import test from "node:test";
+import * as deltaModule from "../stats/delta.js";
 import {addObservationToDelta, createDeltaAccumulator, finalizeDelta} from "../stats/delta.js";
 import {
   FIRESTORE_RETRY_ATTEMPTS,
@@ -123,6 +124,49 @@ test("canonical grouped sibling selection ignores earlier failed media", async (
   }]);
   assert.equal(aggregate.actionCount, 1);
   assert.equal(aggregate.mentionCount, 1);
+});
+
+test("students reached persists integer window counts without ID arrays", () => {
+  const now = new Date("2026-08-22T12:00:00Z");
+  const classroom = {id: "c1", name: "Primary", teacherIds: ["t1"]};
+  const students = [{id: "s1", displayName: "A"}, {id: "s2", displayName: "B"}];
+  const users = new Map([["t1", {displayName: "Teacher", email: "teacher@pep.school", role: "teacher"}]]);
+  const state = createDeltaAccumulator(now);
+  // s1 reached twice this week (distinct count must stay 1), s2 reached 20 days
+  // ago (30d window only). Second s1 note is non-canonical fan-out — reach still
+  // counts the mention even when the action does not.
+  addObservationToDelta(state, {classroomId: "c1", studentId: "s1", createdBy: "t1", type: "text", observedAt: now, createdAt: {seconds: 100}}, {countAction: true});
+  addObservationToDelta(state, {classroomId: "c1", studentId: "s1", createdBy: "t1", type: "text", observedAt: now, createdAt: {seconds: 101}}, {countAction: false});
+  addObservationToDelta(state, {classroomId: "c1", studentId: "s2", createdBy: "t1", type: "text", observedAt: new Date("2026-08-02T12:00:00Z"), createdAt: {seconds: 50}}, {countAction: true});
+  const aggregate = finalizeDelta(state).classrooms.get("c1");
+  const cache = buildClassroomCache(classroom, students, users, aggregate, now);
+  assert.equal(cache.teachers[0].studentsReached7d, 1);
+  assert.equal(cache.teachers[0].studentsReached30d, 2);
+  assert.equal(cache.teachers[0].studentsReached, 2);
+  // No student ID arrays may leak into the persisted aggregation state.
+  assert.equal(JSON.stringify(cache.aggregationState).includes("studentsReached"), false);
+  assert.equal(JSON.stringify(cache.aggregationState).includes("s1\","), false);
+});
+
+test("delta path leaves reconciliation-owned studentsReached counts untouched", () => {
+  const now = new Date("2026-08-22T12:00:00Z");
+  const classroom = {id: "c1", name: "Primary", teacherIds: ["t1"]};
+  const students = [{id: "s1", displayName: "A"}];
+  const users = new Map([["t1", {displayName: "Teacher", email: "t@pep.school", role: "teacher"}]]);
+  const state = createDeltaAccumulator(now);
+  addObservationToDelta(state, {classroomId: "c1", studentId: "s1", createdBy: "t1", type: "text", observedAt: now, createdAt: {seconds: 100}}, {countAction: true});
+  const cache = buildClassroomCache(classroom, students, users, finalizeDelta(state).classrooms.get("c1"), now);
+  assert.equal(cache.teachers[0].studentsReached7d, 1);
+  const later = new Date("2026-08-23T12:00:00Z");
+  const deltaState = createDeltaAccumulator(later);
+  addObservationToDelta(deltaState, {classroomId: "c1", studentId: "s2", createdBy: "t1", type: "text", observedAt: later, createdAt: {seconds: 200}}, {countAction: true});
+  const {applyDeltaToCache} = deltaModule;
+  const next = applyDeltaToCache(cache, finalizeDelta(deltaState).classrooms.get("c1"), later);
+  assert.equal(next.teachers[0].studentsReached7d, 1);
+  assert.equal(next.teachers[0].studentsReached30d, 1);
+  assert.equal(next.teachers[0].studentsReached, 1);
+  // But delta-owned window fields still refresh.
+  assert.equal(next.teachers[0].observations, 2);
 });
 
 test("reconciliation owns roster identity while preserving fan-out counts", () => {

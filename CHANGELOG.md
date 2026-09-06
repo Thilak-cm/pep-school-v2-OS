@@ -1,5 +1,17 @@
 # Changelog
 
+# 13.2.0 — 2026-09-06
+
+### Added
+- Weekly teacher stats email sent every Monday at 12:00 IST with per-classroom activity tables and an HTML/CSS bar chart showing daily note counts (#274).
+- Classroom admins receive a combined email with their own stats (if teaching) plus all teachers in their manageable classrooms (#274).
+- `triggerTeacherStatsTest` callable CF for superadmin email preview, plus `test-teacher-stats-email.mjs` ops script for local testing (#274).
+- Six new fields on `statsCache` teacher entries: `assessments7d/30d`, `questionsAnswered7d/30d`, `studentsReached7d/30d` (#274).
+
+### Changed
+- `reconcileStats` schedule moved from Sunday 04:00 IST to Saturday 00:00 IST so Sunday digests and Monday teacher stats emails consume the same consistent weekly snapshot (#274).
+- Assessment-type notes now route to dedicated `assessments` counter instead of `observations`; digest and cross-classroom formulas updated to include assessments in totals (#274).
+
 # 13.1.0 — 2026-08-31
 
 ### Added

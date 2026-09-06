@@ -1,13 +1,9 @@
 import React, { useEffect, useMemo, useState } from 'react';
-import { 
+import {
   Box,
   Typography,
   Card,
   CardContent,
-  FormControl,
-  InputLabel,
-  Select,
-  MenuItem,
   TextField,
   Button,
   Checkbox,
@@ -15,7 +11,6 @@ import {
   ListItem,
   ListItemIcon,
   ListItemText,
-  ListSubheader,
   Divider,
   Alert,
   CircularProgress,
@@ -30,6 +25,7 @@ import { db } from '../firebase';
 import useNotify from '../notifications/useNotify.js';
 import { reportCaughtError } from '../utils/reportCaughtError.js';
 import { createTransferOperations } from '../../../shared/firebase/transferOperations.js';
+import ClassroomSelect from './ui/ClassroomSelect';
 
 const transferOperations = createTransferOperations({
   db,
@@ -51,89 +47,6 @@ function ymdStr(date = new Date()) {
   const m = String(date.getMonth() + 1).padStart(2, '0');
   const d = String(date.getDate()).padStart(2, '0');
   return `${y}-${m}-${d}`;
-}
-
-// Branch IDs double as display labels (branch docs mostly lack a name field).
-// Short IDs like "hsr" are acronyms; longer ones are place names.
-function branchLabel(branchId) {
-  if (!branchId) return 'Other';
-  return branchId.length <= 3
-    ? branchId.toUpperCase()
-    : branchId.charAt(0).toUpperCase() + branchId.slice(1);
-}
-
-// Render Select children grouped by branch. Returns a flat array because MUI
-// Select requires MenuItem children to be direct (no fragments/wrappers).
-// Headers are skipped when every option is in the same branch (classroomadmin
-// case) so short lists stay uncluttered.
-// Branch and program headers are both sticky ("moving") - the program header
-// sticks just below the 30px branch header so both stay visible while
-// scrolling a long list.
-const BRANCH_HEADER_SX = {
-  textTransform: 'uppercase',
-  letterSpacing: '0.1em',
-  fontWeight: 700,
-  fontSize: '0.7rem',
-  lineHeight: '30px',
-  color: 'text.secondary',
-  bgcolor: 'grey.100',
-  zIndex: 2,
-};
-
-const PROGRAM_HEADER_SX = {
-  textTransform: 'capitalize',
-  fontWeight: 600,
-  fontSize: '0.7rem',
-  lineHeight: '26px',
-  color: 'text.secondary',
-  bgcolor: 'grey.50',
-  pl: 3,
-  top: '30px', // stick below the branch header
-  zIndex: 1,
-};
-
-function groupedClassroomItems(classroomList) {
-  const branchIds = [...new Set(classroomList.map(c => c.branchId || ''))];
-  const grouped = branchIds.length > 1;
-  const items = [];
-  for (const branchId of branchIds) {
-    const branchClassrooms = classroomList.filter(x => (x.branchId || '') === branchId);
-    if (!grouped) {
-      for (const c of branchClassrooms) {
-        items.push(
-          <MenuItem key={c.id} value={c.id}>
-            {(c.name || c.id)}{c.programId ? ` · ${c.programId}` : ''}
-          </MenuItem>
-        );
-      }
-      continue;
-    }
-    items.push(
-      <ListSubheader key={`branch-${branchId || 'other'}`} muiSkipListHighlight sx={BRANCH_HEADER_SX}>
-        {branchLabel(branchId)}
-      </ListSubheader>
-    );
-    const programIds = [...new Set(branchClassrooms.map(c => c.programId || 'other'))];
-    for (const programId of programIds) {
-      items.push(
-        <ListSubheader
-          key={`program-${branchId || 'other'}-${programId}`}
-          muiSkipListHighlight
-          sx={PROGRAM_HEADER_SX}
-        >
-          {programId}
-        </ListSubheader>
-      );
-      for (const c of branchClassrooms.filter(x => (x.programId || 'other') === programId)) {
-        items.push(
-          <MenuItem key={c.id} value={c.id} sx={{ pl: 4 }}>
-            {c.name || c.id}
-          </MenuItem>
-        );
-      }
-    }
-  }
-  return items;
 }
 
 function addOneDay(dateStr) {
@@ -314,32 +227,24 @@ export default function GraduateStudentsPage({ userRole, manageableClassrooms })
           ) : (
             <Box sx={{ display: 'flex', flexDirection: 'column', gap: 2 }}>
               <Box sx={{ display: 'flex', gap: 2, flexWrap: 'wrap' }}>
-                <FormControl size="small" sx={{ minWidth: 220 }}>
-                  <InputLabel id="src-classroom-label">Source Classroom</InputLabel>
-                  <Select
-                    labelId="src-classroom-label"
-                    label="Source Classroom"
-                    value={sourceClassroomId}
-                    onChange={(e) => setSourceClassroomId(e.target.value)}
-                    MenuProps={{ PaperProps: { sx: { maxHeight: 340 } } }}
-                  >
-                    {groupedClassroomItems(sourceOptions)}
-                  </Select>
-                </FormControl>
+                <ClassroomSelect
+                  classrooms={sourceOptions}
+                  value={sourceClassroomId}
+                  onChange={setSourceClassroomId}
+                  label="Source Classroom"
+                  fullWidth={false}
+                  sx={{ minWidth: 220 }}
+                />
 
-                <FormControl size="small" sx={{ minWidth: 220 }}>
-                  <InputLabel id="dst-classroom-label">Destination Classroom</InputLabel>
-                  <Select
-                    labelId="dst-classroom-label"
-                    label="Destination Classroom"
-                    value={destClassroomId}
-                    onChange={(e) => setDestClassroomId(e.target.value)}
-                    disabled={!sourceClassroomId}
-                    MenuProps={{ PaperProps: { sx: { maxHeight: 340 } } }}
-                  >
-                    {groupedClassroomItems(destOptions)}
-                  </Select>
-                </FormControl>
+                <ClassroomSelect
+                  classrooms={destOptions}
+                  value={destClassroomId}
+                  onChange={setDestClassroomId}
+                  label="Destination Classroom"
+                  disabled={!sourceClassroomId}
+                  fullWidth={false}
+                  sx={{ minWidth: 220 }}
+                />
 
                 <TextField
                   label="Last day in current classroom"
