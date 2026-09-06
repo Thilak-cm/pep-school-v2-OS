@@ -1,5 +1,27 @@
 # Changelog
 
+# 13.2.0 — 2026-09-06
+
+### Added
+- Shared dispatcher/worker fan-out helper (`functions/shared/fanout.js`) with canonical `dispatchFanout` and `makeFanoutWorker` lifecycle, replacing ad-hoc implementations in soul and monthlyPlan (#279).
+- `baseballCardWorker` (Pub/Sub, `maxInstances: 10`, 300s/512MB) processes one student per invocation with `weekKey`-based idempotency guard (#279).
+- `writingAnalysisWorker` (Pub/Sub, `maxInstances: 10`, 300s/1GB) processes one student per invocation with `periodKey`-based idempotency guard (#279).
+- `rebuildHeatmapCache` standalone cron (Sun 02:30 IST) decoupled from baseball card generation (#279).
+- `triggerBaseballCards` and `triggerWritingAnalysis` superadmin callables for manual re-dispatch of failed students (#279).
+- Ops script `scripts/ops/trigger-baseball-cards.mjs` for incident recovery (#279).
+- Jobs execution ledger MCP tools for querying dispatcher/worker fan-out state (#279).
+
+### Changed
+- `generateBaseballCards` converted from direct loop to Pub/Sub dispatcher at Sun 00:00 IST (#279).
+- `generateWritingAnalysis` converted from direct loop to Pub/Sub dispatcher; schedule moved from Sun 00:30 to Sun 01:00 IST to stagger LLM load (#279).
+- `regenerateSoulsMonthly` and `batchGenerateMonthlyPlans` migrated onto shared fan-out helper; soul's legacy `studentIds[]` payload and `executionId` fallback dropped (#279).
+- `verifyWeeklyStudentAI` moved from Sun 01:00 to Sun 03:00 IST to account for async worker drain (#279).
+- `PERMANENT_CODES` in fan-out helper includes `"internal"` to prevent indefinite Pub/Sub retries on LLM parse failures (#279).
+
+### Removed
+- `functions/students/soulFanout.js` - superseded by shared fan-out helper (#279).
+- Inline `writeHeatmapCache()` call from `generateBaseballCards` - now standalone cron (#279).
+
 # 13.1.0 — 2026-08-31
 
 ### Added
