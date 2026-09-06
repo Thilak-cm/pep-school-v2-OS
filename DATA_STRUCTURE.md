@@ -1347,14 +1347,23 @@ interface StatsClassroomDoc {
     lessons: number;            // lessons in THIS classroom
     media: number;              // media in THIS classroom
     handwritten: number;        // handwritten subset of media
+    assessments: number;        // assessment notes (#274) — no longer counted as observations
+    questionsAnswered: number;  // notes with openQuestion set, any type (#274)
     observations7d: number;
     lessons7d: number;
     media7d: number;
     handwritten7d: number;
+    assessments7d: number;
+    questionsAnswered7d: number;
     observations30d: number;
     lessons30d: number;
     media30d: number;
     handwritten30d: number;
+    assessments30d: number;
+    questionsAnswered30d: number;
+    studentsReached: number;    // distinct students with ≥1 note by this teacher, all time (#274)
+    studentsReached7d: number;  // reconciliation-owned: refreshed only by weekly reconcile,
+    studentsReached30d: number; // NOT by the delta path (needs ephemeral student ID sets)
     otherNotes7d: number;       // deduped notes in OTHER classrooms (7d)
     otherCount7d: number;       // number of other classrooms (7d)
     otherNotes30d: number;      // deduped notes in OTHER classrooms (30d)
@@ -1384,6 +1393,7 @@ interface StatsClassroomDoc {
     teacherRecent: Record<string, Record<string, {
       observations: number; lessons: number;
       media: number; handwritten: number;
+      assessments: number; questionsAnswered: number;  // #274
     }>>;                         // teacherId -> UTC epoch day -> counters; max 30 days
     studentRecent: Record<string, Record<string, {
       mentions: number; media: number; handwritten: number;

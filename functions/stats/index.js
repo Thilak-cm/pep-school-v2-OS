@@ -333,7 +333,10 @@ export const reconcileStats = functions.region(REGION)
   // Reconciliation scans every classroom weekly; pagination keeps 512MB safe,
   // while the longer timeout is required for the deliberately complete scan.
   .runWith({timeoutSeconds: RECONCILE_TIMEOUT_SECONDS, memory: "512MB"})
-  .pubsub.schedule("0 4 * * 0")
+  // Saturday 00:00 IST (moved from Sunday 04:00, #274): captures the full
+  // Mon–Fri school week so Sunday digests and the Monday teacher stats email
+  // both consume the same consistent weekly snapshot.
+  .pubsub.schedule("0 0 * * 6")
   .timeZone("Asia/Kolkata")
   .onRun(async () => {
     const deadlineMs = deadlineForRuntime(RECONCILE_TIMEOUT_SECONDS);

@@ -104,6 +104,9 @@ export { cleanupDeletedChats } from "./chat/cleanupDeletedChats.js";
 // Weekly Digest (PEP-297)
 export { weeklyDigestClassroomAdmin, weeklyDigestSuperadmin, triggerDigestTest } from "./digest/index.js";
 
+// Weekly Teacher Stats Email (#274)
+export { weeklyTeacherStats, triggerTeacherStatsTest } from "./digest/teacherStats.js";
+
 // Data Integrity Checks (#161)
 export { dataIntegrityChecks } from "./integrity/index.js";
 
