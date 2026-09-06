@@ -78,13 +78,16 @@ export const verifyMonthlyPlans = functions
 
 /**
  * Verify baseball cards and writing analysis both completed.
- * Fires Sunday at 01:00 IST (baseball cards starts 00:00, writing at 00:30;
- * both are direct-loop CFs capped at 540s).
+ * Fires Sunday at 03:00 IST (#279): baseball-card workers dispatch at 00:00,
+ * writing-analysis workers at 01:00, each draining in ~1h at maxInstances 10;
+ * rebuildHeatmapCache runs at 02:30. Workers still pending at 03:00 are
+ * reported missing (red signal) - the correct alarm, same trade-off as
+ * verifySoulRegeneration's +2h offset.
  */
 export const verifyWeeklyStudentAI = functions
   .region("asia-south1")
   .runWith({ timeoutSeconds: 300, memory: "1GB", secrets: [TELEGRAM_BOT_TOKEN] })
-  .pubsub.schedule("0 1 * * 0")
+  .pubsub.schedule("0 3 * * 0")
   .timeZone("Asia/Kolkata")
   .onRun(async () => {
     await runVerifier(["baseballCards", "writingAnalysis"], TELEGRAM_BOT_TOKEN.value(), db);

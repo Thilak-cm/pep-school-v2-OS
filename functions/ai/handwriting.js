@@ -8,22 +8,24 @@ import {
   HANDWRITING_ANALYSIS_FALLBACK_PROMPT,
   getFallbackPromptForProgram,
 } from "../config/handwritingAnalysisFallbacks.js";
-import { fetchActiveStudentIds, runWithConcurrency } from "../shared/scheduling.js";
+import { fetchActiveStudentIds } from "../shared/scheduling.js";
 import { buildBatchWritingPrompt, calculateAge, parseWritingAnalysisResponse } from "../utils/handwritingAnalysisHelpers.js";
 import { getIstIsoWeekKey } from "../utils/weekKey.js";
 import {
   computeExecutionId,
-  createExecution,
-  seedWorkItems,
-  updateWorkItem,
-  buildWorkItemUpdate,
   markExecutionFailed,
   classifyError,
 } from "../shared/ledger.js";
+import { dispatchFanout, makeFanoutWorker } from "../shared/fanout.js";
+import { PubSub } from "@google-cloud/pubsub";
 import { broadcastAlert } from "../shared/telegram.js";
 import { formatCrashSignal } from "../shared/verifierTelegram.js";
 
 const TELEGRAM_BOT_TOKEN = defineSecret("TELEGRAM_BOT_TOKEN");
+
+const WRITING_ANALYSIS_TOPIC = "writing-analysis-workers";
+const pubsub = new PubSub();
+const writingAnalysisTopic = pubsub.topic(WRITING_ANALYSIS_TOPIC);
 
 // -----------------------------------------------
 // AI: Batch Writing Analysis (PEP-132, PEP-263)
@@ -387,13 +389,23 @@ export const batchAnalyzeWriting = functions
   });
 
 // -----------------------------------------------
-// Scheduled: Weekly writing analysis for all active students (PEP-263)
+// Scheduled: Weekly writing analysis dispatcher + worker (PEP-263, #279)
+// Converted from a direct loop to dispatcher/worker fan-out: at ~488 active
+// students the single-invocation 540s/1GB budget could no longer finish the
+// batch (W36 incident). One student per invocation isolates failures and
+// lets Pub/Sub retry transient errors per student.
 // -----------------------------------------------
 
+/**
+ * Dispatcher: seeds the ledger and publishes one message per active student.
+ * Fires Sunday 01:00 IST - moved from 00:30 (#279) to stagger LLM load
+ * against the baseball-card workers dispatched at 00:00. Still hours ahead
+ * of the 18:00 digests that consume same-week results (#229 requirement).
+ */
 export const generateWritingAnalysis = functions
   .region("asia-south1")
-  .runWith({ timeoutSeconds: 540, memory: "1GB", secrets: [OPENROUTER_API_KEY, LANGFUSE_SECRET_KEY, LANGFUSE_PUBLIC_KEY, TELEGRAM_BOT_TOKEN] })
-  .pubsub.schedule("30 0 * * 0")
+  .runWith({ timeoutSeconds: 120, memory: "512MB", secrets: [TELEGRAM_BOT_TOKEN] })
+  .pubsub.schedule("0 1 * * 0")
   .timeZone("Asia/Kolkata")
   .onRun(async () => {
     const JOB_KEY = "writingAnalysis";
@@ -401,63 +413,17 @@ export const generateWritingAnalysis = functions
 
     try {
       const studentIds = await fetchActiveStudentIds();
-      console.log(`[writingAnalysis] running for ${studentIds.length} active student(s)`);
+      console.log(`[writingAnalysis] dispatching for ${studentIds.length} active student(s)`);
 
-      // Ledger: create execution + seed workItems
-      await createExecution(JOB_KEY, executionId, studentIds.length);
-      await seedWorkItems(JOB_KEY, executionId, studentIds);
+      const result = await dispatchFanout({
+        jobKey: JOB_KEY,
+        topic: writingAnalysisTopic,
+        executionId,
+        targetIds: studentIds,
+        buildPayload: (studentId) => ({ studentId, executionId }),
+      });
 
-      let completed = 0;
-      let skipped = 0;
-      let errors = 0;
-
-      await runWithConcurrency(studentIds, async (studentId) => {
-        try {
-          const studentSnap = await db.collection("students").doc(studentId).get();
-          if (!studentSnap.exists) {
-            skipped++;
-            await updateWorkItem(JOB_KEY, executionId, studentId, buildWorkItemUpdate("skipped", {
-              detail: "student_not_found",
-            }));
-            return;
-          }
-          const studentData = studentSnap.data();
-          const programId = await resolveProgramId(studentData);
-          if (!programId) {
-            skipped++;
-            await updateWorkItem(JOB_KEY, executionId, studentId, buildWorkItemUpdate("skipped", {
-              detail: "unresolvable_program",
-            }));
-            return;
-          }
-
-          const result = await runWritingAnalysisForStudent(studentId, {
-            programId,
-            archive: true,
-            studentData,
-          });
-          if (result.status === "completed") {
-            completed++;
-            await updateWorkItem(JOB_KEY, executionId, studentId, buildWorkItemUpdate("success", {
-              evidence: { status: "completed", periodKey: executionId },
-            }));
-          } else {
-            skipped++;
-            await updateWorkItem(JOB_KEY, executionId, studentId, buildWorkItemUpdate("skipped", {
-              detail: result.reason || result.status,
-            }));
-          }
-        } catch (err) {
-          console.error(`[writingAnalysis] error for ${studentId}:`, err?.message);
-          errors++;
-          await updateWorkItem(JOB_KEY, executionId, studentId, buildWorkItemUpdate("failed", {
-            failureCategory: classifyError(err),
-            detail: err.message,
-          })).catch(() => {});
-        }
-      }, 8);
-
-      console.log(`[writingAnalysis] done — completed: ${completed}, skipped: ${skipped}, errors: ${errors}`);
+      console.log(`[writingAnalysis] dispatch done: ${result.published} published, ${result.publishFailed} failed to publish`);
       return null;
     } catch (err) {
       console.error("[writingAnalysis] Fatal error:", err);
@@ -466,6 +432,119 @@ export const generateWritingAnalysis = functions
       await broadcastAlert(TELEGRAM_BOT_TOKEN.value(), db, msg).catch(() => {});
       throw err;
     }
+  });
+
+/**
+ * Worker: analyzes ONE student per invocation.
+ * maxInstances caps concurrent VLM calls (OpenRouter holds per-request cost
+ * reservations - see soulWorker's #270 rationale). 1GB fits one student's
+ * image payload comfortably now that #281 clears backlogs out-of-band.
+ */
+export const writingAnalysisWorker = functions
+  .region("asia-south1")
+  .runWith({
+    timeoutSeconds: 300,
+    memory: "1GB",
+    maxInstances: 10,
+    secrets: [OPENROUTER_API_KEY, LANGFUSE_SECRET_KEY, LANGFUSE_PUBLIC_KEY],
+  })
+  .pubsub.topic(WRITING_ANALYSIS_TOPIC)
+  .onPublish(makeFanoutWorker({
+    jobKey: "writingAnalysis",
+    // Idempotency guard: the weekly doc stamps periodKey with the ISO week.
+    // On Pub/Sub redelivery this skips instead of falling through to an
+    // "insufficient_samples" skip that would overwrite a success workItem.
+    isAlreadyDone: async ({ studentId, executionId }) => {
+      const snap = await db.collection("students").doc(studentId)
+        .collection("ai_summaries").doc("writing_analysis").get();
+      return snap.exists && snap.data().periodKey === executionId;
+    },
+    process: async ({ studentId, executionId }) => {
+      const studentSnap = await db.collection("students").doc(studentId).get();
+      if (!studentSnap.exists) {
+        return { state: "skipped", detail: "student_not_found" };
+      }
+      const studentData = studentSnap.data();
+      const programId = await resolveProgramId(studentData);
+      if (!programId) {
+        return { state: "skipped", detail: "unresolvable_program" };
+      }
+
+      const result = await runWritingAnalysisForStudent(studentId, {
+        programId,
+        archive: true,
+        studentData,
+      });
+      if (result.status === "completed") {
+        return { state: "success", evidence: { status: "completed", periodKey: executionId } };
+      }
+      return { state: "skipped", detail: result.reason || result.status };
+    },
+  }));
+
+// ---------------------------------------------------------------------------
+// Manual trigger: superadmin-only callable dispatcher (#279)
+// Publishes to the worker topic with a caller-specified executionId (ISO week
+// key, e.g. "2026-W36"). The worker's idempotency guard checks
+// writing_analysis.periodKey against this executionId, so students who already
+// have an analysis for that week are skipped - only failures/missing get
+// processed. Does NOT seed a new ledger execution: workItems from the original
+// scheduled run still exist.
+// Limitation: if the scheduled dispatcher crashed before createExecution,
+// this trigger publishes messages but no execution doc exists, so verifier
+// state will be incomplete (workItems with no parent execution).
+// ---------------------------------------------------------------------------
+
+export const triggerWritingAnalysis = functions
+  .region("asia-south1")
+  .runWith({ timeoutSeconds: 120, memory: "512MB" })
+  .https.onCall(async (data, context) => {
+    if (!context.auth) {
+      throw new functions.https.HttpsError("unauthenticated", "User must be authenticated");
+    }
+    const requesterSnap = await db.collection("users").doc(context.auth.uid).get();
+    if (!requesterSnap.exists || requesterSnap.data()?.role !== "superadmin") {
+      throw new functions.https.HttpsError("permission-denied", "Only superadmins can trigger writing analysis");
+    }
+
+    // targetWeek defaults to current ISO week; pass a past week (e.g. "2026-W36")
+    // to retry only the students that failed that week's run.
+    const targetWeek = data?.targetWeek || computeExecutionId("writingAnalysis");
+    if (!/^\d{4}-W\d{2}$/.test(targetWeek)) {
+      throw new functions.https.HttpsError("invalid-argument", "targetWeek must be YYYY-WNN format (e.g. 2026-W36)");
+    }
+
+    let studentIds;
+    if (data?.studentIds && Array.isArray(data.studentIds) && data.studentIds.length > 0) {
+      studentIds = data.studentIds.map((id) => String(id).trim()).filter(Boolean);
+      console.log(`[writingAnalysis-trigger] manual dispatch for ${studentIds.length} specific students, targetWeek=${targetWeek}`);
+    } else {
+      studentIds = await fetchActiveStudentIds();
+      console.log(`[writingAnalysis-trigger] manual dispatch for all ${studentIds.length} active students, targetWeek=${targetWeek}`);
+    }
+
+    let published = 0;
+    let publishFailed = 0;
+    await Promise.all(
+      studentIds.map(async (studentId) => {
+        try {
+          const payload = JSON.stringify({ studentId, executionId: targetWeek });
+          await writingAnalysisTopic.publishMessage({ data: Buffer.from(payload) });
+          published++;
+        } catch (err) {
+          publishFailed++;
+          console.error(`[writingAnalysis-trigger] publish failed for ${studentId}:`, err.message);
+        }
+      }),
+    );
+
+    return {
+      status: publishFailed > 0 ? "partial" : "ok",
+      targetWeek,
+      studentsDispatched: studentIds.length,
+      published,
+      publishFailed,
+    };
   });
 
 // -----------------------------------------------

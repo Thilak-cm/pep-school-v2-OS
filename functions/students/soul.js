@@ -29,16 +29,12 @@ import {
 } from "../shared/studentHelpers.js";
 import { fetchActiveStudentIds } from "../shared/scheduling.js";
 import { PubSub } from "@google-cloud/pubsub";
-import { chunkStudentIds, parseSoulWorkerMessage } from "./soulFanout.js";
 import {
   computeExecutionId,
-  createExecution,
-  seedWorkItems,
-  updateWorkItem,
-  buildWorkItemUpdate,
   markExecutionFailed,
   classifyError,
 } from "../shared/ledger.js";
+import { dispatchFanout, makeFanoutWorker } from "../shared/fanout.js";
 import { broadcastAlert } from "../shared/telegram.js";
 import { formatCrashSignal } from "../shared/verifierTelegram.js";
 
@@ -407,141 +403,85 @@ function getNextMonthIST() {
   return `${next.getUTCFullYear()}-${String(next.getUTCMonth() + 1).padStart(2, "0")}`;
 }
 
+/**
+ * Worker: regenerates ONE student's soul per invocation.
+ *
+ * maxInstances is the concurrency throttle (#270): with one student per
+ * message, this caps concurrent LLM calls at 10. OpenRouter holds an
+ * estimated-max-cost reservation per in-flight request; 250 concurrent
+ * calls (25 instances x 10-student parallel batches) exhausted a $30
+ * balance via holds alone, causing the Sept 2026 402 cascade. Pub/Sub
+ * queues undelivered messages until instances free up - "no available
+ * instance" logs during a run are this throttle working, not a failure.
+ * 10 was chosen over 5 so the full run (~486 students x ~70s / 10) ends
+ * ~1h before verifySoulRegeneration fires at 04:00 IST.
+ *
+ * Migrated to the shared fan-out helper (#279). The legacy studentIds[]
+ * payload shape and worker-side executionId fallback (#264 deploy-overlap
+ * compat) were dropped: Pub/Sub message TTL is 7 days and this job runs
+ * monthly, so no legacy in-flight messages can exist; deploys are done
+ * outside run windows.
+ *
+ * Idempotency guard: skip if the existing soul's generatedForMonth already
+ * matches targetMonth. No fallback to updatedAt for old docs missing
+ * generatedForMonth (#264): a missing field is simply a non-match, which
+ * correctly triggers regeneration once, after which the doc is idempotent.
+ */
 export const soulWorker = functions
   .region("asia-south1")
   .runWith({
     timeoutSeconds: 300,
     memory: "1GB",
-    // maxInstances is the concurrency throttle (#270): with one student per
-    // message, this caps concurrent LLM calls at 10. OpenRouter holds an
-    // estimated-max-cost reservation per in-flight request; 250 concurrent
-    // calls (25 instances x 10-student parallel batches) exhausted a $30
-    // balance via holds alone, causing the Sept 2026 402 cascade. Pub/Sub
-    // queues undelivered messages until instances free up - "no available
-    // instance" logs during a run are this throttle working, not a failure.
-    // 10 was chosen over 5 so the full run (~486 students x ~70s / 10) ends
-    // ~1h before verifySoulRegeneration fires at 04:00 IST.
     maxInstances: 10,
     secrets: [OPENROUTER_API_KEY, LANGFUSE_SECRET_KEY, LANGFUSE_PUBLIC_KEY],
   })
   .pubsub.topic(SOUL_TOPIC)
-  .onPublish(async (message) => {
-    // Parse message - validation errors are permanent, so ACK (return null)
-    // to prevent infinite Pub/Sub retries on malformed messages.
-    let studentIds;
-    let targetMonth;
-    try {
-      ({ studentIds, targetMonth } = parseSoulWorkerMessage(message));
-    } catch (parseErr) {
-      // Include parse error and whether targetMonth was present so deploy-overlap
-      // messages (old format, pre-#264) are distinguishable from truly malformed ones.
-      console.error(
-        "[soul-worker] bad message, ACKing to stop retries:",
-        parseErr.message,
-        { hasTargetMonth: Boolean(message?.json?.targetMonth) },
-      );
-      return null;
-    }
-
-    console.log(`[soul-worker] processing batch of ${studentIds.length} for ${targetMonth}: ${studentIds.join(", ")}`);
-
-    // Process students sequentially (#270). Messages normally carry one
-    // student each; the loop also handles legacy multi-student messages
-    // still in flight from before the batch-size change. Sequential (not
-    // Promise.allSettled) so concurrency is governed solely by maxInstances.
-    // Per-student idempotency guard: skip if existing soul's generatedForMonth
-    // already matches the targetMonth from the dispatcher.
-    //
-    // No fallback to updatedAt for old docs missing generatedForMonth (#264):
-    // A missing field is simply a non-match, which correctly triggers regeneration.
-    // The first run after deployment writes generatedForMonth; subsequent runs
-    // match against it. This is simpler than a legacy fallback and produces
-    // identical behavior - old docs get regenerated once, then are idempotent.
-    const JOB_KEY = "soulRegen";
-    // Prefer executionId from the dispatcher's message to avoid drift
-    // if the worker runs after midnight. Fallback for in-flight messages
-    // from before this deploy that lack the field.
-    const executionId = message.json.executionId || computeExecutionId(JOB_KEY);
-
-    // Permanent errors are ACKed (workItem marked failed); transient errors
-    // make the whole message retry - already-done students are skipped on
-    // redelivery via the idempotency guard.
-    const PERMANENT_CODES = ["not-found", "failed-precondition"];
-    let hasTransientError = false;
-    let firstTransientError = null;
-
-    for (const studentId of studentIds) {
-      try {
-        const existingSoul = await db.collection("students").doc(studentId)
-          .collection("ai_summaries").doc("soul").get();
-        if (existingSoul.exists && existingSoul.data().generatedForMonth === targetMonth) {
-          console.log(`[soul-worker] ${studentId} already has soul for ${targetMonth}, skipping`);
-          await updateWorkItem(JOB_KEY, executionId, studentId, buildWorkItemUpdate("skipped", {
-            detail: "already_generated",
-          })).catch(() => {});
-          continue;
-        }
-
-        const result = await generateSoulForStudent(studentId, { generatedForMonth: targetMonth });
-        // Write workItem based on generation result
-        if (result.status === "skipped") {
-          await updateWorkItem(JOB_KEY, executionId, studentId, buildWorkItemUpdate("skipped", {
-            detail: result.reason,
-          })).catch(() => {});
-        } else {
-          await updateWorkItem(JOB_KEY, executionId, studentId, buildWorkItemUpdate("success", {
-            evidence: { status: result.status, generatedForMonth: targetMonth },
-          })).catch(() => {});
-        }
-      } catch (err) {
-        if (err.code && PERMANENT_CODES.includes(err.code)) {
-          console.error(`[soul-worker] permanent error, skipping:`, err.message);
-          await updateWorkItem(JOB_KEY, executionId, studentId, buildWorkItemUpdate("failed", {
-            failureCategory: classifyError(err),
-            detail: err.message,
-          })).catch(() => {});
-        } else {
-          console.error(`[soul-worker] transient error:`, err.message);
-          hasTransientError = true;
-          if (!firstTransientError) firstTransientError = err;
-          // Do NOT write terminal workItem for transient errors -
-          // Pub/Sub will retry and the idempotency guard handles it
-        }
+  .onPublish(makeFanoutWorker({
+    jobKey: "soulRegen",
+    extraKeys: ["targetMonth"],
+    isAlreadyDone: async ({ studentId, targetMonth }) => {
+      const existingSoul = await db.collection("students").doc(studentId)
+        .collection("ai_summaries").doc("soul").get();
+      return existingSoul.exists && existingSoul.data().generatedForMonth === targetMonth;
+    },
+    process: async ({ studentId, targetMonth }) => {
+      const result = await generateSoulForStudent(studentId, { generatedForMonth: targetMonth });
+      if (result.status === "skipped") {
+        return { state: "skipped", detail: result.reason };
       }
-    }
-
-    if (hasTransientError) {
-      throw firstTransientError; // Pub/Sub will retry the message
-    }
-
-    return null;
-  });
+      return { state: "success", evidence: { status: result.status, generatedForMonth: targetMonth } };
+    },
+  }));
 
 // -----------------------------------------------
-// Shared dispatcher helper: publish one message per student (#203, #270)
-// Wave pacing (25 batches / 90s gaps) was removed in #270: soulWorker's
-// maxInstances now throttles delivery, so all messages publish immediately
-// and Pub/Sub queues whatever the workers can't absorb yet.
+// Publish-only helper for the manual callable (#203, #270, #279)
+// The cron dispatcher uses dispatchFanout (which also seeds the ledger);
+// the manual callable only publishes - it intentionally creates no
+// execution, so workItems land in the current period's execution via the
+// executionId embedded at publish time (same behavior as the pre-#279
+// worker-side fallback, without recompute drift).
 // -----------------------------------------------
 
 async function publishSoulMessages(studentIds, logPrefix, { targetMonth, executionId }) {
   if (!targetMonth) {
     throw new Error("publishSoulMessages: targetMonth is required");
   }
-  const chunks = chunkStudentIds(studentIds);
+  if (!executionId) {
+    throw new Error("publishSoulMessages: executionId is required");
+  }
   let published = 0;
   let publishFailed = 0;
 
-  console.log(`${logPrefix} publishing ${chunks.length} messages`);
+  console.log(`${logPrefix} publishing ${studentIds.length} messages`);
   await Promise.all(
-    chunks.map(async (batch) => {
+    studentIds.map(async (studentId) => {
       try {
-        const payload = JSON.stringify({ studentIds: batch, targetMonth, executionId });
+        const payload = JSON.stringify({ studentId, executionId, targetMonth });
         await soulTopic.publishMessage({ data: Buffer.from(payload) });
         published++;
       } catch (err) {
         publishFailed++;
-        console.error(`${logPrefix} publish failed for batch [${batch.join(", ")}]:`, err.message);
+        console.error(`${logPrefix} publish failed for ${studentId}:`, err.message);
       }
     }),
   );
@@ -570,12 +510,13 @@ export const regenerateSoulsMonthly = functions
       const studentIds = await fetchActiveStudentIds();
       console.log(`[soul-dispatcher] ${studentIds.length} active students total`);
 
-      // Ledger: create execution + seed workItems in parallel with publishing
-      await createExecution(JOB_KEY, executionId, studentIds.length);
-      const [, result] = await Promise.all([
-        seedWorkItems(JOB_KEY, executionId, studentIds),
-        publishSoulMessages(studentIds, "[soul-dispatcher]", { targetMonth, executionId }),
-      ]);
+      const result = await dispatchFanout({
+        jobKey: JOB_KEY,
+        topic: soulTopic,
+        executionId,
+        targetIds: studentIds,
+        buildPayload: (studentId) => ({ studentId, executionId, targetMonth }),
+      });
 
       const duration = ((Date.now() - startTime) / 1000).toFixed(1);
       const logFn = result.publishFailed > 0 ? console.error : console.log;
@@ -637,7 +578,13 @@ export const triggerSoulGeneration = functions
     // this month regardless of existing state." The worker's idempotency guard
     // checks generatedForMonth against targetMonth; a match skips, a mismatch
     // regenerates. No separate force flag needed. (#264)
-    const result = await publishSoulMessages(studentIds, "[soul-dispatcher]", { targetMonth });
+    // executionId is embedded at publish time (#279): workItems from manual
+    // triggers land in the current period's execution, matching the behavior
+    // of the removed worker-side computeExecutionId fallback.
+    const result = await publishSoulMessages(studentIds, "[soul-dispatcher]", {
+      targetMonth,
+      executionId: computeExecutionId("soulRegen"),
+    });
 
     const duration = ((Date.now() - startTime) / 1000).toFixed(1);
     console.log(`[soul-dispatcher] manual trigger done in ${duration}s for ${targetMonth}: ${result.published} messages published (${studentIds.length} students), ${result.publishFailed} failed`);

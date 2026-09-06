@@ -1,9 +1,11 @@
 /**
- * #167: Pub/Sub fan-out helpers for monthly plan batch.
+ * #167: Dispatch-time filtering for monthly plan batch.
  *
- * Pure functions extracted for testability:
- * - buildDispatchList: filters eligible students and skips already-done
- * - parseWorkerMessage: validates and extracts Pub/Sub message payload
+ * buildDispatchList: determines which students need plan generation and
+ * which already have the target month's plan. This is a monthlyPlan-only
+ * concern (other jobs dispatch all active students and skip worker-side).
+ *
+ * Message parsing moved to shared fanout helper (#279).
  */
 
 const ELIGIBLE_PROGRAMS = ["toddler", "primary"];
@@ -39,25 +41,4 @@ export function buildDispatchList(studentSnaps, classroomProgramMap, existingPla
   }
 
   return { toPublish, skipped };
-}
-
-/**
- * Parse and validate a Pub/Sub message for the monthly plan worker.
- *
- * @param {Object} message - Pub/Sub message object with .json property
- * @returns {{ studentId: string, targetMonth: string }}
- * @throws {Error} if message is invalid or missing required fields
- */
-export function parseWorkerMessage(message) {
-  const payload = message?.json;
-  if (!payload) {
-    throw new Error("Invalid Pub/Sub message: missing or null JSON payload");
-  }
-  if (!payload.studentId) {
-    throw new Error("Invalid Pub/Sub message: studentId is required");
-  }
-  if (!payload.targetMonth) {
-    throw new Error("Invalid Pub/Sub message: targetMonth is required");
-  }
-  return { studentId: payload.studentId, targetMonth: payload.targetMonth };
 }

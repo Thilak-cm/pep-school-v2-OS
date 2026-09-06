@@ -13,10 +13,33 @@
  * }
  */
 
+import * as functions from "firebase-functions/v1";
 import {db, Timestamp, FieldPath} from "../shared/firebase.js";
 import {getIstIsoWeekKey, getPastWeekKeys} from "../utils/weekKey.js";
 
-// ── Full rebuild (called after scheduled generateBaseballCards) ─────────────
+// ── Scheduled full rebuild (#279) ───────────────────────────────────────────
+
+/**
+ * Rebuild the heatmap cache every Sunday at 02:30 IST, after the
+ * baseball-card workers (dispatched 00:00, drained ~01:00) have written
+ * fresh weekly_snapshot docs. This standalone cron replaced the inline
+ * writeHeatmapCache() call at the end of generateBaseballCards when that
+ * job converted to dispatcher/worker fan-out (#279): no single invocation
+ * observes batch completion anymore, and the verifier stays read-only by
+ * design. A snapshot landing after 02:30 (straggler retry) is picked up by
+ * next week's rebuild or by patchHeatmapStudent on manual regeneration.
+ */
+export const rebuildHeatmapCache = functions
+  .region("asia-south1")
+  .runWith({timeoutSeconds: 300, memory: "1GB"})
+  .pubsub.schedule("30 2 * * 0")
+  .timeZone("Asia/Kolkata")
+  .onRun(async () => {
+    await writeHeatmapCache();
+    return null;
+  });
+
+// ── Full rebuild (scheduled via rebuildHeatmapCache; also used on-demand) ───
 
 /**
  * Query all fresh weekly_snapshot docs + 5 weeks of history, group by

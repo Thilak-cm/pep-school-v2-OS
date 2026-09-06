@@ -1,0 +1,14 @@
+{
+  "name": "convergence-checker",
+  "description": "Non-interactive, read-only convergence gate for spec-issue. Takes draft ACs and decisions, reads the codebase, and reports whether a single implementation path exists or multiple paths remain (with the specific forks identified).",
+  "claude": {
+    "model": "sonnet",
+    "tools": "Bash, Glob, Grep, Read",
+    "color": "cyan"
+  },
+  "codex": {
+    "model": "gpt-5.6-terra",
+    "modelReasoningEffort": "medium",
+    "sandboxMode": "read-only"
+  }
+}

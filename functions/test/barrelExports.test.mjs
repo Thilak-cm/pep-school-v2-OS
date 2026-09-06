@@ -25,8 +25,12 @@ const EXPECTED_EXPORTS = [
   "previewBaseballCard",
   "regenerateBaseballCardForStudent",
   "generateBaseballCards",
+  "baseballCardWorker",
+  "triggerBaseballCards",
   "batchAnalyzeWriting",
   "generateWritingAnalysis",
+  "writingAnalysisWorker",
+  "triggerWritingAnalysis",
   // Chat (#220, #234)
   "childChatStream",
   "chatClientTelemetry",
@@ -55,6 +59,8 @@ const EXPECTED_EXPORTS = [
   // Stats
   "updateStatsDelta",
   "reconcileStats",
+  // Heatmap (#279)
+  "rebuildHeatmapCache",
   // Alerts
   "autoExpireBroadcast",
   // Test Bench

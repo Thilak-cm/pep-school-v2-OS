@@ -148,6 +148,25 @@
       ]
     },
     {
+      "collectionGroup": "observations",
+      "queryScope": "COLLECTION",
+      "fields": [
+        { "fieldPath": "handwritten", "order": "ASCENDING" },
+        { "fieldPath": "status", "order": "ASCENDING" },
+        { "fieldPath": "type", "order": "ASCENDING" },
+        { "fieldPath": "observedAt", "order": "ASCENDING" }
+      ]
+    },
+    {
+      "collectionGroup": "observations",
+      "queryScope": "COLLECTION",
+      "fields": [
+        { "fieldPath": "handwritten", "order": "ASCENDING" },
+        { "fieldPath": "type", "order": "ASCENDING" },
+        { "fieldPath": "observedAt", "order": "ASCENDING" }
+      ]
+    },
+    {
       "collectionGroup": "runs",
       "queryScope": "COLLECTION",
       "fields": [

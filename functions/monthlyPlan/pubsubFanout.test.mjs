@@ -6,7 +6,7 @@
  */
 import { describe, it } from "node:test";
 import assert from "node:assert/strict";
-import { buildDispatchList, parseWorkerMessage } from "./pubsubFanout.js";
+import { buildDispatchList } from "./pubsubFanout.js";
 
 // ---------------------------------------------------------------------------
 // buildDispatchList — filters eligible students and skips already-done
@@ -105,29 +105,4 @@ describe("buildDispatchList", () => {
   });
 });
 
-// ---------------------------------------------------------------------------
-// parseWorkerMessage — extracts and validates Pub/Sub message payload
-// ---------------------------------------------------------------------------
-describe("parseWorkerMessage", () => {
-  it("parses a valid message with all fields", () => {
-    const message = { json: { studentId: "2025-GUL-001", targetMonth: "2026-07" } };
-    const result = parseWorkerMessage(message);
-    assert.equal(result.studentId, "2025-GUL-001");
-    assert.equal(result.targetMonth, "2026-07");
-  });
-
-  it("throws on missing studentId", () => {
-    const message = { json: { targetMonth: "2026-07" } };
-    assert.throws(() => parseWorkerMessage(message), /studentId is required/);
-  });
-
-  it("throws on missing targetMonth", () => {
-    const message = { json: { studentId: "2025-GUL-001" } };
-    assert.throws(() => parseWorkerMessage(message), /targetMonth is required/);
-  });
-
-  it("throws on empty/null json", () => {
-    assert.throws(() => parseWorkerMessage({ json: null }), /invalid/i);
-    assert.throws(() => parseWorkerMessage({ json: undefined }), /invalid/i);
-  });
-});
+// parseWorkerMessage tests moved to shared/fanout.test.mjs (#279)

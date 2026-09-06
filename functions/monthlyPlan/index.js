@@ -43,16 +43,13 @@ import {
 } from "./docBuilders.js";
 import { fetchActiveStudentIds } from "../shared/scheduling.js";
 import { PubSub } from "@google-cloud/pubsub";
-import { buildDispatchList, parseWorkerMessage } from "./pubsubFanout.js";
+import { buildDispatchList } from "./pubsubFanout.js";
 import {
   computeExecutionId,
-  createExecution,
-  seedWorkItems,
-  updateWorkItem,
-  buildWorkItemUpdate,
   markExecutionFailed,
   classifyError,
 } from "../shared/ledger.js";
+import { dispatchFanout, makeFanoutWorker } from "../shared/fanout.js";
 import { broadcastAlert } from "../shared/telegram.js";
 import { formatCrashSignal, formatFolderHealedSignal } from "../shared/verifierTelegram.js";
 
@@ -670,32 +667,19 @@ export const batchGenerateMonthlyPlans = functions
 
       console.log(`[batchGenerateMonthlyPlans] ${toPublish.length + skipped} eligible, ${skipped} skipped (already at ${targetMonth}), ${toPublish.length} to publish`);
 
-      // Ledger: create execution + seed workItems in parallel with publishing
-      await createExecution(JOB_KEY, executionId, toPublish.length);
-
-      // Publish to Pub/Sub topic
-      let published = 0;
-      let publishFailed = 0;
-
-      // Seed workItems + publish in parallel (both are fast, no LLM calls)
-      await Promise.all([
-        seedWorkItems(JOB_KEY, executionId, toPublish),
-        Promise.all(
-          toPublish.map(async (studentId) => {
-            try {
-              const payload = JSON.stringify({ studentId, targetMonth });
-              await topic.publishMessage({ data: Buffer.from(payload) });
-              published++;
-            } catch (err) {
-              publishFailed++;
-              console.error(`[batchGenerateMonthlyPlans] publish failed for ${studentId}:`, err.message);
-            }
-          }),
-        ),
-      ]);
+      const result = await dispatchFanout({
+        jobKey: JOB_KEY,
+        topic,
+        executionId,
+        targetIds: toPublish,
+        // monthlyPlans expectedCount = toPublish.length (excludes dispatch-time
+        // skips); other jobs use the default (= targetIds.length).
+        expectedCount: toPublish.length,
+        buildPayload: (studentId) => ({ studentId, executionId, targetMonth }),
+      });
 
       const duration = ((Date.now() - startTime) / 1000).toFixed(1);
-      console.log(`[batchGenerateMonthlyPlans] done in ${duration}s: ${published} published, ${skipped} skipped, ${publishFailed} failed to publish`);
+      console.log(`[batchGenerateMonthlyPlans] done in ${duration}s: ${result.published} published, ${skipped} skipped, ${result.publishFailed} failed to publish`);
       return null;
     } catch (err) {
       console.error("[batchGenerateMonthlyPlans] Fatal error:", err);
@@ -711,13 +695,16 @@ export const batchGenerateMonthlyPlans = functions
 // ---------------------------------------------------------------------------
 
 /**
- * Pub/Sub worker: processes ONE student per invocation.
- * Generates the monthly plan via LLM, then exports to Google Drive.
+ * Pub/Sub worker: processes ONE student per invocation (#167, migrated to
+ * shared fan-out helper #279). Generates the monthly plan via LLM, then
+ * exports to Google Drive. Drive export failure ACKs with a "failed"
+ * workItem but does NOT rethrow - the plan is saved, and the Drive export
+ * can be retried manually. This is the only job with a job-specific
+ * post-generation step that deliberately returns "failed" instead of
+ * throwing (monthlyPlan-only behavior, preserved in the process callback).
  *
- * Triggered by messages from batchGenerateMonthlyPlans dispatcher.
  * maxInstances: 5 controls concurrency to avoid overwhelming OpenRouter.
- * Pub/Sub retries on failure. Dead-letter policy (max 5 attempts) to be
- * configured via #169.
+ * Dead-letter policy (max 5 attempts) to be configured via #169.
  */
 export const monthlyPlanWorker = functions
   .region("asia-south1")
@@ -728,90 +715,52 @@ export const monthlyPlanWorker = functions
     secrets: [OPENROUTER_API_KEY, LANGFUSE_SECRET_KEY, LANGFUSE_PUBLIC_KEY, TELEGRAM_BOT_TOKEN],
   })
   .pubsub.topic(MONTHLY_PLAN_TOPIC)
-  .onPublish(async (message) => {
-    // Parse message — validation errors are permanent, so ACK (return null)
-    // to prevent infinite Pub/Sub retries on malformed messages.
-    let studentId, targetMonth;
-    try {
-      ({ studentId, targetMonth } = parseWorkerMessage(message));
-    } catch (parseErr) {
-      console.error("[monthlyPlanWorker] bad message, ACKing to stop retries:", parseErr.message);
-      return null;
-    }
-
-    const JOB_KEY = "monthlyPlans";
-    // Use targetMonth as executionId to match the dispatcher's value.
-    // The dispatcher computes executionId as computeExecutionId(JOB_KEY)
-    // which returns the same targetMonth string, but recomputing in the
-    // worker risks drift if the worker runs after midnight. Using the
-    // dispatcher's value directly avoids this.
-    const executionId = targetMonth;
-    console.log(`[monthlyPlanWorker] processing ${studentId} → ${targetMonth}`);
-
-    // Lightweight idempotency guard: skip if plan already exists for targetMonth.
+  .onPublish(makeFanoutWorker({
+    jobKey: "monthlyPlans",
+    extraKeys: ["targetMonth"],
+    // Idempotency guard: skip if plan already exists for targetMonth.
     // Prevents redundant LLM calls on Pub/Sub at-least-once redelivery.
-    const existingPlan = await db.collection("students").doc(studentId)
-      .collection("ai_summaries").doc("monthly_plan").get();
-    if (existingPlan.exists && existingPlan.data().month === targetMonth) {
-      console.log(`[monthlyPlanWorker] ${studentId} already has plan for ${targetMonth}, skipping`);
-      await updateWorkItem(JOB_KEY, executionId, studentId, buildWorkItemUpdate("skipped", {
-        detail: "already_generated",
-      })).catch(() => {});
-      return null;
-    }
-
-    // Step 1: Generate plan via shared internal helper
-    // Permanent errors (not-found, failed-precondition) are ACKed to avoid
-    // burning dead-letter retries. Transient errors propagate for retry.
-    try {
+    isAlreadyDone: async ({ studentId, targetMonth }) => {
+      const existingPlan = await db.collection("students").doc(studentId)
+        .collection("ai_summaries").doc("monthly_plan").get();
+      return existingPlan.exists && existingPlan.data().month === targetMonth;
+    },
+    process: async ({ studentId, targetMonth }) => {
+      // Step 1: Generate plan via shared internal helper.
+      // Permanent/transient routing is handled by makeFanoutWorker's catch.
       await generatePlanInternal(
         studentId,
         targetMonth,
         "system:batchCron",
         "Monthly Plan Cron",
       );
-    } catch (genErr) {
-      const permanent = ["not-found", "failed-precondition"];
-      if (genErr.code && permanent.includes(genErr.code)) {
-        console.error(`[monthlyPlanWorker] permanent error for ${studentId}, ACKing:`, genErr.message);
-        await updateWorkItem(JOB_KEY, executionId, studentId, buildWorkItemUpdate("failed", {
-          failureCategory: classifyError(genErr),
-          detail: genErr.message,
-        })).catch(() => {});
-        return null;
-      }
-      // Transient error - do NOT write terminal workItem, Pub/Sub will retry
-      throw genErr;
-    }
-    console.log(`[monthlyPlanWorker] generated plan for ${studentId}`);
+      console.log(`[monthlyPlanWorker] generated plan for ${studentId}`);
 
-    // Step 2: Export to Drive via shared internal helper
-    try {
-      const exportResult = await exportPlanToDriveInternal(studentId, "system:batchCron");
-      console.log(`[monthlyPlanWorker] exported to Drive for ${studentId}`);
-      await updateWorkItem(JOB_KEY, executionId, studentId, buildWorkItemUpdate("success", {
-        // folderHealed stamps the ledger when a stale classroom folder cache
-        // was self-repaired mid-export, so heals stay auditable even though
-        // the export itself succeeds (green signal otherwise hides them).
-        evidence: {
-          month: targetMonth,
-          driveExported: true,
-          ...(exportResult.folderHealed ? { folderHealed: true } : {}),
-        },
-      })).catch(() => {});
-      if (exportResult.folderHealed) {
-        const msg = formatFolderHealedSignal(exportResult.classroomName, "monthly plan export (cron)");
-        await broadcastAlert(TELEGRAM_BOT_TOKEN.value(), db, msg).catch(() => {});
+      // Step 2: Export to Drive via shared internal helper.
+      // Drive export failure returns "failed" (ACK) rather than throwing -
+      // the plan is saved, retrying the whole message would regenerate it.
+      try {
+        const exportResult = await exportPlanToDriveInternal(studentId, "system:batchCron");
+        console.log(`[monthlyPlanWorker] exported to Drive for ${studentId}`);
+        if (exportResult.folderHealed) {
+          const msg = formatFolderHealedSignal(exportResult.classroomName, "monthly plan export (cron)");
+          await broadcastAlert(TELEGRAM_BOT_TOKEN.value(), db, msg).catch(() => {});
+        }
+        return {
+          state: "success",
+          evidence: {
+            month: targetMonth,
+            driveExported: true,
+            ...(exportResult.folderHealed ? { folderHealed: true } : {}),
+          },
+        };
+      } catch (driveErr) {
+        console.error(`[monthlyPlanWorker] Drive export failed for ${studentId}:`, driveErr.message);
+        return {
+          state: "failed",
+          failureCategory: "export_failed",
+          detail: driveErr.message,
+        };
       }
-    } catch (driveErr) {
-      // Plan was generated but Drive export failed — log but don't re-throw
-      // (plan is saved; Drive export can be retried manually)
-      console.error(`[monthlyPlanWorker] Drive export failed for ${studentId}:`, driveErr.message);
-      await updateWorkItem(JOB_KEY, executionId, studentId, buildWorkItemUpdate("failed", {
-        failureCategory: "export_failed",
-        detail: driveErr.message,
-      })).catch(() => {});
-    }
-
-    return null;
-  });
+    },
+  }));

@@ -517,6 +517,69 @@ export const TOOL_DEFINITIONS = [
     },
   },
 
+  // ── Jobs (execution ledger, #229) ──
+  {
+    name: "list_jobs",
+    description:
+      "List all job root documents from the execution ledger. Returns jobKey and lastExecutionId for each registered scheduled Cloud Function.",
+    inputSchema: {
+      type: "object",
+      properties: {},
+    },
+  },
+  {
+    name: "get_job_executions",
+    description:
+      "List executions for a specific job. Returns lifecycle state, counts (expected, completed, skipped, failed, missing, unverified), and timing. Ordered by most recent first.",
+    inputSchema: {
+      type: "object",
+      properties: {
+        jobKey: {
+          type: "string",
+          description: "Job key (e.g., baseballCards, soulRegen).",
+        },
+        state: {
+          type: "string",
+          description: "Filter by execution state.",
+          enum: ["running", "success", "failed"],
+        },
+        limit: {
+          type: "number",
+          description: "Max executions to return (default: 20).",
+        },
+      },
+      required: ["jobKey"],
+    },
+  },
+  {
+    name: "get_job_work_items",
+    description:
+      "List work items for a specific job execution. Returns per-target state, timing, failure category, and evidence. Ordered by state (failed first).",
+    inputSchema: {
+      type: "object",
+      properties: {
+        jobKey: {
+          type: "string",
+          description: "Job key (e.g., baseballCards, soulRegen).",
+        },
+        executionId: {
+          type: "string",
+          description: "Execution ID / period key (e.g., 2026-W35, 2026-09).",
+        },
+        state: {
+          type: "string",
+          description: "Filter by work item state.",
+          enum: ["pending", "success", "skipped", "failed"],
+        },
+        limit: {
+          type: "number",
+          description: "Max work items to return (default: 100).",
+        },
+      },
+      required: ["jobKey", "executionId"],
+    },
+  },
+
   // ── Config ──
   {
     name: "get_config",
@@ -1399,6 +1462,65 @@ export async function handleListAlerts(db, params) {
   snap.forEach((doc) => {
     results.push(serializeTimestamps({ id: doc.id, ...doc.data() }));
   });
+
+  return results;
+}
+
+// ── Jobs (execution ledger) ──
+
+export async function handleListJobs(db) {
+  const snap = await db.collection("jobs").get();
+  const results = [];
+  snap.forEach((doc) => {
+    results.push(serializeTimestamps({ id: doc.id, ...doc.data() }));
+  });
+  return results;
+}
+
+export async function handleGetJobExecutions(db, params) {
+  const { jobKey, state, limit: maxResults = 20 } = params;
+
+  let query = db.collection("jobs").doc(jobKey).collection("executions");
+
+  if (state) {
+    query = query.where("state", "==", state);
+  }
+
+  query = query.orderBy("startedAt", "desc").limit(maxResults);
+  const snap = await query.get();
+
+  const results = [];
+  snap.forEach((doc) => {
+    results.push(serializeTimestamps({ id: doc.id, ...doc.data() }));
+  });
+  return results;
+}
+
+export async function handleGetJobWorkItems(db, params) {
+  const { jobKey, executionId, state, limit: maxResults = 100 } = params;
+
+  let query = db
+    .collection("jobs")
+    .doc(jobKey)
+    .collection("executions")
+    .doc(executionId)
+    .collection("workItems");
+
+  if (state) {
+    query = query.where("state", "==", state);
+  }
+
+  query = query.limit(maxResults);
+  const snap = await query.get();
+
+  const results = [];
+  snap.forEach((doc) => {
+    results.push(serializeTimestamps({ id: doc.id, ...doc.data() }));
+  });
+
+  // Sort: failed first, then pending, then others
+  const stateOrder = { failed: 0, pending: 1, skipped: 2, success: 3 };
+  results.sort((a, b) => (stateOrder[a.state] ?? 4) - (stateOrder[b.state] ?? 4));
 
   return results;
 }
