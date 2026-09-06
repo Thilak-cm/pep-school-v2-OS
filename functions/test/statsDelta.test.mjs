@@ -95,6 +95,46 @@ test("all numeric fields update and rolling windows expire exactly", () => {
   assert.equal(expiredDay in next.aggregationState.teacherRecent.t1, false);
 });
 
+test("assessments and answered questions count separately from observations", () => {
+  const now = new Date("2026-08-22T12:00:00Z");
+  const state = createDeltaAccumulator(now);
+  // Assessment note (classifyNote → "assessment") must not inflate observations.
+  addObservationToDelta(state, observation("a", {type: "assessment", observedAt: new Date("2026-08-21T12:00:00Z")}));
+  // Text note answering an open question counts as observation AND questionsAnswered.
+  addObservationToDelta(state, observation("q", {type: "text", openQuestion: {version: 1}, observedAt: new Date("2026-08-21T12:00:00Z")}));
+  // Assessment answering an open question increments both new counters.
+  addObservationToDelta(state, observation("aq", {type: "assessment", openQuestion: {version: 2}, observedAt: new Date("2026-08-01T12:00:00Z")}));
+  const aggregate = finalizeDelta(state).classrooms.get("c1");
+  assert.equal(aggregate.teacherTotals.t1.assessments, 2);
+  assert.equal(aggregate.teacherTotals.t1.questionsAnswered, 2);
+  assert.equal(aggregate.teacherTotals.t1.observations, 1);
+  const cache = baseCache("c1", "t1", "s1");
+  const next = applyDeltaToCache(cache, aggregate, now);
+  assert.equal(next.teachers[0].assessments, 2);
+  assert.equal(next.teachers[0].questionsAnswered, 2);
+  assert.equal(next.teachers[0].observations, 1);
+  assert.equal(next.teachers[0].assessments7d, 1);
+  assert.equal(next.teachers[0].assessments30d, 2);
+  assert.equal(next.teachers[0].questionsAnswered7d, 1);
+  assert.equal(next.teachers[0].questionsAnswered30d, 2);
+});
+
+test("new day-count fields merge through the delta path automatically", () => {
+  const now = new Date("2026-08-22T12:00:00Z");
+  const recentDay = dayKey(new Date("2026-08-21T12:00:00Z").getTime());
+  const cache = baseCache("c1", "t1", "s1", {
+    teacherRecent: {t1: {[recentDay]: {observations: 1, lessons: 0, media: 0, handwritten: 0, assessments: 3, questionsAnswered: 2}}},
+  });
+  const state = createDeltaAccumulator(now);
+  addObservationToDelta(state, observation("a", {type: "assessment", openQuestion: {version: 1}, observedAt: new Date("2026-08-21T12:00:00Z")}));
+  const aggregate = finalizeDelta(state).classrooms.get("c1");
+  const next = applyDeltaToCache(cache, aggregate, now);
+  assert.equal(next.aggregationState.teacherRecent.t1[recentDay].assessments, 4);
+  assert.equal(next.aggregationState.teacherRecent.t1[recentDay].questionsAnswered, 3);
+  assert.equal(next.teachers[0].assessments7d, 4);
+  assert.equal(next.teachers[0].questionsAnswered7d, 3);
+});
+
 test("cross-classroom counts use distinct classrooms and age with rolling state", () => {
   const now = new Date("2026-08-22T12:00:00Z");
   const atMs = new Date("2026-08-21T12:00:00Z").getTime();
