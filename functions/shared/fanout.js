@@ -35,7 +35,7 @@ import {
  * transient and rethrown so Pub/Sub redelivers (idempotency guards make
  * redelivery safe). Mirrors the routing proven in monthlyPlanWorker/soulWorker.
  */
-const PERMANENT_CODES = ["not-found", "failed-precondition"];
+const PERMANENT_CODES = ["not-found", "failed-precondition", "internal"];
 
 /**
  * Parse and validate a fan-out worker message.

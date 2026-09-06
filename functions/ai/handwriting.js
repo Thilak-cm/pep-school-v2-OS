@@ -490,6 +490,9 @@ export const writingAnalysisWorker = functions
 // have an analysis for that week are skipped - only failures/missing get
 // processed. Does NOT seed a new ledger execution: workItems from the original
 // scheduled run still exist.
+// Limitation: if the scheduled dispatcher crashed before createExecution,
+// this trigger publishes messages but no execution doc exists, so verifier
+// state will be incomplete (workItems with no parent execution).
 // ---------------------------------------------------------------------------
 
 export const triggerWritingAnalysis = functions

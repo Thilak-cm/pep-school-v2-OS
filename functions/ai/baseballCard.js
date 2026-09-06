@@ -580,7 +580,7 @@ export const generateBaseballCards = functions
 
     try {
       const ids = await fetchActiveStudentIds();
-      console.log(`[baseballCard] dispatching for ${ids.length} active student(s)`);
+      console.log(`[baseballCards] dispatching for ${ids.length} active student(s)`);
 
       const result = await dispatchFanout({
         jobKey: JOB_KEY,
@@ -590,10 +590,10 @@ export const generateBaseballCards = functions
         buildPayload: (studentId) => ({ studentId, executionId }),
       });
 
-      console.log(`[baseballCard] dispatch done: ${result.published} published, ${result.publishFailed} failed to publish`);
+      console.log(`[baseballCards] dispatch done: ${result.published} published, ${result.publishFailed} failed to publish`);
       return null;
     } catch (err) {
-      console.error("[baseballCard] Fatal error:", err);
+      console.error("[baseballCards] Fatal error:", err);
       await markExecutionFailed(JOB_KEY, executionId, err).catch(() => {});
       const msg = formatCrashSignal(JOB_KEY, executionId, classifyError(err), err.message);
       await broadcastAlert(TELEGRAM_BOT_TOKEN.value(), db, msg).catch(() => {});
@@ -648,6 +648,9 @@ export const baseballCardWorker = functions
 // have a card for that week are skipped - only failures/missing get processed.
 // Does NOT seed a new ledger execution: workItems from the original scheduled
 // run still exist, and the worker's workItem updates overwrite them.
+// Limitation: if the scheduled dispatcher crashed before createExecution,
+// this trigger publishes messages but no execution doc exists, so verifier
+// state will be incomplete (workItems with no parent execution).
 // ---------------------------------------------------------------------------
 
 export const triggerBaseballCards = functions
