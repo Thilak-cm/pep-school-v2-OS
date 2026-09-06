@@ -102,12 +102,12 @@ test("bar chart renders seven bars with counts and handles all-zero weeks", () =
     {label: "Mon", count: 17}, {label: "Tue", count: 43}, {label: "Wed", count: 35},
     {label: "Thu", count: 37}, {label: "Fri", count: 13}, {label: "Sat", count: 0}, {label: "Sun", count: 0},
   ];
-  const svg = renderBarChart(series);
-  assert.equal((svg.match(/<rect /g) || []).length, 7);
-  for (const label of ["Mon", "Tue", "Wed", "Thu", "Fri", "Sat", "Sun"]) assert.ok(svg.includes(`>${label}</text>`));
-  assert.ok(svg.includes(">43</text>"));
+  const html = renderBarChart(series);
+  assert.equal((html.match(/<td /g) || []).length, 7);
+  for (const label of ["Mon", "Tue", "Wed", "Thu", "Fri", "Sat", "Sun"]) assert.ok(html.includes(`>${label}<`));
+  assert.ok(html.includes(">43<"));
   const flat = renderBarChart(series.map((item) => ({...item, count: 0})));
-  assert.equal((flat.match(/<rect /g) || []).length, 7);
+  assert.equal((flat.match(/<td /g) || []).length, 7);
 });
 
 test("stats table shows all rows, windows, and children covered formats", () => {
@@ -144,7 +144,7 @@ test("teacher email renders chart, classroom sections, and zero-activity weeks",
   assert.ok(html.includes("Hemapriya TS"));
   assert.ok(html.includes("Sep 1-7, 2026"));
   assert.ok(html.includes("Periwinkle"));
-  assert.ok(html.includes("<svg"));
+  assert.ok(html.includes("<table"));
   assert.ok(html.includes("Total this week: 0 notes"));
   assert.ok(html.includes("0/37"));
 });

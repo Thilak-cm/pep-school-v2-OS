@@ -79,31 +79,22 @@ export function resolveRecipients(caches, users) {
   return {teachers, admins};
 }
 
-/** Inline SVG bar chart: 7 bars, value labels, flat stubs for zero days. */
+/**
+ * HTML/CSS bar chart — Gmail strips <svg>, so we use stacked table cells with
+ * inline background-color and height. Works in Gmail, Outlook, Apple Mail.
+ */
 export function renderBarChart(series) {
   const max = Math.max(...series.map((item) => item.count));
-  const chartMax = Math.max(1, Math.ceil(max * 1.05));
-  const parts = [];
-  for (const [index, fraction] of [[15, 1], [50, 0.75], [85, 0.5], [120, 0.25]].entries()) {
-    const y = [15, 50, 85, 120][index];
-    parts.push(`<text x="25" y="${y + 4}" font-size="10" fill="#999" text-anchor="end" font-family="Arial">${Math.round(chartMax * fraction[1])}</text>`);
-    parts.push(`<line x1="30" y1="${y}" x2="370" y2="${y}" stroke="#eee" stroke-width="1"/>`);
-  }
-  parts.push("<line x1=\"30\" y1=\"130\" x2=\"370\" y2=\"130\" stroke=\"#ccc\" stroke-width=\"1\"/>");
-  series.forEach((item, index) => {
-    const x = 45 + index * 48;
-    const center = x + 18;
-    if (item.count > 0) {
-      const height = (item.count / chartMax) * 115;
-      const top = 130 - height;
-      parts.push(`<rect x="${x}" y="${top.toFixed(1)}" width="36" height="${height.toFixed(1)}" rx="3" fill="#4a7c59"/>`);
-      parts.push(`<text x="${center}" y="${(top - 5).toFixed(1)}" font-size="11" fill="#4a7c59" text-anchor="middle" font-weight="bold" font-family="Arial">${item.count}</text>`);
-    } else {
-      parts.push(`<rect x="${x}" y="128" width="36" height="2" rx="1" fill="#ddd"/>`);
-    }
-    parts.push(`<text x="${center}" y="147" font-size="11" fill="${item.count > 0 ? "#666" : "#888"}" text-anchor="middle" font-family="Arial">${item.label}</text>`);
-  });
-  return `<svg viewBox="0 0 380 160" style="max-width:380px;width:100%;" xmlns="http://www.w3.org/2000/svg">${parts.join("")}</svg>`;
+  const maxHeight = 100;
+  const barWidth = 36;
+  const cells = series.map((item) => {
+    const height = max > 0 ? Math.round((item.count / max) * maxHeight) : 0;
+    const barHtml = item.count > 0
+      ? `<div style="font-size:11px;font-weight:bold;color:#4a7c59;margin-bottom:4px;">${item.count}</div><div style="width:${barWidth}px;height:${height}px;background:#4a7c59;border-radius:3px;margin:0 auto;"></div>`
+      : `<div style="width:${barWidth}px;height:2px;background:#ddd;border-radius:1px;margin:0 auto;"></div>`;
+    return `<td style="vertical-align:bottom;text-align:center;padding:0 4px;">${barHtml}<div style="font-size:11px;color:${item.count > 0 ? "#666" : "#888"};margin-top:6px;">${item.label}</div></td>`;
+  }).join("");
+  return `<table cellpadding="0" cellspacing="0" border="0" style="margin:0 auto;"><tr>${cells}</tr></table>`;
 }
 
 const TH = "style=\"text-align:right;padding:6px 10px;color:#666;font-weight:600;\"";
