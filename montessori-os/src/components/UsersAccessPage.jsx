@@ -1092,20 +1092,6 @@ const UsersAccessPage = ({ onBack, currentUser, userRole, manageableClassrooms =
   // FORM HANDLERS
   // ============================================================================
 
-  const handleClassroomToggle = (id) => {
-    setSelectedClassrooms(prev => prev.includes(id) ? prev.filter(x => x !== id) : [...prev, id]);
-    if (validationErrors.classrooms) {
-      setValidationErrors(prev => ({ ...prev, classrooms: '' }));
-    }
-  };
-
-  const handleAdminClassroomToggle = (id) => {
-    setSelectedAdminClassrooms(prev => prev.includes(id) ? prev.filter(x => x !== id) : [...prev, id]);
-    if (validationErrors.classrooms) {
-      setValidationErrors(prev => ({ ...prev, classrooms: '' }));
-    }
-  };
-
   const handleClassroomDialogToggle = (id) => {
     setClassroomDialogSelection(prev => prev.includes(id) ? prev.filter(x => x !== id) : [...prev, id]);
     if (classroomDialogError) {
@@ -2084,7 +2070,7 @@ const UsersAccessPage = ({ onBack, currentUser, userRole, manageableClassrooms =
                       />
                     </Box>
                   </Grid>
-                  <Grid item xs={12}>
+                  <Grid size={12}>
                     <TextField
                       label="Email"
                       placeholder="name@pepschoolv2.com, @ribbons.education, or @accelschool.in"
@@ -2096,7 +2082,7 @@ const UsersAccessPage = ({ onBack, currentUser, userRole, manageableClassrooms =
                       helperText={validationErrors.email}
                     />
                   </Grid>
-                  <Grid item xs={12}>
+                  <Grid size={12}>
                     <ClassroomSelect
                       classrooms={classrooms}
                       value={role === 'classroomadmin' ? selectedAdminClassrooms : selectedClassrooms}
@@ -2138,7 +2124,7 @@ const UsersAccessPage = ({ onBack, currentUser, userRole, manageableClassrooms =
                       />
                     </Box>
                   </Grid>
-                  <Grid item xs={12}>
+                  <Grid size={12}>
                     <TextField
                       type="date"
                       label="Date of Birth"
@@ -2153,7 +2139,7 @@ const UsersAccessPage = ({ onBack, currentUser, userRole, manageableClassrooms =
                       inputProps={{ max: new Date().toISOString().split('T')[0] }}
                     />
                   </Grid>
-                  <Grid item xs={12}>
+                  <Grid size={12}>
                     <ClassroomSelect
                       classrooms={classrooms}
                       value={studentForm.classroomId}

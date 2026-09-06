@@ -41,7 +41,7 @@ const PROGRAM_HEADER_SX = {
  * direct (no fragments/wrappers). Headers are skipped when every option is in
  * the same branch so short lists stay uncluttered.
  */
-export function groupedClassroomItems(classroomList) {
+function groupedClassroomItems(classroomList) {
   const branchIds = [...new Set(classroomList.map(c => c.branchId || ''))];
   const grouped = branchIds.length > 1;
   const items = [];
