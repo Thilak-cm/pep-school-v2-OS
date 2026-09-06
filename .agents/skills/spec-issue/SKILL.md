@@ -40,14 +40,19 @@ Summarize the issue's current state and show the system diagram, then begin with
 
 Grill on (adapt to the issue): happy path and edge cases, error surfacing, data shape changes and migrations, roles and access control, interaction with existing features, performance/compatibility constraints, explicit out-of-scope, and which concern wins when two compete.
 
-## Planning Probe — Convergence Check
+## Convergence Gate
 
-After gathering enough information, mentally run through implementation (internal check — do NOT output a plan; that's `/plan-issue`'s job). Ask: **"Is there more than one reasonable way to implement this?"**
+After gathering enough information, spawn the **convergence-checker** subagent. Pass it:
+- `issue_context`: the issue title, draft ACs, decisions made so far, and constraints gathered during grilling
+- `overview_content`: the codebase overview already loaded in Phase 1
+- `target_areas`: the area tags inferred during context loading
+- `specific_files`: any files surfaced during grilling
 
-- **YES:** identify the specific ambiguous decisions causing the fork and return to grilling: "I want to nail down one more thing — [the fork]." Repeat until convergence.
-- **NO:** proceed to drafting.
+**On `SINGLE_PATH`:** proceed to drafting. The implementation trace from the checker confirms convergence.
 
-Convergence means the ACs, constraints, and decisions are specific enough that planning would produce exactly one approach.
+**On `MULTIPLE_PATHS`:** read the forks identified by the checker. Turn each fork into a grilling question - "I want to nail down one more thing: [the fork's 'What would resolve it']." Return to grilling. Re-run the convergence-checker after resolving the forks. Repeat until `SINGLE_PATH`.
+
+Do not skip this step. Do not self-assess convergence. The subagent call is the exit gate.
 
 ## Draft, Review, Update
 
@@ -91,5 +96,5 @@ Convergence means the ACs, constraints, and decisions are specific enough that p
 - Keep scope tight — split if ACs exceed five items or the issue spans unrelated concerns.
 - Call out related issues and suggest linking.
 - Explore without asking permission; never ask multiple questions in one message; never ask the user codebase facts.
-- Do not draft the description until the planning probe confirms single-path convergence.
+- Do not draft the description until the convergence-checker subagent returns `SINGLE_PATH`.
 - If the issue identifier is invalid, ask for a correct one.
