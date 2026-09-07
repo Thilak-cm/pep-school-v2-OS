@@ -12,6 +12,50 @@
             "if": "Bash(git push*)",
             "command": "${CLAUDE_PROJECT_DIR}/.claude/hooks/block-master-push.sh",
             "statusMessage": "Checking push target..."
+          },
+          {
+            "type": "command",
+            "if": "Bash(node scripts/ops/*)",
+            "command": "${CLAUDE_PROJECT_DIR}/.claude/hooks/enforce-ops-dry-run.sh",
+            "statusMessage": "Checking dry-run compliance..."
+          },
+          {
+            "type": "command",
+            "if": "Bash(gh pr create*)",
+            "command": "${CLAUDE_PROJECT_DIR}/.claude/hooks/enforce-alt-dev-pr-target.sh",
+            "statusMessage": "Checking PR target branch..."
+          }
+        ]
+      }
+    ],
+    "PostToolUse": [
+      {
+        "matcher": "Edit",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "${CLAUDE_PROJECT_DIR}/.claude/hooks/block-testbench-imports.sh",
+            "statusMessage": "Checking for testbench imports..."
+          },
+          {
+            "type": "command",
+            "command": "${CLAUDE_PROJECT_DIR}/.claude/hooks/check-langfuse-tracing.sh",
+            "statusMessage": "Checking Langfuse tracing..."
+          }
+        ]
+      },
+      {
+        "matcher": "Write",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "${CLAUDE_PROJECT_DIR}/.claude/hooks/block-testbench-imports.sh",
+            "statusMessage": "Checking for testbench imports..."
+          },
+          {
+            "type": "command",
+            "command": "${CLAUDE_PROJECT_DIR}/.claude/hooks/check-langfuse-tracing.sh",
+            "statusMessage": "Checking Langfuse tracing..."
           }
         ]
       }

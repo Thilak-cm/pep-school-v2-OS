@@ -49,7 +49,7 @@ The app is heavily AI-powered. Key capabilities: voice transcription (Whisper), 
 - AI feature config (prompts, model, temperature) lives in Firestore `config` collection with 5-min TTL cache (`services/promptProvider.js`)
 - Coach system: `montessori-os/src/coach/` (frontend), `functions/ai/` (backend)
 - Prompt iteration and eval: `testbench/`
-- Every LLM call must include Langfuse tracing
+- LLM calls must include Langfuse tracing (enforced by hook: `check-langfuse-tracing.sh`)
 - See `functions/config/` for shared constants (models, prompts, tool catalog)
 
 ### Observations (Core Data Model)
@@ -73,8 +73,8 @@ Classify proposed changes using the global leaf/trunk definition.
 ### Firestore Mutation Scripts
 
 - Any script that can create, update, or delete Firestore data must be dry-run by default and require an explicit `--yes` flag before applying writes.
-- Always execute and inspect the dry run first, in the same task, before running the script with `--yes`. Prior approval to perform the migration does not replace this dry-run step.
 - Dry-run output must identify the exact documents and fields that would change without exposing sensitive field values.
+- Dry-run-first enforcement: handled by hook (`enforce-ops-dry-run.sh`).
 
 ### Shared Skills & Subagents
 
