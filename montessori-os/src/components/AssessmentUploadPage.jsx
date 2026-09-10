@@ -1,11 +1,10 @@
 import React, { useEffect, useMemo, useRef, useState } from 'react';
 import {
-  Alert, Autocomplete, Box, Button, Card, CardContent, Chip, Dialog,
-  DialogActions, DialogContent, DialogTitle, Divider, IconButton,
-  LinearProgress, MenuItem, Select, Stack, Table, TableBody, TableCell,
-  TableHead, TableRow, Tabs, Tab, TextField, Tooltip, Typography,
+  Alert, Autocomplete, Box, Button, Card, CardContent, Chip, CircularProgress,
+  Dialog, DialogActions, DialogContent, DialogTitle, Divider, IconButton,
+  LinearProgress, MenuItem, Select, Stack, Tabs, Tab, TextField, Typography,
 } from '@mui/material';
-import { Check, CheckCheck, HelpCircle, Pencil, Upload } from 'lucide-react';
+import { HelpCircle, Upload } from 'lucide-react';
 import * as XLSX from 'xlsx';
 import {
   collection, documentId, getDocs, query, where,
@@ -17,7 +16,8 @@ import {
   parseAssessmentMatrix,
   worksheetToAssessmentMatrix,
 } from '../../../functions/assessments/parser.js';
-import { CONFIDENCE, matchStudentNames } from './BulkUploadPage.helpers.js';
+import { matchStudentNames } from './BulkUploadPage.helpers.js';
+import StudentMatchReview from './StudentMatchReview.jsx';
 import ClassroomSelect from './ui/ClassroomSelect.jsx';
 import useNotify from '../notifications/useNotify.js';
 
@@ -106,6 +106,7 @@ export default function AssessmentUploadPage({
   const [students, setStudents] = useState([]);
   const [classroomOptions, setClassroomOptions] = useState([]);
   const [filterClassroomId, setFilterClassroomId] = useState('');
+  const [rosterLoading, setRosterLoading] = useState(true);
   const [studentLoadError, setStudentLoadError] = useState('');
 
   const [file, setFile] = useState(null);
@@ -117,7 +118,9 @@ export default function AssessmentUploadPage({
   const [selectedSheetBlob, setSelectedSheetBlob] = useState(null);
   const [structuredProgress, setStructuredProgress] = useState(0);
   const [matchResults, setMatchResults] = useState([]);
-  const [editingMatch, setEditingMatch] = useState(null);
+  // Manual picks from the review UI, keyed by source name. Kept separate from
+  // engine output so corrections survive classroom-filter re-matches (#285).
+  const [manualSelections, setManualSelections] = useState({});
   const [publishing, setPublishing] = useState(false);
   const [duplicateSource, setDuplicateSource] = useState(null);
 
@@ -134,6 +137,7 @@ export default function AssessmentUploadPage({
     let active = true;
     async function loadAuthorizedStudents() {
       if (!currentUser?.uid) return;
+      setRosterLoading(true);
       setStudentLoadError('');
       try {
         let classroomDocs = [];
@@ -188,6 +192,8 @@ export default function AssessmentUploadPage({
           setStudents([]);
           setStudentLoadError(error?.message || 'Authorized students could not be loaded.');
         }
+      } finally {
+        if (active) setRosterLoading(false);
       }
     }
     loadAuthorizedStudents();
@@ -235,17 +241,9 @@ export default function AssessmentUploadPage({
       return;
     }
     const names = [...new Set(parsed.rows.map((row) => row.name))];
-    const nextResults = matchStudentNames(names, pooledStudents, {
-      requireUniqueBest: true,
-    }).map((match) => ({...match, accepted: false}));
-    // Preserve already-accepted rows (auto or manual) across classroom filter
-    // changes; only unaccepted rows re-match against the new pool.
-    setMatchResults((current) => {
-      const acceptedByName = new Map(current
-        .filter((entry) => entry.accepted && entry.match)
-        .map((entry) => [entry.csvName, entry]));
-      return nextResults.map((match) => acceptedByName.get(match.csvName) || match);
-    });
+    // Engine output recomputes freely on pool changes; manual corrections live
+    // in manualSelections (keyed by source name) so they survive re-matching.
+    setMatchResults(matchStudentNames(names, pooledStudents));
     const assessmentName = String(parsed.metadata.assessmentName || '').trim();
     if (assessmentName && notifiedAssessmentRef.current !== assessmentName) {
       notifiedAssessmentRef.current = assessmentName;
@@ -253,19 +251,31 @@ export default function AssessmentUploadPage({
     }
   }, [parsed, students, pooledStudents, notify]);
 
+  // Effective selection per source name: manual pick wins, else the engine's
+  // pre-selected best (auto and review zones resolve with zero taps, #285).
+  const selections = useMemo(() => {
+    const map = {};
+    for (const result of matchResults) {
+      map[result.csvName] = manualSelections[result.csvName] || result.match || null;
+    }
+    return map;
+  }, [matchResults, manualSelections]);
+
   const duplicateMappings = useMemo(() => {
     const rowsByStudent = new Map();
-    matchResults.filter((match) => match.accepted && match.match).forEach((match) => {
-      if (!rowsByStudent.has(match.match.id)) rowsByStudent.set(match.match.id, []);
-      rowsByStudent.get(match.match.id).push(match.csvName);
-    });
+    for (const result of matchResults) {
+      const student = selections[result.csvName];
+      if (!student) continue;
+      if (!rowsByStudent.has(student.id)) rowsByStudent.set(student.id, []);
+      rowsByStudent.get(student.id).push(result.csvName);
+    }
     return [...rowsByStudent.entries()]
       .filter(([, sourceNames]) => sourceNames.length > 1)
       .map(([studentId, sourceNames]) => ({studentId, sourceNames}));
-  }, [matchResults]);
+  }, [matchResults, selections]);
 
   const allMatchesResolved = matchResults.length > 0 && matchResults.every((match) => (
-    match.accepted && match.match
+    Boolean(selections[match.csvName])
   ));
   const finalReviewReady = Boolean(
     parsed &&
@@ -276,8 +286,7 @@ export default function AssessmentUploadPage({
     !duplicateMappings.length,
   );
   const confirmedStudentCount = new Set(
-    matchResults.filter((match) => match.accepted && match.match)
-      .map((match) => match.match.id),
+    Object.values(selections).filter(Boolean).map((student) => student.id),
   ).size;
   const sourceRowCount = new Set((parsed?.rows || []).map((row) => row.sourceRow)).size;
   const multilineSplitCount = Math.max(0, (parsed?.rows?.length || 0) - sourceRowCount);
@@ -289,6 +298,7 @@ export default function AssessmentUploadPage({
     setParsed(null);
     setPublicationErrors([]);
     setMatchResults([]);
+    setManualSelections({});
     setSelectedSheetBlob(null);
     setStructuredProgress(0);
     if (!selected) return;
@@ -338,20 +348,8 @@ export default function AssessmentUploadPage({
     }
   };
 
-  const acceptMatch = (csvName) => {
-    setMatchResults((current) => current.map((entry) => (
-      entry.csvName === csvName && entry.match
-        ? {...entry, accepted: true}
-        : entry
-    )));
-  };
-
-  const acceptAllHighConfidence = () => {
-    setMatchResults((current) => current.map((entry) => (
-      entry.confidence === CONFIDENCE.HIGH && entry.match && !entry.ambiguous
-        ? {...entry, accepted: true}
-        : entry
-    )));
+  const handleSelectMatch = (csvName, student) => {
+    setManualSelections((current) => ({...current, [csvName]: student}));
   };
 
   const publishStructured = async ({skipDuplicateCheck = false} = {}) => {
@@ -375,7 +373,7 @@ export default function AssessmentUploadPage({
       }
       const mappings = matchResults.map((match) => ({
         sourceName: match.csvName,
-        studentId: match.match.id,
+        studentId: selections[match.csvName].id,
       }));
       const createUpload = httpsCallable(
         cloudFunctions,
@@ -412,6 +410,7 @@ export default function AssessmentUploadPage({
       setWorkbook(null);
       setParsed(null);
       setMatchResults([]);
+      setManualSelections({});
       setSelectedSheetBlob(null);
       setStructuredProgress(0);
       setDuplicateSource(null);
@@ -603,22 +602,47 @@ export default function AssessmentUploadPage({
               </Stack>
               {showHelp && (
                 <Alert severity="info" sx={{mb: 2}}>
-                  Put Assessment Name, Assessment Description, Date, and contiguous Result definitions first. Leave a blank row, then add Name and every declared Result column. Aligned multiline example: <code>12 mins{String.raw`\n`}14 mins</code> and <code>Independent{String.raw`\n`}Prompted</code> create two records. Blank lines count as alignment positions; formula cells must have cached results.
+                  <Typography variant="subtitle2" sx={{mb: 0.5}}>Expected file layout</Typography>
+                  <Box component="ol" sx={{m: 0, pl: 2.5, '& li': {mb: 0.5}}}>
+                    <Typography component="li" variant="body2">
+                      Header rows first: <strong>Assessment Name</strong>, <strong>Assessment Description</strong>, <strong>Date</strong>, then one row per <strong>Result</strong> definition.
+                    </Typography>
+                    <Typography component="li" variant="body2">
+                      Leave one blank row.
+                    </Typography>
+                    <Typography component="li" variant="body2">
+                      Then the student table: a <strong>Name</strong> column plus every declared Result column.
+                    </Typography>
+                  </Box>
+                  <Typography variant="subtitle2" sx={{mt: 1, mb: 0.5}}>Good to know</Typography>
+                  <Box component="ul" sx={{m: 0, pl: 2.5, '& li': {mb: 0.5}}}>
+                    <Typography component="li" variant="body2">
+                      Multiline cells create one record per line — keep lines aligned across columns. Example: <code>12 mins</code> / <code>14 mins</code> paired with <code>Independent</code> / <code>Prompted</code> creates two records; blank lines count as alignment positions.
+                    </Typography>
+                    <Typography component="li" variant="body2">
+                      Formula cells must have cached results — open and re-save the file if formulas show as errors.
+                    </Typography>
+                  </Box>
                   <Button size="small" onClick={downloadTemplate} sx={{display: 'block', mt: 1, px: 0}}>Download XLSX template</Button>
                 </Alert>
               )}
               <Typography color="text.secondary" sx={{mb: 2}}>
-                Upload a structured assessment document. Nothing is published until every student match is accepted and the final review passes.
+                Upload a structured assessment document. Nothing is published until every student is matched and the final review passes.
               </Typography>
               <Stack spacing={2}>
-                <ClassroomSelect
-                  classrooms={classroomOptions}
-                  value={filterClassroomId}
-                  onChange={setFilterClassroomId}
-                  label="Classroom (optional)"
-                  helperText="Limits student matching to this classroom"
-                  emptyOptionLabel="All classrooms"
-                />
+                <Stack direction="row" alignItems="center" spacing={1.5}>
+                  <ClassroomSelect
+                    classrooms={classroomOptions}
+                    value={filterClassroomId}
+                    onChange={setFilterClassroomId}
+                    label="Classroom (optional)"
+                    helperText={rosterLoading ? 'Loading classrooms…' : 'Limits student matching to this classroom'}
+                    emptyOptionLabel="All classrooms"
+                    disabled={rosterLoading}
+                    fullWidth
+                  />
+                  {rosterLoading && <CircularProgress size={20} sx={{flexShrink: 0}} />}
+                </Stack>
                 <Button variant="outlined" startIcon={<Upload size={18} />} onClick={() => inputRef.current?.click()}>
                   {file ? file.name : 'Upload structured assessment document'}
                 </Button>
@@ -641,93 +665,17 @@ export default function AssessmentUploadPage({
                 {matchResults.length > 0 && (
                   <Card variant="outlined" sx={{boxShadow: 'none'}}>
                     <CardContent sx={{'&:last-child': {pb: 2}}}>
-                      <Stack direction={{xs: 'column', sm: 'row'}} justifyContent="space-between" gap={1} sx={{mb: 1}}>
-                        <Typography variant="subtitle1" sx={{fontWeight: 700}}>
-                          Student match review ({matchResults.filter((match) => match.accepted).length}/{matchResults.length})
-                        </Typography>
-                        <Button size="small" variant="outlined" startIcon={<CheckCheck size={16} />} onClick={acceptAllHighConfidence}>
-                          Accept All High Confidence
-                        </Button>
-                      </Stack>
-                      <Box sx={{overflowX: 'auto'}}>
-                        <Table size="small">
-                          <TableHead><TableRow><TableCell>Source name</TableCell><TableCell>Matched student</TableCell><TableCell>Confidence</TableCell><TableCell align="right">Actions</TableCell></TableRow></TableHead>
-                          <TableBody>{matchResults.map((match) => {
-                            const resolvedName = match.match?.displayName || match.match?.name || 'No unique match';
-                            const classroom = match.match?.classroomName || match.match?.classroomId || 'Classroom unavailable';
-                            const isEditing = editingMatch === match.csvName;
-                            return (
-                              <TableRow key={match.csvName} sx={{bgcolor: match.accepted ? 'action.selected' : 'inherit'}}>
-                                <TableCell>{match.csvName}</TableCell>
-                                <TableCell>
-                                  {isEditing ? (
-                                    <Autocomplete
-                                      size="small"
-                                      options={pooledStudents}
-                                      value={match.match || null}
-                                      getOptionLabel={(student) => (filterClassroomId
-                                        ? (student.displayName || student.name || student.id)
-                                        : `${student.displayName || student.name || student.id} (${student.classroomName || student.classroomId})`)}
-                                      isOptionEqualToValue={(option, value) => option.id === value.id}
-                                      onChange={(_, candidate) => {
-                                        if (!candidate) return;
-                                        setMatchResults((current) => current.map((entry) => (
-                                          entry.csvName === match.csvName
-                                            ? {...entry, match: candidate, confidence: 'manual', ambiguous: false, accepted: true}
-                                            : entry
-                                        )));
-                                        setEditingMatch(null);
-                                      }}
-                                      renderInput={(params) => <TextField {...params} placeholder="Search authorized students" />}
-                                      sx={{minWidth: 240}}
-                                    />
-                                  ) : (
-                                    <>
-                                      {resolvedName} {match.match && !filterClassroomId && <Typography component="span" variant="body2" color="text.secondary">({classroom})</Typography>}
-                                      {match.candidates?.length > 0 && (
-                                        <Box
-                                          component="ol"
-                                          aria-label={`Ranked match candidates for ${match.csvName}`}
-                                          sx={{my: 0.5, pl: 2.5}}
-                                        >
-                                          {match.candidates.slice(0, 5).map((candidate) => (
-                                            <Typography
-                                              component="li"
-                                              variant="caption"
-                                              color="text.secondary"
-                                              key={candidate.id}
-                                            >
-                                              {candidate.displayName || candidate.name || candidate.id}
-                                              {!filterClassroomId && ` — ${candidate.classroomName || candidate.classroomId || 'Classroom unavailable'}`}
-                                            </Typography>
-                                          ))}
-                                        </Box>
-                                      )}
-                                    </>
-                                  )}
-                                </TableCell>
-                                <TableCell>
-                                  <Chip size="small" label={match.ambiguous ? 'Ambiguous' : (match.confidence || 'low')} color={match.accepted ? 'success' : 'default'} />
-                                </TableCell>
-                                <TableCell align="right">
-                                  <Tooltip title={match.accepted ? 'Accepted' : 'Accept match'}>
-                                    <span>
-                                      <IconButton size="small" color="success" disabled={!match.match || match.accepted} onClick={() => acceptMatch(match.csvName)} aria-label={`Accept match for ${match.csvName}`}>
-                                        <Check size={17} />
-                                      </IconButton>
-                                    </span>
-                                  </Tooltip>
-                                  <Tooltip title="Choose a different student">
-                                    <IconButton size="small" onClick={() => setEditingMatch(isEditing ? null : match.csvName)} aria-label={`Edit match for ${match.csvName}`}>
-                                      <Pencil size={17} />
-                                    </IconButton>
-                                  </Tooltip>
-                                </TableCell>
-                              </TableRow>
-                            );
-                          })}</TableBody>
-                        </Table>
-                      </Box>
+                      <Typography variant="subtitle1" sx={{fontWeight: 700, mb: 1}}>
+                        Student match review ({matchResults.filter((match) => selections[match.csvName]).length}/{matchResults.length})
+                      </Typography>
+                      <StudentMatchReview
+                        matches={matchResults}
+                        selections={selections}
+                        onSelect={handleSelectMatch}
+                        pool={pooledStudents}
+                        fullPool={students}
+                        disabled={publishing}
+                      />
                     </CardContent>
                   </Card>
                 )}
@@ -741,19 +689,49 @@ export default function AssessmentUploadPage({
                 {parsed?.rows?.length > 0 && (
                   <Card variant="outlined" sx={{boxShadow: 'none'}}>
                     <CardContent>
-                      <Typography variant="subtitle1" sx={{fontWeight: 700, mb: 1}}>Final review</Typography>
-                      <Stack spacing={0.75}>
-                        <Typography><strong>{parsed.metadata.assessmentName}</strong></Typography>
-                        <Typography variant="body2">{parsed.metadata.assessmentDescription}</Typography>
-                        <Typography variant="body2">Date: {formatDateRange(parsed.metadata.dateRange)}</Typography>
-                        <Typography variant="body2">Worksheet: {sheetName}</Typography>
-                        <Typography variant="body2">Results: {parsed.resultDefinitions.map((definition) => `${definition.label} — ${definition.description}`).join('; ')}</Typography>
-                        <Typography variant="body2">Students confirmed: {confirmedStudentCount}</Typography>
-                        <Typography variant="body2">Assessment records: {parsed.rows.length}</Typography>
-                        <Typography variant="body2">Additional multiline records: {multilineSplitCount}</Typography>
-                        <Typography variant="body2">Original file: {file?.name}</Typography>
+                      <Typography variant="overline" color="text.secondary" sx={{letterSpacing: 1}}>Final review</Typography>
+                      <Typography variant="subtitle1" sx={{fontWeight: 700, lineHeight: 1.3}}>
+                        {parsed.metadata.assessmentName}
+                      </Typography>
+                      {parsed.metadata.assessmentDescription && (
+                        <Typography variant="body2" color="text.secondary" sx={{mt: 0.5}}>
+                          {parsed.metadata.assessmentDescription}
+                        </Typography>
+                      )}
+
+                      <Stack direction="row" spacing={1} sx={{mt: 1.5, flexWrap: 'wrap', gap: 1}}>
+                        <Chip size="small" variant="outlined" label={formatDateRange(parsed.metadata.dateRange)} />
+                        <Chip size="small" variant="outlined" label={`${confirmedStudentCount} student${confirmedStudentCount === 1 ? '' : 's'}`} />
+                        <Chip size="small" variant="outlined" label={`${parsed.rows.length} record${parsed.rows.length === 1 ? '' : 's'}`} />
+                        {multilineSplitCount > 0 && (
+                          <Chip size="small" variant="outlined" label={`+${multilineSplitCount} multiline`} />
+                        )}
                       </Stack>
-                      {!allMatchesResolved && <Alert severity="warning" sx={{mt: 1.5}}>Accept or manually correct every student match before publishing.</Alert>}
+
+                      <Divider sx={{my: 1.5}} />
+
+                      <Stack spacing={0.75}>
+                        <Box sx={{display: 'flex', gap: 1}}>
+                          <Typography variant="body2" color="text.secondary" sx={{minWidth: 80, flexShrink: 0}}>Results</Typography>
+                          <Stack spacing={0.25}>
+                            {parsed.resultDefinitions.map((definition) => (
+                              <Typography key={definition.label} variant="body2">
+                                <strong>{definition.label}</strong>
+                                {definition.description ? ` — ${definition.description}` : ''}
+                              </Typography>
+                            ))}
+                          </Stack>
+                        </Box>
+                        <Box sx={{display: 'flex', gap: 1}}>
+                          <Typography variant="body2" color="text.secondary" sx={{minWidth: 80, flexShrink: 0}}>Worksheet</Typography>
+                          <Typography variant="body2">{sheetName}</Typography>
+                        </Box>
+                        <Box sx={{display: 'flex', gap: 1, minWidth: 0}}>
+                          <Typography variant="body2" color="text.secondary" sx={{minWidth: 80, flexShrink: 0}}>File</Typography>
+                          <Typography variant="body2" sx={{overflowWrap: 'anywhere'}}>{file?.name}</Typography>
+                        </Box>
+                      </Stack>
+                      {!allMatchesResolved && <Alert severity="warning" sx={{mt: 1.5}}>Match every source name to a student before publishing.</Alert>}
                     </CardContent>
                   </Card>
                 )}

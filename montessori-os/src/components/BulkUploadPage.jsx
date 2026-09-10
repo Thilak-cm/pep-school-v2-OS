@@ -20,14 +20,12 @@ import {
   TableHead,
   TableRow,
   Chip,
-  IconButton,
   Autocomplete,
   TextField,
   LinearProgress,
-  Tooltip,
   Paper,
 } from '@mui/material';
-import { Upload as CloudUpload, CircleCheck as CheckCircle, TriangleAlert as Warning, CircleAlert as ErrorIcon, Pencil as Edit, Check, X as Close, CheckCheck as DoneAll } from '../icons';
+import { Upload as CloudUpload, CircleCheck as CheckCircle, TriangleAlert as Warning } from '../icons';
 import {
   collection,
   doc,
@@ -42,11 +40,13 @@ import { isSuperAdmin } from '../utils/roleUtils';
 import { parseCSV, validateCSV, extractUniqueNames, applyDefaultDate } from '../utils/csvParser';
 import {
   matchStudentNames,
+  filterStudentPool,
   buildObservationDoc,
   buildLessonDoc,
   checkDuplicates,
-  CONFIDENCE,
+  ZONE,
 } from './BulkUploadPage.helpers';
+import StudentMatchReview from './StudentMatchReview.jsx';
 import useNotify from '../notifications/useNotify.js';
 
 const STEPS = ['Upload CSV', 'Match Students', 'Review & Upload', 'Results'];
@@ -71,7 +71,8 @@ export default function BulkUploadPage({ currentUser, userRole }) {
   // Step 1: Matching state
   const [allStudents, setAllStudents] = useState([]);
   const [matchResults, setMatchResults] = useState([]);
-  const [editingIdx, setEditingIdx] = useState(-1);
+  // Manual picks from the review UI, keyed by source name (#285).
+  const [manualSelections, setManualSelections] = useState({});
 
   // Step 2: Review state
   const [reviewRows, setReviewRows] = useState([]);
@@ -167,7 +168,11 @@ export default function BulkUploadPage({ currentUser, userRole }) {
       const studentsSnap = await getDocs(
         query(collection(db, 'students'), where('status', '==', 'active'))
       );
-      const students = studentsSnap.docs.map((d) => ({ id: d.id, ...d.data() }));
+      // classroomName feeds the shared review UI's classroom labels.
+      const students = studentsSnap.docs.map((d) => {
+        const data = { id: d.id, ...d.data() };
+        return { ...data, classroomName: classrooms.find((c) => c.id === data.classroomId)?.name || data.classroomId };
+      });
       setAllStudents(students);
 
       const uniqueNames = extractUniqueNames(parsedRows);
@@ -175,51 +180,64 @@ export default function BulkUploadPage({ currentUser, userRole }) {
 
       const matches = matchStudentNames(uniqueNames, students, filter);
       setMatchResults(matches);
+      setManualSelections({});
       setActiveStep(1);
-      const highCount = matches.filter((m) => m.confidence === CONFIDENCE.HIGH).length;
-      notify.success(`${highCount}/${matches.length} students matched with high confidence from selected classrooms.`);
+      const autoCount = matches.filter((m) => m.zone === ZONE.AUTO).length;
+      notify.success(`${autoCount}/${matches.length} students matched automatically from selected classrooms.`);
     } catch (err) {
       notify.error('Failed to load students: ' + (err.message || ''));
     }
-  }, [parsedRows, selectedClassrooms, notify]);
+  }, [parsedRows, selectedClassrooms, classrooms, notify]);
 
   // --- Step 1: Match actions ---
-  const handleAccept = useCallback((idx) => {
-    setMatchResults((prev) => prev.map((m, i) =>
-      i === idx ? { ...m, accepted: true, rejected: false } : m
-    ));
+  const handleSelectMatch = useCallback((csvName, student) => {
+    setManualSelections((current) => ({ ...current, [csvName]: student }));
   }, []);
 
-  const handleReject = useCallback((idx) => {
-    setMatchResults((prev) => prev.map((m, i) =>
-      i === idx ? { ...m, accepted: false, rejected: true } : m
-    ));
-  }, []);
+  // Effective selection per source name: manual pick wins, else the engine's
+  // pre-selected best (auto and review zones resolve with zero taps, #285).
+  const selections = useMemo(() => {
+    const map = {};
+    for (const result of matchResults) {
+      map[result.csvName] = manualSelections[result.csvName] || result.match || null;
+    }
+    return map;
+  }, [matchResults, manualSelections]);
 
-  const handleEditSelect = useCallback((idx, student) => {
-    setMatchResults((prev) => prev.map((m, i) =>
-      i === idx ? { ...m, match: student, confidence: CONFIDENCE.HIGH, accepted: true, rejected: false } : m
-    ));
-    setEditingIdx(-1);
-  }, []);
+  // Picker scopes for the shared review component.
+  const matchPool = useMemo(
+    () => filterStudentPool(allStudents, { programClassroomIds: selectedClassrooms.map((c) => c.id) }),
+    [allStudents, selectedClassrooms],
+  );
 
-  const handleAcceptAllHighConfidence = useCallback(() => {
-    setMatchResults((prev) => prev.map((m) =>
-      m.confidence === CONFIDENCE.HIGH && !m.rejected ? { ...m, accepted: true } : m
-    ));
-  }, []);
+  // Two source names resolving to one student hard-blocks proceeding (#285).
+  const duplicateMappings = useMemo(() => {
+    const rowsByStudent = new Map();
+    for (const result of matchResults) {
+      const student = selections[result.csvName];
+      if (!student) continue;
+      if (!rowsByStudent.has(student.id)) rowsByStudent.set(student.id, []);
+      rowsByStudent.get(student.id).push(result.csvName);
+    }
+    return [...rowsByStudent.entries()]
+      .filter(([, sourceNames]) => sourceNames.length > 1)
+      .map(([studentId, sourceNames]) => ({ studentId, sourceNames }));
+  }, [matchResults, selections]);
 
   // --- Step 1 → 2: Proceed to review ---
-  const allResolved = useMemo(() => {
-    return matchResults.every((m) => m.accepted || m.rejected);
-  }, [matchResults]);
+  // All-or-nothing: every source name must resolve to a student (#285 - no
+  // reject/skip; an unmatchable name means the sheet needs fixing).
+  const allResolved = useMemo(() => (
+    matchResults.length > 0 && matchResults.every((m) => selections[m.csvName])
+  ), [matchResults, selections]);
 
   const handleProceedToReview = useCallback(async () => {
     // Build mapping: csvName → studentId + metadata
     const nameMap = new Map();
     for (const m of matchResults) {
-      if (m.accepted && m.match) {
-        nameMap.set(m.csvName.toLowerCase(), m.match);
+      const student = selections[m.csvName];
+      if (student) {
+        nameMap.set(m.csvName.toLowerCase(), student);
       }
     }
 
@@ -260,7 +278,7 @@ export default function BulkUploadPage({ currentUser, userRole }) {
     const flagged = checkDuplicates(mapped, existingObs);
     setReviewRows(flagged);
     setActiveStep(2);
-  }, [matchResults, parsedRows, notify]);
+  }, [matchResults, selections, parsedRows, notify]);
 
   // --- Step 2: Upload ---
   const duplicateCount = useMemo(() => reviewRows.filter((r) => r.isDuplicate).length, [reviewRows]);
@@ -330,7 +348,6 @@ export default function BulkUploadPage({ currentUser, userRole }) {
       imported,
       failed,
       duplicatesAllowed: duplicateCount,
-      skipped: matchResults.filter((m) => m.rejected).length,
       total: parsedRows.length,
     };
     setResults(resultData);
@@ -341,7 +358,7 @@ export default function BulkUploadPage({ currentUser, userRole }) {
     } else {
       notify.warning(`${imported} imported, ${failed} failed.`);
     }
-  }, [reviewRows, currentUser, duplicateCount, matchResults, parsedRows, notify]);
+  }, [reviewRows, currentUser, duplicateCount, parsedRows, notify]);
 
   // --- Render ---
   if (!isAdmin) {
@@ -538,7 +555,7 @@ export default function BulkUploadPage({ currentUser, userRole }) {
           <CardContent sx={{ display: 'flex', flexDirection: 'column', gap: 2 }}>
             <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexWrap: 'wrap', gap: 1 }}>
               <Typography variant="h6">
-                Match Students ({matchResults.filter((m) => m.accepted).length}/{matchResults.length} matched)
+                Match Students ({matchResults.filter((m) => selections[m.csvName]).length}/{matchResults.length} matched)
               </Typography>
             </Box>
 
@@ -549,103 +566,32 @@ export default function BulkUploadPage({ currentUser, userRole }) {
               ))}
             </Box>
 
-            <Box sx={{ display: 'flex', justifyContent: 'flex-end' }}>
-              <Button
-                size="small"
-                variant="outlined"
-                startIcon={<DoneAll />}
-                onClick={handleAcceptAllHighConfidence}
-              >
-                Accept All High Confidence
-              </Button>
-            </Box>
-
-            <TableContainer component={Paper} sx={{ maxHeight: 400 }}>
-              <Table size="small" stickyHeader>
-                <TableHead>
-                  <TableRow>
-                    <TableCell>CSV Name</TableCell>
-                    <TableCell>Matched Student</TableCell>
-                    <TableCell>Confidence</TableCell>
-                    <TableCell align="right">Actions</TableCell>
-                  </TableRow>
-                </TableHead>
-                <TableBody>
-                  {matchResults.map((m, idx) => (
-                    <TableRow
-                      key={idx}
-                      sx={{
-                        bgcolor: m.accepted ? 'action.selected' : m.rejected ? 'error.lighter' : 'inherit',
-                        opacity: m.rejected ? 0.5 : 1,
-                      }}
-                    >
-                      <TableCell>{m.csvName}</TableCell>
-                      <TableCell>
-                        {editingIdx === idx ? (
-                          <Autocomplete
-                            size="small"
-                            options={allStudents}
-                            getOptionLabel={(s) => s.displayName || `${s.firstName} ${s.lastName}`}
-                            isOptionEqualToValue={(option, value) => option.id === value.id}
-                            onChange={(_, val) => val && handleEditSelect(idx, val)}
-                            renderInput={(params) => <TextField {...params} placeholder="Search student..." autoFocus />}
-                            sx={{ minWidth: 220 }}
-                          />
-                        ) : (
-                          m.match
-                            ? <>{m.match.displayName} <Typography component="span" variant="body2" color="text.secondary">({classrooms.find((c) => c.id === m.match.classroomId)?.name || m.match.classroomId})</Typography></>
-                            : <em>No match</em>
-                        )}
-                      </TableCell>
-                      <TableCell>
-                        <ConfidenceChip confidence={m.confidence} />
-                      </TableCell>
-                      <TableCell align="right">
-                        {!m.rejected && (
-                          <>
-                            {!m.accepted && (
-                              <Tooltip title="Accept match">
-                                <IconButton size="small" color="success" onClick={() => handleAccept(idx)} disabled={!m.match}>
-                                  <Check />
-                                </IconButton>
-                              </Tooltip>
-                            )}
-                            <Tooltip title="Edit match">
-                              <IconButton size="small" onClick={() => setEditingIdx(editingIdx === idx ? -1 : idx)}>
-                                <Edit />
-                              </IconButton>
-                            </Tooltip>
-                          </>
-                        )}
-                        <Tooltip title={m.rejected ? 'Undo reject' : 'Reject (skip rows)'}>
-                          <IconButton
-                            size="small"
-                            color={m.rejected ? 'default' : 'error'}
-                            onClick={() => m.rejected ? handleAccept(idx) : handleReject(idx)}
-                          >
-                            <Close />
-                          </IconButton>
-                        </Tooltip>
-                      </TableCell>
-                    </TableRow>
-                  ))}
-                </TableBody>
-              </Table>
-            </TableContainer>
+            <StudentMatchReview
+              matches={matchResults}
+              selections={selections}
+              onSelect={handleSelectMatch}
+              pool={matchPool}
+              fullPool={allStudents}
+            />
 
             <Box sx={{ display: 'flex', gap: 1 }}>
               <Button variant="text" onClick={() => setActiveStep(0)}>Back</Button>
               <Button
                 variant="contained"
                 onClick={handleProceedToReview}
-                disabled={!allResolved}
+                disabled={!allResolved || duplicateMappings.length > 0}
               >
                 Next: Review & Upload
               </Button>
             </Box>
             {!allResolved && (
               <Typography variant="caption" color="text.secondary">
-                Accept or reject all student matches to proceed.
+                Match every name to a student to proceed. Remove names that no longer belong to an active student from the CSV and re-upload.
+              </Typography>
+            )}
+            {duplicateMappings.length > 0 && (
+              <Typography variant="caption" color="error">
+                Two names are matched to the same student. Fix the highlighted rows to proceed.
               </Typography>
             )}
           </CardContent>
@@ -661,8 +607,7 @@ export default function BulkUploadPage({ currentUser, userRole }) {
             <Box sx={{ display: 'flex', gap: 2, flexWrap: 'wrap' }}>
               {/* hex required — StatBox uses hex-alpha concatenation (color + '12') */}
               <StatBox label="Rows to upload" value={reviewRows.length} color="#2196f3" />
-              <StatBox label="Matched students" value={matchResults.filter((m) => m.accepted).length} color="#4caf50" />
-              <StatBox label="Skipped (rejected)" value={matchResults.filter((m) => m.rejected).length} color="#9e9e9e" />
+              <StatBox label="Matched students" value={matchResults.filter((m) => selections[m.csvName]).length} color="#4caf50" />
               {duplicateCount > 0 && (
                 <StatBox label="Potential duplicates" value={duplicateCount} color="#ff9800" />
               )}
@@ -725,9 +670,6 @@ export default function BulkUploadPage({ currentUser, userRole }) {
               {results.duplicatesAllowed > 0 && (
                 <StatBox label="Duplicates (allowed)" value={results.duplicatesAllowed} color="#ff9800" />
               )}
-              {results.skipped > 0 && (
-                <StatBox label="Skipped (rejected names)" value={results.skipped} color="#9e9e9e" />
-              )}
             </Box>
 
             <Button
@@ -738,6 +680,7 @@ export default function BulkUploadPage({ currentUser, userRole }) {
                 setRawParsedRows([]);
                 setParseErrors([]);
                 setMatchResults([]);
+                setManualSelections({});
                 setReviewRows([]);
                 setResults(null);
                 setSelectedBranch('');
@@ -753,16 +696,6 @@ export default function BulkUploadPage({ currentUser, userRole }) {
       )}
     </Box>
   );
-}
-
-function ConfidenceChip({ confidence }) {
-  const config = {
-    [CONFIDENCE.HIGH]: { label: 'High', color: 'success' },
-    [CONFIDENCE.MEDIUM]: { label: 'Medium', color: 'warning' },
-    [CONFIDENCE.LOW]: { label: 'Low', color: 'error' },
-  };
-  const c = config[confidence] || config[CONFIDENCE.LOW];
-  return <Chip label={c.label} size="small" color={c.color} variant="outlined" />;
 }
 
 function StatBox({ label, value, color }) {

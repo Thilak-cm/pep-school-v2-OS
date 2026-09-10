@@ -21,6 +21,7 @@
     "dotenv": "^17.2.1",
     "firebase": "^11.10.0",
     "fuse.js": "^7.1.0",
+    "jaro-winkler": "^0.2.8",
     "lucide-react": "^1.14.0",
     "papaparse": "^5.5.3",
     "pdfjs-dist": "^4.6.82",
