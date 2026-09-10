@@ -462,7 +462,12 @@ async function runBackfill() {
   }
 
   if (VERIFY_ONLY) {
-    await runVerifier(weekKey, weekOutcomes[weekKey] || {});
+    let outcomes = weekOutcomes[weekKey] || {};
+    if (STUDENT_ID_FILTER) {
+      outcomes = Object.fromEntries(Object.entries(outcomes).filter(([id]) => STUDENT_ID_FILTER.has(id)));
+      console.log(`Verifying ${Object.keys(outcomes).length} filtered student(s)`);
+    }
+    await runVerifier(weekKey, outcomes);
     return;
   }
 
