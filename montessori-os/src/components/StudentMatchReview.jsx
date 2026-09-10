@@ -1,4 +1,4 @@
-import React, { useMemo, useState } from 'react';
+import React, { useMemo, useRef, useState } from 'react';
 import {
   Alert,
   Box,
@@ -55,6 +55,8 @@ const classroomLabel = (student) => student.classroomName || student.classroomId
  */
 function StudentMatchReview({ matches, selections, onSelect, pool, fullPool, disabled = false }) {
   const [picker, setPicker] = useState(null); // csvName being edited, or null
+  const pickerLabelRef = useRef(''); // retains label during Drawer close animation
+  if (picker) pickerLabelRef.current = picker;
   const [query, setQuery] = useState('');
   const [searchAll, setSearchAll] = useState(false);
 
@@ -150,7 +152,7 @@ function StudentMatchReview({ matches, selections, onSelect, pool, fullPool, dis
           {needsAction ? (
             <Chip label={zone === ZONE.NONE ? 'No match found' : 'Pick a student'} size="small" color="warning" />
           ) : (
-            <Chip label={zone === ZONE.REVIEW ? 'Check match' : 'Matched'} size="small" variant="outlined" />
+            <Chip label="Matched" size="small" variant="outlined" />
           )}
         </Stack>
         <List dense disablePadding>
@@ -206,7 +208,7 @@ function StudentMatchReview({ matches, selections, onSelect, pool, fullPool, dis
       >
         <Box sx={{ p: 2, pb: 1 }}>
           <Typography variant="subtitle2" sx={{ mb: 1 }}>
-            Match &ldquo;{picker}&rdquo; to
+            Match &ldquo;{pickerLabelRef.current}&rdquo; to
           </Typography>
           <TextField
             fullWidth

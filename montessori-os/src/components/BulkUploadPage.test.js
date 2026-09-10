@@ -49,6 +49,14 @@ test('normalizeName strips leading honorifics', () => {
   assert.equal(normalizeName('Ms. Meera Gupta'), 'meera gupta');
 });
 
+test('empty student pool returns none zone for every source name', () => {
+  const results = matchStudentNames(['Aarav Kumar'], []);
+  assert.equal(results.length, 1);
+  assert.equal(results[0].zone, ZONE.NONE);
+  assert.equal(results[0].match, null);
+  assert.equal(results[0].candidates.length, 0);
+});
+
 // -- tier 1: exact full name --
 
 test('exact full-name match is auto zone via exact-full tier', () => {

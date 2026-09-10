@@ -2,7 +2,13 @@ import Fuse from 'fuse.js';
 
 /**
  * Fuzzy search utility using Fuse.js
- * Provides consistent fuzzy matching across all search bars in the app
+ * Provides consistent fuzzy matching across all search bars in the app.
+ *
+ * Fuse.js is deliberately retained for interactive search UX (search bars,
+ * pickers) while batch student-name matching uses Jaro-Winkler in
+ * BulkUploadPage.helpers.js (#285). Different tools for different jobs:
+ * Fuse excels at substring/token search with configurable weighting; JW is
+ * purpose-built for person-name comparison. See #286 for consolidation plan.
  */
 
 /**

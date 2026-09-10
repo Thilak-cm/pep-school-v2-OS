@@ -121,7 +121,7 @@ export function matchStudentNames(csvNames, students, filter = {}) {
     // Tier 2: single-token exact firstName. Unique -> auto. Non-unique ->
     // review with exactly those students as candidates (not fuzzy noise);
     // first in pool order is pre-selected.
-    if (tokens.length === 1) {
+    else if (tokens.length === 1) {
       const exact = pool.filter((s) => normalizeName(s.firstName) === source);
       if (exact.length === 1) {
         return { csvName, match: exact[0], zone: ZONE.AUTO, tier: 'exact-first', candidates: [exact[0]] };
