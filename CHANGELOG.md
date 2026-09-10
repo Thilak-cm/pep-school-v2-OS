@@ -1,5 +1,16 @@
 # Changelog
 
+# 13.2.1 — 2026-09-10
+
+### Changed
+- Student-name matching engine rewritten from Fuse.js single-pass to deterministic-first tiered ladder (exact full name, exact first name, Jaro-Winkler fuzzy) with three-zone classification (auto/review/no-match) (#285).
+- Shared `StudentMatchReview` component replaces duplicated match-review UIs in BulkUploadPage and AssessmentUploadPage (#285).
+- Review-zone rows pre-selected with best match for zero-tap confirmation; reject/skip removed in favor of all-or-nothing commit gating (#285).
+- Duplicate-mapping hard block extended to BulkUploadPage (was AssessmentUploadPage only) (#285).
+
+### Added
+- `jaro-winkler` npm dependency for person-name comparison (#285).
+
 # 13.2.0 — 2026-09-06
 
 ### Added

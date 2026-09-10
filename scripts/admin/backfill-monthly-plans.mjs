@@ -17,6 +17,11 @@
  */
 import admin from "firebase-admin";
 import { google } from "googleapis";
+import { readFileSync } from "node:fs";
+import { resolve, dirname } from "node:path";
+import { fileURLToPath } from "node:url";
+
+const __dirname = dirname(fileURLToPath(import.meta.url));
 
 if (!admin.apps.length) {
   admin.initializeApp({
@@ -27,8 +32,13 @@ if (!admin.apps.length) {
 
 const db = admin.firestore();
 
-// Firebase Web API key (needed to exchange custom token for ID token)
-const FIREBASE_API_KEY = "AIzaSyAC4ibFMiIOtAlinYTXQjvQCf10jBAqKJQ";
+// Firebase Web API key (needed to exchange custom token for ID token).
+// Never hardcode - public repo; Google scans GitHub for keys.
+// Sourced from env var or the frontend .env, which is gitignored.
+const FIREBASE_API_KEY = process.env.FIREBASE_API_KEY ||
+  readFileSync(resolve(__dirname, "../../montessori-os/.env"), "utf8")
+    .match(/^VITE_FIREBASE_API_KEY="?([^"\n]+)"?/m)?.[1];
+if (!FIREBASE_API_KEY) throw new Error("FIREBASE_API_KEY not found in env or montessori-os/.env");
 const CF_BASE = "https://asia-south1-pep-os.cloudfunctions.net";
 const SHARED_DRIVE_ID = "0ANF5MPbc7nZEUk9PVA";
 

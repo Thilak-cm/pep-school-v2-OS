@@ -4,13 +4,19 @@ import { readFile } from 'node:fs/promises';
 
 import {
   matchStudentNames,
+  normalizeName,
+  filterStudentPool,
   buildObservationDoc,
   buildLessonDoc,
   checkDuplicates,
-  CONFIDENCE,
+  ZONE,
+  JW_AUTO,
+  JW_REVIEW_FLOOR,
+  JW_MARGIN,
+  JW_SUGGEST_FLOOR,
 } from './BulkUploadPage.helpers.js';
 
-// --- matchStudentNames ---
+// --- matchStudentNames (tiered engine, #285) ---
 
 const STUDENTS = [
   { id: 's1', displayName: 'Aarav Kumar', firstName: 'Aarav', lastName: 'Kumar', classroomId: 'c1' },
@@ -19,85 +25,212 @@ const STUDENTS = [
   { id: 's4', displayName: 'Meera Gupta', firstName: 'Meera', lastName: 'Gupta', classroomId: 'c2' },
 ];
 
-test('matchStudentNames returns high confidence for exact name match', () => {
+test('exported zone thresholds match the specced constants', () => {
+  assert.equal(JW_AUTO, 0.95);
+  assert.equal(JW_REVIEW_FLOOR, 0.85);
+  assert.equal(JW_MARGIN, 0.05);
+  assert.equal(JW_SUGGEST_FLOOR, 0.70);
+  assert.deepEqual(ZONE, { AUTO: 'auto', REVIEW: 'review', NONE: 'none' });
+});
+
+// -- normalization --
+
+test('normalizeName trims, lowercases, collapses whitespace, strips punctuation', () => {
+  assert.equal(normalizeName('  Aarav   KUMAR. '), 'aarav kumar');
+});
+
+test('normalizeName strips diacritics', () => {
+  assert.equal(normalizeName('Aärav Kúmar'), 'aarav kumar');
+});
+
+test('normalizeName strips leading honorifics', () => {
+  assert.equal(normalizeName('Master Aarav Kumar'), 'aarav kumar');
+  assert.equal(normalizeName('Baby Priya'), 'priya');
+  assert.equal(normalizeName('Ms. Meera Gupta'), 'meera gupta');
+});
+
+test('empty student pool returns none zone for every source name', () => {
+  const results = matchStudentNames(['Aarav Kumar'], []);
+  assert.equal(results.length, 1);
+  assert.equal(results[0].zone, ZONE.NONE);
+  assert.equal(results[0].match, null);
+  assert.equal(results[0].candidates.length, 0);
+});
+
+// -- tier 1: exact full name --
+
+test('exact full-name match is auto zone via exact-full tier', () => {
   const results = matchStudentNames(['Aarav Kumar'], STUDENTS);
   assert.equal(results.length, 1);
   assert.equal(results[0].csvName, 'Aarav Kumar');
   assert.equal(results[0].match.id, 's1');
-  assert.equal(results[0].confidence, CONFIDENCE.HIGH);
+  assert.equal(results[0].zone, ZONE.AUTO);
+  assert.equal(results[0].tier, 'exact-full');
 });
 
-test('matchStudentNames never returns inactive students', () => {
+test('exact full-name match survives noisy formatting and honorifics', () => {
+  const results = matchStudentNames(['  MASTER Aärav   Kumar. '], STUDENTS);
+  assert.equal(results[0].match.id, 's1');
+  assert.equal(results[0].zone, ZONE.AUTO);
+});
+
+test('exact full-name match is word-order insensitive (token sort)', () => {
+  const results = matchStudentNames(['Kumar Aarav'], STUDENTS);
+  assert.equal(results[0].match.id, 's1');
+  assert.equal(results[0].zone, ZONE.AUTO);
+  assert.equal(results[0].tier, 'exact-full');
+});
+
+test('duplicate full names in pool do not auto-match; both surface as review candidates', () => {
   const results = matchStudentNames(['Aarav Kumar'], [
-    {id: 'inactive', displayName: 'Aarav Kumar', firstName: 'Aarav', lastName: 'Kumar', classroomId: 'c9', status: 'inactive'},
+    ...STUDENTS,
+    { id: 'dup', displayName: 'Aarav Kumar', firstName: 'Aarav', lastName: 'Kumar', classroomId: 'c2' },
+  ]);
+  assert.equal(results[0].zone, ZONE.REVIEW);
+  assert.ok(results[0].match, 'review zone still pre-selects a best candidate');
+  assert.equal(results[0].candidates.length >= 2, true);
+  const ids = results[0].candidates.map((c) => c.id);
+  assert.ok(ids.includes('s1') && ids.includes('dup'));
+});
+
+// -- tier 2: exact first name --
+
+test('single-token exact-unique firstName is auto zone via exact-first tier', () => {
+  const results = matchStudentNames(['Priya'], STUDENTS);
+  assert.equal(results[0].match.id, 's2');
+  assert.equal(results[0].zone, ZONE.AUTO);
+  assert.equal(results[0].tier, 'exact-first');
+});
+
+test('single-token exact non-unique firstName is review zone with exactly those candidates', () => {
+  const pool = [
+    ...STUDENTS,
+    { id: 's5', displayName: 'Aarav Mehta', firstName: 'Aarav', lastName: 'Mehta', classroomId: 'c2' },
+  ];
+  const results = matchStudentNames(['Aarav'], pool);
+  assert.equal(results[0].zone, ZONE.REVIEW);
+  assert.equal(results[0].tier, 'ambiguous-first');
+  assert.ok(results[0].match, 'best candidate is pre-selected');
+  const ids = results[0].candidates.map((c) => c.id).sort();
+  assert.deepEqual(ids, ['s1', 's5']);
+});
+
+// -- tier 3: fuzzy (Jaro-Winkler) --
+
+test('close typo lands in auto zone via fuzzy tier', () => {
+  // JW('aarav kumr','aarav kumar') = 0.982 >= 0.95, runner-up far below
+  const results = matchStudentNames(['Aarav Kumr'], STUDENTS);
+  assert.equal(results[0].match.id, 's1');
+  assert.equal(results[0].zone, ZONE.AUTO);
+  assert.equal(results[0].tier, 'fuzzy');
+});
+
+test('mid-band typo lands in review zone', () => {
+  // JW('meer gpta','meera gupta') = 0.908 -> [0.85, 0.95)
+  const results = matchStudentNames(['Meer Gpta'], STUDENTS);
+  assert.equal(results[0].zone, ZONE.REVIEW);
+  assert.equal(results[0].match.id, 's4');
+});
+
+test('single-token fuzzy compares against firstName (romanization variant)', () => {
+  // JW('dipika','deepika') = 0.864 -> review band
+  const pool = [...STUDENTS, { id: 's6', displayName: 'Deepika Rao', firstName: 'Deepika', lastName: 'Rao', classroomId: 'c1' }];
+  const results = matchStudentNames(['Dipika'], pool);
+  assert.equal(results[0].zone, ZONE.REVIEW);
+  assert.equal(results[0].match.id, 's6');
+});
+
+test('high score with thin margin over runner-up is review zone, not auto', () => {
+  // JW('aarav kumas', 'aarav kumar') = JW('aarav kumas', 'aarav kumat') = 0.964; margin 0 < 0.05
+  const pool = [
+    ...STUDENTS,
+    { id: 's7', displayName: 'Aarav Kumat', firstName: 'Aarav', lastName: 'Kumat', classroomId: 'c2' },
+  ];
+  const results = matchStudentNames(['Aarav Kumas'], pool);
+  assert.equal(results[0].zone, ZONE.REVIEW);
+  const ids = results[0].candidates.map((c) => c.id);
+  assert.ok(ids.includes('s1') && ids.includes('s7'));
+});
+
+test('unrecognizable name is none zone with no candidates', () => {
+  // JW('zara williams', best pool entry) < 0.60
+  const results = matchStudentNames(['Zara Williams'], STUDENTS);
+  assert.equal(results[0].zone, ZONE.NONE);
+  assert.equal(results[0].match, null);
+  assert.equal(results[0].candidates.length, 0);
+});
+
+test('below-review-floor name is none zone but surfaces weak suggestions', () => {
+  // JW('prea','priya') = 0.827 -> below 0.85 floor, above 0.70 suggest floor
+  const results = matchStudentNames(['Prea'], STUDENTS);
+  assert.equal(results[0].zone, ZONE.NONE);
+  assert.equal(results[0].match, null);
+  const ids = results[0].candidates.map((c) => c.id);
+  assert.ok(ids.includes('s2'), 'Priya surfaced as a suggestion');
+});
+
+// -- pool filtering invariants --
+
+test('inactive students are never candidates', () => {
+  const results = matchStudentNames(['Aarav Kumar'], [
+    { id: 'inactive', displayName: 'Aarav Kumar', firstName: 'Aarav', lastName: 'Kumar', classroomId: 'c9', status: 'inactive' },
     ...STUDENTS,
   ]);
   assert.equal(results[0].match.id, 's1');
+  assert.equal(results[0].zone, ZONE.AUTO);
 });
 
-test('matchStudentNames keeps inactive students out after classroom filtering', () => {
+test('inactive students stay out after classroom filtering', () => {
   const results = matchStudentNames(['Aarav Kumar'], [
-    {id: 'inactive', displayName: 'Aarav Kumar', firstName: 'Aarav', lastName: 'Kumar', classroomId: 'c1', status: 'inactive'},
+    { id: 'inactive', displayName: 'Aarav Kumar', firstName: 'Aarav', lastName: 'Kumar', classroomId: 'c1', status: 'inactive' },
     ...STUDENTS,
-  ], {programClassroomIds: ['c1']});
+  ], { programClassroomIds: ['c1'] });
   assert.equal(results[0].match.id, 's1');
 });
 
-test('matchStudentNames treats tied duplicate names as ambiguous when required', () => {
-  const results = matchStudentNames(['Aarav Kumar'], [
-    ...STUDENTS,
-    {id: 'duplicate', displayName: 'Aarav Kumar', firstName: 'Aarav', lastName: 'Kumar', classroomId: 'c2'},
-  ], {requireUniqueBest: true});
-  assert.equal(results[0].match, null);
-  assert.equal(results[0].ambiguous, true);
-  assert.equal(results[0].confidence, CONFIDENCE.LOW);
-  assert.equal(results[0].candidates.length >= 2, true);
-});
-
-test('matchStudentNames returns match for close fuzzy name', () => {
-  const results = matchStudentNames(['Aarav Kumr'], STUDENTS); // typo
-  assert.equal(results.length, 1);
-  assert.equal(results[0].match.id, 's1');
-  assert.ok([CONFIDENCE.HIGH, CONFIDENCE.MEDIUM].includes(results[0].confidence));
-});
-
-test('matchStudentNames returns LOW confidence for no reasonable match', () => {
-  const results = matchStudentNames(['Zara Williams'], STUDENTS);
-  assert.equal(results.length, 1);
-  assert.equal(results[0].confidence, CONFIDENCE.LOW);
-});
-
-test('matchStudentNames returns results for multiple names', () => {
-  const results = matchStudentNames(['Aarav Kumar', 'Priya Sharma', 'Unknown Person'], STUDENTS);
-  assert.equal(results.length, 3);
-  assert.equal(results[0].match.id, 's1');
-  assert.equal(results[1].match.id, 's2');
-  assert.equal(results[2].confidence, CONFIDENCE.LOW);
-});
-
-test('matchStudentNames filters by classroomId when provided', () => {
+test('classroomId filter excludes other classrooms', () => {
   const results = matchStudentNames(['Arjun Patel'], STUDENTS, { classroomId: 'c1' });
-  // Arjun is in c2, so should not match when filtering to c1
-  assert.equal(results[0].confidence, CONFIDENCE.LOW);
+  assert.equal(results[0].zone, ZONE.NONE);
+  assert.equal(results[0].match, null);
 });
 
-test('matchStudentNames filters by multiple classroomIds via programClassroomIds', () => {
+test('programClassroomIds filter matches across selected classrooms', () => {
   const results = matchStudentNames(
     ['Aarav Kumar', 'Arjun Patel'],
     STUDENTS,
     { programClassroomIds: ['c1', 'c2'] },
   );
   assert.equal(results.length, 2);
-  assert.equal(results[0].match.id, 's1'); // c1 student found
-  assert.equal(results[1].match.id, 's3'); // c2 student found
-  assert.equal(results[0].confidence, CONFIDENCE.HIGH);
-  assert.equal(results[1].confidence, CONFIDENCE.HIGH);
+  assert.equal(results[0].match.id, 's1');
+  assert.equal(results[1].match.id, 's3');
+  assert.equal(results[0].zone, ZONE.AUTO);
+  assert.equal(results[1].zone, ZONE.AUTO);
 });
 
-test('matchStudentNames excludes students outside multi-selected classrooms', () => {
-  // Only classroom c1 selected — Arjun (c2) should not match well
+test('programClassroomIds filter excludes unselected classrooms', () => {
   const results = matchStudentNames(['Arjun Patel'], STUDENTS, { programClassroomIds: ['c1'] });
-  assert.equal(results[0].confidence, CONFIDENCE.LOW);
+  assert.equal(results[0].zone, ZONE.NONE);
+});
+
+test('multiple names each get an independent result', () => {
+  const results = matchStudentNames(['Aarav Kumar', 'Priya Sharma', 'Unknown Person'], STUDENTS);
+  assert.equal(results.length, 3);
+  assert.equal(results[0].match.id, 's1');
+  assert.equal(results[1].match.id, 's2');
+  assert.equal(results[2].zone, ZONE.NONE);
+});
+
+// -- filterStudentPool (shared with picker default scope) --
+
+test('filterStudentPool drops non-active students and applies classroom filters', () => {
+  const pool = [
+    { id: 'a', classroomId: 'c1' },
+    { id: 'b', classroomId: 'c2', status: 'active' },
+    { id: 'c', classroomId: 'c1', status: 'inactive' },
+  ];
+  assert.deepEqual(filterStudentPool(pool, {}).map((s) => s.id), ['a', 'b']);
+  assert.deepEqual(filterStudentPool(pool, { classroomId: 'c1' }).map((s) => s.id), ['a']);
+  assert.deepEqual(filterStudentPool(pool, { programClassroomIds: ['c2'] }).map((s) => s.id), ['b']);
 });
 
 // --- buildObservationDoc ---
@@ -314,4 +447,26 @@ test('BulkUploadPage disables Next button until classrooms are selected', async 
     /selectedClassrooms\.length/.test(source),
     'Expected BulkUploadPage to check selectedClassrooms.length for button disabled state',
   );
+});
+
+// --- #285: shared one-tap match review ---
+
+test('BulkUploadPage delegates match review to the shared component', async () => {
+  const source = await readFile(pageSourceUrl, 'utf8');
+  assert.ok(/import StudentMatchReview from '\.\/StudentMatchReview\.jsx'/.test(source));
+  assert.ok(/<StudentMatchReview/.test(source));
+  assert.ok(/pool=\{matchPool\}/.test(source) && /fullPool=\{allStudents\}/.test(source));
+});
+
+test('BulkUploadPage has no reject/skip or bulk-accept affordances', async () => {
+  const source = await readFile(pageSourceUrl, 'utf8');
+  assert.ok(!/handleReject|rejected|Accept All High Confidence/.test(source),
+    'Reject and bulk-accept were removed by #285 (all-or-nothing commit)');
+});
+
+test('BulkUploadPage hard-blocks proceeding on duplicate mappings', async () => {
+  const source = await readFile(pageSourceUrl, 'utf8');
+  assert.ok(/duplicateMappings/.test(source));
+  assert.ok(/!allResolved \|\| duplicateMappings\.length > 0/.test(source),
+    'Next button must gate on both resolution and duplicate mappings');
 });
