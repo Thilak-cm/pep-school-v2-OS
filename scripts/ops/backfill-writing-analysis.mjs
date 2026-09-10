@@ -721,8 +721,12 @@ async function runVerifier(weekKey, outcomes, preRunSnapshots = null) {
       // First-ever analyses (no prior doc) have nothing to archive - that's correct.
       const historySnap = await analysisRef.collection("history").get();
       const archivePresent = !historySnap.empty;
-      // A student's first-ever analysis has no pre-run snapshot (no doc existed before)
-      const firstEverAnalysis = preRunSnapshots ? !(studentId in preRunSnapshots) : false;
+      // First-ever analysis = no prior doc existed before this week's backfill.
+      // With preRunSnapshots: student absent from snapshots means no doc existed.
+      // In --verify-only mode (no snapshots): no history + live doc is the target week = first-ever.
+      const firstEverAnalysis = preRunSnapshots
+        ? !(studentId in preRunSnapshots)
+        : (!archivePresent && liveDoc?.periodKey === weekKey && liveDoc?.backfilled);
 
       fetchedState[studentId] = {
         liveDoc: liveDoc ? {
