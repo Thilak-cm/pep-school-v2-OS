@@ -319,6 +319,7 @@ describe("verifyWeekReport", () => {
         liveDoc: { periodKey: "2026-W30", backfilled: true, generatedAt: new Date(), sourceMediaIds: ["m1"] },
         allMediaStamped: true,
         archivePresent: true,
+        firstEverAnalysis: false,
       },
       s2: {
         liveDoc: { periodKey: "2026-W29" }, // untouched
@@ -330,6 +331,20 @@ describe("verifyWeekReport", () => {
     assert.equal(report.failures.length, 0);
   });
 
+  it("passes when first-ever analysis has no archive", () => {
+    const outcomes = { s1: "completed" };
+    const fetchedState = {
+      s1: {
+        liveDoc: { periodKey: "2026-W30", backfilled: true, generatedAt: new Date(), sourceMediaIds: ["m1"] },
+        allMediaStamped: true,
+        archivePresent: false,
+        firstEverAnalysis: true,
+      },
+    };
+    const report = verifyWeekReport(weekKey, outcomes, fetchedState);
+    assert.equal(report.pass, true);
+  });
+
   it("fails when completed student has wrong periodKey", () => {
     const outcomes = { s1: "completed" };
     const fetchedState = {
@@ -337,6 +352,7 @@ describe("verifyWeekReport", () => {
         liveDoc: { periodKey: "2026-W29", backfilled: true, generatedAt: new Date(), sourceMediaIds: ["m1"] },
         allMediaStamped: true,
         archivePresent: true,
+        firstEverAnalysis: false,
       },
     };
     const report = verifyWeekReport(weekKey, outcomes, fetchedState);
@@ -351,6 +367,7 @@ describe("verifyWeekReport", () => {
         liveDoc: { periodKey: "2026-W30", generatedAt: new Date(), sourceMediaIds: ["m1"] },
         allMediaStamped: true,
         archivePresent: true,
+        firstEverAnalysis: false,
       },
     };
     const report = verifyWeekReport(weekKey, outcomes, fetchedState);
@@ -365,6 +382,7 @@ describe("verifyWeekReport", () => {
         liveDoc: { periodKey: "2026-W30", backfilled: true, generatedAt: new Date(), sourceMediaIds: ["m1"] },
         allMediaStamped: false,
         archivePresent: true,
+        firstEverAnalysis: false,
       },
     };
     const report = verifyWeekReport(weekKey, outcomes, fetchedState);

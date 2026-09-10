@@ -717,11 +717,12 @@ async function runVerifier(weekKey, outcomes, preRunSnapshots = null) {
         }
       }
 
-      // Check archive of prior week exists
-      // For W30, prior archive is the pre-backfill doc (may not have been archived if student
-      // was first-time analyzed). For W31+, it should be the prior week's doc.
+      // Check archive of prior week exists.
+      // First-ever analyses (no prior doc) have nothing to archive - that's correct.
       const historySnap = await analysisRef.collection("history").get();
-      const archivePresent = !historySnap.empty; // at least one archive exists
+      const archivePresent = !historySnap.empty;
+      // A student's first-ever analysis has no pre-run snapshot (no doc existed before)
+      const firstEverAnalysis = preRunSnapshots ? !(studentId in preRunSnapshots) : false;
 
       fetchedState[studentId] = {
         liveDoc: liveDoc ? {
@@ -732,6 +733,7 @@ async function runVerifier(weekKey, outcomes, preRunSnapshots = null) {
         } : null,
         allMediaStamped,
         archivePresent,
+        firstEverAnalysis,
       };
     } else if (outcome.startsWith("skipped:")) {
       const currentGeneratedAt = snap.exists

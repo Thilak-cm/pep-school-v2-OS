@@ -298,7 +298,9 @@ export function verifyWeekReport(weekKey, outcomes, fetchedState) {
       if (!state.allMediaStamped) {
         failures.push({ studentId, reason: "not all source media stamped with batchAnalyzedAt" });
       }
-      if (!state.archivePresent) {
+      // Archive check: only required if the student had a prior doc before this week.
+      // First-ever analyses have nothing to archive - that's correct, not a failure.
+      if (!state.archivePresent && !state.firstEverAnalysis) {
         failures.push({ studentId, reason: "prior week archive not found in history" });
       }
     } else if (outcome.startsWith("skipped:")) {
