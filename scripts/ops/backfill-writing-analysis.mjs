@@ -466,14 +466,31 @@ async function runBackfill() {
     return;
   }
 
-  // Fetch active students
+  // Fetch active students, sorted by programId for prompt cache locality.
+  // System prompts are ~1400-1800 tokens (above OpenAI's 1024-token cache minimum),
+  // so grouping same-program students keeps the prefix cached across consecutive calls.
   let studentIds = await fetchActiveStudentIds();
   if (STUDENT_ID_FILTER) {
     studentIds = studentIds.filter((id) => STUDENT_ID_FILTER.has(id));
     console.log(`Filtered to ${studentIds.length} student(s): ${studentIds.join(", ")}`);
   }
   studentIds = studentIds.filter((id) => !blockedStudents.has(id));
+
+  // Resolve programId for each student and sort by it
+  const studentPrograms = [];
+  for (const studentId of studentIds) {
+    const studentSnap = await db.collection("students").doc(studentId).get();
+    const programId = studentSnap.exists ? await resolveProgramId(studentSnap.data()) : null;
+    studentPrograms.push({ studentId, programId });
+  }
+  studentPrograms.sort((a, b) => (a.programId || "").localeCompare(b.programId || ""));
+  studentIds = studentPrograms.map((s) => s.studentId);
+  const programCounts = {};
+  for (const { programId } of studentPrograms) {
+    programCounts[programId || "unknown"] = (programCounts[programId || "unknown"] || 0) + 1;
+  }
   console.log(`Processing ${studentIds.length} students for ${weekKey} (${blockedStudents.size} blocked)`);
+  console.log(`Program order: ${Object.entries(programCounts).map(([p, c]) => `${p}(${c})`).join(", ")}`);
 
   // Capture pre-run generatedAt snapshots for verifier (skipped student mutation check)
   const preRunSnapshots = {};
@@ -490,6 +507,8 @@ async function runBackfill() {
   let completed = 0;
   let skipped = 0;
   let failed = 0;
+  let processed = 0;
+  const total = studentIds.length;
 
   // Process students with bounded concurrency
   const queue = [...studentIds];
@@ -506,6 +525,10 @@ async function runBackfill() {
         console.error(`  ${studentId}: UNEXPECTED ERROR: ${err.message}`);
         outcomes[studentId] = `failed:${err.message.slice(0, 200)}`;
         failed++;
+      }
+      processed++;
+      if (processed % 50 === 0 || processed === total) {
+        console.log(`--- ${processed}/${total} | ${completed} done, ${skipped} skip, ${failed} fail ---`);
       }
     }
   });
