@@ -3,6 +3,15 @@ import {
   FormControl, InputLabel, Select, MenuItem, ListSubheader, FormHelperText
 } from '@mui/material';
 
+// Fixed display order for branches (product preference); unknown branches
+// sort after these, in first-seen order.
+const BRANCH_ORDER = ['hsr', 'whitefield', 'varthur', 'kokapet', 'sarjapura'];
+
+function branchRank(branchId) {
+  const index = BRANCH_ORDER.indexOf(branchId);
+  return index === -1 ? BRANCH_ORDER.length : index;
+}
+
 // Branch IDs double as display labels (branch docs mostly lack a name field).
 // Short IDs like "hsr" are acronyms; longer ones are place names.
 function branchLabel(branchId) {
@@ -42,7 +51,8 @@ const PROGRAM_HEADER_SX = {
  * the same branch so short lists stay uncluttered.
  */
 function groupedClassroomItems(classroomList) {
-  const branchIds = [...new Set(classroomList.map(c => c.branchId || ''))];
+  const branchIds = [...new Set(classroomList.map(c => c.branchId || ''))]
+    .sort((a, b) => branchRank(a) - branchRank(b));
   const grouped = branchIds.length > 1;
   const items = [];
   for (const branchId of branchIds) {
@@ -100,6 +110,8 @@ function groupedClassroomItems(classroomList) {
  *   size         - "small" | "medium"
  *   fullWidth    - boolean (default true)
  *   sx           - additional sx for FormControl
+ *   emptyOptionLabel - when set, prepends a MenuItem with value "" (e.g. "All
+ *                  classrooms") so the select can act as an optional filter
  */
 export default function ClassroomSelect({
   classrooms = [],
@@ -113,6 +125,7 @@ export default function ClassroomSelect({
   size = 'small',
   fullWidth = true,
   sx,
+  emptyOptionLabel,
 }) {
   const labelId = `classroom-select-${label.replace(/\s+/g, '-').toLowerCase()}`;
   return (
@@ -126,6 +139,7 @@ export default function ClassroomSelect({
         onChange={(e) => onChange(e.target.value)}
         MenuProps={{ PaperProps: { sx: { maxHeight: 340 } } }}
       >
+        {emptyOptionLabel && <MenuItem value="">{emptyOptionLabel}</MenuItem>}
         {groupedClassroomItems(classrooms)}
       </Select>
       {helperText && <FormHelperText>{helperText}</FormHelperText>}

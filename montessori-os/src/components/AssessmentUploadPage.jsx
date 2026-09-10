@@ -18,6 +18,7 @@ import {
   worksheetToAssessmentMatrix,
 } from '../../../functions/assessments/parser.js';
 import { CONFIDENCE, matchStudentNames } from './BulkUploadPage.helpers.js';
+import ClassroomSelect from './ui/ClassroomSelect.jsx';
 import useNotify from '../notifications/useNotify.js';
 
 const MAX_STRUCTURED_BYTES = 10 * 1024 * 1024;
@@ -103,6 +104,8 @@ export default function AssessmentUploadPage({
   const notifiedAssessmentRef = useRef('');
   const [tab, setTab] = useState(0);
   const [students, setStudents] = useState([]);
+  const [classroomOptions, setClassroomOptions] = useState([]);
+  const [filterClassroomId, setFilterClassroomId] = useState('');
   const [studentLoadError, setStudentLoadError] = useState('');
 
   const [file, setFile] = useState(null);
@@ -172,6 +175,7 @@ export default function AssessmentUploadPage({
           studentDocs = snapshots.flatMap((snapshot) => snapshot.docs);
         }
         if (!active) return;
+        setClassroomOptions(classrooms);
         setStudents(studentDocs
           .map((studentDoc) => ({id: studentDoc.id, ...studentDoc.data()}))
           .filter((student) => (student.status || 'active') === 'active')
@@ -216,21 +220,38 @@ export default function AssessmentUploadPage({
     setSelectedSheetBlob(blob);
   }, [workbook, sheetName]);
 
+  // Optional classroom filter narrows the fuzzy-match pool and the manual
+  // picker. Guard below stays on the full students list so an empty pooled
+  // classroom degrades to "no match" rows instead of wiping accepted matches.
+  const pooledStudents = useMemo(() => (
+    filterClassroomId
+      ? students.filter((student) => student.classroomId === filterClassroomId)
+      : students
+  ), [students, filterClassroomId]);
+
   useEffect(() => {
     if (!parsed || parsed.errors.length || !parsed.rows.length || !students.length) {
       setMatchResults([]);
       return;
     }
     const names = [...new Set(parsed.rows.map((row) => row.name))];
-    setMatchResults(matchStudentNames(names, students, {
+    const nextResults = matchStudentNames(names, pooledStudents, {
       requireUniqueBest: true,
-    }).map((match) => ({...match, accepted: false})));
+    }).map((match) => ({...match, accepted: false}));
+    // Preserve already-accepted rows (auto or manual) across classroom filter
+    // changes; only unaccepted rows re-match against the new pool.
+    setMatchResults((current) => {
+      const acceptedByName = new Map(current
+        .filter((entry) => entry.accepted && entry.match)
+        .map((entry) => [entry.csvName, entry]));
+      return nextResults.map((match) => acceptedByName.get(match.csvName) || match);
+    });
     const assessmentName = String(parsed.metadata.assessmentName || '').trim();
     if (assessmentName && notifiedAssessmentRef.current !== assessmentName) {
       notifiedAssessmentRef.current = assessmentName;
       notify.success(`${assessmentName} is ready for student matching`);
     }
-  }, [parsed, students, notify]);
+  }, [parsed, students, pooledStudents, notify]);
 
   const duplicateMappings = useMemo(() => {
     const rowsByStudent = new Map();
@@ -590,6 +611,14 @@ export default function AssessmentUploadPage({
                 Upload a structured assessment document. Nothing is published until every student match is accepted and the final review passes.
               </Typography>
               <Stack spacing={2}>
+                <ClassroomSelect
+                  classrooms={classroomOptions}
+                  value={filterClassroomId}
+                  onChange={setFilterClassroomId}
+                  label="Classroom (optional)"
+                  helperText="Limits student matching to this classroom"
+                  emptyOptionLabel="All classrooms"
+                />
                 <Button variant="outlined" startIcon={<Upload size={18} />} onClick={() => inputRef.current?.click()}>
                   {file ? file.name : 'Upload structured assessment document'}
                 </Button>
@@ -634,9 +663,11 @@ export default function AssessmentUploadPage({
                                   {isEditing ? (
                                     <Autocomplete
                                       size="small"
-                                      options={students}
+                                      options={pooledStudents}
                                       value={match.match || null}
-                                      getOptionLabel={(student) => `${student.displayName || student.name || student.id} (${student.classroomName || student.classroomId})`}
+                                      getOptionLabel={(student) => (filterClassroomId
+                                        ? (student.displayName || student.name || student.id)
+                                        : `${student.displayName || student.name || student.id} (${student.classroomName || student.classroomId})`)}
                                       isOptionEqualToValue={(option, value) => option.id === value.id}
                                       onChange={(_, candidate) => {
                                         if (!candidate) return;
@@ -652,7 +683,7 @@ export default function AssessmentUploadPage({
                                     />
                                   ) : (
                                     <>
-                                      {resolvedName} {match.match && <Typography component="span" variant="body2" color="text.secondary">({classroom})</Typography>}
+                                      {resolvedName} {match.match && !filterClassroomId && <Typography component="span" variant="body2" color="text.secondary">({classroom})</Typography>}
                                       {match.candidates?.length > 0 && (
                                         <Box
                                           component="ol"
@@ -667,8 +698,7 @@ export default function AssessmentUploadPage({
                                               key={candidate.id}
                                             >
                                               {candidate.displayName || candidate.name || candidate.id}
-                                              {' — '}
-                                              {candidate.classroomName || candidate.classroomId || 'Classroom unavailable'}
+                                              {!filterClassroomId && ` — ${candidate.classroomName || candidate.classroomId || 'Classroom unavailable'}`}
                                             </Typography>
                                           ))}
                                         </Box>
