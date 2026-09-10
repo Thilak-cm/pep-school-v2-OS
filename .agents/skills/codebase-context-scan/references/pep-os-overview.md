@@ -1,7 +1,7 @@
 # Pep OS Overview
 
-Generated: 2026-09-06T23:02:50.936Z
-App version: 13.2.0
+Generated: 2026-09-10T23:42:55.849Z
+App version: 13.2.1
 
 ## App Snapshot
 
@@ -95,8 +95,8 @@ App version: 13.2.0
 - `montessori-os/src/components/UsersAccessPage.parentFields.test.js`
 
 ### Settings, Feedback, and App Shell (`settings-feedback-shell`)
-- Count: 59
-- Components: `App`, `AppFooter`, `AppHeader`, `AssessmentUploadPage`, `AssessmentUploadPage.test`, `BroadcastComposer`, `BroadcastComposer.test`, `BulkUploadPage`, `BulkUploadPage.helpers`, `BulkUploadPage.test`, `ClassroomNoteCard`, `ClassroomStudentCard`, `CopyToClipboardButton`, `DynamicIslandPill`, `DynamicIslandPill.test`, `FeedbackPage`, `GroupedMediaCard`, `GroupedMediaCard.test`, `groupedMediaUtils`, `groupedMediaUtils.test`, `GroupedNoteCard`, `GroupedNoteDialog`, `InlineVoiceOverlay`, `InterviewsPage`, `InterviewsPage.helpers`, `InterviewsPage.test`, `LandingPage`, `LandingPage.test`, `MediaBatchPreview`, `MediaBatchPreview.test`, `MonthlyPlanTab`, `MonthlyPlanTab.test`, `NoteBottomSheet.structure.test`, `NotesOverTimeDrawer`, `PhotoEditor`, `PlanFeedbackDialog`, `PlanFeedbackDialog.test`, `ProfilePage`, `QuestionDeck`, `QuestionDeck.test`, `ReadinessCheckDialog`, `ReportGenerateDialog`, `ReportPreviewDialog`, `ReportsCard`, `ReportsPage`, `ReportsPage.test`, `ReportTypeLandingPage`, `ReportTypeLandingPage.test`, `ReviewClassroomNotes`, `SettingsPage`, `SettingsPage.test`, `SnapshotBody`, `SnapshotCard`, `StudentAssessmentsPage`, `StudentAssessmentsPage.test`, `VersionBadge`, `VersionBadge.test`, `WritingAnalysisTab`, `WritingAnalysisTab.test`
+- Count: 61
+- Components: `App`, `AppFooter`, `AppHeader`, `AssessmentUploadPage`, `AssessmentUploadPage.test`, `BroadcastComposer`, `BroadcastComposer.test`, `BulkUploadPage`, `BulkUploadPage.helpers`, `BulkUploadPage.test`, `ClassroomNoteCard`, `ClassroomStudentCard`, `CopyToClipboardButton`, `DynamicIslandPill`, `DynamicIslandPill.test`, `FeedbackPage`, `GroupedMediaCard`, `GroupedMediaCard.test`, `groupedMediaUtils`, `groupedMediaUtils.test`, `GroupedNoteCard`, `GroupedNoteDialog`, `InlineVoiceOverlay`, `InterviewsPage`, `InterviewsPage.helpers`, `InterviewsPage.test`, `LandingPage`, `LandingPage.test`, `MediaBatchPreview`, `MediaBatchPreview.test`, `MonthlyPlanTab`, `MonthlyPlanTab.test`, `NoteBottomSheet.structure.test`, `NotesOverTimeDrawer`, `PhotoEditor`, `PlanFeedbackDialog`, `PlanFeedbackDialog.test`, `ProfilePage`, `QuestionDeck`, `QuestionDeck.test`, `ReadinessCheckDialog`, `ReportGenerateDialog`, `ReportPreviewDialog`, `ReportsCard`, `ReportsPage`, `ReportsPage.test`, `ReportTypeLandingPage`, `ReportTypeLandingPage.test`, `ReviewClassroomNotes`, `SettingsPage`, `SettingsPage.test`, `SnapshotBody`, `SnapshotCard`, `StudentAssessmentsPage`, `StudentAssessmentsPage.test`, `StudentMatchReview`, `StudentMatchReview.test`, `VersionBadge`, `VersionBadge.test`, `WritingAnalysisTab`, `WritingAnalysisTab.test`
 - Representative paths:
 - `montessori-os/src/App.jsx`
 - `montessori-os/src/AppFooter.jsx`
@@ -155,13 +155,15 @@ App version: 13.2.0
 
 ## Recent Changes
 
+### 13.2.1 (2026-09-10)
+- Student-name matching engine rewritten from Fuse.js single-pass to deterministic-first tiered ladder (exact full name, exact first name, Jaro-Winkler fuzzy) with three-zone classification (auto/review/no-match) (#285).
+- Shared `StudentMatchReview` component replaces duplicated match-review UIs in BulkUploadPage and AssessmentUploadPage (#285).
+- Review-zone rows pre-selected with best match for zero-tap confirmation; reject/skip removed in favor of all-or-nothing commit gating (#285).
+
 ### 13.2.0 (2026-09-06)
 - Shared dispatcher/worker fan-out helper (`functions/shared/fanout.js`) with canonical `dispatchFanout` and `makeFanoutWorker` lifecycle, replacing ad-hoc implementations in soul and monthlyPlan (#279).
 - `baseballCardWorker` (Pub/Sub, `maxInstances: 10`, 300s/512MB) processes one student per invocation with `weekKey`-based idempotency guard (#279).
 - `writingAnalysisWorker` (Pub/Sub, `maxInstances: 10`, 300s/1GB) processes one student per invocation with `periodKey`-based idempotency guard (#279).
-- Weekly teacher stats email sent every Monday at 12:00 IST with per-classroom activity tables and an HTML/CSS bar chart showing daily note counts (#274).
-- Classroom admins receive a combined email with their own stats (if teaching) plus all teachers in their manageable classrooms (#274).
-- `triggerTeacherStatsTest` callable CF for superadmin email preview, plus `test-teacher-stats-email.mjs` ops script for local testing (#274).
 
 ### 13.1.0 (2026-08-31)
 - Durable execution ledger at `jobs/{jobKey}/executions/{executionId}/workItems/{workItemId}` tracks every scheduled job run with per-target work items, verification outcomes, and TTL-based cleanup (#229).
@@ -172,9 +174,4 @@ App version: 13.2.0
 - Soul generation month picker in Settings: superadmins select a target month (current or next, IST-bounded) to pre-generate next month's souls ahead of the monthly cron (#264).
 - `generatedForMonth` ("YYYY-MM") field on soul and open_questions docs serves as the idempotency token — the worker skips students already generated for the target month (#264).
 - Question Deck subtitle reads the month from `generatedForMonth`, appending the year for cross-year pre-generation (#264).
-
-### 12.5.0 (2026-08-27)
-- Paginated delta stats refresh (`updateStatsDelta`) replaces the monolithic `recomputeStats` that was crashing with OOM errors at ~400MB heap (#256).
-- Weekly `reconcileStats` scheduled function rebuilds stats classroom-by-classroom every Sunday at 04:00 IST with atomic publication and pending-media guards (#256).
-- Lease-based coordination with generation fencing prevents concurrent stats refreshes from corrupting cache state (#256).
 
