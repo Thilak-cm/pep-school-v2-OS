@@ -689,7 +689,13 @@ async function runVerifier(weekKey, outcomes, preRunSnapshots = null) {
 
   // Fetch current state for each student
   const fetchedState = {};
+  let verified = 0;
+  const verifyTotal = studentIds.length;
   for (const studentId of studentIds) {
+    verified++;
+    if (verified % 50 === 0 || verified === verifyTotal) {
+      console.log(`  verifying ${verified}/${verifyTotal}...`);
+    }
     const outcome = outcomes[studentId];
     const analysisRef = db.collection("students").doc(studentId)
       .collection("ai_summaries").doc("writing_analysis");
