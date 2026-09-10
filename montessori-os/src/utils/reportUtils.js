@@ -1,14 +1,14 @@
 /**
  * Returns the default date range for report generation.
- * Term 2 starts Oct 15, so:
- * - If current date is Oct 15 or later → start = Oct 15 of current year
- * - If current date is before Oct 15   → start = Oct 15 of previous year
+ * Academic year starts June 1, so:
+ * - If current date is June 1 or later → start = June 1 of current year
+ * - If current date is before June 1   → start = June 1 of previous year
  * End is always "now".
  */
 export function getDefaultReportDateRange(now = new Date()) {
-  const pastOct15 = now.getMonth() > 9 || (now.getMonth() === 9 && now.getDate() >= 15);
-  const year = pastOct15 ? now.getFullYear() : now.getFullYear() - 1;
-  const start = new Date(year, 9, 15); // Oct 15
+  const pastJune1 = now.getMonth() >= 5; // June (0-indexed)
+  const year = pastJune1 ? now.getFullYear() : now.getFullYear() - 1;
+  const start = new Date(year, 5, 1); // June 1
   return { start, end: now };
 }
 

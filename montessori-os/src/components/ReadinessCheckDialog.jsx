@@ -131,9 +131,11 @@ export default function ReadinessCheckDialog({
               }}
             />
           </Stack>
-          <Typography variant="caption" sx={{ color: 'var(--grey-500)', mt: -0.5 }}>
-            {reportType === 'baseline' ? 'Default start date: 40 days before today' : 'Default start date: Oct 15'}
-          </Typography>
+          {reportType === 'baseline' && (
+            <Typography variant="caption" sx={{ color: 'var(--grey-500)', mt: -0.5 }}>
+              Default start date: 40 days before today
+            </Typography>
+          )}
 
           {loading && (
             <Stack direction="row" spacing={1.5} alignItems="center" sx={{ py: 0.5 }}>
