@@ -8,7 +8,6 @@ test('AssessmentUploadPage uses scoped active-student queries', async () => {
   const source = await readFile(pageUrl, 'utf8');
   assert.match(source, /where\('classroomId', 'in', ids\)/);
   assert.match(source, /where\('status', '==', 'active'\)/);
-  assert.match(source, /requireUniqueBest: true/);
 });
 
 test('AssessmentUploadPage implements resumable 25 MB Medical uploads', async () => {
@@ -38,19 +37,28 @@ test('AssessmentUploadPage explains unsupported structured file types via toast'
   assert.doesNotMatch(source, /Choose CSV or XLSX/);
 });
 
-test('AssessmentUploadPage gates publication on accepted unique matches', async () => {
+test('AssessmentUploadPage gates publication on resolved unique matches', async () => {
   const source = await readFile(pageUrl, 'utf8');
   assert.match(source, /allMatchesResolved/);
   assert.match(source, /duplicateMappings/);
-  assert.match(source, /Accept All High Confidence/);
   assert.match(source, /findStructuredAssessmentDuplicate/);
+  // One-tap review model (#285): no bulk-accept or reject affordances.
+  assert.doesNotMatch(source, /Accept All High Confidence/);
+  assert.doesNotMatch(source, /requireUniqueBest/);
 });
 
-test('AssessmentUploadPage renders ranked candidates with classroom context', async () => {
+test('AssessmentUploadPage delegates match review to the shared component', async () => {
   const source = await readFile(pageUrl, 'utf8');
-  assert.match(source, /Ranked match candidates/);
-  assert.match(source, /match\.candidates\.slice\(0, 5\)/);
-  assert.match(source, /candidate\.classroomName \|\| candidate\.classroomId/);
+  assert.match(source, /import StudentMatchReview from '\.\/StudentMatchReview\.jsx'/);
+  assert.match(source, /<StudentMatchReview/);
+  assert.match(source, /pool=\{pooledStudents\}/);
+  assert.match(source, /fullPool=\{students\}/);
+});
+
+test('AssessmentUploadPage preserves manual corrections across filter re-matching', async () => {
+  const source = await readFile(pageUrl, 'utf8');
+  assert.match(source, /manualSelections/);
+  assert.match(source, /manualSelections\[result\.csvName\] \|\| result\.match/);
 });
 
 test('AssessmentUploadPage shows the prior publication date in duplicate warnings', async () => {
