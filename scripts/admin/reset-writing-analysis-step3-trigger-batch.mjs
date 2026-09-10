@@ -13,6 +13,7 @@
  */
 
 import admin from "firebase-admin";
+import { readFileSync } from "node:fs";
 import path from "path";
 import { createRequire } from "module";
 import { fileURLToPath } from "url";
@@ -33,7 +34,11 @@ const db = admin.firestore();
 const dryRun = process.argv.includes("--dry-run");
 const verify = process.argv.includes("--verify");
 
-const FIREBASE_API_KEY = "AIzaSyBmfHRjLww6YK7fElNGWpLZlJYu6ka9VVg";
+// Firebase Web API key - never hardcode (public repo; Google scans GitHub for keys).
+const FIREBASE_API_KEY = process.env.FIREBASE_API_KEY ||
+  readFileSync(path.resolve(__dirname, "../../montessori-os/.env"), "utf8")
+    .match(/^VITE_FIREBASE_API_KEY="?([^"\n]+)"?/m)?.[1];
+if (!FIREBASE_API_KEY) throw new Error("FIREBASE_API_KEY not found in env or montessori-os/.env");
 const CF_URL = "https://asia-south1-pep-os.cloudfunctions.net/batchAnalyzeWriting";
 const CONCURRENCY = 3;
 

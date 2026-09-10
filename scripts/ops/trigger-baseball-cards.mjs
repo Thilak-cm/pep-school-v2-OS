@@ -14,6 +14,7 @@
  *   node scripts/ops/trigger-baseball-cards.mjs --student S1 --student S2  # specific students
  */
 import admin from "firebase-admin";
+import { readFileSync } from "node:fs";
 import { createRequire } from "node:module";
 import { resolve, dirname } from "node:path";
 import { fileURLToPath } from "node:url";
@@ -29,7 +30,12 @@ if (!admin.apps.length) {
   });
 }
 
-const FIREBASE_API_KEY = "AIzaSyAC4ibFMiIOtAlinYTXQjvQCf10jBAqKJQ";
+// Firebase Web API key - never hardcode (public repo; Google scans GitHub for keys).
+// Sourced from env var or the frontend .env, which is gitignored.
+const FIREBASE_API_KEY = process.env.FIREBASE_API_KEY ||
+  readFileSync(resolve(__dirname, "../../montessori-os/.env"), "utf8")
+    .match(/^VITE_FIREBASE_API_KEY="?([^"\n]+)"?/m)?.[1];
+if (!FIREBASE_API_KEY) throw new Error("FIREBASE_API_KEY not found in env or montessori-os/.env");
 const CF_BASE = "https://asia-south1-pep-os.cloudfunctions.net";
 const SUPERADMIN_UID = "T1iLA2qjTqMvgS4hamw2PEtNsov1"; // Thilak
 
