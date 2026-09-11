@@ -90,6 +90,24 @@ jobs:
           args: deploy --only functions
         env:
           GCP_SA_KEY: ${{ secrets.FIREBASE_SERVICE_ACCOUNT_PEP_OS }}
+      - name: Grant invoker to callable functions
+        uses: google-github-actions/auth@v2
+        with:
+          credentials_json: ${{ secrets.FIREBASE_SERVICE_ACCOUNT_PEP_OS }}
+      - name: Apply allUsers invoker binding
+        run: |
+          gcloud functions list \
+            --regions=asia-south1 \
+            --project=pep-os \
+            --filter="httpsTrigger:*" \
+            --format="value(name)" \
+          | while read -r fn; do
+              gcloud functions add-invoker-policy-binding "$fn" \
+                --region=asia-south1 \
+                --project=pep-os \
+                --member=allUsers \
+                --quiet 2>/dev/null || true
+            done
 
   deploy_firestore:
     name: Deploy Firestore Rules & Indexes
