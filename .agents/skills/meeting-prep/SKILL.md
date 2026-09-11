@@ -1,11 +1,11 @@
 ---
 name: meeting-prep
-description: Prepare a terse, evidence-backed Pep OS meeting brief with accumulated takeaway completion, Done, Being done, Next, and Talk points. Use when the user asks for meeting prep, a work update for a manager or teammate, or progress against commitments from prior meetings. Default recent-work research to the rolling past 10 days, but carry unfinished meeting takeaways forward across the full archive.
+description: Prepare a terse, evidence-backed Pep OS meeting brief with accumulated takeaway completion, Done, Being done, and Next. Use when the user asks for meeting prep, a work update for a manager or teammate, or progress against commitments from prior meetings. Default recent-work research to the rolling past 10 days, but carry unfinished meeting takeaways forward across the full archive.
 ---
 
 # Meeting Prep
 
-Turn recent repository activity and prior meeting commitments into a compact, Rahul-facing brief. Distinguish shipped from active work, calculate honest progress for every carried takeaway, track Rahul's promised handoffs separately from Thilak's obligations, make `Done` the main talking points, and focus the forward view on explicit commitments and the P1-first operating priority.
+Turn recent repository activity and prior meeting commitments into a compact, Rahul-facing brief. Distinguish shipped from active work, calculate honest progress for every carried Thilak-owned takeaway, make `Done` the main talking points, and focus the forward view on explicit commitments and the P1-first operating priority.
 
 ## Scope
 
@@ -23,12 +23,11 @@ Separate facts from inference. Never claim merged/closed/deployed without eviden
 
 The meeting archive is a commitment ledger, not another backlog. Structured reflection fields (owner, commitment, boundary, completion evidence, dependency, follow-up) are authoritative - use the raw transcript only for missing fields or genuine contradictions. Never silently reassign or broaden a commitment.
 
-1. Discover every structured takeaway across both archive roots regardless of the time window, preserving named owners. For legacy docs without reflections, recover a takeaway only when the transcript explicitly records that participant accepting the work.
-2. Deduplicate across meetings: match owner + shared refs first, then owner + normalized outcome. Keep the earliest origin date; later meetings refine, not duplicate. Same outcome with different owners may be linked dependencies, not duplicates.
+1. Discover every Thilak-owned structured takeaway across both archive roots regardless of the time window. For legacy docs without reflections, recover a takeaway only when the transcript explicitly records Thilak accepting the work. Ignore Rahul-owned takeaways entirely - they are tracked informally and often delivered without system updates.
+2. Deduplicate across meetings: match owner + shared refs first, then owner + normalized outcome. Keep the earliest origin date; later meetings refine, not duplicate.
 3. Stop carrying only at verified 100%, or an explicit cancellation/supersession/`Carry forward: No` marker.
 4. **Recalculate scores from live evidence on every run.** Derive the estimate independently before comparing with the archived baseline - the baseline explains movement, never anchors the score.
 5. Inspect the evidence named by the completion definition. An issue, label, or optimistic status statement is not proof of implementation or deployment.
-6. For Rahul-owned commitments, check whether the promised artifact/handoff actually exists in the named evidence source. Don't infer delivery from Thilak starting dependent work. Keep unverified promises active with the archived next-meeting follow-up.
 
 ### Completion estimation
 
@@ -38,11 +37,10 @@ Estimate dynamically: any whole 0-99% that best represents verified work done vs
 
 ### Rollup and presentation
 
-- Separate owner rollups (arithmetic mean of that owner's deduplicated active takeaway scores, rounded) - Rahul's work never affects Thilak's percentage.
+- Show `Thilak: {N}% across {count} active takeaways` rollup (arithmetic mean, rounded).
 - Show every active takeaway below 100% even if its issue was downgraded or fell out of the window. Show newly-completed takeaways at 100% once, then drop them.
 - Exclude cancelled/superseded from the denominator; briefly note replacements.
 - Per score: one compact proof point and the next missing gate. If evidence is unavailable, say what couldn't be verified and score to the highest proven gate.
-- For Rahul-owned items: state the promised handoff, whether Thilak received it, and the archived follow-up question. Carry every unfinished Rahul item into `Talk points` until delivered, cancelled, or superseded.
 
 ## Audience Filter
 
@@ -52,19 +50,18 @@ Optimize for what the user can tell Rahul or use for a product/engineering decis
 
 - Lead with open P1 issues, then lower-priority work that blocks P1 or should be escalated.
 - Explicit incomplete takeaways rank above ordinary backlog sorting - they stay visible in `Next` regardless of issue priority; call out priority mismatches instead of letting commitments disappear.
-- Thilak-owned actions go in `Next`; Rahul-owned deliverables go in the Rahul subsection of `Takeaway progress` and as direct asks in `Talk points`.
+- Thilak-owned actions go in `Next`.
 - **Always state the priority label beside every issue/PR number.** Identify whether each recommendation is a committed takeaway, P1 work, a P1 dependency, or a lower-priority item.
 - Apply the escalation strategy (P4->P3->P2->P1 over time) as a recommendation framework only - recommend promotions only with evidence of urgency/impact/dependency/staleness, keeping the existing priority visible. **Never change labels, fields, state, branches, or code during this skill.**
 
 ## Required Output
 
-Only these five sections, in order:
+Only these four sections, in order:
 
-1. **Takeaway progress** - `Thilak: {N}% across {count} active takeaways` (and Rahul's line if applicable), then per-owner subgroups listing every carried takeaway: current %, origin date, strongest evidence, promised handoff, largest gap. A progress ledger, not an issue inventory.
+1. **Takeaway progress** - `Thilak: {N}% across {count} active takeaways`, then every carried Thilak-owned takeaway: current %, origin date, strongest evidence, largest gap. A progress ledger, not an issue inventory.
 2. **Done** - the main talking points: outcome-focused bullets with proof points.
 3. **Being done** - current work Rahul may care about: open PRs, in-progress issues, risks, dependencies, with priorities. No chronology, no housekeeping.
 4. **Next** - the smallest set of recommended actions, led by incomplete takeaways and P1 items, each labeled by type and priority.
-5. **Talk points** - terse bullets the user can say aloud, derived from `Done`, plus one direct follow-up per unfinished Rahul commitment.
 
 Keep it short while listing every active takeaway. No Scope/Evidence/Risks/Tests sections, no research narration, no citation-heavy prose.
 
