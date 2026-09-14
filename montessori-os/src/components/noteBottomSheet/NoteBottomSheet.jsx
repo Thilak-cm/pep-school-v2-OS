@@ -21,7 +21,7 @@ import {
   collection,
   query,
   where,
-  limit,
+  orderBy,
   getDocs,
   arrayUnion,
   arrayRemove,
@@ -391,7 +391,10 @@ export default function NoteBottomSheet({
       let name = student?.name || student?.displayName || [student?.firstName, student?.lastName].filter(Boolean).join(' ');
       if (!name) { try { const snap = await getDoc(doc(db, 'students', studentId)); const d = snap.data() || {}; name = d.name || d.displayName || [d.firstName, d.lastName].filter(Boolean).join(' '); } catch (e) { reportCaughtError(e, 'NoteBottomSheet', 'load student name'); } }
       setTagStudentName(name || '');
-      const q = query(collection(db, 'students', studentId, 'observations'), where('type', '==', 'lesson'), limit(25));
+      // Fetch all lesson notes ordered newest-first. No limit: per-student lesson notes are
+      // bounded (max ~217, ~240KB) and the dialog's client-side search must see the complete set.
+      // limit(25) without orderBy previously dropped arbitrary notes (teacher-reported bug, Sep 2026).
+      const q = query(collection(db, 'students', studentId, 'observations'), where('type', '==', 'lesson'), orderBy('createdAt', 'desc'));
       const snap = await getDocs(q);
       const notes = snap.docs.map((d) => ({ id: d.id, ...d.data() }));
       notes.sort((a, b) => { const da = toDate(a.observedAt || a.createdAt) || new Date(0); const dbDate = toDate(b.observedAt || b.createdAt) || new Date(0); return dbDate - da; });
