@@ -14,6 +14,7 @@
 # 13.2.0 — 2026-09-06
 
 ### Added
+- Compensatory backfill script (`scripts/ops/backfill-writing-analysis.mjs`) rebuilds the writingAnalysis W30-W36 longitudinal trail lost to the #221 index regression. Three phases: lump-cleanup (restores 24 students from OOM-crashed manual retrigger), history re-key migration (ISO-timestamp to week-key IDs), and week-by-week backfill (one week per invocation with automatic verifier gate). Dry-run by default, Firestore state doc tracks progress across invocations (#281).
 - Shared dispatcher/worker fan-out helper (`functions/shared/fanout.js`) with canonical `dispatchFanout` and `makeFanoutWorker` lifecycle, replacing ad-hoc implementations in soul and monthlyPlan (#279).
 - `baseballCardWorker` (Pub/Sub, `maxInstances: 10`, 300s/512MB) processes one student per invocation with `weekKey`-based idempotency guard (#279).
 - `writingAnalysisWorker` (Pub/Sub, `maxInstances: 10`, 300s/1GB) processes one student per invocation with `periodKey`-based idempotency guard (#279).
