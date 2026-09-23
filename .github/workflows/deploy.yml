@@ -87,13 +87,13 @@ jobs:
       - name: Deploy to Firebase
         uses: w9jds/firebase-action@master
         with:
-          # --force is TEMPORARY (one deploy): confirms the off->on failurePolicy
-          # transition for the #288 fan-out workers, which non-interactive CI
-          # cannot answer. Remove after this deploy succeeds - we deliberately
-          # keep the CLI's loud failure as a checkpoint for future failure-policy
-          # additions and function deletions (solo-dev repo, no independent PR
-          # review to absorb that confirmation).
-          args: deploy --only functions --force
+          # Deliberately NO --force: non-interactive CI aborts loudly on
+          # confirmation-gated changes (newly enabled failurePolicy, function
+          # deletion). That loud failure is our checkpoint - solo-dev repo, no
+          # independent PR review to absorb those confirmations. When it fires:
+          # temporarily add --force, deploy, then revert (see 9dd1f7a for the
+          # #288 example of this dance).
+          args: deploy --only functions
         env:
           GCP_SA_KEY: ${{ secrets.FIREBASE_SERVICE_ACCOUNT_PEP_OS }}
       - name: Grant invoker to callable functions
