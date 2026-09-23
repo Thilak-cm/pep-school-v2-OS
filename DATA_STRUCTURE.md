@@ -719,6 +719,10 @@ interface Observation {
   assessmentName?: string;
   assessmentDescription?: string;
   assessmentDate?: { startDate: string; endDate: string }; // Structured only
+  sourceFileName?: string;        // Structured only (#290): denormalized from the source
+  studentCount?: number;          // manifest so timelines render one-line entries without
+                                  // a CF call. Immutable post-publish. Pre-#290 records
+                                  // backfilled by scripts/ops/backfill-assessment-denorm.mjs
   resultDefinitions?: Array<{ number: number; label: string; description: string }>;
   values?: Record<string, string>; // Structured: exact displayed segment values
   results?: Array<{               // Structured: definition mapped to exact value
@@ -806,7 +810,7 @@ Observation timestamp compatibility:
   is unrelated and remains supported by chat transcript readers.
 
 Assessment guidance
-- Structured IDs are `assessment_structured_{sourceId}_{sourceRow}_{segment}`.
+- Structured IDs are `sa_{sourceId}_{sourceRow}_{segment}`.
   Multiple multiline segments for one source row fan out to multiple records.
 - Medical IDs are `assessment_medical_{firestoreAutoId}`. The callable creates a
   backend-only `pendingMedicalAssessmentUploads/{uploadId}` staging document,

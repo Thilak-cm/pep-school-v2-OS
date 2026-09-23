@@ -52,7 +52,8 @@ function renderScreen(screen, ctx) {
       if (!isSuperAdmin(ctx.role)) { ctx.setScreen(ctx.assessmentReturnScreen || "settings"); return null; }
       return <AssessmentUploadPage currentUser={ctx.user} userRole={ctx.role} manageableClassrooms={ctx.manageableClassrooms} onBack={() => ctx.setScreen(ctx.assessmentReturnScreen || "settings")} />;
     case "studentAssessments":
-      if (!isSuperAdmin(ctx.role)) { ctx.setScreen("studentDashboard"); return null; }
+      // #290: open to all signed-in roles; teachers get view-only access
+      // (delete stays admin-only inside the page and the CF).
       return <StudentAssessmentsPage student={ctx.selectedStudent} assessmentDeepLink={ctx.assessmentDeepLink} userRole={ctx.role} />;
     case "landingPage":
       return (

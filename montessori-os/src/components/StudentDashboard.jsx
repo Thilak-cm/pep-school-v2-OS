@@ -1676,10 +1676,7 @@ function StudentDashboard({ student, onOpenTimeline, onOpenFeedback, onOpenChat,
             label="Assessments"
             iconColor="var(--color-green-bright)"
             onClick={() => {
-              if (!isSuperAdmin(userRole)) {
-                notify.info('Assessments is coming soon!');
-                return;
-              }
+              // #290: assessments viewing is open to all roles.
               trackEvent('student_dashboard_card_click', { card: 'assessments', studentId }).catch(() => {});
               onOpenAssessments?.();
             }}

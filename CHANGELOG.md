@@ -1,5 +1,26 @@
 # Changelog
 
+# 13.3.0 — 2026-09-23
+
+### Added
+- In-app structured assessment matrix viewer (`AssessmentMatrixSheet`) - bottom drawer showing all students' results with focus-student highlighting, replacing the source worksheet download (#290).
+- Medical PDF inline viewer (`MedicalPdfSheet`) - view-only iframe with signed URL and new-tab fallback; no download affordance anywhere (#290).
+- One-line assessment timeline entries (`AssessmentTimelineEntry`) for student and classroom timelines with inline popup links (#290).
+- MCP tools `list_assessments` and `get_assessment_source` for assessment data querying (TA3).
+- `type` filter on MCP `query_observations` tool.
+- Backfill script `scripts/ops/backfill-assessment-denorm.mjs` for pre-#290 observation records missing `sourceFileName`/`studentCount` denormalization.
+- Collection-group indexes for `(type, observedAt)` and `(branchId, observedAt)` on observations.
+
+### Changed
+- Assessment viewing open to all signed-in roles; previously superadmin-only (#290).
+- Delete restricted to superadmin and classroomadmin with MUI confirmation dialog stating multi-student scope (#290).
+- `getAssessmentDownloadUrl` CF returns inline disposition for medical PDFs (#290).
+- `publishStructuredAssessment` denormalizes `sourceFileName` and `studentCount` onto fan-out records (#290).
+
+### Fixed
+- `teacherStats` registered in ledger period-key map; was causing silent Monday crashes (RCA 2026-09-19).
+- `weeklyTeacherStats` crash-signal scoping: `executionId` moved inside try block so config/registry errors trigger the Telegram crash signal.
+
 # 13.2.2 — 2026-09-23
 
 ### Fixed

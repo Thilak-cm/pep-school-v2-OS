@@ -1,7 +1,7 @@
 # Pep OS Overview
 
-Generated: 2026-09-23T19:02:51.898Z
-App version: 13.2.2
+Generated: 2026-09-23T18:45:42.762Z
+App version: 13.3.0
 
 ## App Snapshot
 
@@ -44,17 +44,17 @@ App version: 13.2.2
 - `montessori-os/src/components/AddNoteModal.versionGate.test.js`
 
 ### Timelines and Media (`timelines-and-media`)
-- Count: 13
-- Components: `ClassroomList`, `ClassroomTimeline`, `ClassroomTimeline.batchMedia.test`, `ClassroomTimeline.interactions.test`, `classroomTimelineUtils`, `classroomTimelineUtils.extraction.test`, `ExportWizard`, `FeedbackTimeline`, `FilterPanel`, `StudentDashboard`, `StudentDashboard.test`, `StudentTimeline`, `StudentTimeline.batchMedia.test`
+- Count: 16
+- Components: `AssessmentTimelineEntry`, `ClassroomList`, `ClassroomTimeline`, `ClassroomTimeline.assessments.test`, `ClassroomTimeline.batchMedia.test`, `ClassroomTimeline.interactions.test`, `classroomTimelineUtils`, `classroomTimelineUtils.extraction.test`, `ExportWizard`, `FeedbackTimeline`, `FilterPanel`, `StudentDashboard`, `StudentDashboard.test`, `StudentTimeline`, `StudentTimeline.assessments.test`, `StudentTimeline.batchMedia.test`
 - Representative paths:
+- `montessori-os/src/components/AssessmentTimelineEntry.jsx`
 - `montessori-os/src/components/ClassroomList.jsx`
 - `montessori-os/src/components/ClassroomTimeline.jsx`
+- `montessori-os/src/components/ClassroomTimeline.assessments.test.js`
 - `montessori-os/src/components/ClassroomTimeline.batchMedia.test.js`
 - `montessori-os/src/components/ClassroomTimeline.interactions.test.js`
 - `montessori-os/src/components/classroomTimelineUtils.js`
 - `montessori-os/src/components/classroomTimelineUtils.extraction.test.js`
-- `montessori-os/src/components/ExportWizard.jsx`
-- `montessori-os/src/components/FeedbackTimeline.jsx`
 
 ### Analytics and Notifications (`analytics-and-notifications`)
 - Count: 7
@@ -95,17 +95,17 @@ App version: 13.2.2
 - `montessori-os/src/components/UsersAccessPage.parentFields.test.js`
 
 ### Settings, Feedback, and App Shell (`settings-feedback-shell`)
-- Count: 61
-- Components: `App`, `AppFooter`, `AppHeader`, `AssessmentUploadPage`, `AssessmentUploadPage.test`, `BroadcastComposer`, `BroadcastComposer.test`, `BulkUploadPage`, `BulkUploadPage.helpers`, `BulkUploadPage.test`, `ClassroomNoteCard`, `ClassroomStudentCard`, `CopyToClipboardButton`, `DynamicIslandPill`, `DynamicIslandPill.test`, `FeedbackPage`, `GroupedMediaCard`, `GroupedMediaCard.test`, `groupedMediaUtils`, `groupedMediaUtils.test`, `GroupedNoteCard`, `GroupedNoteDialog`, `InlineVoiceOverlay`, `InterviewsPage`, `InterviewsPage.helpers`, `InterviewsPage.test`, `LandingPage`, `LandingPage.test`, `MediaBatchPreview`, `MediaBatchPreview.test`, `MonthlyPlanTab`, `MonthlyPlanTab.test`, `NoteBottomSheet.structure.test`, `NotesOverTimeDrawer`, `PhotoEditor`, `PlanFeedbackDialog`, `PlanFeedbackDialog.test`, `ProfilePage`, `QuestionDeck`, `QuestionDeck.test`, `ReadinessCheckDialog`, `ReportGenerateDialog`, `ReportPreviewDialog`, `ReportsCard`, `ReportsPage`, `ReportsPage.test`, `ReportTypeLandingPage`, `ReportTypeLandingPage.test`, `ReviewClassroomNotes`, `SettingsPage`, `SettingsPage.test`, `SnapshotBody`, `SnapshotCard`, `StudentAssessmentsPage`, `StudentAssessmentsPage.test`, `StudentMatchReview`, `StudentMatchReview.test`, `VersionBadge`, `VersionBadge.test`, `WritingAnalysisTab`, `WritingAnalysisTab.test`
+- Count: 65
+- Components: `App`, `AppFooter`, `AppHeader`, `AssessmentMatrixSheet`, `AssessmentMatrixSheet.test`, `AssessmentUploadPage`, `AssessmentUploadPage.test`, `BroadcastComposer`, `BroadcastComposer.test`, `BulkUploadPage`, `BulkUploadPage.helpers`, `BulkUploadPage.test`, `ClassroomNoteCard`, `ClassroomStudentCard`, `CopyToClipboardButton`, `DynamicIslandPill`, `DynamicIslandPill.test`, `FeedbackPage`, `GroupedMediaCard`, `GroupedMediaCard.test`, `groupedMediaUtils`, `groupedMediaUtils.test`, `GroupedNoteCard`, `GroupedNoteDialog`, `InlineVoiceOverlay`, `InterviewsPage`, `InterviewsPage.helpers`, `InterviewsPage.test`, `LandingPage`, `LandingPage.test`, `MediaBatchPreview`, `MediaBatchPreview.test`, `MedicalPdfSheet`, `MedicalPdfSheet.test`, `MonthlyPlanTab`, `MonthlyPlanTab.test`, `NoteBottomSheet.structure.test`, `NotesOverTimeDrawer`, `PhotoEditor`, `PlanFeedbackDialog`, `PlanFeedbackDialog.test`, `ProfilePage`, `QuestionDeck`, `QuestionDeck.test`, `ReadinessCheckDialog`, `ReportGenerateDialog`, `ReportPreviewDialog`, `ReportsCard`, `ReportsPage`, `ReportsPage.test`, `ReportTypeLandingPage`, `ReportTypeLandingPage.test`, `ReviewClassroomNotes`, `SettingsPage`, `SettingsPage.test`, `SnapshotBody`, `SnapshotCard`, `StudentAssessmentsPage`, `StudentAssessmentsPage.test`, `StudentMatchReview`, `StudentMatchReview.test`, `VersionBadge`, `VersionBadge.test`, `WritingAnalysisTab`, `WritingAnalysisTab.test`
 - Representative paths:
 - `montessori-os/src/App.jsx`
 - `montessori-os/src/AppFooter.jsx`
 - `montessori-os/src/AppHeader.jsx`
+- `montessori-os/src/components/AssessmentMatrixSheet.jsx`
+- `montessori-os/src/components/AssessmentMatrixSheet.test.js`
 - `montessori-os/src/components/AssessmentUploadPage.jsx`
 - `montessori-os/src/components/AssessmentUploadPage.test.js`
 - `montessori-os/src/components/BroadcastComposer.jsx`
-- `montessori-os/src/components/BroadcastComposer.test.js`
-- `montessori-os/src/components/BulkUploadPage.jsx`
 
 ## Existing UX Patterns
 
@@ -155,10 +155,10 @@ App version: 13.2.2
 
 ## Recent Changes
 
-### 13.2.2 (2026-09-23)
-- Fan-out workers (`writingAnalysisWorker`, `baseballCardWorker`, `soulWorker`, `monthlyPlanWorker`) now set `failurePolicy: true` so thrown/timed-out invocations are redelivered instead of silently ACKed (#288).
-- Outbound LLM and Storage calls on worker paths now have per-entry-point request timeouts via `fetchWithTimeout`/`withTimeout`, converting silent CF platform timeouts into classified errors (#288).
-- Shared DLQ infrastructure: `setup-fanout-dlq.sh` provisions `fanout-dlq` topic, pull subscription, dead-letter policies (max 5 attempts), and Pub/Sub service-agent IAM for all four fan-out worker subscriptions (#288).
+### 13.3.0 (2026-09-23)
+- In-app structured assessment matrix viewer (`AssessmentMatrixSheet`) - bottom drawer showing all students' results with focus-student highlighting, replacing the source worksheet download (#290).
+- Medical PDF inline viewer (`MedicalPdfSheet`) - view-only iframe with signed URL and new-tab fallback; no download affordance anywhere (#290).
+- One-line assessment timeline entries (`AssessmentTimelineEntry`) for student and classroom timelines with inline popup links (#290).
 
 ### 13.2.1 (2026-09-10)
 - Student-name matching engine rewritten from Fuse.js single-pass to deterministic-first tiered ladder (exact full name, exact first name, Jaro-Winkler fuzzy) with three-zone classification (auto/review/no-match) (#285).

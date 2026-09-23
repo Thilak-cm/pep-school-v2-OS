@@ -19,7 +19,8 @@
     "nodemailer": "^6.9.9",
     "puppeteer-core": "^25.2.1",
     "resend": "^6.12.4",
-    "xlsx": "https://cdn.sheetjs.com/xlsx-0.20.3/xlsx-0.20.3.tgz"
+    "xlsx": "https://cdn.sheetjs.com/xlsx-0.20.3/xlsx-0.20.3.tgz",
+    "zod": "^4.6.5"
   },
   "devDependencies": {
     "@eslint/js": "^9.32.0",

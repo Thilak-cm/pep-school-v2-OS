@@ -1,7 +1,9 @@
 import * as functions from "firebase-functions/v1";
 import { defineSecret } from "firebase-functions/params";
+import { z } from "zod";
 import { db } from "../shared/firebase.js";
-import { runLLM, OPENROUTER_API_KEY, LANGFUSE_SECRET_KEY, LANGFUSE_PUBLIC_KEY } from "../shared/llm.js";
+import { OPENROUTER_API_KEY, LANGFUSE_SECRET_KEY, LANGFUSE_PUBLIC_KEY } from "../shared/llm.js";
+import { runStructuredLLM } from "../shared/structuredLLM.js";
 
 // Fallback defaults - used when Firestore config doc lacks fields
 const BASEBALL_CARD_DEFAULTS = {
@@ -91,6 +93,22 @@ async function getBaseballCardConfig(programId, { forceRefresh = false } = {}) {
   return out;
 }
 
+// Machine-enforced version of the response contract the system prompt describes
+// in prose ("Return exactly one JSON object..."). Enforced at BOTH boundaries by
+// runStructuredLLM: request-side as strict json_schema (prevents the W38
+// keyless-string / duplicate-key derailments at token sampling) and
+// response-side via safeParse (replaces the old silent coercion that would ship
+// severity null when the model returned a shape violation). Validated against
+// 14 real W38 production outputs before adoption.
+const BaseballCardResponseSchema = z.object({
+  summary: z.string().min(1),
+  redFlag: z.object({
+    severity: z.enum(["low", "medium", "high"]).nullable(),
+    reason: z.string().nullable(),
+  }),
+  coverageGaps: z.array(z.string()),
+});
+
 async function callBaseballCard(notes, config, prompt, windowDays, studentContext, timeoutMs) {
   const safeContext = {
     studentName: studentContext?.studentName || "Unknown student",
@@ -103,8 +121,10 @@ async function callBaseballCard(notes, config, prompt, windowDays, studentContex
     .replaceAll("<STUDENT_AGE>", safeContext.age);
   const userPrompt = `Generate the last ${windowDays}-day summary.\n\nStudent:\n${JSON.stringify(safeContext)}\n\nNotes (JSON array):\n${JSON.stringify(notes)}`;
 
-  const { content: rawContent } = await runLLM({
+  const { data, rawContent } = await runStructuredLLM({
     featureId: "baseball_card",
+    schema: BaseballCardResponseSchema,
+    schemaName: "baseball_card_summary",
     messages: [
       { role: "system", content: renderedSystem },
       { role: "user", content: userPrompt },
@@ -112,29 +132,12 @@ async function callBaseballCard(notes, config, prompt, windowDays, studentContex
     model: config.model || BASEBALL_CARD_DEFAULTS.model,
     temperature: Number.isFinite(config.temperature) ? config.temperature : BASEBALL_CARD_DEFAULTS.temperature,
     maxTokens: Number.isFinite(config.max_tokens) ? config.max_tokens : BASEBALL_CARD_DEFAULTS.max_tokens,
-    responseFormat: { type: "json_object" },
     traceName: "baseball-card",
     traceMetadata: { studentId: studentContext?.studentId, windowDays, noteCount: notes.length },
     timeoutMs,
   });
 
-  let parsed;
-  try {
-    parsed = JSON.parse(rawContent);
-  } catch (err) {
-    console.error("[baseballCard] JSON parse error", err, rawContent);
-    throw new functions.https.HttpsError("internal", "AI returned invalid JSON");
-  }
-
-  const summary = typeof parsed.summary === "string" ? parsed.summary : "";
-  const redFlagRaw = parsed.redFlag || {};
-  const redFlag = {
-    severity: ["low", "medium", "high"].includes(redFlagRaw?.severity) ? redFlagRaw.severity : null,
-    reason: typeof redFlagRaw?.reason === "string" ? redFlagRaw.reason : null,
-  };
-  const coverageGaps = Array.isArray(parsed.coverageGaps) ? parsed.coverageGaps.filter((c) => typeof c === "string") : [];
-
-  return { summary, redFlag, coverageGaps, rawContent };
+  return { summary: data.summary, redFlag: data.redFlag, coverageGaps: data.coverageGaps, rawContent };
 }
 
 /**

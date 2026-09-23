@@ -112,7 +112,7 @@ export const TOOL_DEFINITIONS = [
   {
     name: "query_observations",
     description:
-      "Query observations across all students using collection group queries. Filter by classroomId, createdBy (teacher uid), branchId, and/or date range. Returns observations ordered by most recent first.",
+      "Query observations across all students using collection group queries. Filter by classroomId, createdBy (teacher uid), branchId, type, and/or date range. Returns observations ordered by most recent first.",
     inputSchema: {
       type: "object",
       properties: {
@@ -128,6 +128,12 @@ export const TOOL_DEFINITIONS = [
           type: "string",
           description: "Filter by branch ID (e.g., hsr, whitefield).",
         },
+        type: {
+          type: "string",
+          description:
+            "Filter by observation type. Use list_assessments for richer assessment-specific filtering.",
+          enum: ["text", "voice", "lesson", "assessment"],
+        },
         days: {
           type: "number",
           description: "Number of days to look back (default: 30).",
@@ -137,6 +143,64 @@ export const TOOL_DEFINITIONS = [
           description: "Max observations to return (default: 50).",
         },
       },
+    },
+  },
+
+  // ── Assessments (structured + medical, #248) ──
+  {
+    name: "list_assessments",
+    description:
+      "List assessment observations (type 'assessment') across all students. Two kinds: 'structured' (spreadsheet uploads fanned out per student, with results as exact source values) and 'medical' (PDF records; returns originalFile metadata - filename, size - but the PDF itself is not fetchable via MCP). Omit kind for both. Filter by studentId, classroomId, or sourceId (structured source manifest id). Assessment data is internal-only: never use it in parent-facing outputs (term/baseline/monthly reports), and never infer performance from raw scores without the source's expected-performance context (see get_assessment_source).",
+    inputSchema: {
+      type: "object",
+      properties: {
+        kind: {
+          type: "string",
+          description: "Filter by assessment kind (omit for both).",
+          enum: ["structured", "medical"],
+        },
+        studentId: {
+          type: "string",
+          description: "Filter by student document ID.",
+        },
+        classroomId: {
+          type: "string",
+          description: "Filter by classroom ID.",
+        },
+        sourceId: {
+          type: "string",
+          description:
+            "Filter to records published by one structured assessment source manifest.",
+        },
+        days: {
+          type: "number",
+          description: "Number of days to look back (default: 90).",
+        },
+        limit: {
+          type: "number",
+          description: "Max records to return (default: 50).",
+        },
+      },
+    },
+  },
+  {
+    name: "get_assessment_source",
+    description:
+      "Fetch a structured assessment source manifest from structuredAssessmentSources: assessment name, description (carries teacher-authored expected-performance context), date range, result definitions, student list, and uploader. Lean by default. Set includeRecords true to also inline every published per-student record (each student's results) - the one-call way to answer 'what was the distribution across children on this assessment'. Use list_assessments to discover sourceIds.",
+    inputSchema: {
+      type: "object",
+      properties: {
+        sourceId: {
+          type: "string",
+          description: "Source manifest document ID.",
+        },
+        includeRecords: {
+          type: "boolean",
+          description:
+            "Inline all per-student records for this source (default: false).",
+        },
+      },
+      required: ["sourceId"],
     },
   },
 
@@ -860,6 +924,7 @@ export async function handleQueryObservations(db, params) {
     classroomId,
     createdBy,
     branchId,
+    type,
     days = 30,
     limit: maxResults = 50,
   } = params;
@@ -871,19 +936,117 @@ export async function handleQueryObservations(db, params) {
   if (classroomId) query = query.where("classroomId", "==", classroomId);
   if (createdBy) query = query.where("createdBy", "==", createdBy);
   if (branchId) query = query.where("branchId", "==", branchId);
+  // type is filtered in-handler to avoid needing additional composite indexes
+  // for every (equality, type, observedAt) combination.
 
-  query = query.orderBy("observedAt", "desc").limit(maxResults);
+  const fetchLimit = type ? Math.max(maxResults * 4, 200) : maxResults;
+  query = query.orderBy("observedAt", "desc").limit(fetchLimit);
 
   const snap = await query.get();
   const results = [];
   snap.forEach((doc) => {
+    const data = doc.data();
+    if (type && data.type !== type) return;
     const parentPath = doc.ref.parent.parent?.id;
     results.push(
-      serializeTimestamps({ id: doc.id, studentId: parentPath, ...doc.data() })
+      serializeTimestamps({ id: doc.id, studentId: parentPath, ...data })
     );
   });
 
-  return results;
+  return results.slice(0, maxResults);
+}
+
+// ── Assessments (structured + medical, #248) ──
+
+// Context-window hygiene: sourceProvenance (spreadsheet rows/cells/formulas)
+// is internal parsing provenance, never rendered anywhere in the product, and
+// would bloat every MCP response. Strip it before returning records.
+function projectAssessmentRecord(doc) {
+  const data = doc.data();
+  const record = {
+    id: doc.id,
+    studentId: data.studentId ?? doc.ref?.parent?.parent?.id,
+    ...data,
+  };
+  delete record.sourceProvenance;
+  return serializeTimestamps(record);
+}
+
+export async function handleListAssessments(db, params) {
+  const {
+    kind,
+    studentId,
+    classroomId,
+    sourceId,
+    days = 90,
+    limit: maxResults = 50,
+  } = params;
+
+  const cutoff = new Date(Date.now() - days * 24 * 60 * 60 * 1000);
+
+  // Assessments are sparse so in-handler filters (kind, sourceId, type) are
+  // cheap vs adding composite indexes that every observation write pays for.
+  // When studentId or classroomId is present, the query uses the existing
+  // (studentId, observedAt) or (classroomId, observedAt) index and type is
+  // filtered in-handler. When neither is present, the (type, observedAt)
+  // index is used directly.
+  const useTypeIndex = !studentId && !classroomId;
+  const needsInHandlerFilter = Boolean(kind || sourceId || !useTypeIndex);
+  const fetchLimit = needsInHandlerFilter
+    ? Math.max(maxResults * 4, 200)
+    : maxResults;
+
+  let query = db.collectionGroup("observations")
+    .where("observedAt", ">=", cutoff);
+
+  if (useTypeIndex) query = query.where("type", "==", "assessment");
+  if (studentId) query = query.where("studentId", "==", studentId);
+  if (classroomId) query = query.where("classroomId", "==", classroomId);
+
+  query = query.orderBy("observedAt", "desc").limit(fetchLimit);
+
+  const snap = await query.get();
+  const results = [];
+  snap.forEach((doc) => {
+    const data = doc.data();
+    if (!useTypeIndex && data.type !== "assessment") return;
+    if (kind && data.assessmentKind !== kind) return;
+    if (sourceId && data.sourceId !== sourceId) return;
+    results.push(projectAssessmentRecord(doc));
+  });
+
+  return results.slice(0, maxResults);
+}
+
+export async function handleGetAssessmentSource(db, params) {
+  const { sourceId, includeRecords = false } = params;
+
+  const doc = await db
+    .collection("structuredAssessmentSources")
+    .doc(sourceId)
+    .get();
+
+  if (!doc.exists) return null;
+
+  // recordRefs is a pointer list (studentId + observationId per record) -
+  // redundant with studentIds/recordCount for a lean read, and superseded by
+  // full records when hydrating. Always omitted.
+  const { recordRefs, ...manifest } = doc.data();
+  const result = serializeTimestamps({ id: doc.id, ...manifest });
+
+  if (includeRecords) {
+    // Membership by collection-group sourceId query, matching the delete
+    // cascade's convention (functions/assessments/index.js) so reads and
+    // deletes can never disagree on which records belong to a source.
+    const snap = await db.collectionGroup("observations")
+      .where("sourceId", "==", sourceId)
+      .get();
+    const records = [];
+    snap.forEach((recordDoc) => records.push(projectAssessmentRecord(recordDoc)));
+    result.records = records;
+  }
+
+  return result;
 }
 
 // ── AI Summaries ──

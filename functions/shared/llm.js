@@ -73,7 +73,7 @@ export function buildChatBody({ model, messages, temperature, max_completion_tok
  *   No default by design: the entry point owns its CF budget and passes this down
  *   (background workers only - interactive onCall failures are already user-visible).
  *   Timeout aborts throw "unavailable" (transient), so fan-out workers rethrow -> redelivery.
- * @returns {Promise<{content: string, usage: object, resolvedModel: string, responseModel: string|null}>}
+ * @returns {Promise<{content: string, usage: object, resolvedModel: string, responseModel: string|null, finishReason: string|null}>}
  */
 export async function runLLM({
   featureId,
@@ -178,6 +178,10 @@ export async function runLLM({
   const json = await response.json();
   const content = json?.choices?.[0]?.message?.content?.trim();
   const usage = json?.usage || null;
+  // finish_reason "length" = output truncated at max_completion_tokens. Surfaced
+  // so callers (runStructuredLLM) can treat cap-hits as degenerate generations
+  // (W38 RCA: 1500/1500 tokens = derailed output, never a legit long summary).
+  const finishReason = json?.choices?.[0]?.finish_reason || null;
 
   if (!content) {
     generation?.end({ output: { error: "empty_content" }, statusMessage: "empty_response" });
@@ -195,6 +199,7 @@ export async function runLLM({
     } : undefined,
     metadata: {
       responseModel,
+      finishReason,
       ...(responseModel && responseModel !== resolvedModel
         ? { modelDrift: true, driftFrom: resolvedModel, driftTo: responseModel }
         : {}),
@@ -203,7 +208,7 @@ export async function runLLM({
 
   await flushLangfuse(langfuse);
 
-  return { content, usage, resolvedModel, responseModel };
+  return { content, usage, resolvedModel, responseModel, finishReason };
 }
 
 /**

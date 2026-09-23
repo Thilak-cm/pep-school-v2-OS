@@ -293,5 +293,5 @@ export function normalizeFilename(filename) {
 }
 
 export function buildStructuredAssessmentId(sourceId, sourceRow, segment) {
-  return `assessment_structured_${sourceId}_${sourceRow}_${segment}`;
+  return `sa_${sourceId}_${sourceRow}_${segment}`;
 }

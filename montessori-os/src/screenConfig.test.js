@@ -244,7 +244,8 @@ describe("FAB_HIDDEN_SCREENS", () => {
   });
 
   it("does not contain observation screens", () => {
-    const observationScreens = ["landingPage", "classroomList", "classroomTimeline", "studentDashboard", "timeline", "studentReports"];
+    // studentAssessments joined in #290 so the global FAB shows on the assessments page.
+    const observationScreens = ["landingPage", "classroomList", "classroomTimeline", "studentDashboard", "timeline", "studentReports", "studentAssessments"];
     for (const s of observationScreens) {
       assert.ok(!FAB_HIDDEN_SCREENS.has(s), `FAB_HIDDEN_SCREENS should NOT contain "${s}"`);
     }

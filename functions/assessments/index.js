@@ -570,6 +570,12 @@ export const publishStructuredAssessment = functions
         assessmentDescription: parsed.metadata.assessmentDescription,
         assessmentDate: parsed.metadata.dateRange,
         resultDefinitions: parsed.resultDefinitions,
+        // #290: denormalized so timelines can render "{file} for {N}
+        // students" lines straight from the observation query, without a
+        // Cloud Function round-trip per entry. Immutable post-publish (no
+        // edit capability exists), so there is no sync risk.
+        sourceFileName,
+        studentCount: studentIds.length,
         values: row.values,
         results: row.results.map((result) => ({
           resultNumber: result.resultNumber,
@@ -962,9 +968,46 @@ export const getStructuredAssessmentSource = functions
       context.auth.uid,
       source.classroomIds || [],
     );
+    // #290 in-app matrix view: callers who can access ANY participating
+    // student may see the full row set. Assessments are single-classroom by
+    // product decision, so student-level access implies classroom-level
+    // visibility of every row. Records are assembled server-side because
+    // Firestore rules deny cross-student observation reads from clients.
+    let records;
+    if (data?.includeRecords === true) {
+      const recordSnapshot = await db.collectionGroup("observations")
+        .where("sourceId", "==", sourceId)
+        .get();
+      const studentIds = [...new Set(recordSnapshot.docs
+        .map((docSnap) => docSnap.data().studentId)
+        .filter(Boolean))];
+      const studentSnaps = studentIds.length ?
+        await db.getAll(...studentIds.map((id) =>
+          db.collection("students").doc(id))) :
+        [];
+      const nameById = new Map(studentSnaps.map((snap) => [
+        snap.id,
+        snap.data()?.displayName || snap.data()?.firstName || "Unknown student",
+      ]));
+      records = recordSnapshot.docs.map((docSnap) => {
+        const record = docSnap.data();
+        return {
+          studentId: record.studentId || "",
+          studentName: nameById.get(record.studentId) || "Unknown student",
+          values: record.values || {},
+          sourceRow: record.sourceProvenance?.row || 0,
+          segment: record.sourceProvenance?.segment || 1,
+        };
+      }).sort((a, b) => (
+        a.sourceRow - b.sourceRow || a.segment - b.segment
+      ));
+    }
     return {
       source: {
         sourceId,
+        assessmentName: source.assessmentName || "",
+        assessmentDescription: source.assessmentDescription || "",
+        dateRange: source.dateRange || null,
         sourceFileName: source.sourceFileName || "",
         worksheetName: source.worksheetName || "",
         resultDefinitions: source.resultDefinitions || [],
@@ -973,6 +1016,7 @@ export const getStructuredAssessmentSource = functions
         studentCount: source.studentCount || 0,
         recordCount: source.recordCount || 0,
         canDownload,
+        ...(records ? {records} : {}),
       },
     };
   });
@@ -1036,10 +1080,19 @@ export const getAssessmentDownloadUrl = functions
     if (!storagePath) {
       throw new functions.https.HttpsError("not-found", "Source file not found.");
     }
+    // #290: medical PDFs are view-only for every role - inline disposition
+    // renders in the browser/iframe instead of forcing a download. Structured
+    // sources keep attachment - no UI entry point exists post-#290 (the UI
+    // renders the matrix from published data), but the CF is retained for
+    // ops/debug use.
+    const safeFilename = String(filename).replace(/["\r\n]/g, "_");
+    const disposition = kind === "medical" ?
+      `inline; filename="${safeFilename}"` :
+      `attachment; filename="${safeFilename}"`;
     const [url] = await storage.bucket().file(storagePath).getSignedUrl({
       action: "read",
       expires: Date.now() + 15 * 60 * 1000,
-      responseDisposition: `attachment; filename="${String(filename).replace(/["\r\n]/g, "_")}"`,
+      responseDisposition: disposition,
     });
     return {url, filename};
   });
