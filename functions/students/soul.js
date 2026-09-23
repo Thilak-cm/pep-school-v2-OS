@@ -108,7 +108,7 @@ async function getSoulTemplateConfig(programId) {
   return out;
 }
 
-async function callSoulGeneration(observations, interviews, guidelinesContent, studentContext, previousSoul) {
+async function callSoulGeneration(observations, interviews, guidelinesContent, studentContext, previousSoul, timeoutMs) {
   // Read instruction prompt + model settings from Firestore, fall back to hardcoded
   const soulConfig = await getSoulConfig(studentContext.programId);
   const systemPromptTemplate = soulConfig?.systemPrompt || null;
@@ -135,6 +135,7 @@ async function callSoulGeneration(observations, interviews, guidelinesContent, s
     maxTokens,
     traceName: "soul-generation",
     traceMetadata: { studentId: studentContext?.studentId, programId: studentContext?.programId },
+    timeoutMs,
   });
 
   try {
@@ -282,7 +283,7 @@ export const generateStudentProfile = functions
 // Reused by the on-demand callable and the Pub/Sub worker.
 // -----------------------------------------------
 
-async function generateSoulForStudent(studentId, { windowDays = 365, generatedForMonth = null } = {}) {
+async function generateSoulForStudent(studentId, { windowDays = 365, generatedForMonth = null, llmTimeoutMs = undefined } = {}) {
   const t0 = Date.now();
   const lap = (label) => console.log(`[soul] ${studentId} ${label} +${Date.now() - t0}ms`);
 
@@ -343,6 +344,7 @@ async function generateSoulForStudent(studentId, { windowDays = 365, generatedFo
     formatted, formattedInterviews, guidelinesContent,
     { studentId, studentName: studentInfo.studentName, dob: studentInfo.dob, age: studentInfo.age, programId: studentInfo.programId },
     previousSoul,
+    llmTimeoutMs,
   );
   lap("callSoulGeneration(LLM)");
 
@@ -433,6 +435,9 @@ export const soulWorker = functions
     timeoutSeconds: 300,
     memory: "1GB",
     maxInstances: 10,
+    // #288: see writingAnalysisWorker - enables redelivery of thrown/timed-out
+    // invocations; isAlreadyDone makes it safe, DLQ caps at 5 attempts.
+    failurePolicy: true,
     secrets: [OPENROUTER_API_KEY, LANGFUSE_SECRET_KEY, LANGFUSE_PUBLIC_KEY],
   })
   .pubsub.topic(SOUL_TOPIC)
@@ -445,7 +450,13 @@ export const soulWorker = functions
       return existingSoul.exists && existingSoul.data().generatedForMonth === targetMonth;
     },
     process: async ({ studentId, targetMonth }) => {
-      const result = await generateSoulForStudent(studentId, { generatedForMonth: targetMonth });
+      // #288: abort timeout, worker path only. No traced latency data yet
+      // (first post-#187 traced run ~Oct 2026), so budget-derived: 240s in a
+      // 300s CF leaves 60s headroom. Revisit toward 2x max once data exists.
+      const result = await generateSoulForStudent(studentId, {
+        generatedForMonth: targetMonth,
+        llmTimeoutMs: 240_000,
+      });
       if (result.status === "skipped") {
         return { state: "skipped", detail: result.reason };
       }

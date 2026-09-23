@@ -125,7 +125,7 @@ async function trashExistingDocsByName(drive, folderId, docName) {
  * @param {string} generatedByName - display name or "Monthly Plan Cron"
  * @returns {Promise<object>} the saved plan doc
  */
-async function generatePlanInternal(studentId, targetMonth, generatedBy, generatedByName) {
+async function generatePlanInternal(studentId, targetMonth, generatedBy, generatedByName, { llmTimeoutMs = undefined } = {}) {
   // 1. Load config
   const config = await getMonthlyPlanConfig();
   const systemPrompt = config.systemPrompt;
@@ -252,6 +252,7 @@ async function generatePlanInternal(studentId, targetMonth, generatedBy, generat
     responseFormat: { type: "json_object" },
     traceName: "monthly-plan",
     traceMetadata: { studentId, targetMonth },
+    timeoutMs: llmTimeoutMs,
   });
 
   const totalTokens = usage?.total_tokens || 0;
@@ -704,7 +705,8 @@ export const batchGenerateMonthlyPlans = functions
  * throwing (monthlyPlan-only behavior, preserved in the process callback).
  *
  * maxInstances: 5 controls concurrency to avoid overwhelming OpenRouter.
- * Dead-letter policy (max 5 attempts) to be configured via #169.
+ * Dead-letter policy (max 5 attempts) provisioned via
+ * scripts/ops/setup-fanout-dlq.sh (#288, supersedes #169).
  */
 export const monthlyPlanWorker = functions
   .region("asia-south1")
@@ -712,6 +714,11 @@ export const monthlyPlanWorker = functions
     timeoutSeconds: 300,
     memory: "1GB",
     maxInstances: 5,
+    // #288: see writingAnalysisWorker - enables redelivery of thrown/timed-out
+    // invocations. Safe here: isAlreadyDone skips generated plans, and the
+    // Drive-export failure path RETURNS "failed" (deliberate ACK, no retry) -
+    // only thrown/timed-out invocations redeliver.
+    failurePolicy: true,
     secrets: [OPENROUTER_API_KEY, LANGFUSE_SECRET_KEY, LANGFUSE_PUBLIC_KEY, TELEGRAM_BOT_TOKEN],
   })
   .pubsub.topic(MONTHLY_PLAN_TOPIC)
@@ -733,6 +740,9 @@ export const monthlyPlanWorker = functions
         targetMonth,
         "system:batchCron",
         "Monthly Plan Cron",
+        // #288: abort timeout, worker path only. 120s = ~2x max observed
+        // whole-invocation duration (~60s incl. LLM + Drive export, CF logs).
+        { llmTimeoutMs: 120_000 },
       );
       console.log(`[monthlyPlanWorker] generated plan for ${studentId}`);
 

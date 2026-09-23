@@ -91,7 +91,7 @@ async function getBaseballCardConfig(programId, { forceRefresh = false } = {}) {
   return out;
 }
 
-async function callBaseballCard(notes, config, prompt, windowDays, studentContext) {
+async function callBaseballCard(notes, config, prompt, windowDays, studentContext, timeoutMs) {
   const safeContext = {
     studentName: studentContext?.studentName || "Unknown student",
     dob: studentContext?.dob || "dob unavailable in context",
@@ -115,6 +115,7 @@ async function callBaseballCard(notes, config, prompt, windowDays, studentContex
     responseFormat: { type: "json_object" },
     traceName: "baseball-card",
     traceMetadata: { studentId: studentContext?.studentId, windowDays, noteCount: notes.length },
+    timeoutMs,
   });
 
   let parsed;
@@ -297,6 +298,7 @@ async function runBaseballCardForStudent(studentId, {
   archiveHistory = false,
   requesterInfo = null,
   forceRefresh = false,
+  llmTimeoutMs = undefined,
 } = {}) {
   const studentContext = await getStudentWithProgram(studentId);
   const { programId, classroomId } = studentContext;
@@ -343,7 +345,7 @@ async function runBaseballCardForStudent(studentId, {
   }
 
   const formatted = notes.map(formatObservationForPrompt);
-  const aiResult = await callBaseballCard(formatted, config, prompt, effectiveWindowDays, studentContext);
+  const aiResult = await callBaseballCard(formatted, config, prompt, effectiveWindowDays, studentContext, llmTimeoutMs);
   const sourceNoteIds = notes.map((n) => n.id).filter(Boolean);
 
   const payload = {
@@ -614,6 +616,9 @@ export const baseballCardWorker = functions
     timeoutSeconds: 300,
     memory: "512MB",
     maxInstances: 10,
+    // #288: see writingAnalysisWorker - enables redelivery of thrown/timed-out
+    // invocations; isAlreadyDone makes it safe, DLQ caps at 5 attempts.
+    failurePolicy: true,
     secrets: [OPENROUTER_API_KEY, LANGFUSE_SECRET_KEY, LANGFUSE_PUBLIC_KEY],
   })
   .pubsub.topic(BASEBALL_CARD_TOPIC)
@@ -630,6 +635,9 @@ export const baseballCardWorker = functions
     process: async ({ studentId }) => {
       const { status, payload } = await runBaseballCardForStudent(studentId, {
         archiveHistory: true,
+        // #288: abort timeout, worker path only. 50s = ~2x max observed
+        // latency (22.9s, n=1661); aborts throw "unavailable" -> redelivery.
+        llmTimeoutMs: 50_000,
       });
       return {
         state: "success",

@@ -14,6 +14,7 @@ import {
 } from "./openrouter.js";
 import { buildChatBody } from "./llm.js";
 import { resolveModel } from "./modelRegistry.js";
+import { fetchWithTimeout } from "./http.js";
 
 const MAX_ITERATIONS = 15;
 
@@ -29,6 +30,10 @@ const MAX_ITERATIONS = 15;
  * @param {boolean}  [opts.collectTrace] - Build per-iteration trace data (default false)
  * @param {number}   [opts.maxIterations] - Safety limit (default 15)
  * @param {string}   [opts.featureId] - Registry feature ID for model resolution (default "weekly_digest")
+ * @param {number}   [opts.timeoutMs] - Abort each per-iteration OpenRouter fetch after this
+ *   many ms (#288). No default by design - background entry points pass their own value
+ *   (see shared/http.js). Per-iteration matters: the loop makes multiple sequential calls,
+ *   so one hung call must not eat the whole CF budget.
  * @returns {{ content: string, toolCallLog: Object[], iterations: number, totalTokens: number, iterationTrace: Object[] }}
  */
 export async function runAgentLoop({
@@ -40,6 +45,7 @@ export async function runAgentLoop({
   collectTrace = false,
   maxIterations = MAX_ITERATIONS,
   featureId,
+  timeoutMs,
 }) {
   const apiKey = getOpenRouterKey();
   if (!apiKey) throw new Error("OPENROUTER_API_KEY not configured");
@@ -74,14 +80,14 @@ export async function runAgentLoop({
       input: messages[messages.length - 1],
     });
 
-    const response = await fetch(OPENROUTER_ENDPOINT, {
+    const response = await fetchWithTimeout(OPENROUTER_ENDPOINT, {
       method: "POST",
       headers: {
         "Authorization": `Bearer ${apiKey}`,
         "Content-Type": "application/json",
       },
       body: JSON.stringify(body),
-    });
+    }, timeoutMs);
 
     if (!response.ok) {
       const errText = await response.text().catch(() => "");
