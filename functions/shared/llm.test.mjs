@@ -7,9 +7,9 @@
  * so integration testing happens via contract tests and manual verification.
  */
 
-import { describe, it } from "node:test";
+import { describe, it, beforeEach, afterEach } from "node:test";
 import assert from "node:assert/strict";
-import { isReasoningModel, buildChatBody } from "./llm.js";
+import { isReasoningModel, buildChatBody, runLLM } from "./llm.js";
 
 // ---------------------------------------------------------------------------
 // isReasoningModel
@@ -121,5 +121,100 @@ describe("buildChatBody", () => {
       messages: [],
     });
     assert.equal(body.stream, undefined);
+  });
+});
+
+// ---------------------------------------------------------------------------
+// runLLM timeoutMs (#288)
+//
+// Uses a full-slug model ("vendor/model") so resolveModel passes through
+// without Firestore, unsets Langfuse env so tracing is skipped, and stubs
+// globalThis.fetch. Timeout values are per-entry-point (no default) - see
+// shared/http.js for the design rationale.
+// ---------------------------------------------------------------------------
+
+describe("runLLM timeoutMs (#288)", () => {
+  const realFetch = globalThis.fetch;
+  const savedEnv = {};
+  const ENV_KEYS = ["OPENROUTER_API_KEY", "LANGFUSE_SECRET_KEY", "LANGFUSE_PUBLIC_KEY"];
+
+  beforeEach(() => {
+    for (const k of ENV_KEYS) savedEnv[k] = process.env[k];
+    process.env.OPENROUTER_API_KEY = "test-key";
+    delete process.env.LANGFUSE_SECRET_KEY;
+    delete process.env.LANGFUSE_PUBLIC_KEY;
+  });
+
+  afterEach(() => {
+    globalThis.fetch = realFetch;
+    for (const k of ENV_KEYS) {
+      if (savedEnv[k] === undefined) delete process.env[k];
+      else process.env[k] = savedEnv[k];
+    }
+  });
+
+  const okResponse = {
+    ok: true,
+    headers: { get: () => null },
+    json: async () => ({
+      choices: [{ message: { content: "hello" } }],
+      usage: { prompt_tokens: 1, completion_tokens: 1, total_tokens: 2 },
+    }),
+  };
+
+  it("attaches an abort signal when timeoutMs is set and resolves under the deadline", async () => {
+    const seen = [];
+    globalThis.fetch = async (url, options) => {
+      seen.push(options);
+      return okResponse;
+    };
+
+    const result = await runLLM({
+      featureId: "test_feature",
+      messages: [{ role: "user", content: "hi" }],
+      model: "openai/test-model",
+      timeoutMs: 5000,
+    });
+    assert.equal(result.content, "hello");
+    assert.ok(seen[0].signal instanceof AbortSignal, "abort signal attached");
+  });
+
+  it("attaches no signal when timeoutMs is absent (current behavior preserved)", async () => {
+    const seen = [];
+    globalThis.fetch = async (url, options) => {
+      seen.push(options);
+      return okResponse;
+    };
+
+    await runLLM({
+      featureId: "test_feature",
+      messages: [{ role: "user", content: "hi" }],
+      model: "openai/test-model",
+    });
+    assert.equal(seen[0].signal, undefined);
+  });
+
+  it("aborts a hung call at the deadline and throws a transient 'unavailable' timeout error", async () => {
+    globalThis.fetch = (url, options = {}) => new Promise((resolve, reject) => {
+      options.signal?.addEventListener("abort", () => {
+        const err = new Error("This operation was aborted");
+        err.name = "AbortError";
+        reject(err);
+      });
+    });
+
+    await assert.rejects(
+      () => runLLM({
+        featureId: "test_feature",
+        messages: [{ role: "user", content: "hi" }],
+        model: "openai/test-model",
+        timeoutMs: 30,
+      }),
+      (err) => {
+        assert.equal(err.code, "unavailable", "must be transient (not in PERMANENT_CODES) so workers rethrow -> redelivery");
+        assert.match(err.message, /timed out/i);
+        return true;
+      },
+    );
   });
 });

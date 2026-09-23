@@ -14,6 +14,7 @@ import * as functions from "firebase-functions/v1";
 import { defineSecret } from "firebase-functions/params";
 import { resolveModel } from "./modelRegistry.js";
 import { createLangfuse } from "./langfuse.js";
+import { fetchWithTimeout } from "./http.js";
 
 export const OPENROUTER_API_KEY = defineSecret("OPENROUTER_API_KEY");
 export const LANGFUSE_SECRET_KEY = defineSecret("LANGFUSE_SECRET_KEY");
@@ -68,6 +69,10 @@ export function buildChatBody({ model, messages, temperature, max_completion_tok
  * @param {object} [options.traceMetadata] - Additional metadata for the Langfuse trace
  * @param {object} [options.generationMetadata] - Additional metadata for the Langfuse generation
  * @param {object} [options.trace] - Existing Langfuse trace to nest under (skips trace creation)
+ * @param {number} [options.timeoutMs] - Abort the OpenRouter fetch after this many ms (#288).
+ *   No default by design: the entry point owns its CF budget and passes this down
+ *   (background workers only - interactive onCall failures are already user-visible).
+ *   Timeout aborts throw "unavailable" (transient), so fan-out workers rethrow -> redelivery.
  * @returns {Promise<{content: string, usage: object, resolvedModel: string, responseModel: string|null}>}
  */
 export async function runLLM({
@@ -81,6 +86,7 @@ export async function runLLM({
   traceMetadata,
   generationMetadata,
   trace,
+  timeoutMs,
 }) {
   // 1. Resolve model through registry
   const resolvedModel = await resolveModel(featureId, model);
@@ -126,15 +132,28 @@ export async function runLLM({
   // 5. Call OpenRouter
   let response;
   try {
-    response = await fetch(OPENROUTER_ENDPOINT, {
+    response = await fetchWithTimeout(OPENROUTER_ENDPOINT, {
       method: "POST",
       headers: {
         "Authorization": `Bearer ${apiKey}`,
         "Content-Type": "application/json",
       },
       body: JSON.stringify(body),
-    });
+    }, timeoutMs);
   } catch (err) {
+    // Timeout abort (#288): distinct classification so a hang is visible in
+    // logs + Langfuse instead of dying as an opaque CF platform timeout.
+    if (err.name === "AbortError") {
+      generation?.end({
+        output: { error: `timeout after ${timeoutMs}ms` },
+        statusMessage: "timeout",
+      });
+      await flushLangfuse(langfuse);
+      console.error(`[runLLM:${featureId}] request timed out after ${timeoutMs}ms`);
+      throw new functions.https.HttpsError(
+        "unavailable", `AI request timed out after ${timeoutMs}ms`,
+      );
+    }
     generation?.end({ output: { error: err.message }, statusMessage: "network_error" });
     await flushLangfuse(langfuse);
     console.error(`[runLLM:${featureId}] network error`, err);

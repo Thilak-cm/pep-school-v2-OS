@@ -497,6 +497,9 @@ export const weeklyDigestClassroomAdmin = functions
                 maxTokens: config.maxTokens,
               },
               trace: classroomSpan,
+              // #288: per-iteration abort. 120s = ~2x max observed digest
+              // generation latency (62.5s, n=104); background path.
+              timeoutMs: 120_000,
             });
 
             // Render JSON → HTML
@@ -754,6 +757,7 @@ export const weeklyDigestSuperadmin = functions
           maxTokens: config.maxTokens,
         },
         trace,
+        timeoutMs: 120_000, // #288: see classroom digest note
       });
 
       // Render JSON → HTML

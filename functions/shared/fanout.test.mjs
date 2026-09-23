@@ -264,6 +264,39 @@ describe("makeFanoutWorker", () => {
     }
   });
 
+  it("logs a start line with jobKey, studentId, executionId before any other action (#288)", async (t) => {
+    const log = t.mock.method(console, "log");
+    const { deps } = makeWorkerDeps();
+    const worker = makeFanoutWorker({
+      jobKey: "writingAnalysis",
+      process: async () => ({ state: "success" }),
+    }, deps);
+
+    await worker(BASE_MSG);
+    assert.ok(log.mock.calls.length >= 1, "expected a start log line");
+    const first = log.mock.calls[0].arguments.join(" ");
+    assert.match(first, /writingAnalysis/);
+    assert.match(first, /S1/);
+    assert.match(first, /2026-W37/);
+  });
+
+  it("emits the start log even for malformed payloads, before the parse-error ACK (#288)", async (t) => {
+    const log = t.mock.method(console, "log");
+    const error = t.mock.method(console, "error");
+    const { workItems, deps } = makeWorkerDeps();
+    const worker = makeFanoutWorker({
+      jobKey: "writingAnalysis",
+      process: async () => ({ state: "success" }),
+    }, deps);
+
+    const result = await worker({ json: null });
+    assert.equal(result, null);
+    assert.equal(workItems.length, 0);
+    assert.ok(log.mock.calls.length >= 1, "start log must fire before parse can fail");
+    assert.match(log.mock.calls[0].arguments.join(" "), /writingAnalysis/);
+    assert.ok(error.mock.calls.length >= 1, "parse error still logged");
+  });
+
   it("survives workItem write failures on the success path (ACKs anyway)", async () => {
     const worker = makeFanoutWorker({
       jobKey: "writingAnalysis",

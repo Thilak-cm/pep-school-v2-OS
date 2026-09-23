@@ -62,6 +62,39 @@ Firebase Functions v1 Pub/Sub schedules and use asynchronous `onRun` handlers.
 | `batchGenerateMonthlyPlans` | `0 0 28-31 * *` | `functions/monthlyPlan/index.js` (plus last-day guard) |
 | `verifyMonthlyPlans` | `0 3 28-31 * *` | `functions/verification/index.js` (plus last-day guard) |
 
+## Fan-out worker retry and DLQ contract (#288)
+
+All four Pub/Sub-triggered fan-out workers (`writingAnalysisWorker`,
+`baseballCardWorker`, `soulWorker`, `monthlyPlanWorker`) share the same
+retry/dead-letter contract:
+
+| Concern | Mechanism |
+|---|---|
+| Redelivery on failure | `runWith({ failurePolicy: true })` - thrown/timed-out invocations are NACKed and redelivered. Without this, CF v1 ACKs every invocation end (the W37 silent miss). |
+| Idempotency | Each worker has an `isAlreadyDone` guard that skips completed students. Redelivery is safe. |
+| Poison cap | `maxDeliveryAttempts: 5` on each `gcf-*` subscription, dead-lettering to shared topic `fanout-dlq`. Without this, a poison message retries for 7 days. |
+| Request timeout | Per-worker `timeoutMs` on LLM/Storage calls (`shared/http.js`) so hangs fail inside the CF budget with a classified log line, rather than dying as opaque platform timeouts. |
+| Detection | Verifier red signal (`never_started`) is the alerting layer - always runs after the run window. DLQ is for forensics/replay. |
+
+**Provisioning:** DLQ topic, pull subscription, dead-letter policies, and IAM
+are provisioned once via `scripts/ops/setup-fanout-dlq.sh` (idempotent,
+dry-run by default, `--yes` to apply). Deploy functions first so the `gcf-*`
+subscriptions exist, then run `setup-fanout-dlq.sh --yes` to attach dead-letter
+policies to them.
+
+**Runbook - `never_started` red signal:**
+
+1. Check verifier Telegram for affected `jobKey` and `executionId`.
+2. Inspect the DLQ for dead-lettered messages:
+   ```
+   gcloud pubsub subscriptions pull fanout-dlq-sub --project=pep-os --limit=10 --format=json
+   ```
+3. The `CloudPubSubDeadLetterSourceSubscription` attribute identifies which
+   worker's subscription forwarded the message.
+4. Diagnose the root cause (error logs for the source subscription + CF),
+   fix if needed, then manually republish the message payload to the
+   appropriate worker topic.
+
 ## Maintenance rules
 
 - When adding, removing, or changing a `.pubsub.schedule(...)` function, update

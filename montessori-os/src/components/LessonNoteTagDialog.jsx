@@ -11,6 +11,26 @@ import {
   Button,
 } from '@mui/material';
 import { X as Close } from '../icons';
+
+// Duplicate lesson titles are common (same material re-presented over months),
+// so each row shows the observed date + presenting teacher as disambiguators.
+const toJsDate = (ts) => {
+  if (!ts) return null;
+  if (ts.toDate) return ts.toDate();
+  if (ts.seconds) return new Date(ts.seconds * 1000);
+  return null;
+};
+
+const formatNoteMeta = (note) => {
+  const date = toJsDate(note.observedAt || note.createdAt);
+  const parts = [];
+  if (date) {
+    parts.push(date.toLocaleDateString('en-IN', { day: 'numeric', month: 'short', year: 'numeric' }));
+  }
+  if (note.createdByName) parts.push(note.createdByName);
+  return parts.join(' · ');
+};
+
 function LessonNoteTagDialog({
   open,
   onClose,
@@ -174,9 +194,16 @@ function LessonNoteTagDialog({
                         handleClick();
                       }}
                     />
-                    <Typography variant="body2" sx={{ fontWeight: 500, color: 'var(--color-text)' }}>
-                      {note.lessonTitle || 'Lesson Note'}
-                    </Typography>
+                    <Box sx={{ display: 'flex', flexDirection: 'column', minWidth: 0 }}>
+                      <Typography variant="body2" sx={{ fontWeight: 500, color: 'var(--color-text)' }}>
+                        {note.lessonTitle || 'Lesson Note'}
+                      </Typography>
+                      {formatNoteMeta(note) && (
+                        <Typography variant="caption" sx={{ color: 'var(--color-text-secondary, rgba(0,0,0,0.6))' }}>
+                          {formatNoteMeta(note)}
+                        </Typography>
+                      )}
+                    </Box>
                   </Box>
                 );
               });

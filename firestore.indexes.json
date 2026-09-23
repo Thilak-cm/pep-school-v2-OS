@@ -167,6 +167,14 @@
       ]
     },
     {
+      "collectionGroup": "observations",
+      "queryScope": "COLLECTION",
+      "fields": [
+        { "fieldPath": "type", "order": "ASCENDING" },
+        { "fieldPath": "createdAt", "order": "DESCENDING" }
+      ]
+    },
+    {
       "collectionGroup": "runs",
       "queryScope": "COLLECTION",
       "fields": [
@@ -347,7 +355,7 @@
     },
     {
       "collectionGroup": "observations",
-      "fieldPath": "createdAt",
+      "fieldPath": "sourceId",
       "indexes": [
         { "order": "ASCENDING", "queryScope": "COLLECTION" },
         { "order": "DESCENDING", "queryScope": "COLLECTION" },
@@ -355,8 +363,8 @@
       ]
     },
     {
-      "collectionGroup": "placements",
-      "fieldPath": "endDate",
+      "collectionGroup": "observations",
+      "fieldPath": "createdAt",
       "indexes": [
         { "order": "ASCENDING", "queryScope": "COLLECTION" },
         { "order": "DESCENDING", "queryScope": "COLLECTION" },

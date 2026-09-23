@@ -33,7 +33,14 @@ import {
  * Error codes treated as permanent by workers: the message is ACKed with a
  * failed workItem instead of being retried. Everything else is considered
  * transient and rethrown so Pub/Sub redelivers (idempotency guards make
- * redelivery safe). Mirrors the routing proven in monthlyPlanWorker/soulWorker.
+ * redelivery safe).
+ *
+ * IMPORTANT (#288): rethrowing only causes redelivery because every fan-out
+ * worker sets runWith({ failurePolicy: true }) - enforced by
+ * test/fanoutWorkerRetry.test.mjs. Without that flag, CF v1 ACKs thrown and
+ * timed-out invocations and the message is dropped forever (the W37 silent
+ * miss). Poison messages are capped at 5 delivery attempts by the fanout-dlq
+ * dead-letter policy (scripts/ops/setup-fanout-dlq.sh).
  */
 const PERMANENT_CODES = ["not-found", "failed-precondition", "internal"];
 
@@ -145,6 +152,14 @@ export function makeFanoutWorker({ jobKey, extraKeys = [], isAlreadyDone, proces
   const updateWorkItemFn = deps.updateWorkItem || updateWorkItem;
 
   return async (message) => {
+    // Start-of-process log, best-effort from the raw payload BEFORE parsing.
+    // The W37 RCA (#288) hit a timed-out invocation that logged nothing for
+    // 300s - this line makes any future black-box invocation attributable
+    // (jobKey + studentId + executionId) from a single log query.
+    console.log(
+      `[${jobKey}-worker] start student=${message?.json?.studentId} execution=${message?.json?.executionId}`,
+    );
+
     let ctx;
     try {
       ctx = parseFanoutMessage(message, extraKeys);
@@ -175,6 +190,8 @@ export function makeFanoutWorker({ jobKey, extraKeys = [], isAlreadyDone, proces
         }));
         return null;
       }
+      // Redelivery requires failurePolicy: true on the worker (#288) - see
+      // the PERMANENT_CODES comment above.
       console.error(`[${jobKey}-worker] transient error for ${studentId}, retrying:`, err.message);
       throw err;
     }

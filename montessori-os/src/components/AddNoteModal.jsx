@@ -23,7 +23,7 @@ import InlineVoiceOverlay from './InlineVoiceOverlay';
 import { cleanUpText } from '../textCleanup';
 import { trackEvent, lengthBucket } from '../utils/analytics';
 import ClassroomStudentPicker from './ClassroomStudentPicker';
-import { collection, getDoc, doc, query, where, limit, getDocs, setDoc, deleteDoc, serverTimestamp, updateDoc, arrayUnion, arrayRemove, Timestamp, runTransaction } from 'firebase/firestore';
+import { collection, getDoc, doc, query, where, orderBy, getDocs, setDoc, deleteDoc, serverTimestamp, updateDoc, arrayUnion, arrayRemove, Timestamp, runTransaction } from 'firebase/firestore';
 import { deleteObject, ref, uploadBytesResumable } from 'firebase/storage';
 import { db, cloudFunctions, storage } from '../firebase';
 import { buildMediaDocData } from '../utils/mediaDocBuilder';
@@ -855,11 +855,13 @@ function AddNoteModal({
       } catch (_) {
         setTagStudentName('');
       }
-      // Fetch recent lesson notes for the student (client-side sort to avoid index churn)
+      // Fetch all lesson notes ordered newest-first. No limit: per-student lesson notes are
+      // bounded (max ~217, ~240KB) and the dialog's client-side search must see the complete set.
+      // limit(25) without orderBy previously dropped arbitrary notes (teacher-reported bug, Sep 2026).
       const q = query(
         collection(db, 'students', studentId, 'observations'),
         where('type', '==', 'lesson'),
-        limit(25)
+        orderBy('createdAt', 'desc')
       );
       const snap = await getDocs(q);
       const notes = snap.docs.map((d) => ({ id: d.id, ...d.data() }));

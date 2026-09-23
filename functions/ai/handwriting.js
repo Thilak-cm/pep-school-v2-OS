@@ -17,6 +17,7 @@ import {
   classifyError,
 } from "../shared/ledger.js";
 import { dispatchFanout, makeFanoutWorker } from "../shared/fanout.js";
+import { withTimeout } from "../shared/http.js";
 import { PubSub } from "@google-cloud/pubsub";
 import { broadcastAlert } from "../shared/telegram.js";
 import { formatCrashSignal } from "../shared/verifierTelegram.js";
@@ -112,10 +113,19 @@ async function fetchUnprocessedHandwriting(studentId) {
 
 /**
  * Download an image from Firebase Storage and return as base64 data URI content part.
+ *
+ * @param {string} storagePath
+ * @param {number} [timeoutMs] Fail fast after this many ms (#288). Promise.race
+ *   wrapper (GCS SDK has no AbortController support) - the download keeps
+ *   running but the caller stops waiting. Worker passes 60s; interactive and
+ *   testbench callers pass nothing.
  */
-export async function downloadImageAsBase64(storagePath) {
+export async function downloadImageAsBase64(storagePath, timeoutMs) {
   const bucket = storage.bucket();
-  const [buffer] = await bucket.file(storagePath).download();
+  const downloadPromise = bucket.file(storagePath).download();
+  const [buffer] = timeoutMs
+    ? await withTimeout(downloadPromise, timeoutMs, `storage download ${storagePath}`)
+    : await downloadPromise;
   const base64 = buffer.toString("base64");
   const ext = storagePath.split(".").pop()?.toLowerCase();
   const mimeMap = { webp: "image/webp", jpg: "image/jpeg", jpeg: "image/jpeg", png: "image/png" };
@@ -130,7 +140,7 @@ export async function downloadImageAsBase64(storagePath) {
  * Run a VLM call with image(s) and return parsed JSON.
  * Routes through the shared runLLM helper (OpenRouter + Langfuse tracing).
  */
-async function runVLMCall(systemPrompt, userContent, modelInfo) {
+async function runVLMCall(systemPrompt, userContent, modelInfo, timeoutMs) {
   const enhancedPrompt = systemPrompt.includes("JSON") || systemPrompt.includes("json")
     ? systemPrompt
     : systemPrompt + "\n\nIMPORTANT: You must respond with valid JSON only.";
@@ -146,6 +156,7 @@ async function runVLMCall(systemPrompt, userContent, modelInfo) {
     maxTokens: modelInfo.maxTokens,
     responseFormat: { type: "json_object" },
     traceName: "writing-analysis",
+    timeoutMs,
   });
 
   try {
@@ -158,7 +169,7 @@ async function runVLMCall(systemPrompt, userContent, modelInfo) {
 /**
  * Build multimodal user content (text annotations interleaved with base64 images).
  */
-async function buildUserContent(mediaDocs, promptText) {
+async function buildUserContent(mediaDocs, promptText, downloadTimeoutMs) {
   const userContent = [];
   const promptLines = promptText.split("\n");
 
@@ -180,10 +191,13 @@ async function buildUserContent(mediaDocs, promptText) {
 
     if (doc.storagePath) {
       try {
-        const imagePart = await downloadImageAsBase64(doc.storagePath);
+        const imagePart = await downloadImageAsBase64(doc.storagePath, downloadTimeoutMs);
         userContent.push(imagePart);
         successfulDownloads++;
       } catch (err) {
+        // Storage timeout (#288): rethrow so makeFanoutWorker NACKs for
+        // redelivery instead of silently ACKing with a placeholder.
+        if (err.name === "TimeoutError") throw err;
         console.warn(`[batchWriting] Failed to download ${doc.storagePath}:`, err?.message);
         userContent.push({ type: "text", text: `[Image could not be loaded: ${doc.storagePath}]` });
       }
@@ -241,7 +255,7 @@ async function resolveProgramId(studentData) {
  * @param {Object} [options.studentData] - Pre-fetched student doc data (skips student doc read)
  * @returns {{ status, analysis?, reason?, count?, threshold? }}
  */
-async function runWritingAnalysisForStudent(studentId, { dryRun = false, programId: passedProgramId = undefined, archive = false, studentData: passedStudentData = undefined } = {}) {
+async function runWritingAnalysisForStudent(studentId, { dryRun = false, programId: passedProgramId = undefined, archive = false, studentData: passedStudentData = undefined, llmTimeoutMs = undefined, downloadTimeoutMs = undefined } = {}) {
   let studentData = passedStudentData;
   if (!studentData) {
     const studentSnap = await db.collection("students").doc(studentId).get();
@@ -277,7 +291,7 @@ async function runWritingAnalysisForStudent(studentId, { dryRun = false, program
   // Build prompt and download images
   const now = new Date();
   const promptText = buildBatchWritingPrompt(mediaDocs, student, previousAnalysis, now);
-  const { userContent, successfulDownloads } = await buildUserContent(mediaDocs, promptText);
+  const { userContent, successfulDownloads } = await buildUserContent(mediaDocs, promptText, downloadTimeoutMs);
 
   if (successfulDownloads < config.minSamples) {
     return { status: "skipped", reason: "insufficient_images_loaded", successfulDownloads, totalDocs: mediaDocs.length };
@@ -288,7 +302,7 @@ async function runWritingAnalysisForStudent(studentId, { dryRun = false, program
     model: config.model,
     temperature: config.temperature,
     maxTokens: config.max_tokens,
-  });
+  }, llmTimeoutMs);
 
   const parsed = parseWritingAnalysisResponse(vlmResult);
   if (!parsed) {
@@ -446,6 +460,10 @@ export const writingAnalysisWorker = functions
     timeoutSeconds: 300,
     memory: "1GB",
     maxInstances: 10,
+    // #288: without failurePolicy, CF v1 ACKs thrown/timed-out invocations
+    // and the message is dropped forever. Redelivery is safe: isAlreadyDone
+    // skips completed students. DLQ caps poison messages at 5 attempts.
+    failurePolicy: true,
     secrets: [OPENROUTER_API_KEY, LANGFUSE_SECRET_KEY, LANGFUSE_PUBLIC_KEY],
   })
   .pubsub.topic(WRITING_ANALYSIS_TOPIC)
@@ -474,6 +492,11 @@ export const writingAnalysisWorker = functions
         programId,
         archive: true,
         studentData,
+        // #288: abort timeouts, worker path only (interactive onCall failures
+        // are already user-visible). 120s = ~2x max observed VLM latency
+        // (57.9s, n=1502); 60s storage download = unambiguously broken if hit.
+        llmTimeoutMs: 120_000,
+        downloadTimeoutMs: 60_000,
       });
       if (result.status === "completed") {
         return { state: "success", evidence: { status: "completed", periodKey: executionId } };
