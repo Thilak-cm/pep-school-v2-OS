@@ -810,7 +810,7 @@ Observation timestamp compatibility:
   is unrelated and remains supported by chat transcript readers.
 
 Assessment guidance
-- Structured IDs are `assessment_structured_{sourceId}_{sourceRow}_{segment}`.
+- Structured IDs are `sa_{sourceId}_{sourceRow}_{segment}`.
   Multiple multiline segments for one source row fan out to multiple records.
 - Medical IDs are `assessment_medical_{firestoreAutoId}`. The callable creates a
   backend-only `pendingMedicalAssessmentUploads/{uploadId}` staging document,

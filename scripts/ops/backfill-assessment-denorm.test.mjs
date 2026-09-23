@@ -20,3 +20,11 @@ test("backfill copies source manifest denorm fields onto structured records (#29
   assert.match(source, /studentCount/);
   assert.match(source, /sourceId/);
 });
+
+test("backfill renames assessment_structured_ doc IDs to sa_ prefix", () => {
+  assert.match(source, /assessment_structured_/);
+  assert.match(source, /sa_/);
+  assert.match(source, /newIdFromOld/);
+  // Must update recordRefs on the source manifest after rename.
+  assert.match(source, /recordRefs/);
+});

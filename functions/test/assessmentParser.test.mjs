@@ -69,7 +69,7 @@ test("reports missing metadata and multiline mismatches", () => {
 
 test("creates stable source helpers", () => {
   assert.equal(normalizeFilename(" Math Fractions (Final).XLSX"), "math-fractions-final");
-  assert.equal(buildStructuredAssessmentId("src1", 8, 2), "assessment_structured_src1_8_2");
+  assert.equal(buildStructuredAssessmentId("src1", 8, 2), "sa_src1_8_2");
 });
 
 test("preserves blank multiline positions and pads wholly blank result cells", () => {

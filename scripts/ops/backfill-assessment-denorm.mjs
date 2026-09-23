@@ -1,15 +1,16 @@
 /**
- * Backfill #290 denormalized fields onto structured assessment records.
+ * Backfill #290 denormalized fields + rename doc IDs to sa_ prefix.
  *
- * publishStructuredAssessment now writes `sourceFileName` and `studentCount`
- * onto every fan-out observation record so timelines can render
- * "{teacher} added structured assessment {file} for {N} students" without a
- * Cloud Function round-trip per entry. Records published before #290 lack
- * both fields; this script copies them from each source manifest.
+ * Two migrations in one pass per source:
+ * 1. Denorm: copies `sourceFileName` and `studentCount` from the source
+ *    manifest onto fan-out observation records that lack them.
+ * 2. Rename: migrates doc IDs from old `assessment_structured_{...}` format
+ *    to the shorter `sa_{...}` format (create new doc, delete old, update
+ *    recordRefs on the source manifest).
  *
- * Safe to re-run: records that already carry both fields are skipped.
- * Fields are immutable post-publish (no edit capability exists), so a single
- * pass per source is complete.
+ * Safe to re-run: records already carrying both denorm fields AND the sa_
+ * prefix are skipped. Fields are immutable post-publish (no edit capability
+ * exists), so a single pass per source is complete.
  *
  * Dry-run by default. Requires --yes to apply writes.
  *
@@ -39,6 +40,13 @@ const db = admin.firestore();
 const shouldApply = process.argv.includes("--yes");
 const dryRun = !shouldApply;
 
+const OLD_PREFIX = "assessment_structured_";
+
+function newIdFromOld(oldId) {
+  if (!oldId.startsWith(OLD_PREFIX)) return null;
+  return `sa_${oldId.slice(OLD_PREFIX.length)}`;
+}
+
 async function main() {
   console.log(dryRun
     ? "DRY-RUN: no writes will be applied. Re-run with --yes to apply."
@@ -48,8 +56,11 @@ async function main() {
   console.log(`Sources found: ${sourcesSnap.size}`);
 
   let recordsChecked = 0;
-  let recordsToUpdate = 0;
-  let recordsUpdated = 0;
+  let recordsNeedDenorm = 0;
+  let recordsNeedRename = 0;
+  let recordsDenormed = 0;
+  let recordsRenamed = 0;
+  let sourcesUpdated = 0;
 
   for (const sourceDoc of sourcesSnap.docs) {
     const source = sourceDoc.data();
@@ -62,42 +73,93 @@ async function main() {
       .get();
     recordsChecked += recordsSnap.size;
 
-    const stale = recordsSnap.docs.filter((recordDoc) => {
+    // --- Phase 1: denorm ---
+    const needsDenorm = recordsSnap.docs.filter((recordDoc) => {
       const record = recordDoc.data();
       return record.sourceFileName !== sourceFileName ||
         record.studentCount !== studentCount;
     });
-    if (!stale.length) continue;
-    recordsToUpdate += stale.length;
 
-    console.log(`  ${sourceId} ("${source.assessmentName || "?"}"): ${stale.length}/${recordsSnap.size} records need {sourceFileName, studentCount}`);
-    for (const recordDoc of stale) {
-      console.log(`    - ${recordDoc.ref.path}`);
+    if (needsDenorm.length) {
+      recordsNeedDenorm += needsDenorm.length;
+      console.log(`  ${sourceId} ("${source.assessmentName || "?"}"): ${needsDenorm.length}/${recordsSnap.size} records need {sourceFileName, studentCount}`);
+      for (const recordDoc of needsDenorm) {
+        console.log(`    [denorm] ${recordDoc.ref.path}`);
+      }
+
+      if (!dryRun) {
+        for (let i = 0; i < needsDenorm.length; i += 400) {
+          const batch = db.batch();
+          needsDenorm.slice(i, i + 400).forEach((recordDoc) => {
+            batch.update(recordDoc.ref, { sourceFileName, studentCount });
+          });
+          await batch.commit();
+        }
+        recordsDenormed += needsDenorm.length;
+      }
     }
 
-    if (!dryRun) {
-      // Batched in chunks below Firestore's 500-write limit.
-      const chunks = [];
-      for (let i = 0; i < stale.length; i += 400) {
-        chunks.push(stale.slice(i, i + 400));
+    // --- Phase 2: rename old doc IDs ---
+    const needsRename = recordsSnap.docs.filter((recordDoc) =>
+      recordDoc.id.startsWith(OLD_PREFIX),
+    );
+
+    if (needsRename.length) {
+      recordsNeedRename += needsRename.length;
+      console.log(`  ${sourceId}: ${needsRename.length} records need ID rename (assessment_structured_ -> sa_)`);
+      const updatedRefs = [];
+
+      for (const recordDoc of needsRename) {
+        const oldPath = recordDoc.ref.path;
+        const newId = newIdFromOld(recordDoc.id);
+        // Parent collection path: students/{studentId}/observations
+        const parentRef = recordDoc.ref.parent;
+        const newRef = parentRef.doc(newId);
+        console.log(`    [rename] ${oldPath} -> ${newRef.path}`);
+
+        if (!dryRun) {
+          const data = recordDoc.data();
+          const batch = db.batch();
+          batch.set(newRef, data);
+          batch.delete(recordDoc.ref);
+          await batch.commit();
+          recordsRenamed++;
+        }
+
+        // Track for recordRefs update on the source manifest.
+        const studentId = recordDoc.data().studentId || recordDoc.ref.parent.parent?.id;
+        updatedRefs.push({ studentId, oldId: recordDoc.id, newId });
       }
-      for (const chunk of chunks) {
-        const batch = db.batch();
-        chunk.forEach((recordDoc) => {
-          batch.update(recordDoc.ref, { sourceFileName, studentCount });
+
+      // Update recordRefs on source manifest to point to new IDs.
+      if (updatedRefs.length && !dryRun) {
+        const currentRefs = source.recordRefs || [];
+        const newRefs = currentRefs.map((ref) => {
+          const match = updatedRefs.find((u) => u.oldId === ref.observationId);
+          return match
+            ? { ...ref, observationId: match.newId }
+            : ref;
         });
-        await batch.commit();
-        recordsUpdated += chunk.length;
+        await db.collection("structuredAssessmentSources").doc(sourceId)
+          .update({ recordRefs: newRefs });
+        sourcesUpdated++;
+        console.log(`    [manifest] updated ${updatedRefs.length} recordRefs on ${sourceId}`);
       }
     }
   }
 
   console.log("---");
   console.log(`Records checked: ${recordsChecked}`);
-  console.log(`Records needing backfill: ${recordsToUpdate}`);
+  console.log(`Records needing denorm: ${recordsNeedDenorm}`);
+  console.log(`Records needing rename: ${recordsNeedRename}`);
+  if (!dryRun) {
+    console.log(`Records denormed: ${recordsDenormed}`);
+    console.log(`Records renamed: ${recordsRenamed}`);
+    console.log(`Source manifests updated: ${sourcesUpdated}`);
+  }
   console.log(dryRun
     ? "Dry-run complete. No writes applied."
-    : `Records updated: ${recordsUpdated}`);
+    : "Done.");
 }
 
 main().then(() => process.exit(0)).catch((error) => {

@@ -725,7 +725,7 @@ describe("TOOL_DEFINITIONS / HANDLERS pairing", () => {
 const daysAgo = (n) => new Date(Date.now() - n * 24 * 60 * 60 * 1000);
 
 function assessmentFixtures() {
-  const structuredA = mockDoc("assessment_structured_src1_2_1", {
+  const structuredA = mockDoc("sa_src1_2_1", {
     type: "assessment",
     assessmentKind: "structured",
     schemaVersion: 1,
@@ -744,7 +744,7 @@ function assessmentFixtures() {
     observedAt: daysAgo(5),
     createdBy: "uid-rahul",
   });
-  const structuredB = mockDoc("assessment_structured_src1_3_1", {
+  const structuredB = mockDoc("sa_src1_3_1", {
     type: "assessment",
     assessmentKind: "structured",
     schemaVersion: 1,
@@ -799,8 +799,8 @@ function assessmentFixtures() {
     studentCount: 2,
     recordCount: 2,
     recordRefs: [
-      { studentId: "2025-ALL-001", observationId: "assessment_structured_src1_2_1" },
-      { studentId: "2025-ALL-002", observationId: "assessment_structured_src1_3_1" },
+      { studentId: "2025-ALL-001", observationId: "sa_src1_2_1" },
+      { studentId: "2025-ALL-002", observationId: "sa_src1_3_1" },
     ],
     classroomIds: ["allstars"],
     createdByName: "Rahul",
@@ -841,7 +841,7 @@ describe("handleListAssessments", () => {
     const db = createMockDb(assessmentFixtures().collections);
     const result = await handleListAssessments(db, { studentId: "2025-ALL-002" });
     assert.equal(result.length, 1);
-    assert.equal(result[0].id, "assessment_structured_src1_3_1");
+    assert.equal(result[0].id, "sa_src1_3_1");
   });
 
   it("filters by sourceId", async () => {
