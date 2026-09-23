@@ -8,6 +8,9 @@ import {
   handleListBrain,
   handleGetBrainFile,
   handleGetObservations,
+  handleQueryObservations,
+  handleListAssessments,
+  handleGetAssessmentSource,
   handleGetBaseballCard,
   handleGetAiSummary,
   handleGetAiSummaryHistory,
@@ -78,6 +81,27 @@ function createMockQuery(docs) {
 
 function createMockDb(collections = {}) {
   return {
+    // Collection-group query support: gathers docs from every key that is the
+    // collection name itself or ends with `/{name}` (flattened subcollection
+    // keys like "students/2025-ALL-001/observations"). Attaches a minimal ref
+    // so handlers can derive the parent doc id (ref.parent.parent.id).
+    collectionGroup: (name) => {
+      const docs = Object.entries(collections)
+        .filter(([key]) => key === name || key.endsWith(`/${name}`))
+        .flatMap(([key, keyDocs]) =>
+          keyDocs.map((d) => ({
+            ...d,
+            ref: {
+              parent: {
+                parent: key.includes("/")
+                  ? { id: key.split("/")[1] }
+                  : null,
+              },
+            },
+          })),
+        );
+      return createMockQuery(docs);
+    },
     collection: (name) => {
       const q = createMockQuery(collections[name] || []);
       q.doc = (id) => ({
@@ -693,5 +717,187 @@ describe("TOOL_DEFINITIONS / HANDLERS pairing", () => {
       [],
       `Handler(s) in HANDLERS but missing from TOOL_DEFINITIONS: ${orphaned.join(", ")}`,
     );
+  });
+});
+
+// --- Assessments (TA3: structured + medical MCP exposure) ---
+
+const daysAgo = (n) => new Date(Date.now() - n * 24 * 60 * 60 * 1000);
+
+function assessmentFixtures() {
+  const structuredA = mockDoc("assessment_structured_src1_2_1", {
+    type: "assessment",
+    assessmentKind: "structured",
+    schemaVersion: 1,
+    sourceId: "src1",
+    studentId: "2025-ALL-001",
+    classroomId: "allstars",
+    assessmentName: "Math - Unit - Number 1",
+    results: [{ resultNumber: 1, label: "Result 1", sourceValue: "16/30" }],
+    sourceProvenance: {
+      row: 2,
+      nameCell: "A2",
+      segment: 1,
+      segmentCount: 1,
+      resultCells: [{ resultNumber: 1, sourceCell: "B2", sourceFormula: null }],
+    },
+    observedAt: daysAgo(5),
+    createdBy: "uid-rahul",
+  });
+  const structuredB = mockDoc("assessment_structured_src1_3_1", {
+    type: "assessment",
+    assessmentKind: "structured",
+    schemaVersion: 1,
+    sourceId: "src1",
+    studentId: "2025-ALL-002",
+    classroomId: "allstars",
+    assessmentName: "Math - Unit - Number 1",
+    results: [{ resultNumber: 1, label: "Result 1", sourceValue: "22/30" }],
+    sourceProvenance: {
+      row: 3,
+      nameCell: "A3",
+      segment: 1,
+      segmentCount: 1,
+      resultCells: [{ resultNumber: 1, sourceCell: "B3", sourceFormula: null }],
+    },
+    observedAt: daysAgo(5),
+    createdBy: "uid-rahul",
+  });
+  const medical = mockDoc("assessment_medical_abc123", {
+    type: "assessment",
+    assessmentKind: "medical",
+    schemaVersion: 1,
+    studentId: "2025-ALL-001",
+    classroomId: "allstars",
+    originalFile: {
+      storagePath: "pending-medical-assessments/up1/original.pdf",
+      originalFilename: "speech-eval.pdf",
+      contentType: "application/pdf",
+      sizeBytes: 16000000,
+    },
+    uploadStatus: "ready",
+    observedAt: daysAgo(3),
+    createdBy: "uid-rahul",
+  });
+  const textNote = mockDoc("obs_text_1", {
+    type: "text",
+    text: "Worked independently on the stamp game.",
+    studentId: "2025-ALL-001",
+    classroomId: "allstars",
+    observedAt: daysAgo(2),
+    createdBy: "uid-teacher",
+  });
+  const sourceManifest = mockDoc("src1", {
+    schemaVersion: 1,
+    assessmentName: "Math - Unit - Number 1",
+    assessmentDescription: "Chapter 1 assessment. Expected performance: C grade.",
+    dateRange: { startDate: "2026-09-10", endDate: "2026-09-12" },
+    resultDefinitions: [
+      { number: 1, label: "Result 1", description: "Score out of 30" },
+    ],
+    studentIds: ["2025-ALL-001", "2025-ALL-002"],
+    studentCount: 2,
+    recordCount: 2,
+    recordRefs: [
+      { studentId: "2025-ALL-001", observationId: "assessment_structured_src1_2_1" },
+      { studentId: "2025-ALL-002", observationId: "assessment_structured_src1_3_1" },
+    ],
+    classroomIds: ["allstars"],
+    createdByName: "Rahul",
+  });
+  return {
+    collections: {
+      "students/2025-ALL-001/observations": [structuredA, medical, textNote],
+      "students/2025-ALL-002/observations": [structuredB],
+      structuredAssessmentSources: [sourceManifest],
+    },
+  };
+}
+
+describe("handleListAssessments", () => {
+  it("returns only type 'assessment' docs, never other note types", async () => {
+    const db = createMockDb(assessmentFixtures().collections);
+    const result = await handleListAssessments(db, {});
+    assert.equal(result.length, 3);
+    assert.ok(result.every((r) => r.type === "assessment"));
+    assert.ok(!result.some((r) => r.id === "obs_text_1"));
+  });
+
+  it("filters by kind 'structured'", async () => {
+    const db = createMockDb(assessmentFixtures().collections);
+    const result = await handleListAssessments(db, { kind: "structured" });
+    assert.equal(result.length, 2);
+    assert.ok(result.every((r) => r.assessmentKind === "structured"));
+  });
+
+  it("filters by kind 'medical' and returns originalFile metadata", async () => {
+    const db = createMockDb(assessmentFixtures().collections);
+    const result = await handleListAssessments(db, { kind: "medical" });
+    assert.equal(result.length, 1);
+    assert.equal(result[0].originalFile.originalFilename, "speech-eval.pdf");
+  });
+
+  it("filters by studentId", async () => {
+    const db = createMockDb(assessmentFixtures().collections);
+    const result = await handleListAssessments(db, { studentId: "2025-ALL-002" });
+    assert.equal(result.length, 1);
+    assert.equal(result[0].id, "assessment_structured_src1_3_1");
+  });
+
+  it("filters by sourceId", async () => {
+    const db = createMockDb(assessmentFixtures().collections);
+    const result = await handleListAssessments(db, { sourceId: "src1" });
+    assert.equal(result.length, 2);
+    assert.ok(result.every((r) => r.sourceId === "src1"));
+  });
+
+  it("strips internal-only sourceProvenance from results", async () => {
+    const db = createMockDb(assessmentFixtures().collections);
+    const result = await handleListAssessments(db, { kind: "structured" });
+    assert.ok(result.every((r) => r.sourceProvenance === undefined));
+  });
+});
+
+describe("handleGetAssessmentSource", () => {
+  it("returns the manifest lean by default: recordRefs replaced by count", async () => {
+    const db = createMockDb(assessmentFixtures().collections);
+    const result = await handleGetAssessmentSource(db, { sourceId: "src1" });
+    assert.equal(result.assessmentName, "Math - Unit - Number 1");
+    assert.equal(result.recordCount, 2);
+    assert.equal(result.recordRefs, undefined);
+    assert.equal(result.records, undefined);
+  });
+
+  it("hydrates records via collection-group sourceId query when includeRecords is true", async () => {
+    const db = createMockDb(assessmentFixtures().collections);
+    const result = await handleGetAssessmentSource(db, {
+      sourceId: "src1",
+      includeRecords: true,
+    });
+    assert.equal(result.records.length, 2);
+    const values = result.records.map((r) => r.results[0].sourceValue).sort();
+    assert.deepEqual(values, ["16/30", "22/30"]);
+    assert.ok(result.records.every((r) => r.sourceProvenance === undefined));
+  });
+
+  it("returns null for an unknown sourceId", async () => {
+    const db = createMockDb(assessmentFixtures().collections);
+    const result = await handleGetAssessmentSource(db, { sourceId: "nope" });
+    assert.equal(result, null);
+  });
+});
+
+describe("handleQueryObservations type filter", () => {
+  it("filters by type when provided", async () => {
+    const db = createMockDb(assessmentFixtures().collections);
+    const result = await handleQueryObservations(db, { type: "text" });
+    assert.equal(result.length, 1);
+    assert.equal(result[0].id, "obs_text_1");
+  });
+
+  it("returns all types when type is omitted", async () => {
+    const db = createMockDb(assessmentFixtures().collections);
+    const result = await handleQueryObservations(db, {});
+    assert.equal(result.length, 4);
   });
 });
