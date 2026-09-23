@@ -183,7 +183,9 @@ export const FAB_HIDDEN_SCREENS = new Set([
   "configLessonNotes", "configAiTools", "configDigest", "chatCommandCentre",
   "reportGenConfig", "bulkUpload", "alerts", "interviews", "broadcastComposer",
   "questionDeck",
-  "assessmentUpload", "studentAssessments",
+  // studentAssessments left out on purpose (#290): the global FAB shows on
+  // the assessments page like other observation screens.
+  "assessmentUpload",
 ]);
 
 // ── Footer tab mapping ─────────────────────────────────────────────────────

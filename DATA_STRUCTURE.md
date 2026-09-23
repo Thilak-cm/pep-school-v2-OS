@@ -719,6 +719,10 @@ interface Observation {
   assessmentName?: string;
   assessmentDescription?: string;
   assessmentDate?: { startDate: string; endDate: string }; // Structured only
+  sourceFileName?: string;        // Structured only (#290): denormalized from the source
+  studentCount?: number;          // manifest so timelines render one-line entries without
+                                  // a CF call. Immutable post-publish. Pre-#290 records
+                                  // backfilled by scripts/ops/backfill-assessment-denorm.mjs
   resultDefinitions?: Array<{ number: number; label: string; description: string }>;
   values?: Record<string, string>; // Structured: exact displayed segment values
   results?: Array<{               // Structured: definition mapped to exact value

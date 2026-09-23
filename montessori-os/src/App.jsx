@@ -232,7 +232,8 @@ function App() {
     };
     window.addEventListener('navigateToStudentNotes', handleNavigateToStudentNotes);
     const handleNavigateToStudentAssessments = (e) => {
-      if (!isSuperAdmin(role)) return;
+      // #290: assessments viewing is open to all signed-in roles.
+      if (!role) return;
       const detail = e?.detail || {};
       const studentId = detail.studentId || detail?.student?.id;
       if (!studentId) return;
