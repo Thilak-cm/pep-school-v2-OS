@@ -1,7 +1,7 @@
 # Pep OS Overview
 
-Generated: 2026-09-10T23:42:55.849Z
-App version: 13.2.1
+Generated: 2026-09-23T18:45:42.762Z
+App version: 13.3.0
 
 ## App Snapshot
 
@@ -44,17 +44,17 @@ App version: 13.2.1
 - `montessori-os/src/components/AddNoteModal.versionGate.test.js`
 
 ### Timelines and Media (`timelines-and-media`)
-- Count: 13
-- Components: `ClassroomList`, `ClassroomTimeline`, `ClassroomTimeline.batchMedia.test`, `ClassroomTimeline.interactions.test`, `classroomTimelineUtils`, `classroomTimelineUtils.extraction.test`, `ExportWizard`, `FeedbackTimeline`, `FilterPanel`, `StudentDashboard`, `StudentDashboard.test`, `StudentTimeline`, `StudentTimeline.batchMedia.test`
+- Count: 16
+- Components: `AssessmentTimelineEntry`, `ClassroomList`, `ClassroomTimeline`, `ClassroomTimeline.assessments.test`, `ClassroomTimeline.batchMedia.test`, `ClassroomTimeline.interactions.test`, `classroomTimelineUtils`, `classroomTimelineUtils.extraction.test`, `ExportWizard`, `FeedbackTimeline`, `FilterPanel`, `StudentDashboard`, `StudentDashboard.test`, `StudentTimeline`, `StudentTimeline.assessments.test`, `StudentTimeline.batchMedia.test`
 - Representative paths:
+- `montessori-os/src/components/AssessmentTimelineEntry.jsx`
 - `montessori-os/src/components/ClassroomList.jsx`
 - `montessori-os/src/components/ClassroomTimeline.jsx`
+- `montessori-os/src/components/ClassroomTimeline.assessments.test.js`
 - `montessori-os/src/components/ClassroomTimeline.batchMedia.test.js`
 - `montessori-os/src/components/ClassroomTimeline.interactions.test.js`
 - `montessori-os/src/components/classroomTimelineUtils.js`
 - `montessori-os/src/components/classroomTimelineUtils.extraction.test.js`
-- `montessori-os/src/components/ExportWizard.jsx`
-- `montessori-os/src/components/FeedbackTimeline.jsx`
 
 ### Analytics and Notifications (`analytics-and-notifications`)
 - Count: 7
@@ -95,17 +95,17 @@ App version: 13.2.1
 - `montessori-os/src/components/UsersAccessPage.parentFields.test.js`
 
 ### Settings, Feedback, and App Shell (`settings-feedback-shell`)
-- Count: 61
-- Components: `App`, `AppFooter`, `AppHeader`, `AssessmentUploadPage`, `AssessmentUploadPage.test`, `BroadcastComposer`, `BroadcastComposer.test`, `BulkUploadPage`, `BulkUploadPage.helpers`, `BulkUploadPage.test`, `ClassroomNoteCard`, `ClassroomStudentCard`, `CopyToClipboardButton`, `DynamicIslandPill`, `DynamicIslandPill.test`, `FeedbackPage`, `GroupedMediaCard`, `GroupedMediaCard.test`, `groupedMediaUtils`, `groupedMediaUtils.test`, `GroupedNoteCard`, `GroupedNoteDialog`, `InlineVoiceOverlay`, `InterviewsPage`, `InterviewsPage.helpers`, `InterviewsPage.test`, `LandingPage`, `LandingPage.test`, `MediaBatchPreview`, `MediaBatchPreview.test`, `MonthlyPlanTab`, `MonthlyPlanTab.test`, `NoteBottomSheet.structure.test`, `NotesOverTimeDrawer`, `PhotoEditor`, `PlanFeedbackDialog`, `PlanFeedbackDialog.test`, `ProfilePage`, `QuestionDeck`, `QuestionDeck.test`, `ReadinessCheckDialog`, `ReportGenerateDialog`, `ReportPreviewDialog`, `ReportsCard`, `ReportsPage`, `ReportsPage.test`, `ReportTypeLandingPage`, `ReportTypeLandingPage.test`, `ReviewClassroomNotes`, `SettingsPage`, `SettingsPage.test`, `SnapshotBody`, `SnapshotCard`, `StudentAssessmentsPage`, `StudentAssessmentsPage.test`, `StudentMatchReview`, `StudentMatchReview.test`, `VersionBadge`, `VersionBadge.test`, `WritingAnalysisTab`, `WritingAnalysisTab.test`
+- Count: 65
+- Components: `App`, `AppFooter`, `AppHeader`, `AssessmentMatrixSheet`, `AssessmentMatrixSheet.test`, `AssessmentUploadPage`, `AssessmentUploadPage.test`, `BroadcastComposer`, `BroadcastComposer.test`, `BulkUploadPage`, `BulkUploadPage.helpers`, `BulkUploadPage.test`, `ClassroomNoteCard`, `ClassroomStudentCard`, `CopyToClipboardButton`, `DynamicIslandPill`, `DynamicIslandPill.test`, `FeedbackPage`, `GroupedMediaCard`, `GroupedMediaCard.test`, `groupedMediaUtils`, `groupedMediaUtils.test`, `GroupedNoteCard`, `GroupedNoteDialog`, `InlineVoiceOverlay`, `InterviewsPage`, `InterviewsPage.helpers`, `InterviewsPage.test`, `LandingPage`, `LandingPage.test`, `MediaBatchPreview`, `MediaBatchPreview.test`, `MedicalPdfSheet`, `MedicalPdfSheet.test`, `MonthlyPlanTab`, `MonthlyPlanTab.test`, `NoteBottomSheet.structure.test`, `NotesOverTimeDrawer`, `PhotoEditor`, `PlanFeedbackDialog`, `PlanFeedbackDialog.test`, `ProfilePage`, `QuestionDeck`, `QuestionDeck.test`, `ReadinessCheckDialog`, `ReportGenerateDialog`, `ReportPreviewDialog`, `ReportsCard`, `ReportsPage`, `ReportsPage.test`, `ReportTypeLandingPage`, `ReportTypeLandingPage.test`, `ReviewClassroomNotes`, `SettingsPage`, `SettingsPage.test`, `SnapshotBody`, `SnapshotCard`, `StudentAssessmentsPage`, `StudentAssessmentsPage.test`, `StudentMatchReview`, `StudentMatchReview.test`, `VersionBadge`, `VersionBadge.test`, `WritingAnalysisTab`, `WritingAnalysisTab.test`
 - Representative paths:
 - `montessori-os/src/App.jsx`
 - `montessori-os/src/AppFooter.jsx`
 - `montessori-os/src/AppHeader.jsx`
+- `montessori-os/src/components/AssessmentMatrixSheet.jsx`
+- `montessori-os/src/components/AssessmentMatrixSheet.test.js`
 - `montessori-os/src/components/AssessmentUploadPage.jsx`
 - `montessori-os/src/components/AssessmentUploadPage.test.js`
 - `montessori-os/src/components/BroadcastComposer.jsx`
-- `montessori-os/src/components/BroadcastComposer.test.js`
-- `montessori-os/src/components/BulkUploadPage.jsx`
 
 ## Existing UX Patterns
 
@@ -155,23 +155,23 @@ App version: 13.2.1
 
 ## Recent Changes
 
+### 13.3.0 (2026-09-23)
+- In-app structured assessment matrix viewer (`AssessmentMatrixSheet`) - bottom drawer showing all students' results with focus-student highlighting, replacing the source worksheet download (#290).
+- Medical PDF inline viewer (`MedicalPdfSheet`) - view-only iframe with signed URL and new-tab fallback; no download affordance anywhere (#290).
+- One-line assessment timeline entries (`AssessmentTimelineEntry`) for student and classroom timelines with inline popup links (#290).
+
 ### 13.2.1 (2026-09-10)
 - Student-name matching engine rewritten from Fuse.js single-pass to deterministic-first tiered ladder (exact full name, exact first name, Jaro-Winkler fuzzy) with three-zone classification (auto/review/no-match) (#285).
 - Shared `StudentMatchReview` component replaces duplicated match-review UIs in BulkUploadPage and AssessmentUploadPage (#285).
 - Review-zone rows pre-selected with best match for zero-tap confirmation; reject/skip removed in favor of all-or-nothing commit gating (#285).
 
 ### 13.2.0 (2026-09-06)
+- Compensatory backfill script (`scripts/ops/backfill-writing-analysis.mjs`) rebuilds the writingAnalysis W30-W36 longitudinal trail lost to the #221 index regression. Three phases: lump-cleanup (restores 24 students from OOM-crashed manual retrigger), history re-key migration (ISO-timestamp to week-key IDs), and week-by-week backfill (one week per invocation with automatic verifier gate). Dry-run by default, Firestore state doc tracks progress across invocations (#281).
 - Shared dispatcher/worker fan-out helper (`functions/shared/fanout.js`) with canonical `dispatchFanout` and `makeFanoutWorker` lifecycle, replacing ad-hoc implementations in soul and monthlyPlan (#279).
 - `baseballCardWorker` (Pub/Sub, `maxInstances: 10`, 300s/512MB) processes one student per invocation with `weekKey`-based idempotency guard (#279).
-- `writingAnalysisWorker` (Pub/Sub, `maxInstances: 10`, 300s/1GB) processes one student per invocation with `periodKey`-based idempotency guard (#279).
 
 ### 13.1.0 (2026-08-31)
 - Durable execution ledger at `jobs/{jobKey}/executions/{executionId}/workItems/{workItemId}` tracks every scheduled job run with per-target work items, verification outcomes, and TTL-based cleanup (#229).
 - Five verifier Cloud Functions (`verifyCleanupDeletedChats`, `verifySoulRegeneration`, `verifyMonthlyPlans`, `verifyWeeklyStudentAI`, `verifyWeeklyDigests`) finalize executions using a shared engine with three-layer output verification and missed-start detection (#229).
 - Automated green/red Telegram signals on every execution completion, with PII-free formatting, counts, and dominant failure category (#229).
-
-### 13.0.1 (2026-08-30)
-- Soul generation month picker in Settings: superadmins select a target month (current or next, IST-bounded) to pre-generate next month's souls ahead of the monthly cron (#264).
-- `generatedForMonth` ("YYYY-MM") field on soul and open_questions docs serves as the idempotency token — the worker skips students already generated for the target month (#264).
-- Question Deck subtitle reads the month from `generatedForMonth`, appending the year for cross-year pre-generation (#264).
 
