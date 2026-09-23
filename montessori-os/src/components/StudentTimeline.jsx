@@ -29,6 +29,9 @@ import FilterPanel from './FilterPanel';
 import NoteBottomSheet from './noteBottomSheet/NoteBottomSheet';
 import ClassroomNoteCard from './ClassroomNoteCard';
 import GroupedMediaCard from './GroupedMediaCard';
+import AssessmentTimelineEntry from './AssessmentTimelineEntry';
+import AssessmentMatrixSheet from './AssessmentMatrixSheet';
+import MedicalPdfSheet from './MedicalPdfSheet';
 import { buildMediaItemsForObservation as buildSharedMediaItems } from './groupedMediaUtils.js';
 import { DayHeader } from './ui';
 import { groupByCalendarDay } from './classroomTimelineUtils.js';
@@ -36,6 +39,7 @@ import useObservationFilters from '../hooks/useObservationFilters';
 import useTimelineData from '../hooks/useTimelineData';
 import useTimelineStats from '../hooks/useTimelineStats';
 import { formatTimestamp } from '../utils/observationUtils.jsx';
+import { formatDate } from '../utils/dateFormat';
 import {
   executeExportJob,
   NOTE_KIND
@@ -68,6 +72,9 @@ function StudentTimeline({ student, currentUser, userRole, noteTypeFilter = null
   const [selectedObservation, setSelectedObservation] = useState(null);
   const [detailDialogOpen, setDetailDialogOpen] = useState(false);
   const [deleteConfirmOpen, setDeleteConfirmOpen] = useState(false);
+  // #290: assessment popups open in place of the old assessments-page redirect.
+  const [assessmentMatrixView, setAssessmentMatrixView] = useState(null);
+  const [assessmentPdfView, setAssessmentPdfView] = useState(null);
 
   // Classroom teachers for creator filter
   const [classroomTeachers, setClassroomTeachers] = useState([]);
@@ -886,15 +893,24 @@ function StudentTimeline({ student, currentUser, userRole, noteTypeFilter = null
               }
 
               if (obs.type === 'assessment') {
+                // #290: one-line entry; clicking opens the matrix/PDF popup
+                // directly instead of navigating away. Date only, no time.
+                const entryDate = formatDate(obs.observedAt || obs.timestamp);
+                const entryText = `${obs.createdByName || 'A teacher'} uploaded ${obs.assessmentName || 'an assessment'} on ${entryDate}`;
                 return (
-                  <ClassroomNoteCard
+                  <AssessmentTimelineEntry
                     key={obs.id}
-                    note={obs}
-                    variant="student"
-                    isTransferred={false}
-                    classroomTeachers={classroomTeachers}
-                    onNoteClick={() => window.dispatchEvent(new CustomEvent('navigateToStudentAssessments', {detail: {studentId: student?.id, assessmentKind: obs.assessmentKind, sourceId: obs.sourceId, observationId: obs.assessmentKind === 'medical' ? obs.id : null}}))}
-                    mediaUrls={mediaUrls}
+                    text={entryText}
+                    onClick={() => {
+                      if (obs.assessmentKind === 'medical') {
+                        setAssessmentPdfView({
+                          observationId: obs.id,
+                          title: obs.assessmentName || 'Medical assessment',
+                        });
+                      } else {
+                        setAssessmentMatrixView({ sourceId: obs.sourceId });
+                      }
+                    }}
                   />
                 );
               }
@@ -1351,6 +1367,22 @@ function StudentTimeline({ student, currentUser, userRole, noteTypeFilter = null
         studentLabel={student?.displayName || student?.name || 'Student'}
         noteCount={reportPreviewData?.noteCount || null}
         driveDocLink={reportPreviewData?.driveDocLink || null}
+      />
+
+      {/* #290 assessment popups - shared with the assessments page */}
+      <AssessmentMatrixSheet
+        open={!!assessmentMatrixView}
+        onClose={() => setAssessmentMatrixView(null)}
+        sourceId={assessmentMatrixView?.sourceId}
+        studentId={student?.id}
+        focusStudentId={student?.id}
+      />
+      <MedicalPdfSheet
+        open={!!assessmentPdfView}
+        onClose={() => setAssessmentPdfView(null)}
+        studentId={student?.id}
+        observationId={assessmentPdfView?.observationId}
+        title={assessmentPdfView?.title}
       />
 
       {/* Note creation handled by global FAB */}

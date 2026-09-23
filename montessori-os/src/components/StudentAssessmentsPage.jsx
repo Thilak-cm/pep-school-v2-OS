@@ -1,14 +1,17 @@
 import React, { useEffect, useMemo, useState } from 'react';
 import {
-  Alert, Box, Button, Card, CardContent, Chip, CircularProgress, Divider,
+  Alert, Box, Button, Card, CardContent, Chip, CircularProgress, Dialog,
+  DialogActions, DialogContent, DialogContentText, DialogTitle, Divider,
   Stack, Tab, Tabs, Table, TableBody, TableCell, TableContainer, TableHead,
   TableRow, Typography,
 } from '@mui/material';
 import { collection, getDocs, query, where } from 'firebase/firestore';
 import { httpsCallable } from 'firebase/functions';
-import { Download, Trash2 } from 'lucide-react';
+import { Eye, Trash2 } from 'lucide-react';
 import { cloudFunctions, db } from '../firebase';
 import useNotify from '../notifications/useNotify.js';
+import AssessmentMatrixSheet from './AssessmentMatrixSheet.jsx';
+import MedicalPdfSheet from './MedicalPdfSheet.jsx';
 
 function timestampMillis(value) {
   if (typeof value?.toMillis === 'function') return value.toMillis();
@@ -56,9 +59,10 @@ export default function StudentAssessmentsPage({ student, assessmentDeepLink, us
   const [sourceRetryVersion, setSourceRetryVersion] = useState(0);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState('');
-  const [downloadError, setDownloadError] = useState('');
-  const [downloading, setDownloading] = useState('');
   const [deleting, setDeleting] = useState('');
+  const [matrixView, setMatrixView] = useState(null);
+  const [medicalView, setMedicalView] = useState(null);
+  const [confirmDelete, setConfirmDelete] = useState(null);
   const notify = useNotify();
   const studentId = student?.id;
   const canDelete = userRole === 'superadmin' || userRole === 'classroomadmin';
@@ -171,23 +175,7 @@ export default function StudentAssessmentsPage({ student, assessmentDeepLink, us
     return () => window.clearTimeout(timer);
   }, [assessmentDeepLink, notes]);
 
-  const downloadAssessment = async (payload, key) => {
-    setDownloading(key);
-    setDownloadError('');
-    try {
-      const getDownload = httpsCallable(cloudFunctions, 'getAssessmentDownloadUrl');
-      const result = await getDownload(payload);
-      if (!result.data?.url) throw new Error('The download link was not returned.');
-      window.open(result.data.url, '_blank', 'noopener,noreferrer');
-    } catch (downloadFailure) {
-      setDownloadError(downloadFailure?.message || 'The assessment file could not be downloaded.');
-    } finally {
-      setDownloading('');
-    }
-  };
-
-  const deleteAssessment = async (payload, key, confirmation) => {
-    if (!window.confirm(confirmation)) return;
+  const deleteAssessment = async (payload, key) => {
     setDeleting(key);
     try {
       const removeAssessment = httpsCallable(cloudFunctions, 'deleteAssessment');
@@ -213,7 +201,6 @@ export default function StudentAssessmentsPage({ student, assessmentDeepLink, us
       </Tabs>
       {loading && <CircularProgress size={24} />}
       {error && <Alert severity="error">{error}</Alert>}
-      {downloadError && <Alert severity="error" sx={{mb: 2}}>{downloadError}</Alert>}
 
       {!loading && !error && tab === 0 && structuredGroups.length === 0 && (
         <Typography color="text.secondary">No structured assessments yet.</Typography>
@@ -262,7 +249,7 @@ export default function StudentAssessmentsPage({ student, assessmentDeepLink, us
                       </Button>
                     )}
                   >
-                    {sourceErrors[sourceId]} Results remain available, but source context and download access could not be verified.
+                    {sourceErrors[sourceId]} Results remain available, but source context and view access could not be verified.
                   </Alert>
                 )}
                 {source && (
@@ -273,27 +260,25 @@ export default function StudentAssessmentsPage({ student, assessmentDeepLink, us
                     <Typography variant="caption" color="text.secondary" display="block">
                       Source: {source.sourceFileName || 'Unavailable'} · Published {formatTimestamp(source.publishedAt)}
                     </Typography>
-                    {source.canDownload && (
-                      <Button
-                        size="small"
-                        startIcon={<Download size={15} />}
-                        disabled={downloading === sourceId}
-                        onClick={() => downloadAssessment({assessmentKind: 'structured', sourceId}, sourceId)}
-                      >
-                        {downloading === sourceId ? 'Preparing…' : 'Download source worksheet'}
-                      </Button>
-                    )}
+                    <Button
+                      size="small"
+                      startIcon={<Eye size={15} />}
+                      onClick={() => setMatrixView({sourceId})}
+                    >
+                      View assessment
+                    </Button>
                     {canDelete && (
                       <Button
                         size="small"
                         color="error"
                         startIcon={<Trash2 size={15} />}
                         disabled={deleting === sourceId}
-                        onClick={() => deleteAssessment(
-                          {assessmentKind: 'structured', sourceId},
-                          sourceId,
-                          `Delete this assessment and its ${records.length} student record${records.length === 1 ? '' : 's'}? This cannot be undone.`,
-                        )}
+                        onClick={() => setConfirmDelete({
+                          payload: {assessmentKind: 'structured', sourceId},
+                          key: sourceId,
+                          title: 'Delete assessment for all students?',
+                          message: `Deleting "${first.assessmentName || 'this assessment'}" removes it for all ${source.studentCount || records.length} student${(source.studentCount || records.length) === 1 ? '' : 's'} who took it, not just ${student?.displayName || 'this student'}. This cannot be undone.`,
+                        })}
                       >
                         {deleting === sourceId ? 'Deleting…' : 'Delete assessment'}
                       </Button>
@@ -345,15 +330,13 @@ export default function StudentAssessmentsPage({ student, assessmentDeepLink, us
               </Typography>
               <Button
                 size="small"
-                startIcon={<Download size={15} />}
-                disabled={downloading === record.id}
-                onClick={() => downloadAssessment({
-                  assessmentKind: 'medical',
-                  studentId,
+                startIcon={<Eye size={15} />}
+                onClick={() => setMedicalView({
                   observationId: record.id,
-                }, record.id)}
+                  title: record.assessmentName || 'Medical assessment',
+                })}
               >
-                {downloading === record.id ? 'Preparing…' : 'Download medical PDF'}
+                View medical assessment
               </Button>
               {canDelete && (
                 <Button
@@ -361,11 +344,12 @@ export default function StudentAssessmentsPage({ student, assessmentDeepLink, us
                   color="error"
                   startIcon={<Trash2 size={15} />}
                   disabled={deleting === record.id}
-                  onClick={() => deleteAssessment(
-                    {assessmentKind: 'medical', studentId, observationId: record.id},
-                    record.id,
-                    'Delete this medical assessment and its attached PDF? This cannot be undone.',
-                  )}
+                  onClick={() => setConfirmDelete({
+                    payload: {assessmentKind: 'medical', studentId, observationId: record.id},
+                    key: record.id,
+                    title: 'Delete medical assessment?',
+                    message: 'Delete this medical assessment and its attached PDF? This cannot be undone.',
+                  })}
                 >
                   {deleting === record.id ? 'Deleting…' : 'Delete assessment'}
                 </Button>
@@ -374,6 +358,42 @@ export default function StudentAssessmentsPage({ student, assessmentDeepLink, us
           </Card>
         ))}</Stack>
       )}
+
+      <AssessmentMatrixSheet
+        open={!!matrixView}
+        onClose={() => setMatrixView(null)}
+        sourceId={matrixView?.sourceId}
+        studentId={studentId}
+        focusStudentId={studentId}
+      />
+      <MedicalPdfSheet
+        open={!!medicalView}
+        onClose={() => setMedicalView(null)}
+        studentId={studentId}
+        observationId={medicalView?.observationId}
+        title={medicalView?.title}
+      />
+
+      <Dialog open={!!confirmDelete} onClose={() => setConfirmDelete(null)}>
+        <DialogTitle>{confirmDelete?.title}</DialogTitle>
+        <DialogContent>
+          <DialogContentText>{confirmDelete?.message}</DialogContentText>
+        </DialogContent>
+        <DialogActions>
+          <Button onClick={() => setConfirmDelete(null)}>Cancel</Button>
+          <Button
+            color="error"
+            variant="contained"
+            onClick={() => {
+              const {payload, key} = confirmDelete;
+              setConfirmDelete(null);
+              deleteAssessment(payload, key);
+            }}
+          >
+            Delete
+          </Button>
+        </DialogActions>
+      </Dialog>
     </Box>
   );
 }

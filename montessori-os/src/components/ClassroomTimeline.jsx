@@ -25,11 +25,15 @@ import GroupedNoteCard from './GroupedNoteCard';
 import GroupedNoteDialog from './GroupedNoteDialog';
 import ClassroomStudentCard from './ClassroomStudentCard';
 import NoteBottomSheet from './noteBottomSheet/NoteBottomSheet';
+import AssessmentTimelineEntry from './AssessmentTimelineEntry';
+import AssessmentMatrixSheet from './AssessmentMatrixSheet';
+import MedicalPdfSheet from './MedicalPdfSheet';
 import useObservationFilters from '../hooks/useObservationFilters';
 import useNotify from '../notifications/useNotify.js';
 import useTimelineData from '../hooks/useTimelineData';
 import useTimelineStats from '../hooks/useTimelineStats';
 import { toDate, groupByCalendarDay, groupTimelineObservations } from './classroomTimelineUtils.js';
+import { formatDate } from '../utils/dateFormat';
 import { groupMediaObservations } from './groupedMediaUtils.js';
 import { HFTabs, DayHeader, HFSearchInput, HFFilterChip } from './ui';
 import { trackEvent } from '../utils/analytics';
@@ -45,6 +49,9 @@ function ClassroomTimeline({ classroom, currentUser, userRole, manageableClassro
   const mediaUrlsRef = useRef({});
   const mediaUrlInFlightRef = useRef(new Set());
   const [reportPreviewData, setReportPreviewData] = useState(null);
+  // #290: assessment popups open in place; no assessments-page navigation.
+  const [assessmentMatrixView, setAssessmentMatrixView] = useState(null);
+  const [assessmentPdfView, setAssessmentPdfView] = useState(null);
   const [transferredStudents, setTransferredStudents] = useState(new Map());
   const fetchedTransferredIdsRef = useRef(new Set());
   const [classroomTeachers, setClassroomTeachers] = useState([]);
@@ -278,7 +285,9 @@ function ClassroomTimeline({ classroom, currentUser, userRole, manageableClassro
   // #221 Sprint 2: no more UI-only slicing — pagination is at the Firestore level
   const displayedObservations = filteredObservations || [];
 
-  // Group notes by groupId, then sort
+  // Group notes by groupId, then sort. groupTimelineObservations already
+  // dedupes structured assessments by sourceId (isAssessmentGroup wrapper),
+  // so no extra memo is needed here.
   const groupedAndSortedObservations = useMemo(() => {
     return groupTimelineObservations(groupMediaObservations(displayedObservations));
   }, [displayedObservations]);
@@ -325,6 +334,38 @@ function ClassroomTimeline({ classroom, currentUser, userRole, manageableClassro
 
   // Render a single timeline item (note, grouped note, or report)
   const renderTimelineItem = (item) => {
+    // #290: structured assessments arrive as isAssessmentGroup wrappers
+    // (grouped by sourceId in classroomTimelineUtils); medical assessments
+    // flow ungrouped with type intact. Both render as one-liner cards.
+    if (item.isAssessmentGroup) {
+      const rep = item.representativeNote;
+      const teacherName = rep.createdByName || 'A teacher';
+      const entryDate = formatDate(rep.observedAt || rep.timestamp);
+      const count = rep.studentCount || item.studentCount || 1;
+      return (
+        <AssessmentTimelineEntry
+          key={`assessment-${item.groupId}`}
+          text={`${teacherName} uploaded ${rep.assessmentName || 'an assessment'} for ${count} student${count === 1 ? '' : 's'} on ${entryDate}`}
+          onClick={() => setAssessmentMatrixView({ sourceId: rep.sourceId, studentId: rep.studentId })}
+        />
+      );
+    }
+    if (item.type === 'assessment') {
+      const teacherName = item.createdByName || 'A teacher';
+      const entryDate = formatDate(item.observedAt || item.timestamp);
+      const studentFirst = getStudentName(item).split(' ')[0];
+      return (
+        <AssessmentTimelineEntry
+          key={`assessment-${item.id}`}
+          text={`${teacherName} uploaded a medical assessment for ${studentFirst} on ${entryDate}`}
+          onClick={() => setAssessmentPdfView({
+            studentId: item.studentId,
+            observationId: item.id,
+            title: item.assessmentName || 'Medical assessment',
+          })}
+        />
+      );
+    }
     if (item.type === 'report') {
       return (
         <Card
@@ -445,17 +486,6 @@ function ClassroomTimeline({ classroom, currentUser, userRole, manageableClassro
   };
 
   const handleNoteClick = (note) => {
-    if (note.type === 'assessment') {
-      window.dispatchEvent(new CustomEvent('navigateToStudentAssessments', {
-        detail: {
-          studentId: note.studentId,
-          assessmentKind: note.assessmentKind,
-          sourceId: note.sourceId || null,
-          observationId: note.assessmentKind === 'medical' ? note.id : null,
-        },
-      }));
-      return;
-    }
     setSelectedMediaIndex(0);
     setSelectedNote(note);
   };
@@ -637,6 +667,21 @@ function ClassroomTimeline({ classroom, currentUser, userRole, manageableClassro
           )}
         </Box>
       )}
+
+      {/* #290 assessment popups - shared with the assessments page */}
+      <AssessmentMatrixSheet
+        open={!!assessmentMatrixView}
+        onClose={() => setAssessmentMatrixView(null)}
+        sourceId={assessmentMatrixView?.sourceId}
+        studentId={assessmentMatrixView?.studentId}
+      />
+      <MedicalPdfSheet
+        open={!!assessmentPdfView}
+        onClose={() => setAssessmentPdfView(null)}
+        studentId={assessmentPdfView?.studentId}
+        observationId={assessmentPdfView?.observationId}
+        title={assessmentPdfView?.title}
+      />
 
       {/* Report preview dialog */}
       <ReportPreviewDialog
