@@ -106,6 +106,9 @@ export { cleanupDeletedChats } from "./chat/cleanupDeletedChats.js";
 // Weekly Digest (PEP-297)
 export { weeklyDigestClassroomAdmin, weeklyDigestSuperadmin, triggerDigestTest } from "./digest/index.js";
 
+// Temporary CI invoker-binding canary - delete after verification
+export { invokerBindingCanary } from "./canary/index.js";
+
 // Heatmap Cache (#279: standalone rebuild after bb workers drain)
 export { rebuildHeatmapCache } from "./heatmap/index.js";
 
