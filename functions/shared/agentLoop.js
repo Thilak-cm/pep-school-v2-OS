@@ -80,14 +80,37 @@ export async function runAgentLoop({
       input: messages[messages.length - 1],
     });
 
-    const response = await fetchWithTimeout(OPENROUTER_ENDPOINT, {
-      method: "POST",
-      headers: {
-        "Authorization": `Bearer ${apiKey}`,
-        "Content-Type": "application/json",
-      },
-      body: JSON.stringify(body),
-    }, timeoutMs);
+    let response;
+    try {
+      response = await fetchWithTimeout(OPENROUTER_ENDPOINT, {
+        method: "POST",
+        headers: {
+          "Authorization": `Bearer ${apiKey}`,
+          "Content-Type": "application/json",
+        },
+        body: JSON.stringify(body),
+      }, timeoutMs);
+    } catch (err) {
+      // Timeout abort (#288): classify so the caller sees a structured error
+      // and the Langfuse generation span closes cleanly. Mirrors runLLM pattern
+      // (shared/llm.js). No flushLangfuse here - caller owns the Langfuse
+      // lifecycle; we only close the per-iteration generation span.
+      if (err.name === "AbortError") {
+        generation?.end({
+          output: { error: `timeout after ${timeoutMs}ms` },
+          statusMessage: "timeout",
+        });
+        console.error(
+          `[agentLoop] iteration ${iteration} timed out after ${timeoutMs}ms`,
+        );
+        throw err;
+      }
+      generation?.end({
+        output: { error: err.message },
+        statusMessage: "network_error",
+      });
+      throw err;
+    }
 
     if (!response.ok) {
       const errText = await response.text().catch(() => "");

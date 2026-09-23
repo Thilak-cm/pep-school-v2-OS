@@ -960,7 +960,6 @@ export const triggerDigestTest = functions
           toolExecutor,
           model: { model: config.model, temperature: config.temperature, maxTokens: config.maxTokens },
           trace: span,
-          timeoutMs: 120_000, // #288: see classroom digest note
         });
 
         const htmlContent = parseAndRender(result.content, renderClassroomDigest);
@@ -1094,7 +1093,6 @@ export const triggerDigestTest = functions
         toolExecutor,
         model: { model: config.model, temperature: config.temperature, maxTokens: config.maxTokens },
         trace: cf2Trace,
-        timeoutMs: 120_000, // #288: see classroom digest note
       });
 
       const htmlContent = parseAndRender(result.content, renderSuperadminDigest);

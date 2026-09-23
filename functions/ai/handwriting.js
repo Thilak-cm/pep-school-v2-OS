@@ -195,6 +195,9 @@ async function buildUserContent(mediaDocs, promptText, downloadTimeoutMs) {
         userContent.push(imagePart);
         successfulDownloads++;
       } catch (err) {
+        // Storage timeout (#288): rethrow so makeFanoutWorker NACKs for
+        // redelivery instead of silently ACKing with a placeholder.
+        if (err.name === "TimeoutError") throw err;
         console.warn(`[batchWriting] Failed to download ${doc.storagePath}:`, err?.message);
         userContent.push({ type: "text", text: `[Image could not be loaded: ${doc.storagePath}]` });
       }

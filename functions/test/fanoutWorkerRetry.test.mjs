@@ -47,3 +47,34 @@ test("all four fan-out workers set failurePolicy: true (#288)", async () => {
     );
   }
 });
+
+test("all fan-out workers pass timeout values into process callbacks (#288)", async () => {
+  for (const { name, file } of WORKERS) {
+    const source = await readFile(path.resolve(FUNCTIONS_ROOT, file), "utf8");
+
+    // Capture the process callback body (everything after makeFanoutWorker's
+    // `process:` key through the next closing brace/paren cluster).
+    const processPattern = new RegExp(
+      `export const ${name}[\\s\\S]*?process:\\s*(?:async\\s*)?\\([^)]*\\)\\s*(?:=>)?\\s*\\{([\\s\\S]*?)\\}\\s*,?\\s*\\}\\s*\\)`,
+    );
+    const match = source.match(processPattern);
+    assert.ok(match, `${file}: could not find process callback for ${name}`);
+
+    const body = match[1];
+
+    assert.match(
+      body,
+      /llmTimeoutMs/,
+      `${file}: ${name} process callback must pass llmTimeoutMs to its worker function`,
+    );
+
+    // writingAnalysisWorker additionally needs downloadTimeoutMs for Storage
+    if (name === "writingAnalysisWorker") {
+      assert.match(
+        body,
+        /downloadTimeoutMs/,
+        `${file}: ${name} process callback must pass downloadTimeoutMs`,
+      );
+    }
+  }
+});

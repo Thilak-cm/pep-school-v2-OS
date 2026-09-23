@@ -78,7 +78,9 @@ retry/dead-letter contract:
 
 **Provisioning:** DLQ topic, pull subscription, dead-letter policies, and IAM
 are provisioned once via `scripts/ops/setup-fanout-dlq.sh` (idempotent,
-dry-run by default, `--yes` to apply).
+dry-run by default, `--yes` to apply). Deploy functions first so the `gcf-*`
+subscriptions exist, then run `setup-fanout-dlq.sh --yes` to attach dead-letter
+policies to them.
 
 **Runbook - `never_started` red signal:**
 
