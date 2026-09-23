@@ -348,7 +348,7 @@ export default function StudentAssessmentsPage({ student, assessmentDeepLink, us
                     payload: {assessmentKind: 'medical', studentId, observationId: record.id},
                     key: record.id,
                     title: 'Delete medical assessment?',
-                    message: 'Delete this medical assessment and its attached PDF? This cannot be undone.',
+                    message: `Delete this medical assessment and its attached PDF for ${student?.displayName || 'this student'}? This is a personal record and does not affect other students. This cannot be undone.`,
                   })}
                 >
                   {deleting === record.id ? 'Deleting…' : 'Delete assessment'}

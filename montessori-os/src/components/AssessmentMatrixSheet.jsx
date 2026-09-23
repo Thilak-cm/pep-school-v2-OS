@@ -10,7 +10,7 @@ function formatDateRange(range) {
   if (!range?.startDate) return '';
   return range.startDate === range.endDate
     ? range.startDate
-    : `${range.startDate} – ${range.endDate}`;
+    : `${range.startDate} - ${range.endDate}`;
 }
 
 /**

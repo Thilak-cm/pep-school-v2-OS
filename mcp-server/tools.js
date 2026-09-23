@@ -936,20 +936,24 @@ export async function handleQueryObservations(db, params) {
   if (classroomId) query = query.where("classroomId", "==", classroomId);
   if (createdBy) query = query.where("createdBy", "==", createdBy);
   if (branchId) query = query.where("branchId", "==", branchId);
-  if (type) query = query.where("type", "==", type);
+  // type is filtered in-handler to avoid needing additional composite indexes
+  // for every (equality, type, observedAt) combination.
 
-  query = query.orderBy("observedAt", "desc").limit(maxResults);
+  const fetchLimit = type ? Math.max(maxResults * 4, 200) : maxResults;
+  query = query.orderBy("observedAt", "desc").limit(fetchLimit);
 
   const snap = await query.get();
   const results = [];
   snap.forEach((doc) => {
+    const data = doc.data();
+    if (type && data.type !== type) return;
     const parentPath = doc.ref.parent.parent?.id;
     results.push(
-      serializeTimestamps({ id: doc.id, studentId: parentPath, ...doc.data() })
+      serializeTimestamps({ id: doc.id, studentId: parentPath, ...data })
     );
   });
 
-  return results;
+  return results.slice(0, maxResults);
 }
 
 // ── Assessments (structured + medical, #248) ──
@@ -980,22 +984,22 @@ export async function handleListAssessments(db, params) {
 
   const cutoff = new Date(Date.now() - days * 24 * 60 * 60 * 1000);
 
-  // Query-level filters are limited to combos covered by deployed composite
-  // indexes: (type, observedAt), (studentId, observedAt), and
-  // (classroomId, observedAt) merge cleanly. kind and sourceId are filtered
-  // in-handler instead of adding two more composites ((assessmentKind,
-  // observedAt), (sourceId, observedAt)) that every observation write would
-  // pay for, to serve a low-volume ad hoc admin tool. Assessments are sparse,
-  // so the over-fetch below is cheap. Revisit if assessment volume grows.
-  const needsInHandlerFilter = Boolean(kind || sourceId);
+  // Assessments are sparse so in-handler filters (kind, sourceId, type) are
+  // cheap vs adding composite indexes that every observation write pays for.
+  // When studentId or classroomId is present, the query uses the existing
+  // (studentId, observedAt) or (classroomId, observedAt) index and type is
+  // filtered in-handler. When neither is present, the (type, observedAt)
+  // index is used directly.
+  const useTypeIndex = !studentId && !classroomId;
+  const needsInHandlerFilter = Boolean(kind || sourceId || !useTypeIndex);
   const fetchLimit = needsInHandlerFilter
     ? Math.max(maxResults * 4, 200)
     : maxResults;
 
   let query = db.collectionGroup("observations")
-    .where("type", "==", "assessment")
     .where("observedAt", ">=", cutoff);
 
+  if (useTypeIndex) query = query.where("type", "==", "assessment");
   if (studentId) query = query.where("studentId", "==", studentId);
   if (classroomId) query = query.where("classroomId", "==", classroomId);
 
@@ -1005,6 +1009,7 @@ export async function handleListAssessments(db, params) {
   const results = [];
   snap.forEach((doc) => {
     const data = doc.data();
+    if (!useTypeIndex && data.type !== "assessment") return;
     if (kind && data.assessmentKind !== kind) return;
     if (sourceId && data.sourceId !== sourceId) return;
     results.push(projectAssessmentRecord(doc));

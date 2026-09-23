@@ -1082,8 +1082,9 @@ export const getAssessmentDownloadUrl = functions
     }
     // #290: medical PDFs are view-only for every role - inline disposition
     // renders in the browser/iframe instead of forcing a download. Structured
-    // sources keep attachment (ops/debug path only; the UI renders the matrix
-    // from published data and never requests this URL for structured).
+    // sources keep attachment - no UI entry point exists post-#290 (the UI
+    // renders the matrix from published data), but the CF is retained for
+    // ops/debug use.
     const safeFilename = String(filename).replace(/["\r\n]/g, "_");
     const disposition = kind === "medical" ?
       `inline; filename="${safeFilename}"` :

@@ -56,10 +56,6 @@ async function main() {
     const sourceId = sourceDoc.id;
     const sourceFileName = source.sourceFileName || "";
     const studentCount = source.studentCount || 0;
-    if (!sourceFileName && !studentCount) {
-      console.warn(`  [skip] ${sourceId}: manifest has no sourceFileName/studentCount`);
-      continue;
-    }
 
     const recordsSnap = await db.collectionGroup("observations")
       .where("sourceId", "==", sourceId)
