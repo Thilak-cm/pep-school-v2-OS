@@ -175,8 +175,11 @@ export const weeklyTeacherStats = functions.region(REGION)
   .pubsub.schedule("0 12 * * 1")
   .timeZone("Asia/Kolkata")
   .onRun(async () => {
-    const executionId = computeExecutionId(JOB_KEY);
+    // Must be inside try so config/registry errors still trigger the
+    // Telegram crash signal (RCA 2026-09-19).
+    let executionId = null;
     try {
+      executionId = computeExecutionId(JOB_KEY);
       const results = await sendTeacherStats({ledger: {executionId}});
       console.log(JSON.stringify({event: "teacher_stats_sent", executionId, sent: results.sent, failed: results.failed}));
     } catch (err) {

@@ -46,6 +46,8 @@ const PERIOD_KEY_FNS = {
   writingAnalysis: getIstIsoWeekKey,
   digestClassroomAdmin: getIstIsoWeekKey,
   digestSuperadmin: getIstIsoWeekKey,
+  // Missed in #282; caused silent Monday crashes (RCA 2026-09-19).
+  teacherStats: getIstIsoWeekKey,
   soulRegen: getCurrentMonthIST,
   monthlyPlans: getNextMonthIST,
 };
