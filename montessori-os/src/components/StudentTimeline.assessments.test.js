@@ -4,12 +4,20 @@ import {readFile} from 'node:fs/promises';
 
 const source = await readFile(new URL('./StudentTimeline.jsx', import.meta.url), 'utf8');
 
-test('student timeline renders assessments as one-line entries opening popups (#290)', () => {
+test('student timeline renders assessments as entries opening popups (#290)', () => {
   assert.match(source, /AssessmentTimelineEntry/);
   assert.match(source, /AssessmentMatrixSheet/);
   assert.match(source, /MedicalPdfSheet/);
   // Clicking no longer navigates to the assessments page.
   assert.doesNotMatch(source, /navigateToStudentAssessments/);
+});
+
+test('student timeline shows the student result row inline with see more (2026-09-23)', () => {
+  // Detailed variant: assessment name + this student's results on the card.
+  assert.match(source, /details=\{\{/);
+  assert.match(source, /resultDefinitions/);
+  assert.match(source, /resultRows/);
+  assert.match(source, /onSeeMore/);
 });
 
 test('student timeline still groups structured records by sourceId', () => {

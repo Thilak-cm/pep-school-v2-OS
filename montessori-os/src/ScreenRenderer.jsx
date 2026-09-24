@@ -35,7 +35,6 @@ import QuestionDeck from "./components/QuestionDeck.jsx";
 import ChildChat from "./components/ChildChat.jsx";
 import AssessmentUploadPage from "./components/AssessmentUploadPage.jsx";
 import StudentAssessmentsPage from "./components/StudentAssessmentsPage.jsx";
-import { isSuperAdmin } from "./utils/roleUtils";
 
 /**
  * Renders the correct screen component based on the current `screen` value.
@@ -49,7 +48,8 @@ export default function ScreenRenderer({ screen, ctx }) {
 function renderScreen(screen, ctx) {
   switch (screen) {
     case "assessmentUpload":
-      if (!isSuperAdmin(ctx.role)) { ctx.setScreen(ctx.assessmentReturnScreen || "settings"); return null; }
+      // Opened to all roles (Rahul, 2026-09-23). The page scopes classroom
+      // options per role and the assessment CFs re-authorize server-side.
       return <AssessmentUploadPage currentUser={ctx.user} userRole={ctx.role} manageableClassrooms={ctx.manageableClassrooms} onBack={() => ctx.setScreen(ctx.assessmentReturnScreen || "settings")} />;
     case "studentAssessments":
       // #290: open to all signed-in roles; teachers get view-only access

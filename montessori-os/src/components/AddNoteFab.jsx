@@ -1,7 +1,6 @@
 import React, { useState } from 'react';
 import { Fab, Box, Typography } from '@mui/material';
 import { Plus, Mic, BookOpen, Image, ListChecks } from '../icons';
-import NewFeaturePill from './NewFeaturePill';
 
 const BASE_MENU_ITEMS = [
   { key: 'assessments', label: 'Assessments', Icon: ListChecks },
@@ -14,11 +13,11 @@ const BASE_MENU_ITEMS = [
  * Floating action button that expands into a card menu
  * with four note-type rows (Voice, Lesson, Media, Assessments — bottom to top).
  */
-const AddNoteFab = ({ onVoice, onLesson, onMedia, onAssessments, assessmentsDisabled = false, sx = {} }) => {
+const AddNoteFab = ({ onVoice, onLesson, onMedia, onAssessments, sx = {} }) => {
   const [open, setOpen] = useState(false);
-  const menuItems = assessmentsDisabled
-    ? BASE_MENU_ITEMS.map((item) => item.key === 'assessments' ? { ...item, disabled: true } : item)
-    : BASE_MENU_ITEMS;
+  // Assessments opened to all roles (Rahul, 2026-09-23); backend CFs still
+  // scope uploads to the caller's authorized classrooms.
+  const menuItems = BASE_MENU_ITEMS;
 
   const handleToggle = () => setOpen((o) => !o);
   const handleClose = () => setOpen(false);
@@ -86,20 +85,19 @@ const AddNoteFab = ({ onVoice, onLesson, onMedia, onAssessments, assessmentsDisa
           {menuItems.map((item, index) => (
             <Box
               key={item.key}
-              onClick={item.disabled ? undefined : () => handleSelect(item.key)}
+              onClick={() => handleSelect(item.key)}
               sx={{
                 display: 'flex',
                 alignItems: 'center',
                 justifyContent: 'space-between',
                 px: 2,
                 py: 1.5,
-                cursor: item.disabled ? 'not-allowed' : 'pointer',
+                cursor: 'pointer',
                 borderBottom: index < menuItems.length - 1 ? '1px solid rgba(0,0,0,0.06)' : 'none',
-                opacity: item.disabled ? 0.5 : 1,
-                '&:hover': !item.disabled && {
+                '&:hover': {
                   backgroundColor: 'rgba(0,0,0,0.04)',
                 },
-                '&:active': !item.disabled && {
+                '&:active': {
                   backgroundColor: 'rgba(0,0,0,0.08)',
                 },
               }}
@@ -116,7 +114,6 @@ const AddNoteFab = ({ onVoice, onLesson, onMedia, onAssessments, assessmentsDisa
               </Typography>
 
               <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
-                {item.disabled && <NewFeaturePill label="Coming Soon" showIcon={false} />}
                 <item.Icon size={20} style={{ color: 'var(--color-text-soft)' }} />
               </Box>
             </Box>

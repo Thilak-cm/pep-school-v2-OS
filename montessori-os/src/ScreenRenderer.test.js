@@ -16,7 +16,7 @@ test('studentAssessments is open to every signed-in role (#290)', () => {
   assert.doesNotMatch(block, /isSuperAdmin/);
 });
 
-test('assessmentUpload stays superadmin-only (#290)', () => {
+test('assessmentUpload is open to every signed-in role (2026-09-23)', () => {
   const block = caseBlock('assessmentUpload', 'studentAssessments');
-  assert.match(block, /isSuperAdmin/);
+  assert.doesNotMatch(block, /isSuperAdmin/);
 });

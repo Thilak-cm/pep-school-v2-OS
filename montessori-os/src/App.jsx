@@ -500,7 +500,6 @@ function App() {
                     onLesson={() => openLessonNotesScreen()}
                     onMedia={() => { setAddNoteInitialStep('media'); setAddNoteOpen(true); }}
                     onAssessments={() => { setAssessmentReturnScreen(screen); setScreen('assessmentUpload'); }}
-                    assessmentsDisabled={!isSuperAdminUser}
                     sx={{
                       // Align the global control with the third quick-jump column
                       // and the vertical center of the dashboard's second action row.

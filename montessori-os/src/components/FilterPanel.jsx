@@ -12,7 +12,7 @@ import {
   ListItem,
   ListItemText
 } from '@mui/material';
-import { X as Clear, Search, Mic, Pencil as EditNote, X as Close, BookOpen as MenuBook, Image as PermMedia, FileText as ReportIcon } from '../icons';
+import { X as Clear, Search, Mic, Pencil as EditNote, X as Close, BookOpen as MenuBook, Image as PermMedia, FileText as ReportIcon, ListChecks } from '../icons';
 import { IconButton } from '@mui/material';
 import { fuzzySearchTeachers } from '../utils/fuzzySearch';
 
@@ -56,6 +56,7 @@ const FilterPanel = ({
   const lessonActive = filters.types?.includes('lesson');
   const mediaActive = filters.types?.includes('media');
   const reportActive = filters.types?.includes('report');
+  const assessmentActive = filters.types?.includes('assessment');
   return (
     <Box>
 
@@ -497,6 +498,58 @@ const FilterPanel = ({
                     }}
                   >
                     Reports
+                  </Button>
+
+                  {/* Covers both structured and medical (single 'assessment' type) - Rahul, 2026-09-23 */}
+                  <Button
+                    variant={assessmentActive ? 'contained' : 'outlined'}
+                    size="small"
+                    startIcon={<ListChecks />}
+                    onClick={() => {
+                      const currentTypes = filters.types || [];
+                      const newTypes = currentTypes.includes('assessment')
+                        ? currentTypes.filter((t) => t !== 'assessment')
+                        : [...currentTypes, 'assessment'];
+                      onFilterChange('types', newTypes);
+                    }}
+                    sx={{
+                      minWidth: 120,
+                      height: 40,
+                      borderRadius: 2,
+                      textTransform: 'none',
+                      fontWeight: 500,
+                      borderWidth: 2,
+                      position: 'relative',
+                      overflow: 'hidden',
+                      '&:hover': {
+                        borderWidth: 2,
+                        transform: 'translateY(-1px)',
+                        boxShadow: '0 4px 12px rgba(0,0,0,0.15)',
+                      },
+                      '&:active': {
+                        transform: 'translateY(0px)',
+                      },
+                      transition: 'all 0.2s ease-in-out',
+                      ...(assessmentActive && {
+                        backgroundColor: 'var(--color-primary)',
+                        color: 'white',
+                        '&:hover': {
+                          backgroundColor: 'var(--color-primary-dark)',
+                        },
+                        '&::after': {
+                          content: '""',
+                          position: 'absolute',
+                          top: 0,
+                          left: 0,
+                          right: 0,
+                          bottom: 0,
+                          background: 'linear-gradient(45deg, rgba(255,255,255,0.1) 0%, rgba(255,255,255,0.05) 100%)',
+                          pointerEvents: 'none',
+                        },
+                      }),
+                    }}
+                  >
+                    Assessments
                   </Button>
                 </Box>
 

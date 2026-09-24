@@ -893,23 +893,36 @@ function StudentTimeline({ student, currentUser, userRole, noteTypeFilter = null
               }
 
               if (obs.type === 'assessment') {
-                // #290: one-line entry; clicking opens the matrix/PDF popup
-                // directly instead of navigating away. Date only, no time.
+                // #290 + 2026-09-23 review: student timeline shows the
+                // assessment name and this student's own result row inline
+                // ("without opening it, it shows the grade there" - Rahul);
+                // "see more" opens the matrix/PDF bottom drawer. Medical has
+                // no result rows - name + see more only. Date only, no time.
                 const entryDate = formatDate(obs.observedAt || obs.timestamp);
-                const entryText = `${obs.createdByName || 'A teacher'} uploaded ${obs.assessmentName || 'an assessment'} on ${entryDate}`;
+                const descriptionByNumber = new Map(
+                  (obs.resultDefinitions || []).map((d) => [d.number, d.description || d.label]),
+                );
+                const resultRows = (obs.results || []).map((r) => ({
+                  label: descriptionByNumber.get(r.resultNumber) || r.label || `Result ${r.resultNumber}`,
+                  value: r.sourceValue,
+                }));
                 return (
                   <AssessmentTimelineEntry
                     key={obs.id}
-                    text={entryText}
-                    onClick={() => {
-                      if (obs.assessmentKind === 'medical') {
-                        setAssessmentPdfView({
-                          observationId: obs.id,
-                          title: obs.assessmentName || 'Medical assessment',
-                        });
-                      } else {
-                        setAssessmentMatrixView({ sourceId: obs.sourceId });
-                      }
+                    details={{
+                      title: obs.assessmentName || (obs.assessmentKind === 'medical' ? 'Medical assessment' : 'Assessment'),
+                      caption: `${obs.createdByName || 'A teacher'} \u00b7 ${entryDate}`,
+                      rows: resultRows,
+                      onSeeMore: () => {
+                        if (obs.assessmentKind === 'medical') {
+                          setAssessmentPdfView({
+                            observationId: obs.id,
+                            title: obs.assessmentName || 'Medical assessment',
+                          });
+                        } else {
+                          setAssessmentMatrixView({ sourceId: obs.sourceId });
+                        }
+                      },
                     }}
                   />
                 );
