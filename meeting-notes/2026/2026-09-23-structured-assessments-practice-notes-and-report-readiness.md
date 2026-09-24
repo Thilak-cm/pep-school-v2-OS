@@ -7,7 +7,7 @@ source: Granola (https://notes.granola.ai/t/1fccd17e-86ab-4256-8de8-622c61b3bd24
 areas: [timelines-and-media, observation-capture, analytics-and-notifications, ai-tools-and-chat, admin-and-access]
 topics: [structured-assessments, practice-notes, report-readiness, student-stats, ai-cost-report, gemini-flash, langfuse, openrouter, medical-pdfs, email-digest]
 status: issues-drafted
-issue_refs: [296, 227, 241, 255]
+issue_refs: [296, 297, 227, 241, 255]
 takeaway_count: 12
 thilak_takeaway_count: 9
 rahul_takeaway_count: 3
@@ -189,6 +189,7 @@ rahul_takeaway_count: 3
 
 **Created:**
 - #296 - Perennial readiness scoring: dashboard score, class stats, weekly digest (feature, P1-urgent, Pep OS project #3, Todo)
+- #297 - Filter-aware timeline pagination (improvement, P2-high, Todo) - post-meeting: surfaced while verifying the Assessments filter; type filters only slice the fetched 30-note window, sparse types need ~10 blind "Show More" clicks
 
 **Augmented:**
 - #227 - practice note design decisions (this-or-that selector inside lesson note entry, no mandatory linkage, AI-inferred, separate stats line item)
