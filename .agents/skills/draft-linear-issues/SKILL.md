@@ -1,6 +1,6 @@
 ---
 name: draft-github-issues
-description: Archive meeting transcripts, capture explicit carry-forward takeaways, and batch-create lightweight GitHub Issues in Backlog status. Use when the user pastes meeting notes, action items, or says "/draft-github-issues". The directory name is retained temporarily as a compatibility alias.
+description: Archive meeting transcripts, capture explicit carry-forward takeaways, and batch-create lightweight GitHub Issues. Use when the user pastes meeting notes, action items, or says "/draft-github-issues". The directory name is retained temporarily as a compatibility alias.
 user_invocable: true
 ---
 
@@ -8,7 +8,7 @@ user_invocable: true
 
 ## Goal
 
-Batch-triage a **full meeting transcript** (pasted from Granola or similar - not a summarized MOM) into lightweight Backlog issues. Because you have the complete conversation, extract action items, decisions, bugs, and follow-ups with rich context. Archive the transcript, capture explicit carry-forward takeaways, then walk each issue candidate through Create/Skip/Edit before writing to GitHub. Issues can later be refined via `/spec-issue`.
+Batch-triage a **full meeting transcript** (pasted from Granola or similar - not a summarized MOM) into lightweight issues. Because you have the complete conversation, extract action items, decisions, bugs, and follow-ups with rich context. Archive the transcript, capture explicit carry-forward takeaways, present ONE summary preview with a proposed disposition per item (New / Augment / Drop), and after a single round of user corrections, batch-execute everything. Issues can later be refined via `/spec-issue`.
 
 ## Principles
 
@@ -18,7 +18,7 @@ Batch-triage a **full meeting transcript** (pasted from Granola or similar - not
 - **Takeaways are commitments, not the issue inventory** - separately capture only tasks explicitly accepted by the user or named counterparts. These are the durable input for future `/meeting-prep` sessions.
 - **Duplicate detection** - before presenting items, search existing GitHub issues (`gh issue list --search`). If a match exists, suggest augmenting it instead of creating a new one.
 - **Selective with projects** - default all issues into the "Pep OS" project (#3). Only suggest a NEW project if the initiative has 5+ issues from this meeting, clear future scope, and a distinct lifecycle. Most meetings result in 0 new projects.
-- Never create without showing the item first. Always one-at-a-time. Always Backlog status (not Todo - these are unrefined). Max 30 items per session.
+- **One preview, one approval, batch execution** - never create without the user seeing the item in the summary preview, but do NOT walk items one-at-a-time. The preview carries all the info (title, priority, disposition, dedupe result); the user replies once with per-item corrections, then everything executes in a batch. Max 30 items per session.
 
 ## Context Loading
 
@@ -71,44 +71,49 @@ Body sections: `## Meeting Notes / MOM`, `## Decisions`, `## Post-Meeting Reflec
 
 The transcript and reflection are the original source record. All later updates are additive (`Post-Meeting Additions`, `Clarifications`, metadata edits) - never rewrite history. Counterpart commitments remain visible until delivered and verified, cancelled, or superseded.
 
-### Phase 5 - Summary Preview
+### Phase 5 - Summary Preview (the single approval gate)
 
-Present takeaways first (grouped by owner, with baselines), then issue candidates grouped by project. Ask the user to correct takeaways, remove items, adjust groupings, or proceed.
+Present takeaways first (grouped by owner, with baselines), then a numbered issue-candidate table where every row carries a **proposed disposition**: `NEW` (title, type, priority, area, what it bundles), `AUGMENT #N` (which existing issue and what the comment adds), or `DROP` (why it doesn't deserve tracking). Include `[?]` markers for ambiguous items with a one-line explanation.
+
+Ask the user to reply once with per-item corrections ("2 augment not new", "5 drop", "3 is P1", takeaway fixes). Do NOT walk items one-at-a-time afterward - the numbered reply IS the approval. If a correction is ambiguous or the user asks a question about an item, resolve just that item, then proceed.
 
 Edge cases: no items found -> offer retry or manual creation; 15+ items -> offer top-10-by-priority view; non-meeting text -> flag it; all items in one project -> fine, don't force splits.
 
-### Phase 6 - One-at-a-Time Walk
+### Phase 6 - Batch Execute
 
-For each item show: title, type, priority, area, project, raw transcript excerpt, and context snippet. User picks **Create**, **Skip**, or **Edit** (max 3 edit rounds, then force Create or Skip).
+Apply the user's dispositions in one batch (parallel `gh` calls where independent):
 
-### Phase 7 - Create Issues
+- `NEW` items follow the creation steps below.
+- `AUGMENT` items get a `gh issue comment` on the existing issue carrying the meeting context (decisions, constraints, corrections) plus the `Source: Meeting Transcript — ...` footer.
+- `DROP` items are only recorded in the archive's Skipped list.
+- Items the user says they'll "do now" get no issue - note them in the archive and offer to start after wrap-up.
 
-For each approved item:
+For each `NEW` item:
 
-1. Duplicate-check via `gh issue list --search`; warn if a likely match exists.
+1. Duplicate-check via `gh issue list --search` (done during Phase 2/5 prep; re-warn only if a new match surfaces).
 2. Create via `gh issue create` on `Thilak-cm/pep-school-v2-OS`, assignee `@me`, type + priority labels. Body: `## Summary` (2-3 sentences with meeting context), `### Context from Discussion` (quotes, decisions, constraints, edge cases - 3-5 sentences minimum), and the footer `Source: Meeting Transcript — {meeting_title} ({meeting_date})`.
-3. Add to the GitHub Project (`gh project item-add`) and set board Status to **Backlog** (`gh project item-edit`).
+3. Add to the GitHub Project (`gh project item-add`) and set board Status to **Todo** (`gh project item-edit`). (The board has no Backlog column - Todo is the landing column for unrefined issues.)
 4. If a NEW project was approved, create it first with `gh project create` and reuse its number.
 5. Confirm the created issue number.
 
-### Phase 8 - Update Meeting Archive
+### Phase 7 - Update Meeting Archive
 
-After the walk, update metadata and `## Drafted Issues` only:
+After execution, update metadata and `## Drafted Issues` only:
 
 - `status`: `issues-drafted` if anything was created/augmented, else `archived`.
 - Add issue numbers to `issue_refs`; fill Created/Augmented/Skipped bullets.
-- Add walkthrough clarifications under `## Post-Meeting Additions` or `## Clarifications`.
+- Add preview-round clarifications and corrections under `## Post-Meeting Additions` or `## Clarifications`.
 - Add new tracking refs to takeaways without replacing original commitments or baselines. Record cancellations additively with `Carry forward: No` - never silently delete.
 - Do not rewrite the raw transcript.
 
-### Phase 9 - Final Summary
+### Phase 8 - Final Summary
 
-Show a summary grouped by project: issues created (number, title, priority, label, project) and skipped items. Tip: `/spec-issue` adds full detail.
+Show a summary grouped by project: issues created (number, title, priority, label, project), issues augmented (number + what was added), and dropped items. Tip: `/spec-issue` adds full detail.
 
 ## Guardrails
 
-- Never create an issue without showing it first; always one-at-a-time; always Backlog; max 30 items.
-- Seed the archive before the walkthrough; update it after.
+- Never create an issue the user hasn't seen in the summary preview; one correction round, then batch execution - no per-item walkthrough. Max 30 items.
+- Seed the archive before the preview; update it after execution.
 - Preserve the `Source: Meeting Transcript — ...` marker for `/spec-issue` detection.
 - Keep explicit takeaways separate from high-recall issue extraction - takeaways reflect actual commitments, not backlog volume.
 - Every archive must contain `## Post-Meeting Reflection`, even if `None captured.`
