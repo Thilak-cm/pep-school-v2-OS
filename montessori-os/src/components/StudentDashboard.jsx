@@ -34,8 +34,6 @@ import NoteBottomSheet from './noteBottomSheet/NoteBottomSheet';
 import { friendlyFunctionError } from '../utils/cloudFunctionErrors';
 import { calculateAgeFromDob } from '../utils/dateFormat';
 import { isSuperAdmin } from '../utils/roleUtils';
-import Coachmark from '../coachmark/Coachmark';
-import useCoachmark from '../coachmark/useCoachmark';
 import NewFeaturePill from './NewFeaturePill';
 
 /* Shared chip base sx for uniform toolbar items */
@@ -80,8 +78,6 @@ const SNAPSHOT_TABS_NO_PLAN = [
 
 function StudentDashboard({ student, onOpenTimeline, onOpenFeedback, onOpenChat, onOpenReports, onOpenAssessments, onOpenQuestions, onNavigateToManageStudent, initialNoteType = 'textVoice', userRole, initialFlagOpen = false, onClearFlagOpen }) {
   const notify = useNotify();
-  const questionsCoachmark = useCoachmark('open_questions_v1');
-  const questionsButtonRef = useRef(null);
   const [activeTab, setActiveTab] = useState('weekly');
   const [cardLoading, setCardLoading] = useState(true);
   const [cardError, setCardError] = useState('');
@@ -1624,7 +1620,7 @@ function StudentDashboard({ student, onOpenTimeline, onOpenFeedback, onOpenChat,
         gap: 1,
         flexShrink: 0,
       }}>
-        <Box ref={questionsButtonRef} sx={QUICK_JUMP_CELL_SX}>
+        <Box sx={QUICK_JUMP_CELL_SX}>
           <QuickJumpButton
             icon={<Lightbulb size={22} />}
             label="Questions"
@@ -1634,17 +1630,6 @@ function StudentDashboard({ student, onOpenTimeline, onOpenFeedback, onOpenChat,
               onOpenQuestions?.();
             }}
           />
-          {!questionsCoachmark.isDismissed && (
-            <Box sx={{
-              position: 'absolute', top: 4, right: 4,
-              px: 0.75, py: 0.25, borderRadius: '8px',
-              backgroundColor: 'var(--color-primary)',
-              color: '#fff', fontSize: '0.6rem', fontWeight: 700,
-              lineHeight: 1.2, pointerEvents: 'none',
-            }}>
-              New
-            </Box>
-          )}
         </Box>
         <Box sx={QUICK_JUMP_CELL_SX}>
           <QuickJumpButton
@@ -1684,13 +1669,6 @@ function StudentDashboard({ student, onOpenTimeline, onOpenFeedback, onOpenChat,
         </Box>
       </Box>
 
-      <Coachmark
-        coachmarkKey="open_questions_v1"
-        title="Open Questions"
-        body="See what Pep still needs to learn about this student. Answer questions to help the AI build a deeper understanding."
-        anchorRef={questionsButtonRef}
-        placement="top"
-      />
     </Box>
   );
 }
