@@ -1,9 +1,10 @@
 /**
  * Scheduled data integrity checks (#161).
  *
- * Runs daily at 6:00 AM IST. Executes all registered checks and sends
- * results to Coach Pepper on Telegram — heartbeat on all-pass, detailed
- * alert on any failure.
+ * Runs daily at 6:00 AM IST. Executes all registered checks and sends a
+ * detailed Telegram alert to Coach Pepper only when a check fails.
+ * All-pass runs are logged but stay silent (heartbeat removed — consistent
+ * "all good" messages were noise; Cloud Logging covers the audit trail).
  */
 
 import * as functions from "firebase-functions/v1";
@@ -27,17 +28,14 @@ function escapeHtml(s) {
 }
 
 /**
- * Format results into a Telegram message.
+ * Format failing results into a Telegram alert message.
+ * Only called when at least one check failed.
  * @param {Array<{name: string, passed: boolean, details: string}>} results
  * @returns {string}
  */
 function formatMessage(results) {
   const failures = results.filter((r) => !r.passed);
   const now = new Date().toLocaleString("en-IN", { timeZone: "Asia/Kolkata" });
-
-  if (failures.length === 0) {
-    return `All ${results.length} checks passed. ${now}`;
-  }
 
   const lines = [`<b>Data integrity alert</b> - ${now}\n`];
   for (const f of failures) {
@@ -74,6 +72,13 @@ export const dataIntegrityChecks = functions
         });
         console.error(`[integrity] ${check.name} error:`, err);
       }
+    }
+
+    // Alert only on failures — all-pass runs stay silent (no heartbeat)
+    const failures = results.filter((r) => !r.passed);
+    if (failures.length === 0) {
+      console.log(`[integrity] All ${results.length} checks passed, no alert sent`);
+      return null;
     }
 
     // Send Telegram alert to all configured chat IDs
