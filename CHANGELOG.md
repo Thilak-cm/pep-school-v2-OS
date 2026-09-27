@@ -1,6 +1,6 @@
 # Changelog
 
-# 13.3.1 — 2026-09-27
+# 13.3.2 — 2026-09-27
 
 ### Changed
 - Digest docs store parsed `contentJson` (Firestore map) instead of rendered `htmlContent`; HTML rendered at send time only (#300).
