@@ -26,35 +26,8 @@ export const validateAudioForTranscription = (audioBlob) => {
   return true;
 };
 
-/**
- * Transcribe audio using OpenAI Whisper API
- * @param {Blob} audioBlob - The audio blob to transcribe
- * @param {string} languageCode - Language code (default: 'en-US')
- * @returns {Promise<Object>} Transcribed text with metadata
- */
-export const transcribeAudio = async (audioBlob, languageCode = 'en-US') => {
-    // Validate audio file
-    if (!validateAudioForTranscription(audioBlob)) {
-      throw new Error('Audio file is not suitable for transcription. File size must be under ~9.5MB.');
-    }
-
-    const audioBase64 = await blobToBase64(audioBlob);
-    const call = httpsCallable(cloudFunctions, 'aiWhisperTranscribe', { timeout: 300_000 });
-    const resp = await call({ audioBase64, mimeType: audioBlob.type, languageCode });
-    const text = String(resp?.data?.text || '').trim();
-    const detectedLanguage = resp?.data?.detectedLanguage || undefined;
-    const out = { text, languageCode, detectedLanguage };
-    try {
-      await trackEvent('stt_transcription', {
-        input_language_hint: languageCode || 'auto',
-        detected_language: detectedLanguage || 'unknown',
-        text_len: lengthBucket(text.length)
-      });
-    } catch (_) {
-      reportCaughtError(_, 'whisperSTT', 'swallow-only try/catch at L55');
-    }
-    return out;
-};
+// transcribeAudio removed in #298: unused wrapper for the deleted
+// aiWhisperTranscribe CF. All voice flows use translateAudioToEnglish.
 
 /**
  * Translate audio (Tamil/Kannada/Hindi/English) to English using Whisper
