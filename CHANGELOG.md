@@ -1,5 +1,19 @@
 # Changelog
 
+# 13.3.1 — 2026-09-27
+
+### Changed
+- Per-feature Langfuse tail-based sampling: `text_cleanup` and `whisper_translate` sampled at 10% for clean successes; failures/cap-hits always kept. Configured via `config/langfuse_sampling` doc (#298).
+- Error levels standardized across LLM plumbing: `runLLM` (ERROR on timeout/network/http/empty, WARNING on cap-hit), `agentLoop` (ERROR on timeout/network), `structuredLLM` (WARNING on validation failure, ERROR on repair exhaustion), `whisper-translate` (ERROR on network/http) (#298).
+- Whisper-translate generations now report `usageDetails: { audio_seconds }` for non-zero cost in Langfuse (#298).
+
+### Removed
+- Dead `aiWhisperTranscribe` CF and unused frontend `transcribeAudio` wrapper (#298).
+
+### Added
+- `getTraceSampleRate()` and `recordTailTrace()` shared helpers in `functions/shared/langfuse.js` (#298).
+- Ops script `push-langfuse-sampling.mjs` for seeding/updating sampling config (dry-run by default) (#298).
+
 # 13.3.0 — 2026-09-23
 
 ### Added
