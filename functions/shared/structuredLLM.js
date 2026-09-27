@@ -216,9 +216,8 @@ export async function runStructuredLLM({
   }
 
   // #298: terminal ERROR event so exhausted traces surface in a level:ERROR
-  // filter. Emitted before the throw; the finally block above already flushed
-  // per-attempt events, so this one rides the caller's flush (trace owner) or
-  // the next flush cycle when we created the client ourselves.
+  // filter. Emitted after the finally block's flush (which covered per-attempt
+  // WARNING events), so this event needs its own flush.
   trace?.event({
     name: "repair_exhausted",
     level: "ERROR",

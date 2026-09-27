@@ -59,6 +59,43 @@ export function buildWhisperUsageDetails(json) {
   return { audio_seconds: Math.round(duration) };
 }
 
+/**
+ * Build the recordExit closure for whisper-translate tail sampling (#298).
+ * Extracted so tests can inject deps without calling the full CF.
+ *
+ * @param {object} opts
+ * @param {boolean} opts.tracingEnabled
+ * @param {string} opts.mimeType
+ * @param {number} opts.rawBytes
+ * @param {Date} opts.startTime
+ * @param {object} [opts.deps] - Test injection: { recordTailTrace, getTraceSampleRate }
+ * @returns {(end: object, options?: { applySampling?: boolean }) => Promise<void>}
+ */
+export function buildRecordExit({ tracingEnabled, mimeType, rawBytes, startTime, deps = {} }) {
+  const record = deps.recordTailTrace || recordTailTrace;
+  const getRate = deps.getTraceSampleRate || getTraceSampleRate;
+
+  return async (end, { applySampling = false } = {}) => {
+    if (!tracingEnabled) return;
+    const sampleRate = applySampling ? await getRate("whisper_translate") : 1;
+    await record({
+      sampleRate,
+      trace: {
+        name: "whisper-translate",
+        metadata: { mimeType, audioBytes: rawBytes },
+        startTime,
+      },
+      generation: {
+        name: "whisper-translation",
+        model: WHISPER_MODEL_INFO.model,
+        metadata: { audioBytes: rawBytes, mimeType },
+        startTime,
+        end: { ...end, endTime: new Date() },
+      },
+    });
+  };
+}
+
 export const aiWhisperTranslate = functions
   .region("asia-south1")
   .runWith({ timeoutSeconds: 300, memory: "512MB", secrets: [OPENAI_API_KEY, LANGFUSE_SECRET_KEY, LANGFUSE_PUBLIC_KEY] })
@@ -81,26 +118,7 @@ export const aiWhisperTranslate = functions
     // failures unconditionally (level ERROR), successes coin-flipped against
     // config/langfuse_sampling rates.whisper_translate.
     const tracingEnabled = !!(process.env.LANGFUSE_SECRET_KEY && process.env.LANGFUSE_PUBLIC_KEY);
-    const startTime = new Date();
-    const recordExit = async (end, { sampled = false } = {}) => {
-      if (!tracingEnabled) return;
-      const sampleRate = sampled ? await getTraceSampleRate("whisper_translate") : 1;
-      await recordTailTrace({
-        sampleRate,
-        trace: {
-          name: "whisper-translate",
-          metadata: { mimeType, audioBytes: rawBytes },
-          startTime,
-        },
-        generation: {
-          name: "whisper-translation",
-          model: WHISPER_MODEL_INFO.model,
-          metadata: { audioBytes: rawBytes, mimeType },
-          startTime,
-          end: { ...end, endTime: new Date() },
-        },
-      });
-    };
+    const recordExit = buildRecordExit({ tracingEnabled, mimeType, rawBytes, startTime: new Date() });
 
     const blob = base64ToBlob(audioBase64, mimeType);
     const form = new FormData();
@@ -143,7 +161,7 @@ export const aiWhisperTranslate = functions
       // buildWhisperUsageDetails for the key-name contract.
       usageDetails: buildWhisperUsageDetails(json),
       metadata: { detectedLanguage: language, textLength: text.length },
-    }, { sampled: true });
+    }, { applySampling: true });
 
     return { text, detectedLanguage: language };
   });

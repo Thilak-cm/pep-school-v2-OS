@@ -33,7 +33,7 @@ export function createLangfuse() {
 // Two-tier capability (which featureIds a config rate actually affects):
 //   Tier 1 - sampleable by config alone (runLLM ownTrace path + whisper):
 //     text_cleanup, coach, media_pdf, monthly_plan, writing_analysis,
-//     soul_generation, whisper_translate
+//     soul_generation, whisper_translate, baseline_judge, readiness
 //   Tier 2 - config key is INERT (bespoke root traces, never sampled):
 //     digest (x4), chat, reports (x2), structuredLLM roots (baseball_card),
 //     testbench. These pipelines create their own root trace and pass it
