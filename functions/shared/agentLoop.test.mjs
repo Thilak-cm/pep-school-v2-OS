@@ -39,6 +39,66 @@ describe("runAgentLoop timeoutMs (#288)", () => {
     }
   });
 
+  // -------------------------------------------------------------------------
+  // Error levels (#298): timeout and network catch paths must close the
+  // per-iteration generation with level ERROR so failures are filterable in
+  // the Langfuse UI (the 4 pre-existing ERROR paths already do).
+  // -------------------------------------------------------------------------
+
+  function fakeTrace() {
+    const ends = [];
+    return {
+      ends,
+      generation: () => ({ end: (p) => ends.push(p) }),
+      span: () => ({ end: () => {} }),
+    };
+  }
+
+  it("timeout closes the generation with level ERROR (#298)", async () => {
+    globalThis.fetch = (url, options = {}) =>
+      new Promise((resolve, reject) => {
+        options.signal?.addEventListener("abort", () => {
+          const err = new Error("This operation was aborted");
+          err.name = "AbortError";
+          reject(err);
+        });
+      });
+
+    const trace = fakeTrace();
+    await assert.rejects(() =>
+      runAgentLoop({
+        messages: [{ role: "user", content: "hi" }],
+        tools: [],
+        toolExecutor: () => ({}),
+        model: { model: "openai/test-model", temperature: 0, maxTokens: 100 },
+        trace,
+        timeoutMs: 30,
+      }),
+    );
+    assert.equal(trace.ends.length, 1);
+    assert.equal(trace.ends[0].level, "ERROR");
+    assert.equal(trace.ends[0].statusMessage, "timeout");
+  });
+
+  it("network error closes the generation with level ERROR (#298)", async () => {
+    globalThis.fetch = async () => {
+      throw new Error("socket hangup");
+    };
+
+    const trace = fakeTrace();
+    await assert.rejects(() =>
+      runAgentLoop({
+        messages: [{ role: "user", content: "hi" }],
+        tools: [],
+        toolExecutor: () => ({}),
+        model: { model: "openai/test-model", temperature: 0, maxTokens: 100 },
+        trace,
+      }),
+    );
+    assert.equal(trace.ends[0].level, "ERROR");
+    assert.equal(trace.ends[0].statusMessage, "network_error");
+  });
+
   it("aborts a hung call at the deadline and throws AbortError", async () => {
     globalThis.fetch = (url, options = {}) =>
       new Promise((resolve, reject) => {

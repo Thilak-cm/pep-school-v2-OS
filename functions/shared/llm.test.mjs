@@ -133,6 +133,204 @@ describe("buildChatBody", () => {
 // shared/http.js for the design rationale.
 // ---------------------------------------------------------------------------
 
+// ---------------------------------------------------------------------------
+// runLLM tail-based sampling + error levels (#298)
+//
+// Own-trace path: no Langfuse objects before the call; every exit routes
+// through recordTailTrace (injected via deps). Nested path (trace passed in):
+// generation created upfront on the parent's trace, recorder NEVER called -
+// nested calls inherit the parent's sampling decision.
+// ---------------------------------------------------------------------------
+
+describe("runLLM tail sampling (#298)", () => {
+  const realFetch = globalThis.fetch;
+  const savedEnv = {};
+  const ENV_KEYS = ["OPENROUTER_API_KEY", "LANGFUSE_SECRET_KEY", "LANGFUSE_PUBLIC_KEY"];
+
+  beforeEach(() => {
+    for (const k of ENV_KEYS) savedEnv[k] = process.env[k];
+    process.env.OPENROUTER_API_KEY = "test-key";
+    process.env.LANGFUSE_SECRET_KEY = "sk-test";
+    process.env.LANGFUSE_PUBLIC_KEY = "pk-test";
+  });
+
+  afterEach(() => {
+    globalThis.fetch = realFetch;
+    for (const k of ENV_KEYS) {
+      if (savedEnv[k] === undefined) delete process.env[k];
+      else process.env[k] = savedEnv[k];
+    }
+  });
+
+  function makeDeps({ rate = 0.1 } = {}) {
+    const calls = { record: [], rate: [] };
+    return {
+      calls,
+      deps: {
+        recordTailTrace: async (payload) => {
+          calls.record.push(payload);
+          return true;
+        },
+        getTraceSampleRate: async (featureId) => {
+          calls.rate.push(featureId);
+          return rate;
+        },
+      },
+    };
+  }
+
+  function okFetch({ content = "hello", finishReason = "stop" } = {}) {
+    return async () => ({
+      ok: true,
+      headers: { get: () => null },
+      json: async () => ({
+        choices: [{ message: { content }, finish_reason: finishReason }],
+        usage: { prompt_tokens: 10, completion_tokens: 5, total_tokens: 15 },
+      }),
+    });
+  }
+
+  const baseArgs = {
+    featureId: "text_cleanup",
+    messages: [{ role: "user", content: "hi" }],
+    model: "openai/test-model",
+  };
+
+  it("clean success: recorder called once with feature rate, no level, backdated times", async () => {
+    globalThis.fetch = okFetch();
+    const { calls, deps } = makeDeps({ rate: 0.1 });
+    const before = Date.now();
+    const result = await runLLM({ ...baseArgs, deps });
+    assert.equal(result.content, "hello");
+    assert.deepEqual(calls.rate, ["text_cleanup"]);
+    assert.equal(calls.record.length, 1);
+    const rec = calls.record[0];
+    assert.equal(rec.sampleRate, 0.1);
+    assert.equal(rec.trace.name, "text_cleanup");
+    assert.ok(rec.trace.startTime instanceof Date);
+    assert.ok(rec.trace.startTime.getTime() >= before - 5);
+    assert.equal(rec.generation.model, "openai/test-model");
+    assert.deepEqual(rec.generation.input, baseArgs.messages);
+    assert.equal(rec.generation.end.level, undefined, "clean success carries no level");
+    assert.equal(rec.generation.end.output, "hello");
+    assert.ok(rec.generation.end.endTime instanceof Date);
+    assert.deepEqual(rec.generation.end.usage, { input: 10, output: 5, total: 15 });
+  });
+
+  it("cap-hit success (finish_reason=length): level WARNING, rate forced to 1 (always keep)", async () => {
+    globalThis.fetch = okFetch({ finishReason: "length" });
+    const { calls, deps } = makeDeps({ rate: 0.1 });
+    await runLLM({ ...baseArgs, deps });
+    const rec = calls.record[0];
+    assert.equal(rec.generation.end.level, "WARNING");
+    assert.equal(rec.sampleRate, 1, "non-clean exits skip the rate fetch");
+    assert.deepEqual(calls.rate, [], "no rate lookup needed when always keeping");
+  });
+
+  it("http error: level ERROR, statusMessage http_500, recorder called, throws internal", async () => {
+    globalThis.fetch = async () => ({
+      ok: false,
+      status: 500,
+      headers: { get: () => null },
+      text: async () => "server broke",
+    });
+    const { calls, deps } = makeDeps();
+    await assert.rejects(() => runLLM({ ...baseArgs, deps }), /AI error: 500/);
+    const rec = calls.record[0];
+    assert.equal(rec.generation.end.level, "ERROR");
+    assert.equal(rec.generation.end.statusMessage, "http_500");
+  });
+
+  it("network error: level ERROR, statusMessage network_error", async () => {
+    globalThis.fetch = async () => {
+      throw new Error("socket hangup");
+    };
+    const { calls, deps } = makeDeps();
+    await assert.rejects(() => runLLM({ ...baseArgs, deps }), /AI service unavailable/);
+    assert.equal(calls.record[0].generation.end.level, "ERROR");
+    assert.equal(calls.record[0].generation.end.statusMessage, "network_error");
+  });
+
+  it("timeout: level ERROR, statusMessage timeout", async () => {
+    globalThis.fetch = (url, options = {}) => new Promise((resolve, reject) => {
+      options.signal?.addEventListener("abort", () => {
+        const err = new Error("aborted");
+        err.name = "AbortError";
+        reject(err);
+      });
+    });
+    const { calls, deps } = makeDeps();
+    await assert.rejects(() => runLLM({ ...baseArgs, deps, timeoutMs: 20 }), /timed out/);
+    assert.equal(calls.record[0].generation.end.level, "ERROR");
+    assert.equal(calls.record[0].generation.end.statusMessage, "timeout");
+  });
+
+  it("empty response: level ERROR, statusMessage empty_response", async () => {
+    globalThis.fetch = okFetch({ content: "" });
+    const { calls, deps } = makeDeps();
+    await assert.rejects(() => runLLM({ ...baseArgs, deps }), /no content/);
+    assert.equal(calls.record[0].generation.end.level, "ERROR");
+    assert.equal(calls.record[0].generation.end.statusMessage, "empty_response");
+  });
+
+  it("nested path (trace passed in): recorder NEVER called; generation on parent trace", async () => {
+    globalThis.fetch = okFetch();
+    const { calls, deps } = makeDeps();
+    const ends = [];
+    const gens = [];
+    const parentTrace = {
+      generation(payload) {
+        gens.push(payload);
+        return { end: (p) => ends.push(p) };
+      },
+    };
+    await runLLM({ ...baseArgs, deps, trace: parentTrace });
+    assert.equal(calls.record.length, 0, "nested calls must inherit the parent's decision");
+    assert.equal(calls.rate.length, 0);
+    assert.equal(gens.length, 1);
+    assert.equal(ends.length, 1);
+    assert.equal(ends[0].level, undefined);
+  });
+
+  it("nested path failure: generation.end carries level ERROR", async () => {
+    globalThis.fetch = async () => ({
+      ok: false,
+      status: 429,
+      headers: { get: () => null },
+      text: async () => "rate limited",
+    });
+    const { deps } = makeDeps();
+    const ends = [];
+    const parentTrace = {
+      generation: () => ({ end: (p) => ends.push(p) }),
+    };
+    await assert.rejects(() => runLLM({ ...baseArgs, deps, trace: parentTrace }));
+    assert.equal(ends[0].level, "ERROR");
+    assert.equal(ends[0].statusMessage, "http_429");
+  });
+
+  it("nested path cap-hit: generation.end carries level WARNING", async () => {
+    globalThis.fetch = okFetch({ finishReason: "length" });
+    const { deps } = makeDeps();
+    const ends = [];
+    const parentTrace = {
+      generation: () => ({ end: (p) => ends.push(p) }),
+    };
+    await runLLM({ ...baseArgs, deps, trace: parentTrace });
+    assert.equal(ends[0].level, "WARNING");
+  });
+
+  it("tracing disabled (no Langfuse keys): recorder never called, call still works", async () => {
+    delete process.env.LANGFUSE_SECRET_KEY;
+    delete process.env.LANGFUSE_PUBLIC_KEY;
+    globalThis.fetch = okFetch();
+    const { calls, deps } = makeDeps();
+    const result = await runLLM({ ...baseArgs, deps });
+    assert.equal(result.content, "hello");
+    assert.equal(calls.record.length, 0);
+  });
+});
+
 describe("runLLM timeoutMs (#288)", () => {
   const realFetch = globalThis.fetch;
   const savedEnv = {};
