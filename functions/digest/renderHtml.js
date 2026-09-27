@@ -241,7 +241,7 @@ export function parseAndRender(content, renderer) {
  * time. Legacy docs (pre-migration weeks, mid-deploy reruns) only have
  * `htmlContent`; both consumers fall back to it unchanged.
  */
-export function resolveDigestContent(digestDoc) {
+export function resolveClassroomDigestContent(digestDoc) {
   if (digestDoc.contentJson) {
     return {
       promptText: JSON.stringify(digestDoc.contentJson),

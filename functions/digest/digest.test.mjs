@@ -510,7 +510,7 @@ test("validateDigestDoc fails on missing fields", () => {
 
 // ── Renderer Tests ─────────────────────────────────────────────────
 
-import { renderClassroomDigest, renderSuperadminDigest, parseAndRender, parseDigestJson, resolveDigestContent } from "./renderHtml.js";
+import { renderClassroomDigest, renderSuperadminDigest, parseAndRender, parseDigestJson, resolveClassroomDigestContent } from "./renderHtml.js";
 
 test("renderClassroomDigest renders new negligence and handwriting sections", () => {
   const data = {
@@ -619,22 +619,22 @@ test("parseDigestJson throws on invalid JSON", () => {
   assert.throws(() => parseDigestJson("<div>not json</div>"));
 });
 
-// ── resolveDigestContent (#300) ────────────────────────────────────
+// ── resolveClassroomDigestContent (#300) ────────────────────────────────────
 
-test("resolveDigestContent uses contentJson when present", () => {
+test("resolveClassroomDigestContent uses contentJson when present", () => {
   const contentJson = {
     title: "June Week 26 Digest — Amazing",
     urgent: [{ name: "Alice", content: "Red flag.", action: "Call parents." }],
   };
-  const { promptText, html } = resolveDigestContent({ contentJson, weekKey: "2026-W26" });
+  const { promptText, html } = resolveClassroomDigestContent({ contentJson, weekKey: "2026-W26" });
   assert.equal(promptText, JSON.stringify(contentJson));
   assert.ok(!promptText.includes("<"), "prompt text must contain no HTML markup");
   assert.equal(html, renderClassroomDigest(contentJson));
 });
 
-test("resolveDigestContent falls back to htmlContent for legacy docs", () => {
+test("resolveClassroomDigestContent falls back to htmlContent for legacy docs", () => {
   const legacyHtml = "<div><h2>Old Digest</h2></div>";
-  const { promptText, html } = resolveDigestContent({ htmlContent: legacyHtml, weekKey: "2026-W20" });
+  const { promptText, html } = resolveClassroomDigestContent({ htmlContent: legacyHtml, weekKey: "2026-W20" });
   assert.equal(promptText, legacyHtml);
   assert.equal(html, legacyHtml);
 });

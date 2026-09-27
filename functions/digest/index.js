@@ -23,7 +23,7 @@ import { SENDGRID_API_KEY, sendEmail } from "../shared/sendgrid.js";
 import { runWithConcurrency } from "../shared/scheduling.js";
 import { runAgentLoop } from "../shared/agentLoop.js";
 import { DIGEST_TOOLS, createToolExecutor } from "./tools.js";
-import { parseDigestJson, resolveDigestContent, renderClassroomDigest, renderSuperadminDigest } from "./renderHtml.js";
+import { parseDigestJson, resolveClassroomDigestContent, renderClassroomDigest, renderSuperadminDigest } from "./renderHtml.js";
 import { batchHtmlToPdf } from "./htmlToPdf.js";
 import { createLangfuse } from "../shared/langfuse.js";
 import {
@@ -719,7 +719,7 @@ export const weeklyDigestSuperadmin = functions
         const progDigests = digestsByProgram.get(progId) || [];
         const classroomSections = progDigests
           // #300: stringified contentJson (legacy docs fall back to stored HTML)
-          .map((d) => `### ${d.classroomName}${d.hasRedFlags ? " ⚠️ RED FLAGS" : ""}\n\n${resolveDigestContent(d).promptText}`)
+          .map((d) => `### ${d.classroomName}${d.hasRedFlags ? " ⚠️ RED FLAGS" : ""}\n\n${resolveClassroomDigestContent(d).promptText}`)
           .join("\n\n---\n\n");
         const progName = progId.charAt(0).toUpperCase() + progId.slice(1);
         return `## ${progName}\n\n${classroomSections || "No classroom digests for this program."}`;
@@ -797,7 +797,7 @@ export const weeklyDigestSuperadmin = functions
             const progName = (d.programId || "unknown").charAt(0).toUpperCase() + (d.programId || "unknown").slice(1);
             return {
               // #300: re-render from contentJson (legacy docs fall back to stored HTML)
-              html: resolveDigestContent(d).html,
+              html: resolveClassroomDigestContent(d).html,
               filename: `${progName} — ${d.classroomName} — Week ${weekNum}.html`,
             };
           })
@@ -1072,7 +1072,7 @@ export const triggerDigestTest = functions
         const progDigests = testDigestsByProgram.get(progId) || [];
         const classroomSections = progDigests
           // #300: stringified contentJson (legacy docs fall back to stored HTML)
-          .map((d) => `### ${d.classroomName}${d.hasRedFlags ? " ⚠️ RED FLAGS" : ""}\n\n${resolveDigestContent(d).promptText}`)
+          .map((d) => `### ${d.classroomName}${d.hasRedFlags ? " ⚠️ RED FLAGS" : ""}\n\n${resolveClassroomDigestContent(d).promptText}`)
           .join("\n\n---\n\n");
         const progName = progId.charAt(0).toUpperCase() + progId.slice(1);
         return `## ${progName}\n\n${classroomSections || "No classroom digests for this program."}`;
@@ -1132,7 +1132,7 @@ export const triggerDigestTest = functions
             const progName = (d.programId || "unknown").charAt(0).toUpperCase() + (d.programId || "unknown").slice(1);
             return {
               // #300: re-render from contentJson (legacy docs fall back to stored HTML)
-              html: resolveDigestContent(d).html,
+              html: resolveClassroomDigestContent(d).html,
               filename: `${progName} — ${d.classroomName} — Week ${testWeekNum}.html`,
             };
           })
