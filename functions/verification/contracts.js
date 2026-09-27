@@ -116,7 +116,8 @@ export function verifyDigest(data, executionId) {
   if (data.weekKey !== executionId) {
     return { pass: false, reason: `stale_period: ${data.weekKey}` };
   }
-  if (!data.htmlContent) return { pass: false, reason: "empty_htmlContent" };
+  // #300: digests store parsed contentJson; HTML is rendered at send time.
+  if (!data.contentJson) return { pass: false, reason: "empty_contentJson" };
   return { pass: true };
 }
 

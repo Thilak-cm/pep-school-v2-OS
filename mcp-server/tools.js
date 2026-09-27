@@ -716,7 +716,7 @@ export const TOOL_DEFINITIONS = [
   {
     name: "get_digest",
     description:
-      "Fetch the current weekly digest for a classroom (or the superadmin consolidated digest). Returns weekKey, htmlContent, recipients, red flag status, and generation metadata. Use classroomId '_digest_all' for the superadmin digest.",
+      "Fetch the current weekly digest for a classroom (or the superadmin consolidated digest). Returns weekKey, contentJson (structured digest content; legacy docs carry htmlContent instead), recipients, red flag status, and generation metadata. Use classroomId '_digest_all' for the superadmin digest.",
     inputSchema: {
       type: "object",
       properties: {
@@ -1700,8 +1700,16 @@ export async function handleGetDigest(db, params) {
 
   if (!doc.exists) return null;
   const data = serializeTimestamps({ id: doc.id, classroomId, ...doc.data() });
-  // Truncate htmlContent for readability — full content can be large
-  if (data.htmlContent && data.htmlContent.length > 500) {
+  // #300: new docs store contentJson; truncate large content for readability.
+  // Legacy docs (pre-migration weeks, history entries) still carry htmlContent.
+  if (data.contentJson) {
+    const jsonStr = JSON.stringify(data.contentJson);
+    if (jsonStr.length > 500) {
+      data.contentJsonPreview = jsonStr.slice(0, 500) + "…";
+      data.contentJsonLength = jsonStr.length;
+      delete data.contentJson;
+    }
+  } else if (data.htmlContent && data.htmlContent.length > 500) {
     data.htmlContentPreview = data.htmlContent.slice(0, 500) + "…";
     data.htmlContentLength = data.htmlContent.length;
     delete data.htmlContent;
