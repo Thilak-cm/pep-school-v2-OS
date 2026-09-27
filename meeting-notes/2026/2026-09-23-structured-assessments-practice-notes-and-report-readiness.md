@@ -149,6 +149,7 @@ rahul_takeaway_count: 3
 - **Baseline at meeting close:** 0%.
 - **Next-meeting check:** Did the list go out and did it unblock the two handoffs?
 - **Carry forward:** Yes
+- **Status update (2026-09-26):** Done - first WhatsApp takeaway list sent to Rahul (medical PDF samples + practice note dimensions). Habit to be sustained weekly.
 
 #### Takeaway T9 - Get back to Rahul on compensation
 - **Owner:** Thilak
