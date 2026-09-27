@@ -218,7 +218,7 @@ async function runAgentLoop(mockResponses, toolExecutor, maxIterations = 10) {
  * Validate a digest doc matches the expected schema.
  */
 function validateDigestDoc(doc) {
-  const required = ["weekKey", "htmlContent", "agentModel", "generatedAt", "recipientEmails", "hasRedFlags", "toolCallCount"];
+  const required = ["weekKey", "contentJson", "agentModel", "generatedAt", "recipientEmails", "hasRedFlags", "toolCallCount"];
   const missing = required.filter((k) => !(k in doc));
   return { valid: missing.length === 0, missing };
 }
@@ -488,7 +488,7 @@ test("agent loop enforces max iterations", async () => {
 test("validateDigestDoc passes with all required fields", () => {
   const doc = {
     weekKey: "2026-W23",
-    htmlContent: "<div>test</div>",
+    contentJson: { title: "Test Digest" },
     agentModel: "openai/gpt-4.1-mini",
     generatedAt: new Date(),
     recipientEmails: ["yamini@test.com"],
@@ -501,7 +501,7 @@ test("validateDigestDoc passes with all required fields", () => {
 });
 
 test("validateDigestDoc fails on missing fields", () => {
-  const doc = { weekKey: "2026-W23", htmlContent: "<div>test</div>" };
+  const doc = { weekKey: "2026-W23", contentJson: { title: "Test Digest" } };
   const result = validateDigestDoc(doc);
   assert.equal(result.valid, false);
   assert.ok(result.missing.includes("agentModel"));
@@ -510,7 +510,7 @@ test("validateDigestDoc fails on missing fields", () => {
 
 // ── Renderer Tests ─────────────────────────────────────────────────
 
-import { renderClassroomDigest, renderSuperadminDigest, parseAndRender } from "./renderHtml.js";
+import { renderClassroomDigest, renderSuperadminDigest, parseAndRender, parseDigestJson, resolveDigestContent } from "./renderHtml.js";
 
 test("renderClassroomDigest renders new negligence and handwriting sections", () => {
   const data = {
@@ -601,4 +601,40 @@ test("parseAndRender works with new superadmin schema", () => {
   const html = parseAndRender(json, renderSuperadminDigest);
   assert.ok(html.includes("Primary"));
   assert.ok(html.includes("Good."));
+});
+
+// ── parseDigestJson (#300) ─────────────────────────────────────────
+
+test("parseDigestJson parses plain JSON output", () => {
+  const data = parseDigestJson('{"title":"Test Digest","bright":["Good."]}');
+  assert.deepEqual(data, { title: "Test Digest", bright: ["Good."] });
+});
+
+test("parseDigestJson strips markdown fences", () => {
+  const data = parseDigestJson('```json\n{"title":"Fenced"}\n```');
+  assert.deepEqual(data, { title: "Fenced" });
+});
+
+test("parseDigestJson throws on invalid JSON", () => {
+  assert.throws(() => parseDigestJson("<div>not json</div>"));
+});
+
+// ── resolveDigestContent (#300) ────────────────────────────────────
+
+test("resolveDigestContent uses contentJson when present", () => {
+  const contentJson = {
+    title: "June Week 26 Digest — Amazing",
+    urgent: [{ name: "Alice", content: "Red flag.", action: "Call parents." }],
+  };
+  const { promptText, html } = resolveDigestContent({ contentJson, weekKey: "2026-W26" });
+  assert.equal(promptText, JSON.stringify(contentJson));
+  assert.ok(!promptText.includes("<"), "prompt text must contain no HTML markup");
+  assert.equal(html, renderClassroomDigest(contentJson));
+});
+
+test("resolveDigestContent falls back to htmlContent for legacy docs", () => {
+  const legacyHtml = "<div><h2>Old Digest</h2></div>";
+  const { promptText, html } = resolveDigestContent({ htmlContent: legacyHtml, weekKey: "2026-W20" });
+  assert.equal(promptText, legacyHtml);
+  assert.equal(html, legacyHtml);
 });
