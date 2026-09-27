@@ -1144,6 +1144,23 @@ interface ModelRegistryDoc {
 
 Features: `text_cleanup`, `coach`, `baseball_card`, `writing_analysis`, `photo_classification`, `media_pdf`, `chat`, `soul_generation`, `monthly_plan`, `weekly_digest`, `report`, `baseline_judge`, `readiness`.
 
+`config/langfuse_sampling` (#298)
+Per-feature Langfuse trace sample rates for value-weighted tail sampling. Read by `functions/shared/langfuse.js:getTraceSampleRate()` with a 5-min TTL cache. Missing doc/key/invalid rate = 1.0 (keep everything) - telemetry config must never break LLM calls. Seeded via `node scripts/ops/push-langfuse-sampling.mjs --yes`. Only tier-1 features respond to rates (runLLM ownTrace path + whisper-translate); bespoke-root pipelines (digest, chat, reports, structuredLLM roots, testbench) ignore this doc by design - see the tier table in `functions/shared/langfuse.js`.
+
+```typescript
+// /config/langfuse_sampling
+interface LangfuseSamplingDoc {
+  rates: {
+    [featureId: string]: number;     // 0..1 keep-probability for CLEAN SUCCESSES only;
+                                     // ERROR/WARNING traces are always recorded
+  };
+  _updatedAt: Timestamp;             // server timestamp of last push
+  _updatedBy: string;                // "push-langfuse-sampling.mjs (#298)"
+}
+```
+
+Configured rates: `text_cleanup: 0.1`, `whisper_translate: 0.1`.
+
 ---
 
 ## 🧠 Brain — Knowledge Base (`/brain/{program}`) (#157)

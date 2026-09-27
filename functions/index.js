@@ -22,11 +22,8 @@ export {
 // AI — Text Cleanup
 export { aiTextCleanup } from "./ai/textCleanup.js";
 
-// AI — Whisper STT
-export {
-  aiWhisperTranscribe,
-  aiWhisperTranslate,
-} from "./ai/whisper.js";
+// AI — Whisper STT (transcribe CF removed in #298: dead path, translate is the only production route)
+export { aiWhisperTranslate } from "./ai/whisper.js";
 
 // AI — Coach Review
 export { aiCoachReview } from "./ai/coach.js";

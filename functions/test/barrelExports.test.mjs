@@ -19,7 +19,6 @@ const EXPECTED_EXPORTS = [
   "mediaCleanup",
   // AI
   "aiTextCleanup",
-  "aiWhisperTranscribe",
   "aiWhisperTranslate",
   "aiCoachReview",
   "previewBaseballCard",

@@ -175,6 +175,58 @@ test("generation metadata tags each attempt with repairAttempt index", async () 
   assert.equal(stub.calls[1].generationMetadata.repairAttempt, 1);
 });
 
+// ---------------------------------------------------------------------------
+// Error-level events (#298). The generation itself succeeded at the HTTP
+// layer (runLLM ends it as success); the VALIDATION failure belongs to this
+// module, so it's recorded as a trace-level event with a filterable level.
+// ---------------------------------------------------------------------------
+
+function fakeTrace() {
+  const events = [];
+  return {
+    events,
+    event(payload) {
+      events.push(payload);
+    },
+  };
+}
+
+test("repair-triggering attempt emits validation_failure event [WARNING] (#298)", async () => {
+  const stub = stubRunLLM([
+    { content: "not json" },
+    { content: VALID_OUTPUT },
+  ]);
+  const trace = fakeTrace();
+  await runStructuredLLM({ ...baseOptions(stub), trace });
+
+  assert.equal(trace.events.length, 1);
+  assert.equal(trace.events[0].name, "validation_failure");
+  assert.equal(trace.events[0].level, "WARNING");
+  assert.match(trace.events[0].statusMessage, /invalid JSON/);
+  assert.equal(trace.events[0].metadata.repairAttempt, 0);
+});
+
+test("repair exhaustion emits repair_exhausted event [ERROR] after per-attempt WARNINGs (#298)", async () => {
+  const stub = stubRunLLM([{ content: "never json" }]);
+  const trace = fakeTrace();
+
+  await assert.rejects(() => runStructuredLLM({ ...baseOptions(stub), trace }));
+
+  const warnings = trace.events.filter((e) => e.level === "WARNING");
+  const errors = trace.events.filter((e) => e.level === "ERROR");
+  assert.equal(warnings.length, 3, "one WARNING per failed attempt");
+  assert.equal(errors.length, 1);
+  assert.equal(errors[0].name, "repair_exhausted");
+  assert.match(errors[0].statusMessage, /invalid JSON/);
+});
+
+test("clean first attempt emits no level events (#298)", async () => {
+  const stub = stubRunLLM([{ content: VALID_OUTPUT }]);
+  const trace = fakeTrace();
+  await runStructuredLLM({ ...baseOptions(stub), trace });
+  assert.equal(trace.events.length, 0);
+});
+
 test("formatZodError produces field paths for nested and root issues", () => {
   const result = cardSchema.safeParse({ summary: 42, redFlag: { severity: "high", reason: null } });
   const msg = formatZodError(result.error);

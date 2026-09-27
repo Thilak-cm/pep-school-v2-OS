@@ -176,6 +176,17 @@ export async function runStructuredLLM({
       console.warn(
         `[structuredLLM:${llmOptions.featureId}] attempt ${attempt} failed validation: ${failure}`,
       );
+      // #298: level-tagged trace event, filterable in the Langfuse UI. The
+      // generation itself succeeded at the HTTP layer (runLLM already ended
+      // it as success and holds the only reference); the validation failure
+      // belongs to this module, so it's recorded as a sibling event. A rising
+      // WARNING rate here is itself a drift signal worth alerting on.
+      trace?.event({
+        name: "validation_failure",
+        level: "WARNING",
+        statusMessage: failure,
+        metadata: { featureId: llmOptions.featureId, repairAttempt: attempt },
+      });
 
       if (attempt < MAX_REPAIR_ATTEMPTS) {
         // Repair context: original messages + the bad output + the exact error.
@@ -201,6 +212,23 @@ export async function runStructuredLLM({
       } catch (e) {
         console.warn("[structuredLLM] Langfuse flush failed:", e?.message);
       }
+    }
+  }
+
+  // #298: terminal ERROR event so exhausted traces surface in a level:ERROR
+  // filter. Emitted after the finally block's flush (which covered per-attempt
+  // WARNING events), so this event needs its own flush.
+  trace?.event({
+    name: "repair_exhausted",
+    level: "ERROR",
+    statusMessage: lastFailure,
+    metadata: { featureId: llmOptions.featureId, repairAttempts: MAX_REPAIR_ATTEMPTS },
+  });
+  if (langfuse) {
+    try {
+      await langfuse.flushAsync();
+    } catch (e) {
+      console.warn("[structuredLLM] Langfuse flush failed:", e?.message);
     }
   }
 

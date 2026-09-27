@@ -13,7 +13,10 @@
 import * as functions from "firebase-functions/v1";
 import { defineSecret } from "firebase-functions/params";
 import { resolveModel } from "./modelRegistry.js";
-import { createLangfuse } from "./langfuse.js";
+import {
+  recordTailTrace as defaultRecordTailTrace,
+  getTraceSampleRate as defaultGetTraceSampleRate,
+} from "./langfuse.js";
 import { fetchWithTimeout } from "./http.js";
 
 export const OPENROUTER_API_KEY = defineSecret("OPENROUTER_API_KEY");
@@ -73,6 +76,7 @@ export function buildChatBody({ model, messages, temperature, max_completion_tok
  *   No default by design: the entry point owns its CF budget and passes this down
  *   (background workers only - interactive onCall failures are already user-visible).
  *   Timeout aborts throw "unavailable" (transient), so fan-out workers rethrow -> redelivery.
+ * @param {object} [options.deps] - Test injection: { recordTailTrace, getTraceSampleRate }
  * @returns {Promise<{content: string, usage: object, resolvedModel: string, responseModel: string|null, finishReason: string|null}>}
  */
 export async function runLLM({
@@ -87,7 +91,11 @@ export async function runLLM({
   generationMetadata,
   trace,
   timeoutMs,
+  deps = {},
 }) {
+  const recordTailTrace = deps.recordTailTrace || defaultRecordTailTrace;
+  const getTraceSampleRate = deps.getTraceSampleRate || defaultGetTraceSampleRate;
+
   // 1. Resolve model through registry
   const resolvedModel = await resolveModel(featureId, model);
 
@@ -106,28 +114,59 @@ export async function runLLM({
     throw new functions.https.HttpsError("failed-precondition", "OPENROUTER_API_KEY not configured");
   }
 
-  // 4. Set up Langfuse tracing
-  let langfuse = null;
-  let ownTrace = null;
+  // 4. Set up Langfuse tracing (#298: tail-based on the own-trace path).
+  //
+  // Nested path (trace passed in): generation is created upfront on the
+  // parent's trace and NEVER sampled - the parent made the keep/drop decision
+  // for the whole tree, and sampling a child would mutilate it. Parent owns
+  // the flush (events queue on the client that created the trace).
+  //
+  // Own-trace path: NO Langfuse objects are created before the call. We
+  // capture startTime and buffer the payload; each exit routes through
+  // recordTailTrace, which keeps failures/cap-hits unconditionally and
+  // coin-flips clean successes against the feature's configured rate.
+  const tracingEnabled = !!(process.env.LANGFUSE_SECRET_KEY && process.env.LANGFUSE_PUBLIC_KEY);
   const activeTrace = trace || null;
+  const startTime = new Date();
 
-  if (process.env.LANGFUSE_SECRET_KEY && process.env.LANGFUSE_PUBLIC_KEY) {
-    langfuse = createLangfuse();
-    if (!activeTrace) {
-      ownTrace = langfuse.trace({
+  const generation = (tracingEnabled && activeTrace)
+    ? activeTrace.generation({
+      name: `${featureId}-completion`,
+      model: resolvedModel,
+      input: messages,
+      metadata: { featureId, requestedModel: model, ...generationMetadata },
+    })
+    : null;
+
+  /**
+   * Record one call exit. Nested: end the upfront generation. Own-trace:
+   * hand the buffered payload to the tail recorder. Non-clean exits
+   * (level set) skip the rate lookup - they are kept unconditionally.
+   */
+  const recordExit = async (end) => {
+    if (!tracingEnabled) return;
+    if (activeTrace) {
+      generation?.end(end);
+      return;
+    }
+    const sampleRate = end.level ? 1 : await getTraceSampleRate(featureId);
+    await recordTailTrace({
+      sampleRate,
+      trace: {
         name: traceName || featureId,
         metadata: { featureId, requestedModel: model, resolvedModel, ...traceMetadata },
-      });
-    }
-  }
-
-  const traceRef = activeTrace || ownTrace;
-  const generation = traceRef?.generation({
-    name: `${featureId}-completion`,
-    model: resolvedModel,
-    input: messages,
-    metadata: { featureId, requestedModel: model, ...generationMetadata },
-  });
+        startTime,
+      },
+      generation: {
+        name: `${featureId}-completion`,
+        model: resolvedModel,
+        input: messages,
+        metadata: { featureId, requestedModel: model, ...generationMetadata },
+        startTime,
+        end: { ...end, endTime: new Date() },
+      },
+    });
+  };
 
   // 5. Call OpenRouter
   let response;
@@ -144,18 +183,21 @@ export async function runLLM({
     // Timeout abort (#288): distinct classification so a hang is visible in
     // logs + Langfuse instead of dying as an opaque CF platform timeout.
     if (err.name === "AbortError") {
-      generation?.end({
+      await recordExit({
         output: { error: `timeout after ${timeoutMs}ms` },
         statusMessage: "timeout",
+        level: "ERROR",
       });
-      await flushLangfuse(langfuse);
       console.error(`[runLLM:${featureId}] request timed out after ${timeoutMs}ms`);
       throw new functions.https.HttpsError(
         "unavailable", `AI request timed out after ${timeoutMs}ms`,
       );
     }
-    generation?.end({ output: { error: err.message }, statusMessage: "network_error" });
-    await flushLangfuse(langfuse);
+    await recordExit({
+      output: { error: err.message },
+      statusMessage: "network_error",
+      level: "ERROR",
+    });
     console.error(`[runLLM:${featureId}] network error`, err);
     throw new functions.https.HttpsError("unavailable", "AI service unavailable");
   }
@@ -165,11 +207,11 @@ export async function runLLM({
 
   if (!response.ok) {
     const errText = await response.text().catch(() => "");
-    generation?.end({
+    await recordExit({
       output: { error: errText?.slice?.(0, 300) },
       statusMessage: `http_${response.status}`,
+      level: "ERROR",
     });
-    await flushLangfuse(langfuse);
     console.error(`[runLLM:${featureId}] API error`, response.status, errText?.slice?.(0, 300));
     throw new functions.https.HttpsError("internal", `AI error: ${response.status}`);
   }
@@ -184,14 +226,20 @@ export async function runLLM({
   const finishReason = json?.choices?.[0]?.finish_reason || null;
 
   if (!content) {
-    generation?.end({ output: { error: "empty_content" }, statusMessage: "empty_response" });
-    await flushLangfuse(langfuse);
+    await recordExit({
+      output: { error: "empty_content" },
+      statusMessage: "empty_response",
+      level: "ERROR",
+    });
     throw new functions.https.HttpsError("internal", "AI returned no content");
   }
 
-  // 8. Complete Langfuse generation with usage and response model
-  generation?.end({
+  // 8. Complete Langfuse generation with usage and response model.
+  // Cap-hit success = WARNING (W38 signal): kept unconditionally by the
+  // recorder so sampling never hides degenerate generations.
+  await recordExit({
     output: content,
+    ...(finishReason === "length" ? { level: "WARNING" } : {}),
     usage: usage ? {
       input: usage.prompt_tokens,
       output: usage.completion_tokens,
@@ -206,20 +254,5 @@ export async function runLLM({
     },
   });
 
-  await flushLangfuse(langfuse);
-
   return { content, usage, resolvedModel, responseModel, finishReason };
-}
-
-/**
- * Flush Langfuse if it was created by this call (not passed in).
- */
-async function flushLangfuse(langfuse) {
-  if (langfuse) {
-    try {
-      await langfuse.flushAsync();
-    } catch (e) {
-      console.warn("[runLLM] Langfuse flush failed:", e?.message);
-    }
-  }
 }

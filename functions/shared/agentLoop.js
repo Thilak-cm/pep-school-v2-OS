@@ -99,6 +99,7 @@ export async function runAgentLoop({
         generation?.end({
           output: { error: `timeout after ${timeoutMs}ms` },
           statusMessage: "timeout",
+          level: "ERROR", // #298: standardized levels - filterable in Langfuse UI
         });
         console.error(
           `[agentLoop] iteration ${iteration} timed out after ${timeoutMs}ms`,
@@ -108,6 +109,7 @@ export async function runAgentLoop({
       generation?.end({
         output: { error: err.message },
         statusMessage: "network_error",
+        level: "ERROR", // #298
       });
       throw err;
     }
