@@ -23,7 +23,7 @@ import { SENDGRID_API_KEY, sendEmail } from "../shared/sendgrid.js";
 import { runWithConcurrency } from "../shared/scheduling.js";
 import { runAgentLoop } from "../shared/agentLoop.js";
 import { DIGEST_TOOLS, createToolExecutor } from "./tools.js";
-import { parseAndRender, renderClassroomDigest, renderSuperadminDigest } from "./renderHtml.js";
+import { parseDigestJson, resolveClassroomDigestContent, renderClassroomDigest, renderSuperadminDigest } from "./renderHtml.js";
 import { batchHtmlToPdf } from "./htmlToPdf.js";
 import { createLangfuse } from "../shared/langfuse.js";
 import {
@@ -107,7 +107,7 @@ Output a JSON object (no markdown fences, no explanation — just the JSON). The
 
 const DEFAULT_SUPERADMIN_PROMPT = `You are an experienced Montessori school consultant preparing a weekly executive briefing for school leadership.
 
-You receive the individual classroom digest emails grouped by program, plus contextual notes providing school-specific background. You also have tools to investigate specific students if needed.
+You receive each classroom's weekly digest as structured JSON grouped by program, plus contextual notes providing school-specific background. You also have tools to investigate specific students if needed.
 
 Your job:
 1. Internalize the contextual notes silently — they are background knowledge. People and situations described there should be omitted entirely from your output.
@@ -502,8 +502,9 @@ export const weeklyDigestClassroomAdmin = functions
               timeoutMs: 120_000,
             });
 
-            // Render JSON → HTML
-            const htmlContent = parseAndRender(result.content, renderClassroomDigest);
+            // #300: parse JSON at write time (fails loudly), render HTML only for sending
+            const contentJson = parseDigestJson(result.content);
+            const htmlContent = renderClassroomDigest(contentJson);
 
             // Determine red flag status from preloaded snapshots
             const hasRedFlags = [...snapshotsMap.values()].some(
@@ -528,7 +529,7 @@ export const weeklyDigestClassroomAdmin = functions
             await archivePreviousDigest(digestRef, weekKey);
             await digestRef.set({
               weekKey,
-              htmlContent,
+              contentJson,
               agentModel: config.model,
               generatedAt: Timestamp.now(),
               recipientEmails,
@@ -717,7 +718,8 @@ export const weeklyDigestSuperadmin = functions
       const programSections = programOrder.map((progId) => {
         const progDigests = digestsByProgram.get(progId) || [];
         const classroomSections = progDigests
-          .map((d) => `### ${d.classroomName}${d.hasRedFlags ? " ⚠️ RED FLAGS" : ""}\n\n${d.htmlContent}`)
+          // #300: stringified contentJson (legacy docs fall back to stored HTML)
+          .map((d) => `### ${d.classroomName}${d.hasRedFlags ? " ⚠️ RED FLAGS" : ""}\n\n${resolveClassroomDigestContent(d).promptText}`)
           .join("\n\n---\n\n");
         const progName = progId.charAt(0).toUpperCase() + progId.slice(1);
         return `## ${progName}\n\n${classroomSections || "No classroom digests for this program."}`;
@@ -732,6 +734,7 @@ export const weeklyDigestSuperadmin = functions
         `Total classrooms: ${digests.length}`,
         `Classrooms with red flags: ${digests.filter((d) => d.hasRedFlags).length}`,
         `Programs: ${programOrder.join(", ")}`,
+        "Classroom digest sections below are structured JSON emitted by each classroom's digest agent.",
         "",
         ...notesSection,
         programSections,
@@ -760,8 +763,9 @@ export const weeklyDigestSuperadmin = functions
         timeoutMs: 120_000, // #288: see classroom digest note
       });
 
-      // Render JSON → HTML
-      const htmlContent = parseAndRender(result.content, renderSuperadminDigest);
+      // #300: parse JSON at write time, render HTML only for sending
+      const contentJson = parseDigestJson(result.content);
+      const htmlContent = renderSuperadminDigest(contentJson);
 
       // Store superadmin digest
       const digestRef = db.doc(
@@ -775,7 +779,7 @@ export const weeklyDigestSuperadmin = functions
 
       await digestRef.set({
         weekKey,
-        htmlContent,
+        contentJson,
         agentModel: config.model,
         generatedAt: Timestamp.now(),
         recipientEmails,
@@ -792,7 +796,8 @@ export const weeklyDigestSuperadmin = functions
           digests.map((d) => {
             const progName = (d.programId || "unknown").charAt(0).toUpperCase() + (d.programId || "unknown").slice(1);
             return {
-              html: d.htmlContent,
+              // #300: re-render from contentJson (legacy docs fall back to stored HTML)
+              html: resolveClassroomDigestContent(d).html,
               filename: `${progName} — ${d.classroomName} — Week ${weekNum}.html`,
             };
           })
@@ -962,7 +967,8 @@ export const triggerDigestTest = functions
           trace: span,
         });
 
-        const htmlContent = parseAndRender(result.content, renderClassroomDigest);
+        const contentJson = parseDigestJson(result.content);
+        const htmlContent = renderClassroomDigest(contentJson);
 
         const hasRedFlags = [...snapshotsMap.values()].some(
           (s) => s.redFlag || s.escalatedThisWeek === true
@@ -978,7 +984,7 @@ export const triggerDigestTest = functions
         await archivePreviousDigest(digestRef, weekKey);
         await digestRef.set({
           weekKey,
-          htmlContent,
+          contentJson,
           agentModel: config.model,
           generatedAt: Timestamp.now(),
           recipientEmails,
@@ -1065,7 +1071,8 @@ export const triggerDigestTest = functions
       const testProgramSections = testProgramOrder.map((progId) => {
         const progDigests = testDigestsByProgram.get(progId) || [];
         const classroomSections = progDigests
-          .map((d) => `### ${d.classroomName}${d.hasRedFlags ? " ⚠️ RED FLAGS" : ""}\n\n${d.htmlContent}`)
+          // #300: stringified contentJson (legacy docs fall back to stored HTML)
+          .map((d) => `### ${d.classroomName}${d.hasRedFlags ? " ⚠️ RED FLAGS" : ""}\n\n${resolveClassroomDigestContent(d).promptText}`)
           .join("\n\n---\n\n");
         const progName = progId.charAt(0).toUpperCase() + progId.slice(1);
         return `## ${progName}\n\n${classroomSections || "No classroom digests for this program."}`;
@@ -1076,6 +1083,7 @@ export const triggerDigestTest = functions
         `Total classrooms: ${digests.length}`,
         `Classrooms with red flags: ${digests.filter((d) => d.hasRedFlags).length}`,
         `Programs: ${testProgramOrder.join(", ")}`,
+        "Classroom digest sections below are structured JSON emitted by each classroom's digest agent.",
         "",
         testProgramSections,
         "",
@@ -1095,7 +1103,8 @@ export const triggerDigestTest = functions
         trace: cf2Trace,
       });
 
-      const htmlContent = parseAndRender(result.content, renderSuperadminDigest);
+      const contentJson = parseDigestJson(result.content);
+      const htmlContent = renderSuperadminDigest(contentJson);
 
       const hasRedFlags = digests.some((d) => d.hasRedFlags);
       const superAdmins = resolveSuperAdminRecipients(testAllUsers);
@@ -1105,7 +1114,7 @@ export const triggerDigestTest = functions
       await archivePreviousDigest(digestRef, weekKey);
       await digestRef.set({
         weekKey,
-        htmlContent,
+        contentJson,
         agentModel: config.model,
         generatedAt: Timestamp.now(),
         recipientEmails,
@@ -1122,7 +1131,8 @@ export const triggerDigestTest = functions
           digests.map((d) => {
             const progName = (d.programId || "unknown").charAt(0).toUpperCase() + (d.programId || "unknown").slice(1);
             return {
-              html: d.htmlContent,
+              // #300: re-render from contentJson (legacy docs fall back to stored HTML)
+              html: resolveClassroomDigestContent(d).html,
               filename: `${progName} — ${d.classroomName} — Week ${testWeekNum}.html`,
             };
           })
