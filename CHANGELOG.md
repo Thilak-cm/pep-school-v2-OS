@@ -1,5 +1,13 @@
 # Changelog
 
+# 13.3.2 — 2026-09-27
+
+### Changed
+- Digest docs store parsed `contentJson` (Firestore map) instead of rendered `htmlContent`; HTML rendered at send time only (#300).
+- CF2 superadmin prompt receives stringified JSON instead of HTML markup (~11k tokens saved per run) (#300).
+- Integrity contract (`verifyDigest`) asserts `contentJson` presence (#300).
+- MCP `get_digest` previews `contentJson` for new-format docs, falls back to `htmlContent` for legacy (#300).
+
 # 13.3.1 — 2026-09-27
 
 ### Changed

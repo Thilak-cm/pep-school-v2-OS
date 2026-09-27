@@ -17,6 +17,7 @@ import {
   handleListStudents,
   handleListClassrooms,
   handleGetChatMessages,
+  handleGetDigest,
   mergeChatMessageGenerations,
   TOOL_DEFINITIONS,
 } from "./tools.js";
@@ -899,5 +900,70 @@ describe("handleQueryObservations type filter", () => {
     const db = createMockDb(assessmentFixtures().collections);
     const result = await handleQueryObservations(db, {});
     assert.equal(result.length, 4);
+  });
+});
+
+// --- get_digest (#300: contentJson with legacy htmlContent tolerance) ---
+
+describe("handleGetDigest", () => {
+  // handleGetDigest reads via db.doc(path); the shared mock only exposes
+  // db.collection, so use a minimal path-keyed mock here.
+  function createDocDb(docsByPath) {
+    return {
+      doc: (path) => ({
+        get: async () => {
+          const data = docsByPath[path];
+          return data
+            ? { exists: true, id: "weekly_email", data: () => data }
+            : { exists: false, data: () => undefined };
+        },
+      }),
+    };
+  }
+
+  it("previews contentJson for new-format docs", async () => {
+    const contentJson = {
+      title: "June Week 26 Digest — Amazing",
+      bright: Array.from({ length: 40 }, (_, i) => `Student ${i}: long bright spot entry to exceed preview size.`),
+    };
+    const db = createDocDb({
+      "classrooms/amazing/digests/weekly_email": {
+        weekKey: "2026-W26",
+        contentJson,
+        hasRedFlags: false,
+      },
+    });
+    const result = await handleGetDigest(db, { classroomId: "amazing" });
+    assert.equal(result.weekKey, "2026-W26");
+    assert.ok(result.contentJsonPreview.length <= 501);
+    assert.equal(result.contentJsonLength, JSON.stringify(contentJson).length);
+    assert.equal(result.contentJson, undefined, "full contentJson map should be dropped from large previews");
+  });
+
+  it("keeps small contentJson inline without truncation", async () => {
+    const contentJson = { title: "Quiet Week" };
+    const db = createDocDb({
+      "classrooms/parijat/digests/weekly_email": { weekKey: "2026-W26", contentJson },
+    });
+    const result = await handleGetDigest(db, { classroomId: "parijat" });
+    assert.deepEqual(result.contentJson, contentJson);
+    assert.equal(result.contentJsonPreview, undefined);
+  });
+
+  it("falls back to htmlContent preview for legacy docs", async () => {
+    const htmlContent = `<div>${"x".repeat(600)}</div>`;
+    const db = createDocDb({
+      "classrooms/gulmohar/digests/weekly_email": { weekKey: "2026-W20", htmlContent },
+    });
+    const result = await handleGetDigest(db, { classroomId: "gulmohar" });
+    assert.ok(result.htmlContentPreview.endsWith("…"));
+    assert.equal(result.htmlContentLength, htmlContent.length);
+    assert.equal(result.htmlContent, undefined);
+  });
+
+  it("returns null when digest doc is missing", async () => {
+    const db = createDocDb({});
+    const result = await handleGetDigest(db, { classroomId: "nope" });
+    assert.equal(result, null);
   });
 });

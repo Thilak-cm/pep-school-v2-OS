@@ -212,15 +212,41 @@ function esc(text) {
 }
 
 /**
- * Parse LLM output as JSON and render to HTML.
+ * Parse LLM digest output into its JSON object (#300).
  * Throws on invalid JSON so the classroom is marked as errored
- * and no broken email is sent.
+ * and no broken email is sent — parse errors surface at write time,
+ * where the agent loop already fails loudly.
  */
-export function parseAndRender(content, renderer) {
+export function parseDigestJson(content) {
   let json = content.trim();
   if (json.startsWith("```")) {
     json = json.replace(/^```(?:json)?\n?/, "").replace(/\n?```$/, "");
   }
-  const data = JSON.parse(json);
-  return renderer(data);
+  return JSON.parse(json);
+}
+
+/**
+ * Parse LLM output as JSON and render to HTML.
+ * Thin wrapper kept for callers that need both steps at once.
+ */
+export function parseAndRender(content, renderer) {
+  return renderer(parseDigestJson(content));
+}
+
+/**
+ * Resolve a stored classroom digest doc into prompt text and HTML (#300).
+ *
+ * New-format docs carry `contentJson` (parsed digest map): the prompt gets
+ * the stringified JSON (no markup noise) and HTML is re-rendered at send
+ * time. Legacy docs (pre-migration weeks, mid-deploy reruns) only have
+ * `htmlContent`; both consumers fall back to it unchanged.
+ */
+export function resolveClassroomDigestContent(digestDoc) {
+  if (digestDoc.contentJson) {
+    return {
+      promptText: JSON.stringify(digestDoc.contentJson),
+      html: renderClassroomDigest(digestDoc.contentJson),
+    };
+  }
+  return { promptText: digestDoc.htmlContent, html: digestDoc.htmlContent };
 }

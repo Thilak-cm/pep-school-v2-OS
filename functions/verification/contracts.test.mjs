@@ -218,7 +218,7 @@ describe("verifyMonthlyPlan", () => {
 describe("verifyDigest", () => {
   test("passes for valid digest with matching weekKey", () => {
     assert.deepEqual(
-      verifyDigest({ weekKey: "2026-W35", htmlContent: "<p>digest</p>" }, "2026-W35"),
+      verifyDigest({ weekKey: "2026-W35", contentJson: { title: "Digest" } }, "2026-W35"),
       { pass: true },
     );
   });
@@ -228,12 +228,13 @@ describe("verifyDigest", () => {
   });
 
   test("fails when weekKey is stale", () => {
-    const result = verifyDigest({ weekKey: "2026-W34", htmlContent: "old" }, "2026-W35");
+    const result = verifyDigest({ weekKey: "2026-W34", contentJson: { title: "old" } }, "2026-W35");
     assert.equal(result.pass, false);
   });
 
-  test("fails when htmlContent is empty", () => {
-    assert.equal(verifyDigest({ weekKey: "2026-W35", htmlContent: "" }, "2026-W35").pass, false);
+  test("fails when contentJson is missing (#300: htmlContent-only docs predate the schema change)", () => {
+    assert.equal(verifyDigest({ weekKey: "2026-W35", htmlContent: "<p>digest</p>" }, "2026-W35").pass, false);
+    assert.equal(verifyDigest({ weekKey: "2026-W35" }, "2026-W35").pass, false);
   });
 });
 

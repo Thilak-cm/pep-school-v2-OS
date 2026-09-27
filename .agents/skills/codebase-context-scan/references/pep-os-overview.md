@@ -1,6 +1,6 @@
 # Pep OS Overview
 
-Generated: 2026-09-27T23:07:38.829Z
+Generated: 2026-09-27T23:27:34.662Z
 App version: 13.3.1
 
 ## App Snapshot
@@ -156,9 +156,9 @@ App version: 13.3.1
 ## Recent Changes
 
 ### 13.3.1 (2026-09-27)
-- Per-feature Langfuse tail-based sampling: `text_cleanup` and `whisper_translate` sampled at 10% for clean successes; failures/cap-hits always kept. Configured via `config/langfuse_sampling` doc (#298).
-- Error levels standardized across LLM plumbing: `runLLM` (ERROR on timeout/network/http/empty, WARNING on cap-hit), `agentLoop` (ERROR on timeout/network), `structuredLLM` (WARNING on validation failure, ERROR on repair exhaustion), `whisper-translate` (ERROR on network/http) (#298).
-- Whisper-translate generations now report `usageDetails: { audio_seconds }` for non-zero cost in Langfuse (#298).
+- Digest docs store parsed `contentJson` (Firestore map) instead of rendered `htmlContent`; HTML rendered at send time only (#300).
+- CF2 superadmin prompt receives stringified JSON instead of HTML markup (~11k tokens saved per run) (#300).
+- Integrity contract (`verifyDigest`) asserts `contentJson` presence (#300).
 
 ### 13.3.0 (2026-09-23)
 - In-app structured assessment matrix viewer (`AssessmentMatrixSheet`) - bottom drawer showing all students' results with focus-student highlighting, replacing the source worksheet download (#290).
