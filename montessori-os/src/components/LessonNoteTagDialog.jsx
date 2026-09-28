@@ -9,8 +9,9 @@ import {
   CircularProgress,
   Dialog,
   Button,
+  InputAdornment,
 } from '@mui/material';
-import { X as Close } from '../icons';
+import { X as Close, Search } from '../icons';
 
 // Duplicate lesson titles are common (same material re-presented over months),
 // so each row shows the observed date + presenting teacher as disambiguators.
@@ -46,7 +47,7 @@ function LessonNoteTagDialog({
   saving = false,
   deferApply = false,
   onApply,
-  applyLabel = 'Save',
+  applyLabel = 'Done',
 }) {
   const normalizeIds = (ids) => Array.from(new Set(ids || [])).filter(Boolean);
 
@@ -63,18 +64,6 @@ function LessonNoteTagDialog({
   const effectiveSelectedIds = deferApply
     ? pendingLessonIds
     : normalizeIds(selectedLessonIds);
-
-  const arraysEqual = (a, b) => {
-    const as = normalizeIds(a).sort();
-    const bs = normalizeIds(b).sort();
-    if (as.length !== bs.length) return false;
-    for (let i = 0; i < as.length; i += 1) {
-      if (as[i] !== bs[i]) return false;
-    }
-    return true;
-  };
-
-  const hasChanges = deferApply && !arraysEqual(pendingLessonIds, selectedLessonIds);
 
   const handleRowClick = (note, disabled) => {
     if (disabled) return;
@@ -123,6 +112,19 @@ function LessonNoteTagDialog({
           placeholder="Search lesson titles"
           value={lessonSearch}
           onChange={(e) => onLessonSearchChange(e.target.value)}
+          InputProps={{
+            startAdornment: (
+              <InputAdornment position="start">
+                <Search size={18} />
+              </InputAdornment>
+            ),
+          }}
+          sx={{
+            '& .MuiOutlinedInput-root': {
+              borderRadius: 999,
+              backgroundColor: 'background.paper'
+            }
+          }}
         />
         <Typography variant="body2" color="text.secondary">
           {lessonNotesLoading
@@ -211,7 +213,7 @@ function LessonNoteTagDialog({
           </Box>
         )}
         {deferApply && (
-          <Box sx={{ display: 'flex', justifyContent: 'flex-end', gap: 1, mt: 2 }}>
+          <Box sx={{ display: 'flex', justifyContent: 'space-between', gap: 1, mt: 2 }}>
             <Button
               variant="text"
               onClick={onClose}
@@ -222,9 +224,11 @@ function LessonNoteTagDialog({
             <Button
               variant="contained"
               onClick={handleApply}
-              disabled={saving || !hasChanges}
+              disabled={saving}
             >
-              {saving ? <CircularProgress size={16} /> : applyLabel}
+              {saving
+                ? <CircularProgress size={16} />
+                : `${applyLabel} (${pendingLessonIds.length})`}
             </Button>
           </Box>
         )}

@@ -3136,6 +3136,11 @@ function AddNoteModal({
         selectedLessonIds={selectedLessonIds}
         onSelectionChange={setSelectedLessonIds}
         saving={lessonNotesLoading}
+        deferApply
+        onApply={(ids) => {
+          setSelectedLessonIds(ids);
+          setTagDialogOpen(false);
+        }}
       />
       {/* Multi-student warning when a tag exists */}
       <Dialog
