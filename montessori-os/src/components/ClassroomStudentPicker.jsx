@@ -608,17 +608,32 @@ const ClassroomStudentPicker = forwardRef(function ClassroomStudentPicker({
                 }}
               />
             ) : (
-              <Typography
-                sx={{
-                  color: 'var(--color-text)',
-                  fontSize: '0.875rem',
-                  lineHeight: '1.6',
-                  whiteSpace: 'pre-wrap',
-                  wordBreak: 'break-word'
-                }}
-              >
-                {voiceData?.text}
-              </Typography>
+              <Box sx={{ display: 'flex', alignItems: 'flex-start', gap: 1 }}>
+                <Typography
+                  sx={{
+                    color: 'var(--color-text)',
+                    fontSize: '0.875rem',
+                    lineHeight: '1.6',
+                    whiteSpace: 'pre-wrap',
+                    wordBreak: 'break-word',
+                    flex: 1
+                  }}
+                >
+                  {voiceData?.text}
+                </Typography>
+                <IconButton
+                  onClick={startVoiceEditing}
+                  size="small"
+                  sx={{
+                    color: 'var(--grey-400)',
+                    flexShrink: 0,
+                    mt: -0.5,
+                    '&:hover': { color: 'var(--grey-600)' }
+                  }}
+                >
+                  <Edit sx={{ fontSize: 16 }} />
+                </IconButton>
+              </Box>
             )}
           </Paper>
 
@@ -673,103 +688,66 @@ const ClassroomStudentPicker = forwardRef(function ClassroomStudentPicker({
               <Box
                 sx={{
                   display: 'flex',
-                  flexDirection: 'column',
-                  gap: 2
+                  gap: 1,
+                  justifyContent: 'center',
+                  alignItems: 'center',
+                  flexWrap: 'wrap'
                 }}
               >
-                {/* Polish with AI button row */}
-                <Box
+                <Button
+                  variant="outlined"
+                  onClick={handleRecordAgain}
+                  startIcon={<Refresh />}
+                  size="small"
                   sx={{
-                    display: 'flex',
-                    gap: 1,
-                    justifyContent: 'center',
-                    alignItems: 'center',
-                    flexWrap: 'wrap'
+                    borderColor: 'var(--grey-300)',
+                    color: 'var(--grey-600)',
+                    backgroundColor: 'white',
+                    textTransform: 'none',
+                    '&:hover': {
+                      borderColor: 'var(--color-text-faint)',
+                      backgroundColor: 'var(--color-bg)',
+                      color: 'var(--grey-700)',
+                    }
                   }}
                 >
-                  <Button
-                    variant="contained"
-                    onClick={handleVoiceCleanUp}
-                    disabled={!voiceData?.text?.trim() || voiceCleaning || voiceCleanedOnce}
-                    startIcon={voiceCleaning ? <CircularProgress size={16} color="inherit" /> : <AutoFixHigh />}
-                    sx={{
-                      textTransform: 'none',
-                      backgroundImage: 'linear-gradient(90deg, var(--color-violet-dark), var(--color-pink-dark))',
-                      color: 'white',
-                      boxShadow: '0 6px 14px rgba(124, 58, 237, 0.35)',
-                      '&:hover': {
-                        backgroundImage: 'linear-gradient(90deg, var(--color-violet-deeper), var(--color-pink-darker))',
-                        boxShadow: '0 8px 18px rgba(190, 24, 93, 0.35)'
-                      },
-                      '&.Mui-disabled': {
-                        backgroundImage: 'none',
-                        backgroundColor: 'var(--color-border)',
-                        color: 'var(--color-text-soft)',
-                        boxShadow: 'none'
-                      }
-                    }}
-                  >
-                    {voiceCleanedOnce ? 'Polished' : (voiceCleaning ? 'Polishing…' : 'Polish with AI')}
-                  </Button>
-                  {voiceCleanedOnce && voicePrevText && (
-                    <Button 
-                      variant="text" 
-                      onClick={handleVoiceUndoClean} 
-                      sx={{ color: 'var(--color-text-soft)', textTransform: 'none' }}
-                    >
-                      Undo
-                    </Button>
-                  )}
-                </Box>
-                
-                {/* Other action buttons */}
-                <Box
+                  Record Again
+                </Button>
+                <Button
+                  variant="contained"
+                  onClick={handleVoiceCleanUp}
+                  disabled={!voiceData?.text?.trim() || voiceCleaning || voiceCleanedOnce}
+                  startIcon={voiceCleaning ? <CircularProgress size={16} color="inherit" /> : <AutoFixHigh />}
+                  size="small"
                   sx={{
-                    display: 'flex',
-                    gap: 1,
-                    justifyContent: 'center',
-                    flexWrap: 'wrap'
+                    textTransform: 'none',
+                    backgroundImage: 'linear-gradient(90deg, var(--color-violet-dark), var(--color-pink-dark))',
+                    color: 'white',
+                    boxShadow: '0 4px 10px rgba(124, 58, 237, 0.3)',
+                    '&:hover': {
+                      backgroundImage: 'linear-gradient(90deg, var(--color-violet-deeper), var(--color-pink-darker))',
+                      boxShadow: '0 6px 14px rgba(190, 24, 93, 0.3)'
+                    },
+                    '&.Mui-disabled': {
+                      backgroundImage: 'none',
+                      backgroundColor: 'var(--color-border)',
+                      color: 'var(--color-text-soft)',
+                      boxShadow: 'none'
+                    }
                   }}
                 >
+                  {voiceCleanedOnce ? 'Polished' : (voiceCleaning ? 'Polishing…' : 'Polish')}
+                </Button>
+                {voiceCleanedOnce && voicePrevText && (
                   <Button
-                    variant="outlined"
-                    onClick={handleRecordAgain}
-                    startIcon={<Refresh />}
+                    variant="text"
+                    onClick={handleVoiceUndoClean}
                     size="small"
-                    sx={{
-                      borderColor: 'var(--grey-300)',
-                      color: 'var(--grey-600)',
-                      backgroundColor: 'white',
-                      textTransform: 'none',
-                      '&:hover': {
-                        borderColor: 'var(--color-text-faint)',
-                        backgroundColor: 'var(--color-bg)',
-                        color: 'var(--grey-700)',
-                      }
-                    }}
+                    sx={{ color: 'var(--color-text-soft)', textTransform: 'none' }}
                   >
-                    Record Again
+                    Undo
                   </Button>
-                  <Button
-                    variant="outlined"
-                    onClick={startVoiceEditing}
-                    startIcon={<Edit />}
-                    size="small"
-                    sx={{
-                      borderColor: 'var(--grey-300)',
-                      color: 'var(--grey-600)',
-                      backgroundColor: 'white',
-                      textTransform: 'none',
-                      '&:hover': {
-                        borderColor: 'var(--color-text-faint)',
-                        backgroundColor: 'var(--color-bg)',
-                        color: 'var(--grey-700)',
-                      }
-                    }}
-                  >
-                    Edit Text
-                  </Button>
-                </Box>
+                )}
               </Box>
             )
           )}
