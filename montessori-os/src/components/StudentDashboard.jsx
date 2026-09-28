@@ -994,30 +994,6 @@ function StudentDashboard({ student, onOpenTimeline, onOpenFeedback, onOpenChat,
               </Tooltip>
             )}
 
-            {/* Refresh chip — weekly tab only */}
-            {activeTab === 'weekly' && (
-              <Tooltip title="Regenerate snapshot" arrow>
-                <Box
-                  component="button"
-                  onClick={() => setRegenDialogOpen(true)}
-                  disabled={regenRunning || !studentId}
-                  sx={{
-                    ...CHIP_BASE,
-                    width: 28,
-                    borderColor: 'var(--color-indigo-soft, rgba(79, 70, 229, 0.18))',
-                    backgroundColor: 'rgba(79, 70, 229, 0.06)',
-                    color: 'var(--color-primary)',
-                    p: 0,
-                    '&:hover': { backgroundColor: 'rgba(79, 70, 229, 0.13)' },
-                    '&:disabled': { opacity: 0.4, cursor: 'default' },
-                  }}
-                  aria-label="Regenerate snapshot"
-                >
-                  <Refresh size={14} />
-                </Box>
-              </Tooltip>
-            )}
-
             {/* Handwriting samples chip — writing tab only */}
             {activeTab === 'writing' && Number.isFinite(writingData?.sampleCount) && (
               <Tooltip title="View writing samples" arrow>
@@ -1038,30 +1014,6 @@ function StudentDashboard({ student, onOpenTimeline, onOpenFeedback, onOpenChat,
                 >
                   <ImageIcon size={14} />
                   {Number.isFinite(writingData?.sampleCount) && <span>{writingData.sampleCount}</span>}
-                </Box>
-              </Tooltip>
-            )}
-
-            {/* Refresh chip — writing tab only */}
-            {activeTab === 'writing' && (
-              <Tooltip title="Regenerate writing analysis" arrow>
-                <Box
-                  component="button"
-                  onClick={() => setWritingRegenDialogOpen(true)}
-                  disabled={writingRegenRunning || !studentId}
-                  sx={{
-                    ...CHIP_BASE,
-                    width: 28,
-                    borderColor: 'var(--color-indigo-soft, rgba(79, 70, 229, 0.18))',
-                    backgroundColor: 'rgba(79, 70, 229, 0.06)',
-                    color: 'var(--color-primary)',
-                    p: 0,
-                    '&:hover': { backgroundColor: 'rgba(79, 70, 229, 0.13)' },
-                    '&:disabled': { opacity: 0.4, cursor: 'default' },
-                  }}
-                  aria-label="Regenerate writing analysis"
-                >
-                  <Refresh size={14} />
                 </Box>
               </Tooltip>
             )}
@@ -1115,6 +1067,53 @@ function StudentDashboard({ student, onOpenTimeline, onOpenFeedback, onOpenChat,
                   aria-label="View flag details"
                 >
                   <FlagRounded size={14} />
+                </Box>
+              </Tooltip>
+            )}
+
+            {/* Refresh chips — rendered last so refresh is always the rightmost
+               chip on every tab (plan regen above is last among plan chips) */}
+            {activeTab === 'weekly' && (
+              <Tooltip title="Regenerate snapshot" arrow>
+                <Box
+                  component="button"
+                  onClick={() => setRegenDialogOpen(true)}
+                  disabled={regenRunning || !studentId}
+                  sx={{
+                    ...CHIP_BASE,
+                    width: 28,
+                    borderColor: 'var(--color-indigo-soft, rgba(79, 70, 229, 0.18))',
+                    backgroundColor: 'rgba(79, 70, 229, 0.06)',
+                    color: 'var(--color-primary)',
+                    p: 0,
+                    '&:hover': { backgroundColor: 'rgba(79, 70, 229, 0.13)' },
+                    '&:disabled': { opacity: 0.4, cursor: 'default' },
+                  }}
+                  aria-label="Regenerate snapshot"
+                >
+                  <Refresh size={14} />
+                </Box>
+              </Tooltip>
+            )}
+            {activeTab === 'writing' && (
+              <Tooltip title="Regenerate writing analysis" arrow>
+                <Box
+                  component="button"
+                  onClick={() => setWritingRegenDialogOpen(true)}
+                  disabled={writingRegenRunning || !studentId}
+                  sx={{
+                    ...CHIP_BASE,
+                    width: 28,
+                    borderColor: 'var(--color-indigo-soft, rgba(79, 70, 229, 0.18))',
+                    backgroundColor: 'rgba(79, 70, 229, 0.06)',
+                    color: 'var(--color-primary)',
+                    p: 0,
+                    '&:hover': { backgroundColor: 'rgba(79, 70, 229, 0.13)' },
+                    '&:disabled': { opacity: 0.4, cursor: 'default' },
+                  }}
+                  aria-label="Regenerate writing analysis"
+                >
+                  <Refresh size={14} />
                 </Box>
               </Tooltip>
             )}
