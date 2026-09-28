@@ -11,7 +11,7 @@ export default function VoiceContent({ observation, editing, editText, onEditTex
 
   return (
     <Box sx={{ display: 'flex', flexDirection: 'column', gap: 1.5 }}>
-      {/* TRANSCRIPT · AUTO label + duration */}
+      {/* TRANSCRIPT label + duration */}
       <Box sx={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
         <Box sx={{ display: 'flex', alignItems: 'center', gap: 0.75 }}>
           <AutoAwesome size={14} style={{ color: 'var(--color-primary)' }} />
@@ -25,7 +25,7 @@ export default function VoiceContent({ observation, editing, editText, onEditTex
               color: 'var(--color-primary)',
             }}
           >
-            TRANSCRIPT · AUTO
+            TRANSCRIPT
           </Typography>
         </Box>
         {durationLabel && (
