@@ -197,7 +197,13 @@ export default function CoachNudge({ noteText, onApply, onSkip, forcedNudges, ma
                     size="small"
                     variant={selections[NUDGE_IDS.DURATION]?.range === c ? 'contained' : 'outlined'}
                     sx={{ px: 1.75, py: 0.4, borderRadius: 1.5 }}
-                    onClick={() => updateSelections((s) => ({ ...s, [NUDGE_IDS.DURATION]: { range: c } }))}
+                    onClick={() => updateSelections((s) => {
+                      if (s[NUDGE_IDS.DURATION]?.range === c) {
+                        const { [NUDGE_IDS.DURATION]: _removed, ...rest } = s;
+                        return rest;
+                      }
+                      return { ...s, [NUDGE_IDS.DURATION]: { range: c } };
+                    })}
                   >
                     {c}
                   </Button>
@@ -212,7 +218,13 @@ export default function CoachNudge({ noteText, onApply, onSkip, forcedNudges, ma
                     size="small"
                     variant={selections[NUDGE_IDS.MODALITY]?.modality === c ? 'contained' : 'outlined'}
                     sx={{ px: 1.75, py: 0.4, borderRadius: 1.5 }}
-                    onClick={() => updateSelections((s) => ({ ...s, [NUDGE_IDS.MODALITY]: { modality: c } }))}
+                    onClick={() => updateSelections((s) => {
+                      if (s[NUDGE_IDS.MODALITY]?.modality === c) {
+                        const { [NUDGE_IDS.MODALITY]: _removed, ...rest } = s;
+                        return rest;
+                      }
+                      return { ...s, [NUDGE_IDS.MODALITY]: { modality: c } };
+                    })}
                   >
                     {c}
                   </Button>
@@ -227,7 +239,13 @@ export default function CoachNudge({ noteText, onApply, onSkip, forcedNudges, ma
                     size="small"
                     variant={selections[NUDGE_IDS.INDEPENDENCE]?.independence === c ? 'contained' : 'outlined'}
                     sx={{ px: 1.75, py: 0.4, borderRadius: 1.5 }}
-                    onClick={() => updateSelections((s) => ({ ...s, [NUDGE_IDS.INDEPENDENCE]: { independence: c } }))}
+                    onClick={() => updateSelections((s) => {
+                      if (s[NUDGE_IDS.INDEPENDENCE]?.independence === c) {
+                        const { [NUDGE_IDS.INDEPENDENCE]: _removed, ...rest } = s;
+                        return rest;
+                      }
+                      return { ...s, [NUDGE_IDS.INDEPENDENCE]: { independence: c } };
+                    })}
                   >
                     {c}
                   </Button>
