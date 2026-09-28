@@ -957,15 +957,33 @@ const ClassroomStudentPicker = forwardRef(function ClassroomStudentPicker({
           </Typography>
           <Box sx={{ display: 'flex', flexWrap: 'wrap', gap: 1 }}>
             {suggestedStudents.map((stu) => {
-              const label = stu.fullName || getStudentName(studentsById[stu.id] || stu);
+              const enriched = studentsById[stu.id] || stu;
+              const label = stu.fullName || getStudentName(enriched);
+              const classroomName = enriched.classroom_name;
               const selected = selectedStudents.includes(stu.id);
               return (
                 <Chip
                   key={stu.id}
-                  label={label}
+                  label={
+                    <Box sx={{ display: 'flex', flexDirection: 'column', alignItems: 'flex-start', py: 0.25 }}>
+                      <Typography variant="body2" component="span" sx={{ lineHeight: 1.3 }}>
+                        {label}
+                      </Typography>
+                      {classroomName && classroomName !== 'Unknown Classroom' && (
+                        <Typography
+                          variant="caption"
+                          component="span"
+                          sx={{ lineHeight: 1.2, opacity: 0.7, fontSize: '0.65rem' }}
+                        >
+                          {classroomName}
+                        </Typography>
+                      )}
+                    </Box>
+                  }
                   color={selected ? 'primary' : 'default'}
                   variant={selected ? 'filled' : 'outlined'}
                   onClick={() => handleStudentToggle(stu.id)}
+                  sx={{ height: 'auto', '& .MuiChip-label': { px: 1.25 } }}
                 />
               );
             })}
