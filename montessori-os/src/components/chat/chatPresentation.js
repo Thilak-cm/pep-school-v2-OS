@@ -42,7 +42,7 @@ function addInsets(...values) {
 export function getChatShellGeometry({
   viewportHeight,
   headerHeight,
-  headerBottomPadding,
+  headerBottomPadding = 0,
   footerHeight,
   safeAreaTop = 0,
   safeAreaBottom = 0,

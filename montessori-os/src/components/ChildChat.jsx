@@ -25,7 +25,7 @@ import {
   Trash2 as Delete,
 } from '../icons';
 import { collection, doc, getDocs, onSnapshot, query, serverTimestamp, updateDoc, where } from 'firebase/firestore';
-import { HEADER_BOTTOM_PADDING, HEADER_HEIGHT } from '../AppHeader.jsx';
+import { HEADER_HEIGHT } from '../AppHeader.jsx';
 import { FOOTER_HEIGHT } from '../AppFooter.jsx';
 import { auth, db } from '../firebase';
 import { createChatIds } from '../services/chatStreamService.js';
@@ -722,7 +722,6 @@ export default function ChildChat({ student, currentUser, userRole, manageableCl
   const isLanding = selectedChatId === null;
   const shellGeometry = getChatShellGeometry({
     headerHeight: HEADER_HEIGHT,
-    headerBottomPadding: HEADER_BOTTOM_PADDING,
     footerHeight: FOOTER_HEIGHT,
     safeAreaTop: 'env(safe-area-inset-top, 0px)',
     safeAreaBottom: 'env(safe-area-inset-bottom, 0px)',
