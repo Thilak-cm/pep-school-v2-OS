@@ -1,7 +1,7 @@
 # Pep OS Overview
 
-Generated: 2026-09-27T23:27:34.662Z
-App version: 13.3.1
+Generated: 2026-09-29T06:01:50.361Z
+App version: 13.3.3
 
 ## App Snapshot
 
@@ -24,7 +24,7 @@ App version: 13.3.1
 | observation-capture | Observation Capture | Teachers capture text, voice, lesson, and media observations with low-friction mobile flows. | `montessori-os/src/components/AddNoteFab.jsx`<br>`montessori-os/src/components/AddNoteModal.jsx`<br>`montessori-os/src/components/LessonNotesPage.jsx`<br>`montessori-os/src/components/LessonNotes.jsx`<br>`montessori-os/src/VoiceRecorder.jsx`<br>`montessori-os/src/components/MentionTextArea.jsx`<br>`montessori-os/src/components/ClassroomStudentPicker.jsx` |
 | timelines-and-media | Timelines and Media | Student and classroom timelines surface text/voice/lesson/media events with filtering and expansion flows. | `montessori-os/src/components/StudentTimeline.jsx`<br>`montessori-os/src/components/ClassroomTimeline.jsx`<br>`montessori-os/src/components/FilterPanel.jsx`<br>`montessori-os/src/components/StudentDashboard.jsx` |
 | analytics-and-notifications | Analytics and Notifications | Stats, performance cards, and escalation notifications highlight behavior/engagement patterns. | `montessori-os/src/components/StatsPage.jsx`<br>`montessori-os/src/components/NotificationsPage.jsx`<br>`montessori-os/src/components/PerformanceSummaryCard.jsx`<br>`montessori-os/src/notifications/NotificationStack.jsx` |
-| ai-tools-and-chat | AI Tools and Chat | Admin-configurable AI prompts and teacher-facing copilots (cleanup, transcriber, coach, chat). | `montessori-os/src/components/AIHomePage.jsx`<br>`montessori-os/src/components/AITextCleanupEditor.jsx`<br>`montessori-os/src/components/AIVoiceTranscriberEditor.jsx`<br>`montessori-os/src/components/AICoachEditor.jsx`<br>`montessori-os/src/components/ChatCommandCentreEditor.jsx`<br>`montessori-os/src/components/ChildChat.jsx`<br>`montessori-os/src/services/promptProvider.js` |
+| ai-tools-and-chat | AI Tools and Chat | Admin-configurable AI prompts and teacher-facing copilots (cleanup, coach, chat). | `montessori-os/src/components/AIHomePage.jsx`<br>`montessori-os/src/components/AITextCleanupEditor.jsx`<br>`montessori-os/src/components/AICoachEditor.jsx`<br>`montessori-os/src/components/ChatCommandCentreEditor.jsx`<br>`montessori-os/src/components/ChildChat.jsx`<br>`montessori-os/src/services/promptProvider.js` |
 | admin-and-access | Admin and Access | Role-aware access, user management, classroom operations, aliases, and graduation workflows. | `montessori-os/src/components/UsersAccessPage.jsx`<br>`montessori-os/src/components/GraduateStudentsPage.jsx`<br>`montessori-os/src/components/StudentAliasesPage.jsx`<br>`montessori-os/src/components/ConfigHomePage.jsx`<br>`montessori-os/src/components/LessonNoteConfigEditor.jsx`<br>`montessori-os/src/utils/roleUtils.js`<br>`firestore.rules` |
 | settings-feedback-shell | Settings, Feedback, and App Shell | Global navigation, profile/settings, feedback loops, and version/update surfaces. | `montessori-os/src/App.jsx`<br>`montessori-os/src/AppHeader.jsx`<br>`montessori-os/src/AppFooter.jsx`<br>`montessori-os/src/components/SettingsPage.jsx`<br>`montessori-os/src/components/ProfilePage.jsx`<br>`montessori-os/src/components/FeedbackPage.jsx`<br>`montessori-os/src/components/UpdateNotification.jsx` |
 
@@ -69,17 +69,17 @@ App version: 13.3.1
 - `montessori-os/src/components/UpdateNotification.jsx`
 
 ### AI Tools and Chat (`ai-tools-and-chat`)
-- Count: 11
-- Components: `AICoachEditor`, `AIHomePage`, `AITextCleanupEditor`, `AIVoiceTranscriberEditor`, `ChatCommandCentreEditor`, `ChatCommandCentreEditor.test`, `chatCommandCentreTools`, `chatCommandCentreTools.test`, `ChildChat`, `ChildChat.layout.test`, `ChildChat.test`
+- Count: 10
+- Components: `AICoachEditor`, `AIHomePage`, `AITextCleanupEditor`, `ChatCommandCentreEditor`, `ChatCommandCentreEditor.test`, `chatCommandCentreTools`, `chatCommandCentreTools.test`, `ChildChat`, `ChildChat.layout.test`, `ChildChat.test`
 - Representative paths:
 - `montessori-os/src/components/AICoachEditor.jsx`
 - `montessori-os/src/components/AIHomePage.jsx`
 - `montessori-os/src/components/AITextCleanupEditor.jsx`
-- `montessori-os/src/components/AIVoiceTranscriberEditor.jsx`
 - `montessori-os/src/components/ChatCommandCentreEditor.jsx`
 - `montessori-os/src/components/ChatCommandCentreEditor.test.js`
 - `montessori-os/src/components/chatCommandCentreTools.js`
 - `montessori-os/src/components/chatCommandCentreTools.test.js`
+- `montessori-os/src/components/ChildChat.jsx`
 
 ### Admin and Access (`admin-and-access`)
 - Count: 10
@@ -155,23 +155,23 @@ App version: 13.3.1
 
 ## Recent Changes
 
-### 13.3.1 (2026-09-27)
+### 13.3.3 (2026-09-28)
+- Silent/sub-1s voice recordings no longer produce hallucinated transcripts - pre-transcription 1000ms duration floor on both recorders, post-transcription segment gating on Whisper verbose_json quality signals (#304).
+- Whisper decoder-conditioning prompt removed end-to-end - makes prompt echo structurally impossible (#304).
+- Voice Transcriber config editor (`AIVoiceTranscriberEditor`) and its navigation/routing - live editor for a dead config field was a debugging trap (#304).
+
+### 13.3.2 (2026-09-27)
 - Digest docs store parsed `contentJson` (Firestore map) instead of rendered `htmlContent`; HTML rendered at send time only (#300).
 - CF2 superadmin prompt receives stringified JSON instead of HTML markup (~11k tokens saved per run) (#300).
 - Integrity contract (`verifyDigest`) asserts `contentJson` presence (#300).
+
+### 13.3.1 (2026-09-27)
+- Per-feature Langfuse tail-based sampling: `text_cleanup` and `whisper_translate` sampled at 10% for clean successes; failures/cap-hits always kept. Configured via `config/langfuse_sampling` doc (#298).
+- Error levels standardized across LLM plumbing: `runLLM` (ERROR on timeout/network/http/empty, WARNING on cap-hit), `agentLoop` (ERROR on timeout/network), `structuredLLM` (WARNING on validation failure, ERROR on repair exhaustion), `whisper-translate` (ERROR on network/http) (#298).
+- Whisper-translate generations now report `usageDetails: { audio_seconds }` for non-zero cost in Langfuse (#298).
 
 ### 13.3.0 (2026-09-23)
 - In-app structured assessment matrix viewer (`AssessmentMatrixSheet`) - bottom drawer showing all students' results with focus-student highlighting, replacing the source worksheet download (#290).
 - Medical PDF inline viewer (`MedicalPdfSheet`) - view-only iframe with signed URL and new-tab fallback; no download affordance anywhere (#290).
 - One-line assessment timeline entries (`AssessmentTimelineEntry`) for student and classroom timelines with inline popup links (#290).
-
-### 13.2.2 (2026-09-23)
-- Fan-out workers (`writingAnalysisWorker`, `baseballCardWorker`, `soulWorker`, `monthlyPlanWorker`) now set `failurePolicy: true` so thrown/timed-out invocations are redelivered instead of silently ACKed (#288).
-- Outbound LLM and Storage calls on worker paths now have per-entry-point request timeouts via `fetchWithTimeout`/`withTimeout`, converting silent CF platform timeouts into classified errors (#288).
-- Shared DLQ infrastructure: `setup-fanout-dlq.sh` provisions `fanout-dlq` topic, pull subscription, dead-letter policies (max 5 attempts), and Pub/Sub service-agent IAM for all four fan-out worker subscriptions (#288).
-
-### 13.2.1 (2026-09-10)
-- Student-name matching engine rewritten from Fuse.js single-pass to deterministic-first tiered ladder (exact full name, exact first name, Jaro-Winkler fuzzy) with three-zone classification (auto/review/no-match) (#285).
-- Shared `StudentMatchReview` component replaces duplicated match-review UIs in BulkUploadPage and AssessmentUploadPage (#285).
-- Review-zone rows pre-selected with best match for zero-tap confirmation; reject/skip removed in favor of all-or-nothing commit gating (#285).
 
