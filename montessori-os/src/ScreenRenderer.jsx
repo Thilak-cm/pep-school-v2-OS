@@ -3,7 +3,6 @@ import { Box, CircularProgress } from "@mui/material";
 import LandingPage from "./components/LandingPage";
 import AIHomePage from "./components/AIHomePage.jsx";
 import AITextCleanupEditor from "./components/AITextCleanupEditor.jsx";
-import AIVoiceTranscriberEditor from "./components/AIVoiceTranscriberEditor.jsx";
 import AICoachEditor from "./components/AICoachEditor.jsx";
 import ChatCommandCentreEditor from "./components/ChatCommandCentreEditor.jsx";
 import ClassroomList from "./components/ClassroomList";
@@ -351,7 +350,6 @@ function renderScreen(screen, ctx) {
         <AIHomePage
           userRole={ctx.role}
           onOpenTextEditor={() => ctx.setScreen("aiTextEditor")}
-          onOpenVoiceEditor={() => ctx.setScreen("aiVoiceEditor")}
           onOpenCoachEditor={() => ctx.setScreen("aiCoachEditor")}
           onOpenChatCommandCentre={() => ctx.setScreen("chatCommandCentre")}
           onOpenReportGenConfig={() => ctx.setScreen("reportGenConfig")}
@@ -360,9 +358,6 @@ function renderScreen(screen, ctx) {
 
     case "aiTextEditor":
       return <AITextCleanupEditor currentUser={ctx.user} userRole={ctx.role} />;
-
-    case "aiVoiceEditor":
-      return <AIVoiceTranscriberEditor currentUser={ctx.user} userRole={ctx.role} />;
 
     case "aiCoachEditor":
       return <AICoachEditor currentUser={ctx.user} userRole={ctx.role} />;

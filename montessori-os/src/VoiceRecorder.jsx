@@ -68,8 +68,12 @@ const VoiceRecorder = ({
   const timerRef = useRef(null);
   const audioChunksRef = useRef([]);
   const discardRef = useRef(false); // when true, discard audio on stop
+  // Wall-clock record start (#304). Deliberately not the recordingTime interval
+  // state: interval ticks are display-grade and unreliable at the 1s boundary.
+  const recordStartRef = useRef(null);
 
   const MAX_RECORDING_TIME = 300; // 5 minutes (300 seconds)
+  const MIN_RECORDING_MS = 1000; // duration floor (#304): sub-1s clips make Whisper hallucinate
   const autoAdvanceRef = useRef(false);
 
   useEffect(() => {
@@ -221,6 +225,7 @@ const VoiceRecorder = ({
 
       // Start recording
       mediaRecorderRef.current.start();
+      recordStartRef.current = Date.now();
       setIsRecording(true);
       setIsPaused(false);
       setPauseReason(null);
@@ -244,6 +249,21 @@ const VoiceRecorder = ({
 
   const stopRecording = () => {
     if (mediaRecorderRef.current && isRecording) {
+      // Duration floor (#304): discard sub-1s recordings before any upload or
+      // CF call - Whisper hallucinates on silent/near-empty audio. The onstop
+      // discard branch skips blob creation and transcription entirely.
+      const elapsedMs = Date.now() - (recordStartRef.current || 0);
+      if (elapsedMs < MIN_RECORDING_MS) {
+        discardRef.current = true;
+        mediaRecorderRef.current.stop();
+        setIsRecording(false);
+        setIsPaused(false);
+        setPauseReason(null);
+        stopTimer();
+        setRecordingTime(0);
+        notify.warning('Minimum recording time is 1 second');
+        return;
+      }
       mediaRecorderRef.current.stop();
       setIsRecording(false);
       setIsPaused(false);
@@ -452,7 +472,7 @@ const VoiceRecorder = ({
       setTranscription(transcriptionResult.text);
       
       if (!transcriptionResult.text) {
-        setTranscriptionError('No speech detected in the recording.');
+        setTranscriptionError("Couldn't hear any speech - please try recording again");
         if (onTranscriptionError) onTranscriptionError(new Error('no_transcript'));
       }
       

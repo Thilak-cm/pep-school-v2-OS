@@ -2,8 +2,10 @@ import { useState, useRef, useCallback, useEffect } from 'react';
 import { translateAudioToEnglish, validateAudioForTranscription } from '../whisperSTT';
 import { friendlyFunctionError } from '../utils/cloudFunctionErrors';
 import { reportCaughtError } from '../utils/reportCaughtError.js';
+import useNotify from '../notifications/useNotify.js';
 
 const MAX_RECORDING_TIME = 300; // 5 minutes
+const MIN_RECORDING_MS = 1000; // duration floor (#304): sub-1s clips make Whisper hallucinate
 
 /**
  * Hook that encapsulates inline voice recording + Whisper transcription.
@@ -31,7 +33,14 @@ export default function useInlineVoice({ onTranscribed } = {}) {
   const animationFrameRef = useRef(null);
   const streamRef = useRef(null);
   const discardRef = useRef(false);
+  // Wall-clock record start (#304). Deliberately not the recordingTime interval
+  // state: interval ticks are display-grade and unreliable at the 1s boundary.
+  const recordStartRef = useRef(null);
   const onTranscribedRef = useRef(onTranscribed);
+
+  // Too-short is a transient nudge, not an error state (#304) - toast instead
+  // of setting `error`, so the recorder is immediately ready to re-record.
+  const notify = useNotify();
 
   // Keep callback ref fresh without triggering re-renders
   useEffect(() => { onTranscribedRef.current = onTranscribed; }, [onTranscribed]);
@@ -159,7 +168,7 @@ export default function useInlineVoice({ onTranscribed } = {}) {
       if (result.text) {
         onTranscribedRef.current?.(result.text);
       } else {
-        setError('No speech detected in the recording.');
+        setError("Couldn't hear any speech - please try recording again");
       }
     } catch (err) {
       setError(`Transcription failed: ${friendlyFunctionError(err)}`);
@@ -191,6 +200,24 @@ export default function useInlineVoice({ onTranscribed } = {}) {
   const stopRecording = useCallback(() => {
     if (mediaRecorderRef.current && (mediaRecorderRef.current.state === 'recording' || mediaRecorderRef.current.state === 'paused')) {
       try {
+        // Duration floor (#304): discard sub-1s recordings before any upload
+        // or CF call - Whisper hallucinates on silent/near-empty audio. The
+        // onstop discard branch resets state without touching isTranscribing,
+        // so `active` drops and the overlay closes, ready to re-record.
+        const elapsedMs = Date.now() - (recordStartRef.current || 0);
+        if (elapsedMs < MIN_RECORDING_MS) {
+          discardRef.current = true;
+          mediaRecorderRef.current.stop();
+          setIsRecording(false);
+          setIsPaused(false);
+          stopTimer();
+          if (animationFrameRef.current) {
+            cancelAnimationFrame(animationFrameRef.current);
+            animationFrameRef.current = null;
+          }
+          notify.warning('Minimum recording time is 1 second');
+          return;
+        }
         mediaRecorderRef.current.stop();
         // Set isTranscribing BEFORE clearing isRecording so that `active`
         // (isRecording || isTranscribing) never flickers to false — which
@@ -208,7 +235,7 @@ export default function useInlineVoice({ onTranscribed } = {}) {
         resetRecordingState();
       }
     }
-  }, [stopTimer, resetRecordingState]);
+  }, [stopTimer, resetRecordingState, notify]);
 
   // Wire up the ref so the timer can call stopRecording
   useEffect(() => { stopRecordingRef.current = stopRecording; }, [stopRecording]);
@@ -293,6 +320,7 @@ export default function useInlineVoice({ onTranscribed } = {}) {
       setWaveformData([]);
 
       mediaRecorderRef.current.start();
+      recordStartRef.current = Date.now();
       await new Promise(resolve => setTimeout(resolve, 50));
 
       // Set up waveform analyser

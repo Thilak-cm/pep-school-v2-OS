@@ -1,5 +1,4 @@
 import * as functions from "firebase-functions/v1";
-import { db } from "../shared/firebase.js";
 import { OPENAI_API_KEY, getOpenAiKey, base64ToBlob } from "../shared/openai.js";
 import { LANGFUSE_SECRET_KEY, LANGFUSE_PUBLIC_KEY } from "../shared/llm.js";
 import { recordTailTrace, getTraceSampleRate } from "../shared/langfuse.js";
@@ -10,32 +9,67 @@ import { recordTailTrace, getTraceSampleRate } from "../shared/langfuse.js";
 const WHISPER_TRANSLATE_ENDPOINT = "https://api.openai.com/v1/audio/translations";
 const WHISPER_MODEL_INFO = { model: "whisper-1" };
 
-// TTL cache for voice context prompt
-const VOICE_PROMPT_TTL_MS = 5 * 60 * 1000;
-let voicePromptCache = { data: null, ts: 0 };
+// Whisper context prompt removed in #304: the `prompt` param is decoder
+// conditioning (fake "previous transcript"), not an instruction. On silent
+// audio the decoder would complete the descriptive prose, echoing it into the
+// transcript. Removal makes prompt echo structurally impossible. A vocab-list
+// prompt was considered and rejected: the 224-token window can't hold ~500
+// student names, and generic Montessori vocabulary is well-represented in
+// Whisper training data. The old voice transcriber config doc still exists in
+// Firestore but is intentionally unread.
 
-async function getVoiceContextPromptServer({ forceRefresh = false } = {}) {
-  const fresh =
-    !forceRefresh &&
-    voicePromptCache.data &&
-    (Date.now() - voicePromptCache.ts < VOICE_PROMPT_TTL_MS);
-  if (fresh) return voicePromptCache.data;
+// Hallucination gates on verbose_json segments (#304). Thresholds are the
+// reference defaults in OpenAI's transcribe.py and faster-whisper. Strict
+// inequalities: boundary values pass. The silence gate requires BOTH signals
+// (AND) because silence can hallucinate confidently and noisy real speech can
+// score low confidence - either alone gives false positives.
+const GATE_NO_SPEECH_PROB = 0.6;
+const GATE_AVG_LOGPROB = -1.0;
+const GATE_COMPRESSION_RATIO = 2.4;
 
-  try {
-    const snap = await db.collection("config").doc("voice_transcriber").get();
-    const data = snap.exists ? (snap.data() || {}) : {};
-    const contextPrompt = String(
-      data.contextPrompt ||
-        "This is a Montessori teacher recording educational observations about student learning and development. Content includes Montessori methodology, curriculum areas, student names, developmental milestones, and classroom activities."
-    );
-    voicePromptCache = { data: contextPrompt, ts: Date.now() };
-    return contextPrompt;
-  } catch {
-    const fallback =
-      "This is a Montessori teacher recording educational observations about student learning and development. Content includes Montessori methodology, curriculum areas, student names, developmental milestones, and classroom activities.";
-    voicePromptCache = { data: fallback, ts: Date.now() };
-    return fallback;
+/**
+ * Filter hallucinated segments out of a Whisper verbose_json response (#304).
+ * A segment is dropped when (no_speech_prob > 0.6 AND avg_logprob < -1.0)
+ * OR compression_ratio > 2.4. Segments with missing/non-numeric scores are
+ * kept (we can't prove hallucination). When `segments` is absent, falls back
+ * to the top-level text untouched.
+ *
+ * @param {object} json - Whisper verbose_json response
+ * @returns {{ text: string, droppedSegments: Array<{text: string, no_speech_prob: number, avg_logprob: number, compression_ratio: number}> }}
+ */
+export function extractGatedTranscript(json) {
+  const segments = json?.segments;
+  if (!Array.isArray(segments)) {
+    return { text: String(json?.text || "").trim(), droppedSegments: [] };
   }
+
+  const kept = [];
+  const droppedSegments = [];
+  for (const segment of segments) {
+    const noSpeech = Number(segment?.no_speech_prob);
+    const logProb = Number(segment?.avg_logprob);
+    const compression = Number(segment?.compression_ratio);
+
+    const silenceGate =
+      Number.isFinite(noSpeech) && Number.isFinite(logProb) &&
+      noSpeech > GATE_NO_SPEECH_PROB && logProb < GATE_AVG_LOGPROB;
+    const repetitionGate =
+      Number.isFinite(compression) && compression > GATE_COMPRESSION_RATIO;
+
+    if (silenceGate || repetitionGate) {
+      droppedSegments.push({
+        text: String(segment?.text || ""),
+        no_speech_prob: segment?.no_speech_prob,
+        avg_logprob: segment?.avg_logprob,
+        compression_ratio: segment?.compression_ratio,
+      });
+    } else {
+      kept.push(String(segment?.text || ""));
+    }
+  }
+
+  // Whisper segment text carries its own leading space - join raw, then trim.
+  return { text: kept.join("").trim(), droppedSegments };
 }
 
 // Max payload we allow for callable to avoid request-size limits (approx 9.5MB raw)
@@ -126,8 +160,6 @@ export const aiWhisperTranslate = functions
     form.append("file", blob, filename);
     form.append("model", WHISPER_MODEL_INFO.model);
     form.append("response_format", "verbose_json");
-    const contextPrompt = await getVoiceContextPromptServer({ forceRefresh: !!data?.forceRefresh });
-    form.append("prompt", contextPrompt);
 
     let response;
     try {
@@ -152,15 +184,22 @@ export const aiWhisperTranslate = functions
       throw new functions.https.HttpsError("internal", `STT error: ${response.status}`);
     }
     const json = await response.json();
-    const text = (json?.text || "").trim();
+    const { text, droppedSegments } = extractGatedTranscript(json);
     const language = json?.language || undefined;
+
+    // Log dropped segments with all three scores for production threshold
+    // tuning (#304) - developers keep the hallucination-vs-empty distinction
+    // even though callers only see text: "".
+    if (droppedSegments.length > 0) {
+      console.log("[aiWhisperTranslate] dropped hallucinated segments", JSON.stringify(droppedSegments));
+    }
 
     await recordExit({
       output: text,
       // usageDetails drives whisper cost in Langfuse (#298) - see
       // buildWhisperUsageDetails for the key-name contract.
       usageDetails: buildWhisperUsageDetails(json),
-      metadata: { detectedLanguage: language, textLength: text.length },
+      metadata: { detectedLanguage: language, textLength: text.length, droppedSegments: droppedSegments.length },
     }, { applySampling: true });
 
     return { text, detectedLanguage: language };
