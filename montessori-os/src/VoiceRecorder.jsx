@@ -2,7 +2,6 @@ import React, { useState, useRef, useEffect } from 'react';
 import useNotify from './notifications/useNotify.js';
 import { translateAudioToEnglish, validateAudioForTranscription } from './whisperSTT';
 import { friendlyFunctionError } from './utils/cloudFunctionErrors';
-import { cleanUpText } from './textCleanup';
 import {
   Box,
   Card,
@@ -53,12 +52,8 @@ const VoiceRecorder = ({
   // Edit mode state
   const [isEditing, setIsEditing] = useState(false);
   const [editableText, setEditableText] = useState('');
-  const [_originalTranscription, setOriginalTranscription] = useState('');
 
   // Polish with AI state
-  const [cleaning, setCleaning] = useState(false);
-  const [cleanedOnce, setCleanedOnce] = useState(false);
-  const [prevText, setPrevText] = useState('');
   
   // Confirmation dialog state
   const [showCancelConfirm, setShowCancelConfirm] = useState(false);
@@ -313,12 +308,6 @@ const VoiceRecorder = ({
     // Reset edit mode state
     setIsEditing(false);
     setEditableText('');
-    setOriginalTranscription('');
-    
-    // Reset polish state
-    setCleaning(false);
-    setCleanedOnce(false);
-    setPrevText('');
   };
 
   const retryTranscription = () => {
@@ -331,100 +320,15 @@ const VoiceRecorder = ({
     }
   };
 
-  const startEditing = () => {
-    setOriginalTranscription(transcription);
-    setEditableText(transcription);
-    setIsEditing(true);
-    // Reset polish state when entering edit mode
-    setCleanedOnce(false);
-    setPrevText('');
-  };
-
-  const cancelEditing = () => {
-    setShowCancelConfirm(true);
-  };
 
   const confirmCancelEdit = () => {
     setIsEditing(false);
     setEditableText('');
-    setOriginalTranscription('');
     setShowCancelConfirm(false);
   };
 
   const dismissCancelConfirm = () => {
     setShowCancelConfirm(false);
-  };
-
-  const saveEditing = () => {
-    if (!editableText.trim()) {
-      return; // Don't save empty text
-    }
-    const trimmedText = editableText.trim();
-    setTranscription(trimmedText);
-    // Update transcriptionData to keep it in sync
-    if (transcriptionData) {
-      setTranscriptionData({
-        ...transcriptionData,
-        text: trimmedText
-      });
-    }
-    setIsEditing(false);
-    setEditableText('');
-    setOriginalTranscription('');
-    // Reset polish state when editing manually
-    setCleanedOnce(false);
-    setPrevText('');
-  };
-
-  const handleCleanUp = async () => {
-    const textToClean = isEditing ? editableText : transcription;
-    if (!textToClean.trim() || cleaning || cleanedOnce) return;
-    try {
-      setCleaning(true);
-      setPrevText(textToClean);
-      const refined = await cleanUpText(textToClean).catch(() => null);
-      if (refined) {
-        const cleanedText = String(refined).trim();
-        if (isEditing) {
-          setEditableText(cleanedText);
-        } else {
-          setTranscription(cleanedText);
-          // Update transcriptionData to keep it in sync
-          if (transcriptionData) {
-            setTranscriptionData({
-              ...transcriptionData,
-              text: cleanedText
-            });
-          }
-        }
-        setCleanedOnce(true);
-      } else {
-        setCleanedOnce(false);
-      }
-    } catch (_e) {
-      setCleanedOnce(false);
-      notify.error('Failed to polish text. Please try again.');
-    } finally {
-      setCleaning(false);
-    }
-  };
-
-  const handleUndoClean = () => {
-    if (!prevText) return;
-    if (isEditing) {
-      setEditableText(prevText);
-    } else {
-      setTranscription(prevText);
-      // Update transcriptionData to keep it in sync
-      if (transcriptionData) {
-        setTranscriptionData({
-          ...transcriptionData,
-          text: prevText
-        });
-      }
-    }
-    setPrevText('');
-    setCleanedOnce(false);
   };
 
   // Language selection/labels removed
