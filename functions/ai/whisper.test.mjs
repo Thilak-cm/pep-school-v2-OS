@@ -9,7 +9,12 @@
 
 import { describe, it } from "node:test";
 import assert from "node:assert/strict";
-import { buildWhisperUsageDetails, buildRecordExit } from "./whisper.js";
+import { readFileSync } from "node:fs";
+import { join, dirname } from "node:path";
+import { fileURLToPath } from "node:url";
+import { buildWhisperUsageDetails, buildRecordExit, extractGatedTranscript } from "./whisper.js";
+
+const __dirname = dirname(fileURLToPath(import.meta.url));
 
 // ---------------------------------------------------------------------------
 // buildWhisperUsageDetails
@@ -32,6 +37,130 @@ describe("buildWhisperUsageDetails", () => {
     assert.equal(buildWhisperUsageDetails(null), undefined);
     assert.equal(buildWhisperUsageDetails({ duration: "not-a-number" }), undefined);
     assert.equal(buildWhisperUsageDetails({ duration: Infinity }), undefined);
+  });
+});
+
+// ---------------------------------------------------------------------------
+// extractGatedTranscript - hallucination gating on verbose_json segments (#304)
+//
+// Thresholds are OpenAI's reference defaults (transcribe.py / faster-whisper):
+// silence gate = no_speech_prob > 0.6 AND avg_logprob < -1.0 (both required),
+// repetition gate = compression_ratio > 2.4. Strict inequalities: boundary
+// values are kept.
+// ---------------------------------------------------------------------------
+
+// Clean segment factory: passes every gate unless overridden.
+function seg(text, overrides = {}) {
+  return { text, no_speech_prob: 0.1, avg_logprob: -0.3, compression_ratio: 1.5, ...overrides };
+}
+
+describe("extractGatedTranscript (#304)", () => {
+  it("keeps clean segments and joins their text", () => {
+    const json = { segments: [seg(" Hello"), seg(" world.")], text: "Hello world." };
+    const { text, droppedSegments } = extractGatedTranscript(json);
+    assert.equal(text, "Hello world.");
+    assert.deepEqual(droppedSegments, []);
+  });
+
+  it("drops a segment when no_speech_prob > 0.6 AND avg_logprob < -1.0", () => {
+    const json = {
+      segments: [seg(" real speech"), seg(" fema.gov", { no_speech_prob: 0.9, avg_logprob: -1.5 })],
+    };
+    const { text, droppedSegments } = extractGatedTranscript(json);
+    assert.equal(text, "real speech");
+    assert.equal(droppedSegments.length, 1);
+  });
+
+  it("keeps a segment when only ONE silence signal trips (AND gate)", () => {
+    const json = {
+      segments: [
+        seg(" confident silence hallucination?", { no_speech_prob: 0.9, avg_logprob: -0.2 }),
+        seg(" noisy real speech", { no_speech_prob: 0.1, avg_logprob: -1.8 }),
+      ],
+    };
+    const { text, droppedSegments } = extractGatedTranscript(json);
+    assert.equal(text, "confident silence hallucination? noisy real speech");
+    assert.deepEqual(droppedSegments, []);
+  });
+
+  it("drops a segment when compression_ratio > 2.4 regardless of other scores", () => {
+    const json = {
+      segments: [seg(" ok"), seg(" the the the the the", { compression_ratio: 3.1 })],
+    };
+    const { text, droppedSegments } = extractGatedTranscript(json);
+    assert.equal(text, "ok");
+    assert.equal(droppedSegments.length, 1);
+  });
+
+  it("keeps segments at exact boundary values (strict inequalities)", () => {
+    const json = {
+      segments: [
+        seg(" a", { no_speech_prob: 0.6, avg_logprob: -1.0 }),
+        seg(" b", { compression_ratio: 2.4 }),
+      ],
+    };
+    const { text, droppedSegments } = extractGatedTranscript(json);
+    assert.equal(text, "a b");
+    assert.deepEqual(droppedSegments, []);
+  });
+
+  it("returns empty text when all segments are dropped", () => {
+    const json = {
+      segments: [
+        seg(" This is a Montessori teacher recording...", { no_speech_prob: 0.95, avg_logprob: -1.4 }),
+      ],
+      text: "This is a Montessori teacher recording...",
+    };
+    const { text, droppedSegments } = extractGatedTranscript(json);
+    assert.equal(text, "");
+    assert.equal(droppedSegments.length, 1);
+  });
+
+  it("falls back to json.text when segments array is missing", () => {
+    assert.equal(extractGatedTranscript({ text: " plain text " }).text, "plain text");
+    assert.equal(extractGatedTranscript({}).text, "");
+    assert.equal(extractGatedTranscript(null).text, "");
+  });
+
+  it("keeps segments with missing/non-numeric scores (cannot prove hallucination)", () => {
+    const json = { segments: [{ text: " no scores at all" }, seg(" scored")] };
+    const { text, droppedSegments } = extractGatedTranscript(json);
+    assert.equal(text, "no scores at all scored");
+    assert.deepEqual(droppedSegments, []);
+  });
+
+  it("droppedSegments entries carry text and all three scores for tuning", () => {
+    const json = {
+      segments: [seg(" junk", { no_speech_prob: 0.8, avg_logprob: -1.2, compression_ratio: 1.1 })],
+    };
+    const { droppedSegments } = extractGatedTranscript(json);
+    assert.deepEqual(droppedSegments[0], {
+      text: " junk",
+      no_speech_prob: 0.8,
+      avg_logprob: -1.2,
+      compression_ratio: 1.1,
+    });
+  });
+});
+
+// ---------------------------------------------------------------------------
+// Prompt removal (#304): the descriptive decoder-conditioning prompt made
+// prompt echo possible on silent audio. It must be structurally absent.
+// ---------------------------------------------------------------------------
+
+describe("whisper.js prompt removal (#304)", () => {
+  const source = readFileSync(join(__dirname, "whisper.js"), "utf-8");
+
+  it("no longer appends a prompt to the Whisper form", () => {
+    assert.ok(!source.includes('form.append("prompt"'), "prompt form field must be gone");
+  });
+
+  it("no longer reads config/voice_transcriber", () => {
+    assert.ok(!source.includes("voice_transcriber"), "config fetch must be gone");
+  });
+
+  it("no longer embeds the descriptive default prompt", () => {
+    assert.ok(!source.includes("Montessori teacher recording"), "default prompt text must be gone");
   });
 });
 
