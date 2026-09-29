@@ -2,7 +2,6 @@ import React, { useState, useRef, useEffect } from 'react';
 import useNotify from './notifications/useNotify.js';
 import { translateAudioToEnglish, validateAudioForTranscription } from './whisperSTT';
 import { friendlyFunctionError } from './utils/cloudFunctionErrors';
-import { cleanUpText } from './textCleanup';
 import {
   Box,
   Card,
@@ -53,12 +52,8 @@ const VoiceRecorder = ({
   // Edit mode state
   const [isEditing, setIsEditing] = useState(false);
   const [editableText, setEditableText] = useState('');
-  const [_originalTranscription, setOriginalTranscription] = useState('');
 
   // Polish with AI state
-  const [cleaning, setCleaning] = useState(false);
-  const [cleanedOnce, setCleanedOnce] = useState(false);
-  const [prevText, setPrevText] = useState('');
   
   // Confirmation dialog state
   const [showCancelConfirm, setShowCancelConfirm] = useState(false);
@@ -68,8 +63,12 @@ const VoiceRecorder = ({
   const timerRef = useRef(null);
   const audioChunksRef = useRef([]);
   const discardRef = useRef(false); // when true, discard audio on stop
+  // Wall-clock record start (#304). Deliberately not the recordingTime interval
+  // state: interval ticks are display-grade and unreliable at the 1s boundary.
+  const recordStartRef = useRef(null);
 
   const MAX_RECORDING_TIME = 300; // 5 minutes (300 seconds)
+  const MIN_RECORDING_MS = 1000; // duration floor (#304): sub-1s clips make Whisper hallucinate
   const autoAdvanceRef = useRef(false);
 
   useEffect(() => {
@@ -221,6 +220,7 @@ const VoiceRecorder = ({
 
       // Start recording
       mediaRecorderRef.current.start();
+      recordStartRef.current = Date.now();
       setIsRecording(true);
       setIsPaused(false);
       setPauseReason(null);
@@ -244,6 +244,21 @@ const VoiceRecorder = ({
 
   const stopRecording = () => {
     if (mediaRecorderRef.current && isRecording) {
+      // Duration floor (#304): discard sub-1s recordings before any upload or
+      // CF call - Whisper hallucinates on silent/near-empty audio. The onstop
+      // discard branch skips blob creation and transcription entirely.
+      const elapsedMs = Date.now() - (recordStartRef.current || 0);
+      if (elapsedMs < MIN_RECORDING_MS) {
+        discardRef.current = true;
+        mediaRecorderRef.current.stop();
+        setIsRecording(false);
+        setIsPaused(false);
+        setPauseReason(null);
+        stopTimer();
+        setRecordingTime(0);
+        notify.warning('Minimum recording time is 1 second');
+        return;
+      }
       mediaRecorderRef.current.stop();
       setIsRecording(false);
       setIsPaused(false);
@@ -293,12 +308,6 @@ const VoiceRecorder = ({
     // Reset edit mode state
     setIsEditing(false);
     setEditableText('');
-    setOriginalTranscription('');
-    
-    // Reset polish state
-    setCleaning(false);
-    setCleanedOnce(false);
-    setPrevText('');
   };
 
   const retryTranscription = () => {
@@ -311,100 +320,15 @@ const VoiceRecorder = ({
     }
   };
 
-  const startEditing = () => {
-    setOriginalTranscription(transcription);
-    setEditableText(transcription);
-    setIsEditing(true);
-    // Reset polish state when entering edit mode
-    setCleanedOnce(false);
-    setPrevText('');
-  };
-
-  const cancelEditing = () => {
-    setShowCancelConfirm(true);
-  };
 
   const confirmCancelEdit = () => {
     setIsEditing(false);
     setEditableText('');
-    setOriginalTranscription('');
     setShowCancelConfirm(false);
   };
 
   const dismissCancelConfirm = () => {
     setShowCancelConfirm(false);
-  };
-
-  const saveEditing = () => {
-    if (!editableText.trim()) {
-      return; // Don't save empty text
-    }
-    const trimmedText = editableText.trim();
-    setTranscription(trimmedText);
-    // Update transcriptionData to keep it in sync
-    if (transcriptionData) {
-      setTranscriptionData({
-        ...transcriptionData,
-        text: trimmedText
-      });
-    }
-    setIsEditing(false);
-    setEditableText('');
-    setOriginalTranscription('');
-    // Reset polish state when editing manually
-    setCleanedOnce(false);
-    setPrevText('');
-  };
-
-  const handleCleanUp = async () => {
-    const textToClean = isEditing ? editableText : transcription;
-    if (!textToClean.trim() || cleaning || cleanedOnce) return;
-    try {
-      setCleaning(true);
-      setPrevText(textToClean);
-      const refined = await cleanUpText(textToClean).catch(() => null);
-      if (refined) {
-        const cleanedText = String(refined).trim();
-        if (isEditing) {
-          setEditableText(cleanedText);
-        } else {
-          setTranscription(cleanedText);
-          // Update transcriptionData to keep it in sync
-          if (transcriptionData) {
-            setTranscriptionData({
-              ...transcriptionData,
-              text: cleanedText
-            });
-          }
-        }
-        setCleanedOnce(true);
-      } else {
-        setCleanedOnce(false);
-      }
-    } catch (_e) {
-      setCleanedOnce(false);
-      notify.error('Failed to polish text. Please try again.');
-    } finally {
-      setCleaning(false);
-    }
-  };
-
-  const handleUndoClean = () => {
-    if (!prevText) return;
-    if (isEditing) {
-      setEditableText(prevText);
-    } else {
-      setTranscription(prevText);
-      // Update transcriptionData to keep it in sync
-      if (transcriptionData) {
-        setTranscriptionData({
-          ...transcriptionData,
-          text: prevText
-        });
-      }
-    }
-    setPrevText('');
-    setCleanedOnce(false);
   };
 
   // Language selection/labels removed
@@ -452,7 +376,7 @@ const VoiceRecorder = ({
       setTranscription(transcriptionResult.text);
       
       if (!transcriptionResult.text) {
-        setTranscriptionError('No speech detected in the recording.');
+        setTranscriptionError("Couldn't hear any speech - please try recording again");
         if (onTranscriptionError) onTranscriptionError(new Error('no_transcript'));
       }
       

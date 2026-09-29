@@ -86,11 +86,11 @@ const AREA_DEFINITIONS = [
     tag: "ai-tools-and-chat",
     name: "AI Tools and Chat",
     intent:
-      "Admin-configurable AI prompts and teacher-facing copilots (cleanup, transcriber, coach, chat).",
+      "Admin-configurable AI prompts and teacher-facing copilots (cleanup, coach, chat).",
     keyPaths: [
       "montessori-os/src/components/AIHomePage.jsx",
       "montessori-os/src/components/AITextCleanupEditor.jsx",
-      "montessori-os/src/components/AIVoiceTranscriberEditor.jsx",
+      // AIVoiceTranscriberEditor.jsx deleted in #304 (prompt echo removal)
       "montessori-os/src/components/AICoachEditor.jsx",
       "montessori-os/src/components/ChatCommandCentreEditor.jsx",
       "montessori-os/src/components/ChildChat.jsx",

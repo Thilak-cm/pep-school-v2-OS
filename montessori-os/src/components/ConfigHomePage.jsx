@@ -75,7 +75,7 @@ export default function ConfigHomePage({ userRole, onOpenLessonNoteConfig, onOpe
                   AI Tools
                 </Typography>
                 <Typography variant="body2" sx={{ color: 'var(--color-text-soft)', mt: 0.5 }}>
-                  Configure Text Cleanup, Voice Transcriber, and Coach prompts
+                  Configure Text Cleanup and Coach prompts
                 </Typography>
               </Box>
             </Box>

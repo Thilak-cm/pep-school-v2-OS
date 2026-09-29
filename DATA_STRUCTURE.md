@@ -968,7 +968,7 @@ Central config documents for app-wide settings and AI feature configuration. Sin
 Current documents
 - `lessonNote` — config for lesson notes UI
 - `text_summarizer` — prompts + model config for the Text Cleanup feature
-- `voice_transcriber` — context string for Whisper speech-to-text
+- `voice_transcriber` — (removed in #304) context string for Whisper speech-to-text; doc remains in Firestore but is intentionally unread
 - `coach_{program}` — per-program Coach nudge configuration (program ∈ toddler | primary | elementary | adolescent)
 - `chat_{program}` — per-program AI chat configuration. Shape: `{ systemPrompt: string, model: string, temperature: number, max_tokens: number, chatMessageLimit: number, observationWindowDays: number, allowedTools: string[] }`. `observationWindowDays` controls the date window for observations included in server-built chat context.
 - `report_{program}` — per-program parent progress report prompts + model config

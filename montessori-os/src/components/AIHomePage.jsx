@@ -1,9 +1,9 @@
 import React from 'react';
 import { Box, Card, CardContent, CardActionArea, Typography, Avatar } from '@mui/material';
-import { FileText as Description, AudioLines as GraphicEq, Brain as Psychology, Sparkles as AutoAwesome, MessageCircle as Chat, ClipboardList as Assessment } from '../icons';
+import { FileText as Description, Brain as Psychology, Sparkles as AutoAwesome, MessageCircle as Chat, ClipboardList as Assessment } from '../icons';
 import { isSuperAdmin } from '../utils/roleUtils';
 
-export default function AIHomePage({ userRole, onOpenTextEditor, onOpenVoiceEditor, onOpenCoachEditor, onOpenChatCommandCentre, onOpenReportGenConfig }) {
+export default function AIHomePage({ userRole, onOpenTextEditor, onOpenCoachEditor, onOpenChatCommandCentre, onOpenReportGenConfig }) {
   const isAdmin = isSuperAdmin(userRole);
 
   if (!isAdmin) {
@@ -36,25 +36,9 @@ export default function AIHomePage({ userRole, onOpenTextEditor, onOpenVoiceEdit
         </CardActionArea>
       </Card>
 
-      <Card sx={{ borderRadius: 2, '&:hover': { boxShadow: '0 8px 24px rgba(0,0,0,0.12)', transform: 'translateY(-2px)' }, transition: 'all 0.2s ease-in-out' }}>
-        <CardActionArea onClick={onOpenVoiceEditor} sx={{ p: 0 }}>
-          <CardContent sx={{ p: 3 }}>
-            <Box sx={{ display: 'flex', alignItems: 'center', gap: 2 }}>
-              <Avatar sx={{ bgcolor: 'var(--color-violet-dark)', width: 56, height: 56 }}>
-                <GraphicEq />
-              </Avatar>
-              <Box>
-                <Typography variant="h6" component="h3" sx={{ color: 'var(--color-text)', fontWeight: 600 }}>
-                  Voice Transcriber
-                </Typography>
-                <Typography variant="body2" sx={{ color: 'var(--color-text-soft)', mt: 0.5 }}>
-                  Configure STT context to improve transcription accuracy
-                </Typography>
-              </Box>
-            </Box>
-        </CardContent>
-      </CardActionArea>
-    </Card>
+      {/* Voice Transcriber editor removed in #304: the Whisper context prompt
+          fueled hallucination echo on silent audio and was deleted end-to-end.
+          A live editor for a dead config field is a debugging trap. */}
 
     <Card sx={{ borderRadius: 2, opacity: 0.5, pointerEvents: 'none' }}>
       <CardContent sx={{ p: 3 }}>

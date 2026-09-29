@@ -6,9 +6,10 @@ import { db } from '../firebase';
 
 const TTL_MS = 5 * 60 * 1000; // 5 minutes
 
+// voice_transcriber entry removed in #304: the Whisper context prompt was
+// deleted end-to-end (it caused hallucination echo on silent audio).
 const cache = {
   text_summarizer: { data: null, ts: 0 },
-  voice_transcriber: { data: null, ts: 0 },
 };
 
 function isFresh(ts) {
@@ -43,21 +44,11 @@ export async function getTextSummarizerPrompts({ forceRefresh = false } = {}) {
   return data;
 }
 
-export async function getWhisperContextPrompt({ forceRefresh = false } = {}) {
-  const entry = cache.voice_transcriber;
-  if (!forceRefresh && isFresh(entry.ts) && entry.data) return entry.data;
-  const data = await fetchDoc('voice_transcriber');
-  cache.voice_transcriber = { data, ts: Date.now() };
-  return data;
-}
-
 export function forceRefreshPrompts() {
   cache.text_summarizer = { data: null, ts: 0 };
-  cache.voice_transcriber = { data: null, ts: 0 };
 }
 
 export function forceRefreshKey(key) {
   if (key === 'text_summarizer') cache.text_summarizer = { data: null, ts: 0 };
-  if (key === 'voice_transcriber') cache.voice_transcriber = { data: null, ts: 0 };
 }
 

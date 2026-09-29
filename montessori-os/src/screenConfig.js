@@ -19,7 +19,6 @@ const STATIC_TITLES = {
   bulkUpload: "Bulk Upload",
   assessmentUpload: "Add Assessment",
   aiTextEditor: "Text Cleanup Editor",
-  aiVoiceEditor: "Voice Transcriber Editor",
   aiCoachEditor: "Coach Editor",
   chatCommandCentre: "Chat Command Centre",
   reportGenConfig: "Report Generation Config",
@@ -155,7 +154,6 @@ export function getBackNavigation(screen, state, setters) {
     case "broadcastComposer":
       return () => setters.setScreen?.("settings");
     case "aiTextEditor":
-    case "aiVoiceEditor":
     case "aiCoachEditor":
     case "chatCommandCentre":
     case "reportGenConfig":
