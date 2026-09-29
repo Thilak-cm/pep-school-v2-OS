@@ -1,5 +1,15 @@
 # Changelog
 
+# 13.3.3 — 2026-09-28
+
+### Fixed
+- Silent/sub-1s voice recordings no longer produce hallucinated transcripts - pre-transcription 1000ms duration floor on both recorders, post-transcription segment gating on Whisper verbose_json quality signals (#304).
+- Whisper decoder-conditioning prompt removed end-to-end - makes prompt echo structurally impossible (#304).
+
+### Removed
+- Voice Transcriber config editor (`AIVoiceTranscriberEditor`) and its navigation/routing - live editor for a dead config field was a debugging trap (#304).
+- `getWhisperContextPrompt` export and `voice_transcriber` cache slot from `promptProvider.js` (#304).
+
 # 13.3.2 — 2026-09-27
 
 ### Changed
