@@ -70,6 +70,9 @@ export function buildChatBody({ model, messages, temperature, max_completion_tok
  * @param {object} [options.responseFormat] - Response format (e.g. { type: "json_object" })
  * @param {string} [options.traceName] - Langfuse trace name (defaults to featureId)
  * @param {object} [options.traceMetadata] - Additional metadata for the Langfuse trace
+ * @param {string[]} [options.traceTags] - Langfuse trace tags (own-trace path only;
+ *   on the nested path the parent trace owns its tags). Used to distinguish run
+ *   provenance, e.g. "run:scheduled" vs "run:remediation" - see #167 follow-up.
  * @param {object} [options.generationMetadata] - Additional metadata for the Langfuse generation
  * @param {object} [options.trace] - Existing Langfuse trace to nest under (skips trace creation)
  * @param {number} [options.timeoutMs] - Abort the OpenRouter fetch after this many ms (#288).
@@ -88,6 +91,7 @@ export async function runLLM({
   responseFormat,
   traceName,
   traceMetadata,
+  traceTags,
   generationMetadata,
   trace,
   timeoutMs,
@@ -155,6 +159,7 @@ export async function runLLM({
       trace: {
         name: traceName || featureId,
         metadata: { featureId, requestedModel: model, resolvedModel, ...traceMetadata },
+        ...(traceTags?.length ? { tags: traceTags } : {}),
         startTime,
       },
       generation: {

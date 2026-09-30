@@ -25,6 +25,14 @@ describe("parseFanoutMessage", () => {
     assert.equal(result.targetMonth, "2026-10");
   });
 
+  it("copies optional keys when present, tolerates their absence", () => {
+    const withKey = { json: { studentId: "S1", executionId: "2026-10", runType: "remediation" } };
+    assert.equal(parseFanoutMessage(withKey, [], ["runType"]).runType, "remediation");
+    const withoutKey = { json: { studentId: "S1", executionId: "2026-10" } };
+    const parsed = parseFanoutMessage(withoutKey, [], ["runType"]);
+    assert.equal("runType" in parsed, false);
+  });
+
   it("throws on missing studentId", () => {
     const message = { json: { executionId: "2026-W37" } };
     assert.throws(() => parseFanoutMessage(message), /studentId is required/);

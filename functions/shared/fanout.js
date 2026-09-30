@@ -49,10 +49,14 @@ const PERMANENT_CODES = ["not-found", "failed-precondition", "internal"];
  *
  * @param {object} message Pub/Sub message (expects `.json`).
  * @param {string[]} [extraKeys] Additional required payload keys (e.g. "targetMonth").
+ * @param {string[]} [optionalKeys] Payload keys copied when present but never
+ *   required (e.g. "runType"). Optional rather than required so messages
+ *   published by an older dispatcher (or manual publishes without the key)
+ *   still parse instead of being ACKed as malformed.
  * @return {object} `{ studentId, executionId, ...extras }`
  * @throws {Error} on malformed payloads - callers ACK these (permanent).
  */
-export function parseFanoutMessage(message, extraKeys = []) {
+export function parseFanoutMessage(message, extraKeys = [], optionalKeys = []) {
   const json = message?.json;
   if (!json || typeof json !== "object") {
     throw new Error("invalid fan-out message: missing json payload");
@@ -64,6 +68,12 @@ export function parseFanoutMessage(message, extraKeys = []) {
       throw new Error(`invalid fan-out message: ${key} is required`);
     }
     parsed[key] = value;
+  }
+  for (const key of optionalKeys) {
+    const value = json[key];
+    if (typeof value === "string" && value.trim()) {
+      parsed[key] = value;
+    }
   }
   return parsed;
 }
@@ -143,12 +153,13 @@ export async function dispatchFanout({
  * @param {object} config
  * @param {string} config.jobKey Ledger job key.
  * @param {string[]} [config.extraKeys] Extra required payload keys.
+ * @param {string[]} [config.optionalKeys] Optional payload keys (copied when present).
  * @param {function(object): Promise<boolean>} [config.isAlreadyDone] Idempotency guard.
  * @param {function(object): Promise<object>} config.process Per-student work.
  * @param {object} [deps] Test injection: { updateWorkItem }.
  * @return {function(object): Promise<null>} Pub/Sub onPublish handler.
  */
-export function makeFanoutWorker({ jobKey, extraKeys = [], isAlreadyDone, process }, deps = {}) {
+export function makeFanoutWorker({ jobKey, extraKeys = [], optionalKeys = [], isAlreadyDone, process }, deps = {}) {
   const updateWorkItemFn = deps.updateWorkItem || updateWorkItem;
 
   return async (message) => {
@@ -162,7 +173,7 @@ export function makeFanoutWorker({ jobKey, extraKeys = [], isAlreadyDone, proces
 
     let ctx;
     try {
-      ctx = parseFanoutMessage(message, extraKeys);
+      ctx = parseFanoutMessage(message, extraKeys, optionalKeys);
     } catch (parseErr) {
       console.error(`[${jobKey}-worker] bad message, ACKing to stop retries:`, parseErr.message);
       return null;
