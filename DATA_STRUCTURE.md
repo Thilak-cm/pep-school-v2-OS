@@ -62,7 +62,7 @@ Notes:
 - Observation docs are fan-out per student (for group notes, write one doc per student). This makes student timelines trivial and admin analytics fast via collection group queries.
 
 Branch model overview
-- Add a first-class `branchId` dimension to core docs (users, classrooms, students, observations) to isolate data per campus/center.
+- Add a first-class `branchId` dimension to core docs (users, classrooms, students) to isolate data per campus/center (observation branchId later removed in #294).
 - `branches` is a lightweight metadata collection; you created four empty docs already: `hsr`, `whitefield`, `varthur`, `kokapet`.
 - Programs are global at `/programs/{programId}`.
 
@@ -277,7 +277,7 @@ interface Student {
 Guidance
 - Queries commonly include `classroomId` and `status`.
 - If a student moves classrooms, update `classroomId` and adjust `studentCount` in both rooms server-side.
- - When a student transfers across branches, update `branchId` to the new classroom's branch; historical observations remain under their original `branchId` for analytics integrity.
+ - When a student transfers across branches, update `branchId` on the student doc to the new classroom's branch. Observation docs do not carry `branchId` (removed in #294); branch is derived via student -> classroom -> branch.
  - Student IDs follow `YYYY-XXX-NNN` where:
    - `YYYY` is the current year at creation time (e.g., 2026)
   - `XXX` is a three-letter classroom code derived from the classroom document ID (slug), uppercased and padded
@@ -704,7 +704,6 @@ interface Observation {
   // Identity
   studentId: string;             // must equal parent {studentId}
   classroomId: string;           // denorm for queries; equals student's classroomId at creation
-  branchId: BranchId;            // denorm for analytics; equals student's branch at creation
   groupId?: string;              // shared id across fan-out docs for a multi-student note
                                    // Format: `group_${Date.now().toString(36)}_${Math.random().toString(36).slice(2, 6)}`
                                    // Set when creating notes for multiple students (text/voice/lesson notes)
@@ -756,7 +755,11 @@ interface Observation {
   groupDefaults?: Record<string, 'yes' | 'partial' | 'no' | 'na'>; // lesson notes – initial ratings
   ratings?: Record<string, 'yes' | 'partial' | 'no' | 'na'>;       // lesson notes – per student after overrides
   studentComment?: string;       // lesson notes – optional per-student comment
-  attendanceStatus?: 'present' | 'absent'; // lesson notes
+
+  // Note-to-lesson linking (#176)
+  linkedLessonObservationId?: string[]; // text/voice/media notes – lesson note IDs this note follows up on
+                                        // (legacy docs may carry a single string; readers normalize)
+  linkedObservations?: string[];        // lesson notes – backlink: observation/media IDs tagged to this lesson
 
   // 🆕 Coach (GPT review result + telemetry; no schema/prompt version fields) — text/voice notes
   coach?: {
@@ -841,8 +844,14 @@ Group notes (groupId)
 - Notes without `groupId` (single-student notes or legacy notes) display individually
 - For lesson notes: `groupId` is set when `lessonMode === 'group'`; individual lesson notes do not have `groupId`
 
-Branch transfer behavior
-- Existing observations retain their original `branchId` when a student transfers to another branch. New observations pick up the student's current branch.
+Branch derivation
+- Observations do not carry a `branchId` (#294 removed it: the denorm was only
+  written by bulk upload and assessments, never by app note flows, and no
+  reader used it). Derive branch via student -> classroom -> `branchId`.
+- Trade-off accepted in #294: derivation always yields the student's CURRENT
+  branch. The old (partial) denorm nominally preserved branch-at-creation for
+  transferred students, but no consumer ever read it. If branch-level
+  historical analytics become a requirement, reintroduce deliberately.
 
 Access policy: See [Pep OS Access-Control Policy](docs/security/access-control-policy.md).
 
@@ -1212,8 +1221,6 @@ MCP tools: `list_brain`, `get_brain_file`.
 - `students`
   - `branchId ASC, classroomId ASC, status ASC`
 - collection group `observations`
-  - `branchId ASC, observedAt DESC`
-  - `branchId ASC, createdBy ASC, observedAt DESC`
   - `classroomId ASC, observedAt DESC`
   - `groupId ASC, observedAt DESC` (for grouping multi-student notes in UI)
   - Stats composite: `classroomId ASC, createdAt ASC` (`COLLECTION_GROUP` scope)
@@ -1244,7 +1251,7 @@ See [Pep OS Access-Control Policy](docs/security/access-control-policy.md).
   - For lesson notes: set `groupId` when `lessonMode === 'group'`
 
 Migration/backfill (branches)
-- Add `branchId: 'hsr'` to all existing `classrooms`, `students`, and `observations`.
+- Add `branchId: 'hsr'` to all existing `classrooms` and `students` (observations were included in the original backfill, but observation branchId was removed in #294 - do not re-add it).
 - For `users` with role `teacher`, set `branchIds` based on assigned classrooms; optionally set `homeBranchId` for other roles.
 - Validate schema invariants and fix mismatches after backfill.
 
@@ -1463,7 +1470,7 @@ Access policy: See [Pep OS Access-Control Policy](docs/security/access-control-p
 
 ## ✅ Rationale
 - Fan-out per student + collection group queries balances write cost (bounded by class size) with extremely fast reads
-- Denormalized `classroomId` and `branchId` on observations support efficient queries
+- Denormalized `classroomId` on observations supports efficient queries
 - Cached creator name/email prevents n+1 user lookups in UI and reports
 - Feedback is stored as a global user-input channel
 

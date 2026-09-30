@@ -77,7 +77,6 @@ async function fetchObservations() {
         createdByName: d.createdByName ?? d.teacherName ?? 'unknown',
         studentId: studentDoc.id,
         classroomId: d.classroomId ?? 'unknown',
-        branchId: d.branchId ?? 'unknown',
       };
     });
   });

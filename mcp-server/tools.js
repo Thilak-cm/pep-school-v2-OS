@@ -112,7 +112,7 @@ export const TOOL_DEFINITIONS = [
   {
     name: "query_observations",
     description:
-      "Query observations across all students using collection group queries. Filter by classroomId, createdBy (teacher uid), branchId, type, and/or date range. Returns observations ordered by most recent first.",
+      "Query observations across all students using collection group queries. Filter by classroomId, createdBy (teacher uid), type, and/or date range. Returns observations ordered by most recent first.",
     inputSchema: {
       type: "object",
       properties: {
@@ -123,10 +123,6 @@ export const TOOL_DEFINITIONS = [
         createdBy: {
           type: "string",
           description: "Filter by teacher UID.",
-        },
-        branchId: {
-          type: "string",
-          description: "Filter by branch ID (e.g., hsr, whitefield).",
         },
         type: {
           type: "string",
@@ -923,7 +919,6 @@ export async function handleQueryObservations(db, params) {
   const {
     classroomId,
     createdBy,
-    branchId,
     type,
     days = 30,
     limit: maxResults = 50,
@@ -935,7 +930,9 @@ export async function handleQueryObservations(db, params) {
 
   if (classroomId) query = query.where("classroomId", "==", classroomId);
   if (createdBy) query = query.where("createdBy", "==", createdBy);
-  if (branchId) query = query.where("branchId", "==", branchId);
+  // #294: branchId filter removed - app-created notes never carried the
+  // field, so the filter silently returned partial results. Derive branch
+  // via classroom docs instead.
   // type is filtered in-handler to avoid needing additional composite indexes
   // for every (equality, type, observedAt) combination.
 

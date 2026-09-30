@@ -1,4 +1,4 @@
-import { LESSON_RATING_LABELS, LESSON_ATTENDANCE_LABELS, getLessonDimensions } from './lessonNoteConstraints.js';
+import { LESSON_RATING_LABELS, getLessonDimensions } from './lessonNoteConstraints.js';
 
 /**
  * Unified Export Utilities
@@ -91,7 +91,6 @@ export const cleanObservationData = (observation = {}) => ({
   createdByEmail: observation.createdByEmail || '',
   studentId: observation.studentId || '',
   classroomId: observation.classroomId || '',
-  branchId: observation.branchId || '',
   groupId: observation.groupId || null,
   starScore: observation.starScore || null,
   lessonTitle: observation.lessonTitle || observation.title || '',
@@ -102,7 +101,6 @@ export const cleanObservationData = (observation = {}) => ({
   groupDefaults: observation.groupDefaults || {},
   groupComment: observation.groupComment || '',
   studentComment: observation.studentComment || '',
-  attendanceStatus: observation.attendanceStatus || '',
   coach: observation.coach || null
 });
 

@@ -40,8 +40,31 @@ const formatRelativeTime = (ms) => {
   return `${days} day${days > 1 ? 's' : ''} ago`;
 };
 
+// Activity Trend series toggles — persisted so admins keep their preferred view (#none)
+const ACTIVITY_SERIES_STORAGE_KEY = 'pep-stats-activity-series';
+const ACTIVITY_SERIES_DEFAULT = { total: true, observations: false, lessons: false, media: false, assessments: false };
+const ACTIVITY_SERIES_META = [
+  { key: 'total', label: 'Total', color: '#334155' },
+  { key: 'observations', label: 'Observations', color: '#4f46e5' },
+  { key: 'lessons', label: 'Lessons', color: '#059669' },
+  { key: 'media', label: 'Media', color: '#ec4899' },
+  { key: 'assessments', label: 'Assessments', color: '#d97706' },
+];
+
+const loadActivitySeries = () => {
+  try {
+    const parsed = JSON.parse(localStorage.getItem(ACTIVITY_SERIES_STORAGE_KEY));
+    // Validate shape: every key present and boolean, else fall back to default
+    if (parsed && ACTIVITY_SERIES_META.every(({ key }) => typeof parsed[key] === 'boolean')) {
+      return ACTIVITY_SERIES_META.reduce((acc, { key }) => ({ ...acc, [key]: parsed[key] }), {});
+    }
+  } catch { /* corrupt storage — use default */ }
+  return ACTIVITY_SERIES_DEFAULT;
+};
+
 const StatsPage = ({ user, role, manageableClassrooms = [], onBack, onNavigateToStudent, onNavigateToBaseballCard: _onNavigateToBaseballCard }) => {
   const [activeTab, setActiveTab] = useState(0);
+  const [visibleSeries, setVisibleSeries] = useState(loadActivitySeries);
   const [timePeriod, setTimePeriod] = useState('1W');
   const [classroomTimePeriod, setClassroomTimePeriod] = useState('1W');
   const [teacherTimePeriod, setTeacherTimePeriod] = useState('1W');
@@ -383,6 +406,7 @@ const StatsPage = ({ user, role, manageableClassrooms = [], onBack, onNavigateTo
       lessons: lessonMerged[key] || 0,
       media: mediaMerged[key] || 0,
       assessments: assessmentMerged[key] || 0,
+      total: (obsMerged[key] || 0) + (lessonMerged[key] || 0) + (mediaMerged[key] || 0) + (assessmentMerged[key] || 0),
     }));
   };
 
@@ -458,6 +482,41 @@ const StatsPage = ({ user, role, manageableClassrooms = [], onBack, onNavigateTo
           <Typography variant="caption" sx={{ color: 'text.secondary', fontWeight: 600 }}>Assessments</Typography>
         </Box>
       </Box>
+    </Box>
+  );
+
+  const toggleSeries = (key) => {
+    setVisibleSeries(prev => {
+      const next = { ...prev, [key]: !prev[key] };
+      try { localStorage.setItem(ACTIVITY_SERIES_STORAGE_KEY, JSON.stringify(next)); } catch { /* storage unavailable — selection stays session-only */ }
+      return next;
+    });
+  };
+
+  const ActivityTrendLegend = () => (
+    <Box sx={{ mt: 1, display: 'flex', justifyContent: 'center', flexWrap: 'wrap', gap: 0.75 }}>
+      {ACTIVITY_SERIES_META.map(({ key, label, color }) => {
+        const active = visibleSeries[key];
+        return (
+          <Chip
+            key={key}
+            size="small"
+            label={label}
+            onClick={() => toggleSeries(key)}
+            icon={<Box sx={{ width: 10, height: 10, borderRadius: '50%', backgroundColor: color, opacity: active ? 1 : 0.2, ml: '6px !important' }} />}
+            sx={{
+              fontWeight: 600,
+              cursor: 'pointer',
+              border: '1px solid',
+              borderColor: active ? color : 'var(--color-border)',
+              backgroundColor: active ? `${color}14` : 'grey.100',
+              color: active ? color : 'text.disabled',
+              opacity: active ? 1 : 0.7,
+              '&:hover': { backgroundColor: active ? `${color}22` : 'grey.200' },
+            }}
+          />
+        );
+      })}
     </Box>
   );
 
@@ -676,6 +735,28 @@ const StatsPage = ({ user, role, manageableClassrooms = [], onBack, onNavigateTo
       );
     }
 
+    const anySeriesVisible = ACTIVITY_SERIES_META.some(({ key }) => visibleSeries[key]);
+
+    if (!anySeriesVisible) {
+      return (
+        <Box sx={{ width: '100%', minWidth: 0 }}>
+          <Box sx={{
+            display: 'flex',
+            justifyContent: 'center',
+            alignItems: 'center',
+            height: 250,
+            backgroundColor: 'grey.50',
+            borderRadius: 2
+          }}>
+            <Typography variant="body2" color="text.secondary">
+              Select a note type to see activity trend
+            </Typography>
+          </Box>
+          <ActivityTrendLegend />
+        </Box>
+      );
+    }
+
     return (
       <Box sx={{ width: '100%', minWidth: 0 }}>
         <Box sx={{ height: 250, width: '100%', minWidth: 0, minHeight: 250, position: 'relative' }}>
@@ -704,7 +785,8 @@ const StatsPage = ({ user, role, manageableClassrooms = [], onBack, onNavigateTo
                 content={({ active, payload }) => {
                   if (active && payload && payload.length) {
                     const d = payload[0]?.payload;
-                    const total = (d?.observations || 0) + (d?.lessons || 0) + (d?.media || 0) + (d?.assessments || 0);
+                    // Only show rows for visible series; header stays period-only to
+                    // avoid double-counting when Total + subtypes are both shown
                     return (
                       <Box sx={{
                         backgroundColor: 'white',
@@ -714,35 +796,29 @@ const StatsPage = ({ user, role, manageableClassrooms = [], onBack, onNavigateTo
                         boxShadow: '0 4px 12px rgba(0,0,0,0.1)'
                       }}>
                         <Typography sx={{ fontSize: '14px', fontWeight: 700, mb: 0.5 }}>
-                          {d?.period} — {total} {total === 1 ? 'note' : 'notes'}
+                          {d?.period}
                         </Typography>
-                        <Typography sx={{ fontSize: '12px', color: '#4f46e5' }}>
-                          Observations: {d?.observations || 0}
-                        </Typography>
-                        <Typography sx={{ fontSize: '12px', color: '#059669' }}>
-                          Lessons: {d?.lessons || 0}
-                        </Typography>
-                        <Typography sx={{ fontSize: '12px', color: '#ec4899' }}>
-                          Media: {d?.media || 0}
-                        </Typography>
-                        <Typography sx={{ fontSize: '12px', color: '#d97706' }}>
-                          Assessments: {d?.assessments || 0}
-                        </Typography>
+                        {ACTIVITY_SERIES_META.filter(({ key }) => visibleSeries[key]).map(({ key, label, color }) => (
+                          <Typography key={key} sx={{ fontSize: '12px', color }}>
+                            {label}: {d?.[key] || 0}
+                          </Typography>
+                        ))}
                       </Box>
                     );
                   }
                   return null;
                 }}
               />
-              <Line type="monotone" dataKey="observations" name="Observations" stroke="#4f46e5" strokeWidth={2.5} dot={{ fill: '#4f46e5', r: 3 }} /> {/* Recharts */}
-              <Line type="monotone" dataKey="lessons" name="Lessons" stroke="#059669" strokeWidth={2.5} dot={{ fill: '#059669', r: 3 }} /> {/* Recharts */}
-              <Line type="monotone" dataKey="media" name="Media" stroke="#ec4899" strokeWidth={2.5} dot={{ fill: '#ec4899', r: 3 }} /> {/* Recharts */}
-              <Line type="monotone" dataKey="assessments" name="Assessments" stroke="#d97706" strokeWidth={2.5} dot={{ fill: '#d97706', r: 3 }} /> {/* Recharts */}
+              {visibleSeries.total && <Line type="monotone" dataKey="total" name="Total" stroke="#334155" strokeWidth={3} strokeDasharray="6 3" dot={{ fill: '#334155', r: 3 }} />} {/* Recharts — dashed to read as sum, not category */}
+              {visibleSeries.observations && <Line type="monotone" dataKey="observations" name="Observations" stroke="#4f46e5" strokeWidth={2.5} dot={{ fill: '#4f46e5', r: 3 }} />} {/* Recharts */}
+              {visibleSeries.lessons && <Line type="monotone" dataKey="lessons" name="Lessons" stroke="#059669" strokeWidth={2.5} dot={{ fill: '#059669', r: 3 }} />} {/* Recharts */}
+              {visibleSeries.media && <Line type="monotone" dataKey="media" name="Media" stroke="#ec4899" strokeWidth={2.5} dot={{ fill: '#ec4899', r: 3 }} />} {/* Recharts */}
+              {visibleSeries.assessments && <Line type="monotone" dataKey="assessments" name="Assessments" stroke="#d97706" strokeWidth={2.5} dot={{ fill: '#d97706', r: 3 }} />} {/* Recharts */}
             </LineChart>
           </ResponsiveContainer>
         </Box>
-        {/* Legend */}
-        <NoteTypeLegend />
+        {/* Toggleable legend — Activity Trend only; classroom chart keeps static NoteTypeLegend */}
+        <ActivityTrendLegend />
       </Box>
     );
   };
