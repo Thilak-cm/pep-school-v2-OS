@@ -47,17 +47,6 @@ export const LESSON_RATING_COLORS = {
   na: '#475569'
 };
 
-export const LESSON_ATTENDANCE_LABELS = {
-  present: 'Present',
-  absent: 'Absent'
-};
-
-// Hex literals intentional — downstream code concatenates hex-alpha suffixes
-export const LESSON_ATTENDANCE_COLORS = {
-  present: '#0f766e',
-  absent: '#c2410c'
-};
-
 export const deriveDimensionKeyFromProgram = (programId = 'primary') => {
   if (!programId) return 'primary';
   const normalized = String(programId).toLowerCase();

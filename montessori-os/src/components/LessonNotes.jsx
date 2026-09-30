@@ -959,7 +959,6 @@ function LessonNoteWizard({
             ...(showDefaults ? { groupDefaults: effectiveDefaults } : {}),
             ratings,
             studentComment: studentOverrides[studentId]?.comment?.trim() || null,
-            attendanceStatus: 'present',
             lessonMode,
             ...(groupId ? { groupId } : {}),
             createdBy: currentUser?.uid || 'unknown',

@@ -704,7 +704,6 @@ interface Observation {
   // Identity
   studentId: string;             // must equal parent {studentId}
   classroomId: string;           // denorm for queries; equals student's classroomId at creation
-  branchId: BranchId;            // denorm for analytics; equals student's branch at creation
   groupId?: string;              // shared id across fan-out docs for a multi-student note
                                    // Format: `group_${Date.now().toString(36)}_${Math.random().toString(36).slice(2, 6)}`
                                    // Set when creating notes for multiple students (text/voice/lesson notes)
@@ -756,7 +755,11 @@ interface Observation {
   groupDefaults?: Record<string, 'yes' | 'partial' | 'no' | 'na'>; // lesson notes – initial ratings
   ratings?: Record<string, 'yes' | 'partial' | 'no' | 'na'>;       // lesson notes – per student after overrides
   studentComment?: string;       // lesson notes – optional per-student comment
-  attendanceStatus?: 'present' | 'absent'; // lesson notes
+
+  // Note-to-lesson linking (#176)
+  linkedLessonObservationId?: string[]; // text/voice/media notes – lesson note IDs this note follows up on
+                                        // (legacy docs may carry a single string; readers normalize)
+  linkedObservations?: string[];        // lesson notes – backlink: observation/media IDs tagged to this lesson
 
   // 🆕 Coach (GPT review result + telemetry; no schema/prompt version fields) — text/voice notes
   coach?: {
@@ -841,8 +844,14 @@ Group notes (groupId)
 - Notes without `groupId` (single-student notes or legacy notes) display individually
 - For lesson notes: `groupId` is set when `lessonMode === 'group'`; individual lesson notes do not have `groupId`
 
-Branch transfer behavior
-- Existing observations retain their original `branchId` when a student transfers to another branch. New observations pick up the student's current branch.
+Branch derivation
+- Observations do not carry a `branchId` (#294 removed it: the denorm was only
+  written by bulk upload and assessments, never by app note flows, and no
+  reader used it). Derive branch via student -> classroom -> `branchId`.
+- Trade-off accepted in #294: derivation always yields the student's CURRENT
+  branch. The old (partial) denorm nominally preserved branch-at-creation for
+  transferred students, but no consumer ever read it. If branch-level
+  historical analytics become a requirement, reintroduce deliberately.
 
 Access policy: See [Pep OS Access-Control Policy](docs/security/access-control-policy.md).
 

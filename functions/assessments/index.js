@@ -279,7 +279,6 @@ function mappedRows(parsedRows, mappingByName, students) {
       ...row,
       studentId,
       classroomId: student.classroomId || null,
-      branchId: student.branchId || null,
     };
   });
   const sourceRowsByStudent = new Map();
@@ -565,7 +564,6 @@ export const publishStructuredAssessment = functions
         sourceId: sourceRef.id,
         studentId: row.studentId,
         classroomId: row.classroomId,
-        branchId: row.branchId,
         assessmentName: parsed.metadata.assessmentName,
         assessmentDescription: parsed.metadata.assessmentDescription,
         assessmentDate: parsed.metadata.dateRange,
@@ -779,7 +777,6 @@ export const createMedicalAssessmentUpload = functions
       observationId,
       studentId,
       classroomId: student.classroomId,
-      branchId: student.branchId || null,
       assessmentName: requiredString(data?.assessmentName, "Report name", 250),
       assessmentDescription: optionalString(data?.assessmentDescription),
       originalFile: {
@@ -887,7 +884,6 @@ export const finalizeMedicalAssessmentUpload = functions
       schemaVersion: 1,
       studentId: pending.studentId,
       classroomId: pending.classroomId,
-      branchId: pending.branchId || null,
       assessmentName: pending.assessmentName,
       assessmentDescription: pending.assessmentDescription || "",
       originalFile: pending.originalFile,

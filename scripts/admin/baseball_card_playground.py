@@ -250,7 +250,6 @@ def format_notes_for_prompt(notes: List[Dict[str, Any]]) -> List[Dict[str, Any]]
       "observedAt": _choose_timestamp(n).isoformat() if _choose_timestamp(n) else None,
       "ratings": n.get("ratings") or n.get("dimensionRatings") or {},
       "dimensionOrder": n.get("dimensionOrder") or [],
-      "attendanceStatus": n.get("attendanceStatus") or "",
     })
   return formatted
 
