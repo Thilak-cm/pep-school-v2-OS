@@ -380,9 +380,12 @@ describe("runLLM provider-error retry (#310)", () => {
   function seqFetch(responses) {
     const calls = { count: 0 };
     globalThis.fetch = async () => {
-      const r = responses[Math.min(calls.count, responses.length - 1)];
+      const n = calls.count;
+      if (n >= responses.length) {
+        throw new Error(`seqFetch: unexpected call ${n}, only ${responses.length} response(s) scripted`);
+      }
       calls.count++;
-      return r;
+      return responses[n];
     };
     return calls;
   }
@@ -499,7 +502,11 @@ describe("runLLM provider-error retry (#310)", () => {
     const result = await runLLM({ ...baseArgs, deps, trace: parent.trace });
     assert.equal(result.content, "hello");
     assert.equal(parent.gens.length, 2, "both attempts nest under the one parent trace");
-    assert.equal(parent.gens[0].metadata.attempt, 0);
+    // Nested path: attempt-0 create-time metadata has no attempt (committed
+    // before the error is known - AC4 byte-identity). The attempt tag is
+    // injected via end-metadata (Langfuse merges end into create server-side).
+    assert.equal(parent.gens[0].metadata.attempt, undefined, "create-time metadata has no attempt");
+    assert.equal(parent.ends[0].metadata.attempt, 0, "attempt injected via end-metadata merge");
     assert.equal(parent.gens[1].metadata.attempt, 1);
     assert.equal(parent.ends[0].level, "ERROR");
     assert.equal(parent.ends[0].statusMessage, "provider_error");
@@ -567,6 +574,58 @@ describe("runLLM provider-error retry (#310)", () => {
       assert.equal(g.ends[0].statusMessage, "provider_error");
     }
     assert.ok(state.flushes >= 1, "promoted trace flushed even on the throw path");
+  });
+
+  it("own-trace path: 2 provider errors then success - 1 trace, 3 generations (2 ERROR + 1 success), flushed", async () => {
+    seqFetch([
+      response({ content: "p1", finishReason: "error" }),
+      response({ content: "p2", finishReason: "error" }),
+      response({ content: "good output" }),
+    ]);
+    const { calls, deps } = makeDeps();
+    const { state, client } = makeFakeLangfuse();
+    deps.createLangfuse = () => client;
+    const result = await runLLM({ ...baseArgs, deps });
+    assert.equal(result.content, "good output");
+    assert.equal(result.finishReason, "stop");
+    assert.equal(calls.record.length, 0, "tail recorder bypassed - promoted trace owns all generations");
+    assert.equal(state.traces.length, 1, "exactly one promoted trace");
+    const t = state.traces[0];
+    assert.equal(t.gens.length, 3, "2 ERROR + 1 success generations");
+    // Attempt 0: replayed onto promoted trace with injected attempt tag
+    assert.equal(t.gens[0].create.metadata.attempt, 0);
+    assert.equal(t.gens[0].ends[0].level, "ERROR");
+    assert.equal(t.gens[0].ends[0].statusMessage, "provider_error");
+    // Attempt 1: nested on promoted trace (inRetryContext = true)
+    assert.equal(t.gens[1].create.metadata.attempt, 1);
+    assert.equal(t.gens[1].ends[0].level, "ERROR");
+    assert.equal(t.gens[1].ends[0].statusMessage, "provider_error");
+    // Attempt 2: success
+    assert.equal(t.gens[2].create.metadata.attempt, 2);
+    assert.equal(t.gens[2].ends[0].level, undefined, "clean success has no level");
+    assert.ok(state.flushes >= 1, "harness owns the flush for the promoted client");
+  });
+
+  it("nested-path exhaustion: 3 consecutive errors -> throws unavailable, all 3 ERROR generations on parent trace", async () => {
+    const fetchCalls = seqFetch([
+      response({ content: "p1", finishReason: "error" }),
+      response({ content: "p2", finishReason: "error" }),
+      response({ content: "p3", finishReason: "error" }),
+    ]);
+    const { calls, deps } = makeDeps();
+    const parent = makeParentTrace();
+    await assert.rejects(
+      () => runLLM({ ...baseArgs, deps, trace: parent.trace }),
+      (err) => err.code === "unavailable",
+    );
+    assert.equal(parent.gens.length, 3, "all 3 attempts nest under the one parent trace");
+    for (let i = 0; i < 3; i++) {
+      assert.equal(parent.ends[i].level, "ERROR");
+      assert.equal(parent.ends[i].statusMessage, "provider_error");
+      assert.equal(parent.ends[i].metadata.attempt, i, `attempt ${i} tagged via end-metadata`);
+    }
+    assert.equal(fetchCalls.count, 3, "initial + 2 retries");
+    assert.equal(calls.record.length, 0, "nested path never calls the tail recorder");
   });
 
   it("no retry on finish_reason 'stop': exactly one call", async () => {

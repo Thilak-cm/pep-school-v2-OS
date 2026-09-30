@@ -89,7 +89,7 @@ export function buildChatBody({ model, messages, temperature, max_completion_tok
  *   No default by design: the entry point owns its CF budget and passes this down
  *   (background workers only - interactive onCall failures are already user-visible).
  *   Timeout aborts throw "unavailable" (transient), so fan-out workers rethrow -> redelivery.
- * @param {object} [options.deps] - Test injection: { recordTailTrace, getTraceSampleRate }
+ * @param {object} [options.deps] - Test injection: { recordTailTrace, getTraceSampleRate, createLangfuse }
  * @returns {Promise<{content: string, usage: object, resolvedModel: string, responseModel: string|null, finishReason: string|null}>}
  */
 export async function runLLM({
@@ -160,12 +160,23 @@ export async function runLLM({
    *
    * @param {number} attempt - 0-based attempt index, tagged on the generation
    *   so per-pipeline provider-error rates are analyzable in Langfuse.
+   * @param {boolean} inRetryContext - true when the harness knows this call
+   *   is part of a retry sequence (attempt > 0 OR a prior attempt triggered
+   *   trace promotion). Controls whether `attempt` is tagged on generation
+   *   metadata - AC4 requires non-retry paths to produce byte-identical
+   *   metadata to pre-#310 ({ featureId, requestedModel, ...generationMetadata }).
    * @returns {Promise<object>} { providerError: false, value } on success, or
    *   { providerError: true, buffered } after a finish_reason "error" exit.
    */
-  const attemptLLM = async (attempt) => {
+  const attemptLLM = async (attempt, inRetryContext) => {
     const startTime = new Date();
-    const attemptGenMetadata = { featureId, requestedModel: model, ...generationMetadata, attempt };
+    // AC4 byte-identity (#310): only tag `attempt` on generations that are part
+    // of a retry sequence. Clean single-call successes, timeouts, cap-hits, and
+    // all structuredLLM calls must produce metadata identical to pre-#310 output.
+    const attemptGenMetadata = {
+      featureId, requestedModel: model, ...generationMetadata,
+      ...(inRetryContext ? { attempt } : {}),
+    };
 
     const generation = (tracingEnabled && activeTrace)
       ? activeTrace.generation({
@@ -281,7 +292,11 @@ export async function runLLM({
           output: usage.completion_tokens,
           total: usage.total_tokens,
         } : undefined,
-        metadata: { responseModel, finishReason },
+        // Langfuse merges end-metadata into create-metadata server-side, so
+        // injecting `attempt` here tags the generation even on the nested path
+        // where create-time metadata was committed before the error was known.
+        // Satisfies AC2 ("tagged with attempt index") for all attempt-0 exits.
+        metadata: { responseModel, finishReason, attempt },
       };
       if (activeTrace) {
         await recordExit(end);
@@ -343,17 +358,26 @@ export async function runLLM({
   // IS the delayed layer after exhaustion. NOT a repair retry: a provider
   // error is not the model's mistake, so the partial output carries no
   // corrective signal (that failure class belongs to runStructuredLLM).
+  // inRetryContext tracks whether the harness has entered retry mode. Starts
+  // false; set true after the first provider error. Controls attempt-tag
+  // injection (AC4 byte-identity: non-retry generations must not carry it).
+  let inRetryContext = false;
   try {
     for (let attempt = 0; attempt <= MAX_PROVIDER_RETRIES; attempt++) {
-      const result = await attemptLLM(attempt);
+      const result = await attemptLLM(attempt, inRetryContext);
       if (!result.providerError) return result.value;
+
+      // From this point on, every subsequent attempt is in a retry context.
+      inRetryContext = true;
 
       console.warn(
         `[runLLM:${featureId}] provider error (finish_reason=error) on attempt ${attempt}`,
       );
       // Own-trace path, first provider error: promote to a real trace so all
       // attempts nest under one trace. Subsequent attempts take the nested
-      // path against it.
+      // path against it. Inject `attempt: 0` into the buffered generation's
+      // metadata - it was built without the tag (inRetryContext was false) but
+      // now belongs to a retry sequence.
       if (tracingEnabled && !activeTrace && result.buffered) {
         langfuse = createLangfuse();
         activeTrace = langfuse.trace({
@@ -362,7 +386,11 @@ export async function runLLM({
           ...(traceTags?.length ? { tags: traceTags } : {}),
           startTime: result.buffered.traceStartTime,
         });
-        activeTrace.generation(result.buffered.create).end(result.buffered.end);
+        const promoted = {
+          ...result.buffered.create,
+          metadata: { ...result.buffered.create.metadata, attempt: 0 },
+        };
+        activeTrace.generation(promoted).end(result.buffered.end);
       }
     }
   } finally {
