@@ -331,6 +331,274 @@ describe("runLLM tail sampling (#298)", () => {
   });
 });
 
+// ---------------------------------------------------------------------------
+// runLLM provider-error retry (#310)
+//
+// finish_reason "error" = OpenRouter's upstream died mid-generation after the
+// 200 was sent. Partial/empty content is never acceptable output for any
+// runLLM caller, so the harness re-issues the identical body (plain re-roll,
+// no backoff) up to MAX 2 retries, then throws "unavailable" (transport-class
+// -> Pub/Sub redelivery). The error check precedes the empty-content check.
+// ---------------------------------------------------------------------------
+
+describe("runLLM provider-error retry (#310)", () => {
+  const realFetch = globalThis.fetch;
+  const savedEnv = {};
+  const ENV_KEYS = ["OPENROUTER_API_KEY", "LANGFUSE_SECRET_KEY", "LANGFUSE_PUBLIC_KEY"];
+
+  beforeEach(() => {
+    for (const k of ENV_KEYS) savedEnv[k] = process.env[k];
+    process.env.OPENROUTER_API_KEY = "test-key";
+    process.env.LANGFUSE_SECRET_KEY = "sk-test";
+    process.env.LANGFUSE_PUBLIC_KEY = "pk-test";
+  });
+
+  afterEach(() => {
+    globalThis.fetch = realFetch;
+    for (const k of ENV_KEYS) {
+      if (savedEnv[k] === undefined) delete process.env[k];
+      else process.env[k] = savedEnv[k];
+    }
+  });
+
+  function response({
+    content = "hello",
+    finishReason = "stop",
+    usage = { prompt_tokens: 10, completion_tokens: 5, total_tokens: 15 },
+  } = {}) {
+    return {
+      ok: true,
+      headers: { get: () => null },
+      json: async () => ({
+        choices: [{ message: { content }, finish_reason: finishReason }],
+        usage,
+      }),
+    };
+  }
+
+  /** Scripted fetch: serves responses in order, counts calls. */
+  function seqFetch(responses) {
+    const calls = { count: 0 };
+    globalThis.fetch = async () => {
+      const r = responses[Math.min(calls.count, responses.length - 1)];
+      calls.count++;
+      return r;
+    };
+    return calls;
+  }
+
+  function makeDeps({ rate = 0.1 } = {}) {
+    const calls = { record: [], rate: [] };
+    return {
+      calls,
+      deps: {
+        recordTailTrace: async (payload) => {
+          calls.record.push(payload);
+          return true;
+        },
+        getTraceSampleRate: async (featureId) => {
+          calls.rate.push(featureId);
+          return rate;
+        },
+      },
+    };
+  }
+
+  /** Fake Langfuse client for asserting own-trace promotion. */
+  function makeFakeLangfuse() {
+    const state = { traces: [], flushes: 0 };
+    const client = {
+      trace(payload) {
+        const t = { payload, gens: [] };
+        t.generation = (gp) => {
+          const g = { create: gp, ends: [] };
+          t.gens.push(g);
+          return { end: (e) => g.ends.push(e) };
+        };
+        state.traces.push(t);
+        return t;
+      },
+      flushAsync: async () => {
+        state.flushes++;
+      },
+    };
+    return { state, client };
+  }
+
+  function makeParentTrace() {
+    const gens = [];
+    const ends = [];
+    return {
+      gens,
+      ends,
+      trace: {
+        generation(payload) {
+          gens.push(payload);
+          return { end: (p) => ends.push(p) };
+        },
+      },
+    };
+  }
+
+  const baseArgs = {
+    featureId: "text_cleanup",
+    messages: [{ role: "user", content: "hi" }],
+    model: "openai/test-model",
+  };
+
+  it("provider error then success: re-rolls and returns the successful content (tracing disabled)", async () => {
+    delete process.env.LANGFUSE_SECRET_KEY;
+    delete process.env.LANGFUSE_PUBLIC_KEY;
+    const calls = seqFetch([
+      response({ content: "partial garbage", finishReason: "error" }),
+      response(),
+    ]);
+    const result = await runLLM({ ...baseArgs });
+    assert.equal(result.content, "hello");
+    assert.equal(result.finishReason, "stop");
+    assert.equal(calls.count, 2, "one re-roll after the provider error");
+  });
+
+  it("error with empty content is retried, not thrown as empty_response (error check precedes empty check)", async () => {
+    delete process.env.LANGFUSE_SECRET_KEY;
+    delete process.env.LANGFUSE_PUBLIC_KEY;
+    const calls = seqFetch([
+      response({ content: "", finishReason: "error" }),
+      response(),
+    ]);
+    const result = await runLLM({ ...baseArgs });
+    assert.equal(result.content, "hello");
+    assert.equal(calls.count, 2);
+  });
+
+  it("exhaustion: 3 consecutive provider errors -> throws 'unavailable' after exactly 3 calls", async () => {
+    delete process.env.LANGFUSE_SECRET_KEY;
+    delete process.env.LANGFUSE_PUBLIC_KEY;
+    const calls = seqFetch([
+      response({ content: "p1", finishReason: "error" }),
+      response({ content: "p2", finishReason: "error" }),
+      response({ content: "p3", finishReason: "error" }),
+    ]);
+    await assert.rejects(
+      () => runLLM({ ...baseArgs }),
+      (err) => {
+        assert.equal(err.code, "unavailable", "transport-class so fan-out workers NACK -> redelivery");
+        return true;
+      },
+    );
+    assert.equal(calls.count, 3, "initial call + 2 retries, no more");
+  });
+
+  it("nested path: failed attempt ends level ERROR with statusMessage provider_error and attempt index; success attempt tagged too", async () => {
+    seqFetch([
+      response({ content: "partial", finishReason: "error" }),
+      response(),
+    ]);
+    const { calls, deps } = makeDeps();
+    const parent = makeParentTrace();
+    const result = await runLLM({ ...baseArgs, deps, trace: parent.trace });
+    assert.equal(result.content, "hello");
+    assert.equal(parent.gens.length, 2, "both attempts nest under the one parent trace");
+    assert.equal(parent.gens[0].metadata.attempt, 0);
+    assert.equal(parent.gens[1].metadata.attempt, 1);
+    assert.equal(parent.ends[0].level, "ERROR");
+    assert.equal(parent.ends[0].statusMessage, "provider_error");
+    assert.equal(parent.ends[1].level, undefined, "successful retry is a clean generation");
+    assert.equal(calls.record.length, 0, "nested path never calls the tail recorder");
+  });
+
+  it("failed attempts report token usage when the response includes it", async () => {
+    seqFetch([
+      response({ content: "partial", finishReason: "error", usage: { prompt_tokens: 7, completion_tokens: 3, total_tokens: 10 } }),
+      response(),
+    ]);
+    const { deps } = makeDeps();
+    const parent = makeParentTrace();
+    await runLLM({ ...baseArgs, deps, trace: parent.trace });
+    assert.deepEqual(parent.ends[0].usage, { input: 7, output: 3, total: 10 },
+      "retries make cost analysis honest - failed-attempt spend is real spend");
+  });
+
+  it("own-trace path: first provider error promotes to a real trace; recorder never called; flush owned by harness", async () => {
+    seqFetch([
+      response({ content: "partial", finishReason: "error" }),
+      response(),
+    ]);
+    const { calls, deps } = makeDeps();
+    const { state, client } = makeFakeLangfuse();
+    deps.createLangfuse = () => client;
+    const result = await runLLM({ ...baseArgs, deps });
+    assert.equal(result.content, "hello");
+    assert.equal(calls.record.length, 0, "tail recorder bypassed once a retry starts (ERROR = unconditional keep)");
+    assert.equal(calls.rate.length, 0, "no sample-rate coin flip on the promoted trace");
+    assert.equal(state.traces.length, 1, "exactly one promoted trace for all attempts");
+    const t = state.traces[0];
+    assert.equal(t.payload.name, "text_cleanup");
+    assert.equal(t.payload.metadata.featureId, "text_cleanup");
+    assert.ok(t.payload.startTime instanceof Date);
+    assert.equal(t.gens.length, 2, "attempt 0 ERROR generation replayed + attempt 1 success generation");
+    assert.equal(t.gens[0].create.metadata.attempt, 0);
+    assert.equal(t.gens[0].ends[0].level, "ERROR");
+    assert.equal(t.gens[0].ends[0].statusMessage, "provider_error");
+    assert.ok(t.gens[0].ends[0].endTime instanceof Date, "replayed generation keeps its real end time");
+    assert.equal(t.gens[1].create.metadata.attempt, 1);
+    assert.equal(t.gens[1].ends[0].level, undefined);
+    assert.ok(state.flushes >= 1, "harness owns the flush for the promoted client");
+  });
+
+  it("own-trace exhaustion: all 3 ERROR generations on one promoted trace, flushed, then throws unavailable", async () => {
+    seqFetch([
+      response({ content: "p1", finishReason: "error" }),
+      response({ content: "p2", finishReason: "error" }),
+      response({ content: "p3", finishReason: "error" }),
+    ]);
+    const { calls, deps } = makeDeps();
+    const { state, client } = makeFakeLangfuse();
+    deps.createLangfuse = () => client;
+    await assert.rejects(
+      () => runLLM({ ...baseArgs, deps }),
+      (err) => err.code === "unavailable",
+    );
+    assert.equal(calls.record.length, 0);
+    assert.equal(state.traces.length, 1);
+    assert.equal(state.traces[0].gens.length, 3);
+    for (const g of state.traces[0].gens) {
+      assert.equal(g.ends[0].level, "ERROR");
+      assert.equal(g.ends[0].statusMessage, "provider_error");
+    }
+    assert.ok(state.flushes >= 1, "promoted trace flushed even on the throw path");
+  });
+
+  it("no retry on finish_reason 'stop': exactly one call", async () => {
+    delete process.env.LANGFUSE_SECRET_KEY;
+    delete process.env.LANGFUSE_PUBLIC_KEY;
+    const calls = seqFetch([response()]);
+    const result = await runLLM({ ...baseArgs });
+    assert.equal(result.content, "hello");
+    assert.equal(calls.count, 1);
+  });
+
+  it("no retry on HTTP error: exactly one call, still throws internal", async () => {
+    delete process.env.LANGFUSE_SECRET_KEY;
+    delete process.env.LANGFUSE_PUBLIC_KEY;
+    let count = 0;
+    globalThis.fetch = async () => {
+      count++;
+      return { ok: false, status: 500, headers: { get: () => null }, text: async () => "boom" };
+    };
+    await assert.rejects(() => runLLM({ ...baseArgs }), /AI error: 500/);
+    assert.equal(count, 1, "HTTP errors keep their existing no-retry behavior");
+  });
+
+  it("no retry on empty content with finish_reason 'stop': one call, throws internal", async () => {
+    delete process.env.LANGFUSE_SECRET_KEY;
+    delete process.env.LANGFUSE_PUBLIC_KEY;
+    const calls = seqFetch([response({ content: "", finishReason: "stop" })]);
+    await assert.rejects(() => runLLM({ ...baseArgs }), /no content/);
+    assert.equal(calls.count, 1);
+  });
+});
+
 describe("runLLM timeoutMs (#288)", () => {
   const realFetch = globalThis.fetch;
   const savedEnv = {};
