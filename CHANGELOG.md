@@ -1,5 +1,11 @@
 # Changelog
 
+# 13.3.4 — 2026-09-30
+
+### Changed
+- `runLLM` retries `finish_reason: "error"` (provider mid-stream failures) with bounded plain re-roll - max 2 retries (3 calls total), no backoff. Exhaustion throws `HttpsError("unavailable")` so fan-out workers NACK/redeliver instead of permanently failing (#310).
+- Failed provider-error attempts recorded as Langfuse ERROR generations with attempt index and token usage, nested under one trace per call (#310).
+
 # 13.3.3 — 2026-09-28
 
 ### Fixed

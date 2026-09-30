@@ -125,7 +125,7 @@ async function trashExistingDocsByName(drive, folderId, docName) {
  * @param {string} generatedByName - display name or "Monthly Plan Cron"
  * @returns {Promise<object>} the saved plan doc
  */
-async function generatePlanInternal(studentId, targetMonth, generatedBy, generatedByName, { llmTimeoutMs = undefined } = {}) {
+async function generatePlanInternal(studentId, targetMonth, generatedBy, generatedByName, { llmTimeoutMs = undefined, runType = undefined } = {}) {
   // 1. Load config
   const config = await getMonthlyPlanConfig();
   const systemPrompt = config.systemPrompt;
@@ -251,7 +251,12 @@ async function generatePlanInternal(studentId, targetMonth, generatedBy, generat
     maxTokens,
     responseFormat: { type: "json_object" },
     traceName: "monthly-plan",
-    traceMetadata: { studentId, targetMonth },
+    // runType distinguishes run provenance in Langfuse (tag "run:scheduled"
+    // vs "run:remediation") so compensatory reruns of failed work items don't
+    // blend into batch-run analytics. Tag for one-click UI filtering, metadata
+    // for structured queries - both carried deliberately.
+    traceMetadata: { studentId, targetMonth, ...(runType ? { runType } : {}) },
+    ...(runType ? { traceTags: [`run:${runType}`] } : {}),
     timeoutMs: llmTimeoutMs,
   });
 
@@ -676,7 +681,7 @@ export const batchGenerateMonthlyPlans = functions
         // monthlyPlans expectedCount = toPublish.length (excludes dispatch-time
         // skips); other jobs use the default (= targetIds.length).
         expectedCount: toPublish.length,
-        buildPayload: (studentId) => ({ studentId, executionId, targetMonth }),
+        buildPayload: (studentId) => ({ studentId, executionId, targetMonth, runType: "scheduled" }),
       });
 
       const duration = ((Date.now() - startTime) / 1000).toFixed(1);
@@ -725,6 +730,9 @@ export const monthlyPlanWorker = functions
   .onPublish(makeFanoutWorker({
     jobKey: "monthlyPlans",
     extraKeys: ["targetMonth"],
+    // runType is optional (not extraKeys) so pre-existing messages without it
+    // still parse; defaults to "scheduled" in process below.
+    optionalKeys: ["runType"],
     // Idempotency guard: skip if plan already exists for targetMonth.
     // Prevents redundant LLM calls on Pub/Sub at-least-once redelivery.
     isAlreadyDone: async ({ studentId, targetMonth }) => {
@@ -732,7 +740,7 @@ export const monthlyPlanWorker = functions
         .collection("ai_summaries").doc("monthly_plan").get();
       return existingPlan.exists && existingPlan.data().month === targetMonth;
     },
-    process: async ({ studentId, targetMonth }) => {
+    process: async ({ studentId, targetMonth, runType }) => {
       // Step 1: Generate plan via shared internal helper.
       // Permanent/transient routing is handled by makeFanoutWorker's catch.
       await generatePlanInternal(
@@ -742,7 +750,7 @@ export const monthlyPlanWorker = functions
         "Monthly Plan Cron",
         // #288: abort timeout, worker path only. 120s = ~2x max observed
         // whole-invocation duration (~60s incl. LLM + Drive export, CF logs).
-        { llmTimeoutMs: 120_000 },
+        { llmTimeoutMs: 120_000, runType: runType || "scheduled" },
       );
       console.log(`[monthlyPlanWorker] generated plan for ${studentId}`);
 
