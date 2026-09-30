@@ -28,13 +28,13 @@ export const WATCH_FIELDS = [
   "teacherName",
 ];
 
-const UUID_RE =
-  /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
-
 /**
  * Classify an observation doc ID into its generation-site shape.
- * The uuid_fallback buckets answer #227's open question: do offline-queue
- * fallback IDs (`obs_${item.id}` where item.id is a UUID) exist in prod?
+ * The sq_fallback bucket answers #227's open question: do offline-queue
+ * fallback IDs exist in prod? saveQueue.js generates item.id as
+ * `sq_${rand8}_${ts36}` (line 520), and doc IDs are built as
+ * `obs_${item.id}` / `lesson_${item.id}` (lines 227/286), yielding
+ * IDs like `obs_sq_k3f8a2m1_lx9r2t`.
  * @param {string} id
  * @returns {string} shape bucket
  */
@@ -46,7 +46,8 @@ export function classifyDocId(id) {
     if (id.startsWith(`${prefix}_bulk_`)) return `${prefix}_bulk`;
     if (id.startsWith(`${prefix}_`)) {
       const rest = id.slice(prefix.length + 1);
-      if (UUID_RE.test(rest)) return `${prefix}_uuid_fallback`;
+      // Offline-queue fallback: item.id = sq_${rand8}_${ts36}
+      if (rest.startsWith("sq_")) return `${prefix}_sq_fallback`;
       // Standard app shape: `{prefix}_{ts36}_{rand}_{sid4}` -> 3 segments.
       const parts = rest.split("_");
       if (parts.length === 3 && parts.every((p) => p.length > 0)) {

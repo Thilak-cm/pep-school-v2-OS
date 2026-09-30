@@ -28,14 +28,15 @@ test("classifyDocId recognizes bulk-upload IDs", () => {
   assert.equal(classifyDocId("lesson_bulk_lx1234_abc456"), "lesson_bulk");
 });
 
-test("classifyDocId recognizes offline-queue uuid fallback IDs (#227 census)", () => {
+test("classifyDocId recognizes offline-queue sq_ fallback IDs (#227 census)", () => {
+  // Real shape: obs_sq_{rand8}_{ts36} per saveQueue.js line 520
   assert.equal(
-    classifyDocId("obs_3f2b8c9e-1a2b-4c3d-9e8f-123456789abc"),
-    "obs_uuid_fallback",
+    classifyDocId("obs_sq_abc12345_lx9r2t"),
+    "obs_sq_fallback",
   );
   assert.equal(
-    classifyDocId("lesson_3f2b8c9e-1a2b-4c3d-9e8f-123456789abc"),
-    "lesson_uuid_fallback",
+    classifyDocId("lesson_sq_abc12345_lx9r2t"),
+    "lesson_sq_fallback",
   );
 });
 

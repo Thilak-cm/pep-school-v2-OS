@@ -22,6 +22,10 @@
  *   node scripts/ops/observation-field-hygiene.mjs                 # dry-run
  *   node scripts/ops/observation-field-hygiene.mjs --limit 500     # smoke test
  *   node scripts/ops/observation-field-hygiene.mjs --yes           # apply
+ *   node scripts/ops/observation-field-hygiene.mjs --yes --limit N # partial apply (warns)
+ *
+ * Exit codes: 0 = clean or writes applied, 1 = error,
+ *             2 = dry-run found candidates (convention: cleanup-dangling-reports.mjs).
  */
 
 import path from "path";
@@ -59,7 +63,15 @@ function parseArgs(argv) {
   for (let i = 0; i < argv.length; i++) {
     const arg = argv[i];
     if (arg === "--yes") args.yes = true;
-    else if (arg === "--limit") args.limit = Number(argv[++i]) || null;
+    else if (arg === "--limit") {
+      const raw = argv[++i];
+      const n = Number(raw);
+      if (!Number.isFinite(n) || !Number.isInteger(n) || n <= 0) {
+        console.error(`--limit requires a positive integer, got: ${raw}`);
+        process.exit(1);
+      }
+      args.limit = n;
+    }
     else if (arg === "--help" || arg === "-h") args.help = true;
     else {
       console.error(`Unknown argument: ${arg}`);
@@ -87,6 +99,7 @@ async function scan(limit) {
     .limit(PAGE_SIZE);
   let lastDoc = null;
   let scanned = 0;
+  let lastLogged = 0;
 
   for (;;) {
     const page = lastDoc ? query.startAfter(lastDoc) : query;
@@ -107,8 +120,9 @@ async function scan(limit) {
     }
 
     lastDoc = snap.docs[snap.docs.length - 1];
-    if (scanned % 10000 < PAGE_SIZE) {
+    if (scanned - lastLogged >= 10000) {
       console.log(`  ...scanned ${scanned} docs`);
+      lastLogged = scanned;
     }
     if (snap.size < PAGE_SIZE) break;
   }
@@ -184,7 +198,13 @@ async function main() {
   report(census, deletePlan);
 
   if (!args.yes) {
-    console.log("\nDRY-RUN complete. No writes performed. Re-run with --yes to apply.");
+    if (deletePlan.length > 0) {
+      console.log("\nDRY-RUN complete. No writes performed. Re-run with --yes to apply.");
+      // Convention from cleanup-dangling-reports.mjs: exit 2 when dry-run
+      // found candidates that would be written.
+      process.exit(2);
+    }
+    console.log("\nDRY-RUN complete. Nothing to do.");
     return;
   }
 
@@ -195,6 +215,14 @@ async function main() {
 
   console.log(`\nApplying FieldValue.delete() to ${deletePlan.length} docs ...`);
   await applyDeletes(deletePlan);
+
+  if (args.limit) {
+    console.log(
+      `\nWARNING: writes applied to only the first ${args.limit} scanned docs. ` +
+      "A full re-run without --limit is required to complete cleanup.",
+    );
+  }
+
   console.log("Done. Re-run without --yes to verify zero remaining.");
 }
 
