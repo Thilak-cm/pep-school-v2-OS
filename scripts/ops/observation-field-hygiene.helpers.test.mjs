@@ -21,6 +21,7 @@ test("DEAD_FIELDS contains exactly the #294-approved fields", () => {
 test("classifyDocId recognizes standard app-created IDs", () => {
   assert.equal(classifyDocId("obs_muofqs6o_8dnj_2025"), "obs_standard");
   assert.equal(classifyDocId("lesson_muofe8fz_7yxh_2025"), "lesson_standard");
+  assert.equal(classifyDocId("media_mt7akpn3_kizl_2025"), "media_standard");
 });
 
 test("classifyDocId recognizes bulk-upload IDs", () => {
@@ -29,15 +30,10 @@ test("classifyDocId recognizes bulk-upload IDs", () => {
 });
 
 test("classifyDocId recognizes offline-queue sq_ fallback IDs (#227 census)", () => {
-  // Real shape: obs_sq_{rand8}_{ts36} per saveQueue.js line 520
-  assert.equal(
-    classifyDocId("obs_sq_abc12345_lx9r2t"),
-    "obs_sq_fallback",
-  );
-  assert.equal(
-    classifyDocId("lesson_sq_abc12345_lx9r2t"),
-    "lesson_sq_fallback",
-  );
+  // Real shape: {prefix}_sq_{rand8}_{ts36} per saveQueue.js line 520
+  assert.equal(classifyDocId("obs_sq_abc12345_lx9r2t"), "obs_sq_fallback");
+  assert.equal(classifyDocId("lesson_sq_abc12345_lx9r2t"), "lesson_sq_fallback");
+  assert.equal(classifyDocId("media_sq_rtzkvi1b_mpxynami"), "media_sq_fallback");
 });
 
 test("classifyDocId recognizes assessment IDs", () => {
@@ -45,10 +41,17 @@ test("classifyDocId recognizes assessment IDs", () => {
   assert.equal(classifyDocId("assessment_medical_AbC123xyz9"), "medical_assessment");
 });
 
+test("classifyDocId recognizes Firestore auto-generated IDs (legacy)", () => {
+  assert.equal(classifyDocId("rXD48uE7eMGUYdRsXmTn"), "firestore_auto_id");
+  assert.equal(classifyDocId("45mV5rN37mfaIifsMGJD"), "firestore_auto_id");
+});
+
 test("classifyDocId buckets everything else as other", () => {
   assert.equal(classifyDocId("randomjunk"), "other");
   assert.equal(classifyDocId("obs_onlytwoparts"), "other");
   assert.equal(classifyDocId(""), "other");
+  // 19 chars - not a Firestore auto-ID
+  assert.equal(classifyDocId("rXD48uE7eMGUYdRsXmT"), "other");
 });
 
 // --- census accumulation ---

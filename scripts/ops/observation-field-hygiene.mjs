@@ -1,19 +1,16 @@
 /**
- * Observation field hygiene: census + dead-field cleanup (#294).
+ * Observation dead-field cleanup (#294).
  *
- * One full scan of students/{sid}/observations serves three issues at once
- * (scanning ~70k docs twice would double the ops/review burden for no gain):
- *  1. #294 - deletes proven-dead fields (DEAD_FIELDS: attendanceStatus,
- *     branchId) from every doc carrying them.
- *  2. #227 - doc-ID shape census proves whether offline-queue uuid-fallback
- *     IDs exist in prod (blocks practice-note doc-ID decision).
- *  3. #295 - field-name frequency census per observation type verifies the
- *     suspected docs-phantom / legacy fields (WATCH_FIELDS) against reality.
+ * Scans students/{sid}/observations and deletes proven-dead fields
+ * (DEAD_FIELDS: attendanceStatus, branchId) from every doc carrying them.
  *
- * Read-only by default: always prints the censuses and the delete plan
- * WITHOUT writing. Requires --yes to apply FieldValue.delete() updates.
+ * Read-only by default: prints the delete plan WITHOUT writing.
+ * Requires --yes to apply FieldValue.delete() updates.
  * Idempotent and re-runnable (re-run after deploys to catch docs written by
  * stale cached clients).
+ *
+ * For the read-only census (doc-ID shapes, field frequency per type), use
+ * observation-census.mjs instead - no write concerns.
  *
  * Dry-run output identifies doc paths and field NAMES only - no field values
  * are printed (Firestore mutation script convention, see CLAUDE.md).
@@ -34,9 +31,6 @@ import { fileURLToPath } from "url";
 import admin from "firebase-admin";
 import {
   DEAD_FIELDS,
-  WATCH_FIELDS,
-  createCensus,
-  recordDoc,
   fieldsToDelete,
 } from "./observation-field-hygiene.helpers.mjs";
 
@@ -89,7 +83,6 @@ function printCounts(label, counts) {
 }
 
 async function scan(limit) {
-  const census = createCensus();
   /** @type {Array<{ref: FirebaseFirestore.DocumentReference, fields: string[]}>} */
   const deletePlan = [];
 
@@ -107,16 +100,10 @@ async function scan(limit) {
     if (snap.empty) break;
 
     for (const doc of snap.docs) {
-      const data = doc.data();
-      recordDoc(census, {
-        id: doc.id,
-        type: data.type,
-        fieldNames: Object.keys(data),
-      });
-      const dead = fieldsToDelete(data, DEAD_FIELDS);
+      const dead = fieldsToDelete(doc.data(), DEAD_FIELDS);
       if (dead.length > 0) deletePlan.push({ ref: doc.ref, fields: dead });
       scanned += 1;
-      if (limit && scanned >= limit) return { census, deletePlan };
+      if (limit && scanned >= limit) return { scanned, deletePlan };
     }
 
     lastDoc = snap.docs[snap.docs.length - 1];
@@ -127,36 +114,16 @@ async function scan(limit) {
     if (snap.size < PAGE_SIZE) break;
   }
 
-  return { census, deletePlan };
+  return { scanned, deletePlan };
 }
 
-function report(census, deletePlan) {
-  console.log("\n=== Doc-ID shape census (#227) ===");
-  printCounts("ID shapes:", census.idShapes);
-
-  console.log("\n=== Observation type counts ===");
-  printCounts("Types:", census.typeCounts);
-
-  console.log("\n=== Field census per type (#295) ===");
-  for (const [type, fields] of Object.entries(census.fieldCensus)) {
-    printCounts(`type=${type} (${census.typeCounts[type]} docs):`, fields);
-  }
-
-  console.log("\n=== Watch fields (#295 suspects) ===");
-  for (const field of WATCH_FIELDS) {
-    let total = 0;
-    for (const fields of Object.values(census.fieldCensus)) {
-      total += fields[field] || 0;
-    }
-    console.log(`  ${field.padEnd(32)} ${total}`);
-  }
-
+function report(scanned, deletePlan) {
   console.log("\n=== Dead-field delete plan ===");
   const perField = {};
   for (const entry of deletePlan) {
     for (const f of entry.fields) perField[f] = (perField[f] || 0) + 1;
   }
-  console.log(`Docs needing cleanup: ${deletePlan.length} of ${census.total}`);
+  console.log(`Docs needing cleanup: ${deletePlan.length} of ${scanned}`);
   printCounts("Deletions per field:", perField);
   for (const entry of deletePlan.slice(0, SAMPLE_PATHS)) {
     console.log(`  ${entry.ref.path} -> delete [${entry.fields.join(", ")}]`);
@@ -194,8 +161,8 @@ async function main() {
   if (args.limit) console.log(`Scan limited to first ${args.limit} docs (smoke test)`);
 
   console.log("\nScanning students/*/observations ...");
-  const { census, deletePlan } = await scan(args.limit);
-  report(census, deletePlan);
+  const { scanned, deletePlan } = await scan(args.limit);
+  report(scanned, deletePlan);
 
   if (!args.yes) {
     if (deletePlan.length > 0) {
