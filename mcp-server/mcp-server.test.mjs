@@ -901,6 +901,20 @@ describe("handleQueryObservations type filter", () => {
     const result = await handleQueryObservations(db, {});
     assert.equal(result.length, 4);
   });
+
+  // #294: branchId was a partial denorm - app-created notes never carried it,
+  // so the filter silently dropped most docs. Removed from handler + schema.
+  it("ignores a stray branchId param instead of filtering on it", async () => {
+    const db = createMockDb(assessmentFixtures().collections);
+    const result = await handleQueryObservations(db, { branchId: "hsr" });
+    assert.equal(result.length, 4);
+  });
+
+  it("does not expose branchId in the query_observations schema (#294)", () => {
+    const def = TOOL_DEFINITIONS.find((t) => t.name === "query_observations");
+    assert.ok(def);
+    assert.ok(!("branchId" in def.inputSchema.properties));
+  });
 });
 
 // --- get_digest (#300: contentJson with legacy htmlContent tolerance) ---
