@@ -1,5 +1,15 @@
 # Changelog
 
+# 13.3.4 - 2026-09-30
+
+### Removed
+- Dead `attendanceStatus` field from all observation write sites (`LessonNotes`, `saveQueue`, bulk upload) and prompt/export paths - it was hardcoded `'present'` everywhere and no absent-marking UI ever existed (#294).
+- Dead observation-doc `branchId` denorm: write sites (saveQueue, bulk upload, assessments CF), MCP `query_observations` filter, and the unused `(branchId, observedAt)` composite index - branch derives via student -> classroom (#294).
+- `LESSON_ATTENDANCE_LABELS` / `LESSON_ATTENDANCE_COLORS` constants and the dead import in `export.js` (#294).
+
+### Added
+- Ops script `observation-field-hygiene.mjs`: strips dead fields from all observation docs (dry-run by default, `--yes` gate, exit 2 on pending work) and emits doc-ID-shape and per-type field censuses to gate #227 and feed #295 (#294).
+
 # 13.3.3 — 2026-09-28
 
 ### Fixed
