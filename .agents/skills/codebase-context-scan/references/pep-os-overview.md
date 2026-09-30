@@ -1,7 +1,7 @@
 # Pep OS Overview
 
-Generated: 2026-09-29T06:01:50.361Z
-App version: 13.3.3
+Generated: 2026-09-30T22:45:08.829Z
+App version: 13.3.4
 
 ## App Snapshot
 
@@ -155,6 +155,10 @@ App version: 13.3.3
 
 ## Recent Changes
 
+### 13.3.4 (2026-09-30)
+- `runLLM` retries `finish_reason: "error"` (provider mid-stream failures) with bounded plain re-roll - max 2 retries (3 calls total), no backoff. Exhaustion throws `HttpsError("unavailable")` so fan-out workers NACK/redeliver instead of permanently failing (#310).
+- Failed provider-error attempts recorded as Langfuse ERROR generations with attempt index and token usage, nested under one trace per call (#310).
+
 ### 13.3.3 (2026-09-28)
 - Silent/sub-1s voice recordings no longer produce hallucinated transcripts - pre-transcription 1000ms duration floor on both recorders, post-transcription segment gating on Whisper verbose_json quality signals (#304).
 - Whisper decoder-conditioning prompt removed end-to-end - makes prompt echo structurally impossible (#304).
@@ -169,9 +173,4 @@ App version: 13.3.3
 - Per-feature Langfuse tail-based sampling: `text_cleanup` and `whisper_translate` sampled at 10% for clean successes; failures/cap-hits always kept. Configured via `config/langfuse_sampling` doc (#298).
 - Error levels standardized across LLM plumbing: `runLLM` (ERROR on timeout/network/http/empty, WARNING on cap-hit), `agentLoop` (ERROR on timeout/network), `structuredLLM` (WARNING on validation failure, ERROR on repair exhaustion), `whisper-translate` (ERROR on network/http) (#298).
 - Whisper-translate generations now report `usageDetails: { audio_seconds }` for non-zero cost in Langfuse (#298).
-
-### 13.3.0 (2026-09-23)
-- In-app structured assessment matrix viewer (`AssessmentMatrixSheet`) - bottom drawer showing all students' results with focus-student highlighting, replacing the source worksheet download (#290).
-- Medical PDF inline viewer (`MedicalPdfSheet`) - view-only iframe with signed URL and new-tab fallback; no download affordance anywhere (#290).
-- One-line assessment timeline entries (`AssessmentTimelineEntry`) for student and classroom timelines with inline popup links (#290).
 
