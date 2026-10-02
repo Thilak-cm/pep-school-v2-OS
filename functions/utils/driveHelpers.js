@@ -1,5 +1,6 @@
 import { google } from "googleapis";
 import { AY_START_MONTH, DRIVE_CONSTANTS, DOC_STYLE, LOGO_URL } from "../config/reportConstants.js";
+import { sanitizeForGDocsApi } from "./docsText.js";
 
 /**
  * Resolve a student document's display name.
@@ -255,6 +256,11 @@ export async function createReportDoc(
 export function buildDocInsertRequests(markdown, opts) {
   if (!markdown || !markdown.trim()) return [];
 
+  // Sanitize BEFORE any parsing or length counting. All style-range indices
+  // below are computed from text lengths; sanitizing later (or not at all)
+  // causes index drift against the Docs API - see utils/docsText.js.
+  markdown = sanitizeForGDocsApi(markdown);
+
   const lines = markdown.split("\n");
   const hasOpts = opts && opts.studentName;
 
@@ -299,7 +305,7 @@ export function buildDocInsertRequests(markdown, opts) {
     }
 
     // 2. Student name heading
-    const nameText = opts.studentName + "\n";
+    const nameText = sanitizeForGDocsApi(opts.studentName) + "\n";
     requests.push({
       insertText: { location: { index: idx }, text: nameText },
     });
@@ -321,7 +327,7 @@ export function buildDocInsertRequests(markdown, opts) {
     const startStr = formatDateForMeta(opts.startDate);
     const endStr = formatDateForMeta(opts.endDate);
     const datePipe = startStr ? ` | ${startStr} to ${endStr || "date"}` : "";
-    const metaText = `${opts.programName || ""} | ${opts.classroomName || ""}${datePipe} | AY ${opts.academicYear || ""}\n`;
+    const metaText = sanitizeForGDocsApi(`${opts.programName || ""} | ${opts.classroomName || ""}${datePipe} | AY ${opts.academicYear || ""}`) + "\n";
     requests.push({
       insertText: { location: { index: idx }, text: metaText },
     });
