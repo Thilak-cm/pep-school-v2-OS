@@ -4,7 +4,7 @@ import {
   buildBatchWritingPrompt,
   calculateAge,
   parseWritingAnalysisResponse,
-} from "./utils/handwritingAnalysisHelpers.js";
+} from "../utils/handwritingAnalysisHelpers.js";
 
 // ---------------------------------------------------------------------------
 // AC1 + AC3: buildBatchWritingPrompt

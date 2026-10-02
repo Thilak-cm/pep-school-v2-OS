@@ -1,13 +1,14 @@
 {
-  "name": "voice-note-functions",
-  "description": "Cloud Functions for Montessori Observation Hub",
+  "name": "pep-os-functions",
+  "description": "Cloud Functions for Pep OS (Montessori OS)",
   "engines": {
     "node": "20"
   },
   "main": "index.js",
   "type": "module",
   "scripts": {
-    "lint": "eslint ."
+    "lint": "eslint .",
+    "test": "node --test test/*.test.mjs"
   },
   "dependencies": {
     "@google-cloud/pubsub": "^5.3.1",
