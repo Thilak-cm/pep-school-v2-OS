@@ -17,14 +17,15 @@ Pep OS (Montessori OS) - a mobile-first React PWA for Montessori teachers to cap
 - `firestore.rules` / `storage.rules` - Security rules
 - `DATA_STRUCTURE.md` - Complete Firestore schema reference
 - `docs/SCHEDULED_CLOUD_FUNCTIONS.md` - Canonical inventory of cron-triggered Cloud Functions, timing, and dispatcher/worker relationships
+- `docs/ENGINEERING_PRINCIPLES.md` - The six codebase-maintenance concepts this repo is held to, each grounded in repo examples. Cite violations by concept name in reviews.
 
 Explore the tree directly for current structure - it changes often.
 
 ## Commands
 
-Frontend: run from `montessori-os/` - standard Vite commands (`npm run dev`, `build`, `lint`, `test`). Tests use Node.js built-in test runner (`node --test`).
+Frontend: run from `montessori-os/` - standard Vite commands (`npm run dev`, `build`, `lint`, `test`). Always run tests via `npm test` (it wires a custom ESM loader; bare `node --test` fails).
 
-Cloud Functions: run from `functions/` - `npm run lint` (Google style guide).
+Cloud Functions: run from `functions/` - `npm run lint` (Google style guide), `npm test` (Node built-in runner; same command CI runs). Keep `functions/test/` flat - the test glob does not recurse into subdirectories.
 
 Deploy: run from root - `npm run deploy`, `deploy:functions`, `deploy:hosting`, `deploy:firestore`.
 
