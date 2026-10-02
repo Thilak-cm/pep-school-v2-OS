@@ -24,7 +24,7 @@ The bot is `@coachpepperbot` on Telegram. Run `/telegram:configure <token>` in C
 Add to `~/.zshrc`:
 
 ```bash
-alias ct="PATH=\"\$HOME/.bun/bin:\$PATH\" claude --channels plugin:telegram@claude-plugins-official --append-system-prompt \"\$(cat /path/to/repo/coach-pepper-instructions.md)\""
+alias ct="PATH=\"\$HOME/.bun/bin:\$PATH\" claude --channels plugin:telegram@claude-plugins-official --append-system-prompt \"\$(cat /path/to/repo/docs/coach-pepper-instructions.md)\""
 ```
 
 Update the path, then `source ~/.zshrc`.
