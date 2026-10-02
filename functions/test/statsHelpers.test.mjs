@@ -64,6 +64,17 @@ describe("classifyNote", () => {
     );
   });
 
+  it("classifies practice by type field", () => {
+    assert.equal(classifyNote({type: "practice"}), "practice");
+  });
+
+  it("practice takes priority over lessonTitle (would be lesson)", () => {
+    assert.equal(
+      classifyNote({type: "practice", lessonTitle: "Addition"}),
+      "practice",
+    );
+  });
+
   it("classifies all types without overlap", () => {
     const observations = [
       {id: "1", type: "text", text: "Student worked on math"},
@@ -73,9 +84,10 @@ describe("classifyNote", () => {
       {id: "5", type: "media", mediaKind: "video"},
       {id: "6", type: "text", text: "Another text note"},
       {id: "7", type: "lesson"},
+      {id: "8", type: "practice", lessonTitle: "Subtraction"},
     ];
 
-    const counts = {lesson: 0, voice: 0, text: 0, media: 0, other: 0};
+    const counts = {lesson: 0, voice: 0, text: 0, media: 0, practice: 0, other: 0};
     for (const obs of observations) {
       counts[classifyNote(obs)]++;
     }
@@ -84,6 +96,7 @@ describe("classifyNote", () => {
     assert.equal(counts.voice, 1);
     assert.equal(counts.text, 2);
     assert.equal(counts.media, 2);
+    assert.equal(counts.practice, 1);
     assert.equal(counts.other, 0);
     assert.equal(
       Object.values(counts).reduce((a, b) => a + b, 0),
