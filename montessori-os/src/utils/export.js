@@ -9,6 +9,7 @@ import { LESSON_RATING_LABELS, getLessonDimensions } from './lessonNoteConstrain
 export const NOTE_KIND = {
   OBSERVATION: 'observation', // text + voice
   LESSON: 'lesson', // lesson notes
+  PRACTICE: 'practice', // practice follow-up notes
   BOTH: 'both'
 };
 
@@ -101,7 +102,8 @@ export const cleanObservationData = (observation = {}) => ({
   groupDefaults: observation.groupDefaults || {},
   groupComment: observation.groupComment || '',
   studentComment: observation.studentComment || '',
-  coach: observation.coach || null
+  coach: observation.coach || null,
+  linkedLesson: observation.linkedLesson || null
 });
 
 // Timestamp formatting for text exports
@@ -171,14 +173,17 @@ const normalizeNoteKinds = (noteKinds = []) => {
   kinds.forEach((kind) => {
     const normalized = String(kind || '').toLowerCase();
     if (normalized === NOTE_KIND.LESSON) set.add(NOTE_KIND.LESSON);
+    if (normalized === NOTE_KIND.PRACTICE) set.add(NOTE_KIND.PRACTICE);
     if (normalized === NOTE_KIND.OBSERVATION) set.add(NOTE_KIND.OBSERVATION);
     if (normalized === NOTE_KIND.BOTH) {
       set.add(NOTE_KIND.LESSON);
+      set.add(NOTE_KIND.PRACTICE);
       set.add(NOTE_KIND.OBSERVATION);
     }
   });
   if (set.size === 0) {
     set.add(NOTE_KIND.LESSON);
+    set.add(NOTE_KIND.PRACTICE);
     set.add(NOTE_KIND.OBSERVATION);
   }
   return set;
@@ -187,7 +192,8 @@ const normalizeNoteKinds = (noteKinds = []) => {
 const matchesNoteKind = (obsType, allowedKinds) => {
   if (!allowedKinds || allowedKinds.size === 0) return true;
   if (allowedKinds.has(NOTE_KIND.LESSON) && obsType === 'lesson') return true;
-  if (allowedKinds.has(NOTE_KIND.OBSERVATION) && obsType !== 'lesson') return true;
+  if (allowedKinds.has(NOTE_KIND.PRACTICE) && obsType === 'practice') return true;
+  if (allowedKinds.has(NOTE_KIND.OBSERVATION) && obsType !== 'lesson' && obsType !== 'practice') return true;
   return false;
 };
 

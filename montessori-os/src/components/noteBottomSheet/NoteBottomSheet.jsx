@@ -47,7 +47,7 @@ import { createObservationOperations } from '../../../../shared/firebase/observa
 import SharedHeader from './SharedHeader';
 import TextContent from './TextContent';
 import VoiceContent from './VoiceContent';
-import LessonContent from './LessonContent';
+import LessonAndPracticeContent from './LessonAndPracticeContent';
 import MediaContent from './MediaContent';
 import ActionButtons from './ActionButtons';
 import useMediaPreview from './useMediaPreview';
@@ -124,7 +124,7 @@ export default function NoteBottomSheet({
   const media = useMediaPreview(observation, currentUser, notify);
 
   // ----- Derived permissions -----
-  const isLessonObservation = observation?.type === 'lesson';
+  const isLessonObservation = observation?.type === 'lesson' || observation?.type === 'practice';
   const isMedia = observation?.type === 'media';
   const isAssessment = observation?.type === 'assessment';
   const canEditCurrent = canEditObservation(observation, currentUser, userRole);
@@ -350,7 +350,7 @@ export default function NoteBottomSheet({
       notify.success(reassignToStudentName ? `Note reassigned to ${reassignToStudentName}` : 'Note reassigned', {
         duration: 6000, id: `reassign-${observation.id}`, actionLabel: 'View Note',
         onUndo: () => {
-          try { window.dispatchEvent(new CustomEvent('navigateToStudentNotes', { detail: { studentId: newStudentId, noteTypeFilter: observation?.type === 'lesson' ? 'lesson' : 'textVoice' } })); }
+          try { window.dispatchEvent(new CustomEvent('navigateToStudentNotes', { detail: { studentId: newStudentId, noteTypeFilter: (observation?.type === 'lesson' || observation?.type === 'practice') ? 'lesson' : 'textVoice' } })); }
           catch (e) { reportCaughtError(e, 'NoteBottomSheet', 'reassign view note'); }
         },
       });
@@ -371,7 +371,7 @@ export default function NoteBottomSheet({
                 sourceId: observation?.sourceId || null,
                 observationId: observation?.assessmentKind === 'medical' ? observation?.id : null,
               }
-            : { studentId: student.id, student, noteTypeFilter: observation?.type === 'lesson' ? 'lesson' : 'textVoice' }
+            : { studentId: student.id, student, noteTypeFilter: (observation?.type === 'lesson' || observation?.type === 'practice') ? 'lesson' : 'textVoice' }
         }));
       } catch (e) { reportCaughtError(e, 'NoteBottomSheet', 'view student timeline'); }
       handleClose();
@@ -521,8 +521,8 @@ export default function NoteBottomSheet({
               editText={editText}
               onEditTextChange={setEditText}
             />
-          ) : observation.type === 'lesson' ? (
-            <LessonContent observation={observation} />
+          ) : (observation.type === 'lesson' || observation.type === 'practice') ? (
+            <LessonAndPracticeContent observation={observation} />
           ) : isMedia ? (
             <MediaContent
               observation={observation}

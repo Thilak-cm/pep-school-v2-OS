@@ -286,7 +286,7 @@ Guidance
 
 Subcollections
 - `placements/{placementId}` – classroom history per student (see above).
-- `observations/{observationId}` – per-student notes (text/voice/lesson). Shape: `{ type: 'text' | 'voice' | 'lesson', text: string, studentId: string, classroomId: string, createdBy: string (uid), createdByName: string, createdByEmail: string, observedAt: Timestamp, createdAt: Timestamp, updatedAt: Timestamp, groupId?: string, durationSec?: number, coach?: { status: string, reason: string, nudgesShown: Array, selections?: Record<string, string> }, lessonTitle?: string }`. The `classroomId` field is denormalized from the student's classroom at write time; enables direct collection group queries by classroom. The `groupId` field links fan-out docs from a single multi-student observation.
+- `observations/{observationId}` – per-student notes (text/voice/lesson/practice). Shape: `{ type: 'text' | 'voice' | 'lesson' | 'practice', text: string, studentId: string, classroomId: string, createdBy: string (uid), createdByName: string, createdByEmail: string, observedAt: Timestamp, createdAt: Timestamp, updatedAt: Timestamp, groupId?: string, durationSec?: number, coach?: { status: string, reason: string, nudgesShown: Array, selections?: Record<string, string> }, lessonTitle?: string }`. The `classroomId` field is denormalized from the student's classroom at write time; enables direct collection group queries by classroom. The `groupId` field links fan-out docs from a single multi-student observation.
 - `media/{mediaId}` – uploaded photo/video/PDF files attached to observations (see below).
 - `ai_summaries/weekly_snapshot` – unified weekly student snapshot combining baseball card content, behaviour flag signals, and missing domains (PEP-229). Overwritten each weekly batch run; previous snapshot archived to `history/{weekKey}` subcollection before overwrite. On-demand regeneration snapshots the previous state into an `edits` array before overwriting, providing a within-week audit trail. Shape: `{ summary: string, bullets: string[], redFlag: { severity: string | null, reason: string | null }, coverageGaps: string[], severity: 'clear' | 'low' | 'medium' | 'high', severityScore: number, prevSeverity: string, prevSeverityScore: number, weekKey: string, weekBaselineSeverity: string, weekBaselineSeverityScore: number, escalatedThisWeek: boolean, improvedThisWeek: boolean, noteCount: number, evidenceCount: number, windowDays: number, timezone: string, model: string, temperature: number, generatedAt: Timestamp, lastUpdatedAt: Timestamp, status: 'ok' | 'no_notes', sourceNoteIds: string[], rawContent?: string, migratedAt?: Timestamp, regeneratedBy: { uid: string, displayName: string | null, role: string } | null, edits: Array<{ severity: string | null, severityScore: number | null, summary: string, redFlag: { severity: string | null, reason: string | null }, coverageGaps: string[], regeneratedBy: { uid: string, displayName: string | null, role: string } | null, generatedAt: Timestamp | null, replacedAt: Timestamp }> }`. `regeneratedBy` is set on manual regens (null for batch runs). `edits` accumulates previous states within the week — each entry captures the snapshot that was replaced. The batch run archives the full doc (including `edits`) to `history/{weekKey}` and resets `edits` to `[]`. Architecture decision: hardcoded doc name (`weekly_snapshot`) over computable weekKey path — every consumer reads at a stable path with zero client-side weekKey computation. Week identity is a field, not the path.
 - `ai_summaries/weekly_snapshot/history/{weekKey}` – archived weekly snapshots. Full copy of the previous `weekly_snapshot` doc plus `archivedAt: Timestamp`. Created only by the scheduled Monday batch (`generateBaseballCards`), never by on-demand regeneration. History retained indefinitely; one doc per week per student (no 1MB limit concern). Architecture decision: subcollection over sibling docs — current snapshot reads are frequent while longitudinal history queries are rare. Subcollection keeps these cleanly separated.
@@ -712,7 +712,7 @@ interface Observation {
                                    // Optional: single-student notes and legacy notes may not have this field
   
   // Content
-  type: 'text' | 'voice' | 'lesson' | 'assessment';
+  type: 'text' | 'voice' | 'lesson' | 'practice' | 'assessment';
   assessmentKind?: 'structured' | 'medical';
   schemaVersion?: 1;
   sourceId?: string;              // Structured only: source manifest id
@@ -747,14 +747,20 @@ interface Observation {
   text?: string;                 // free text for text/voice notes
   durationSec?: number;          // voice notes only
   sttConfidence?: number;        // voice notes only
-  lessonTitle?: string;          // lesson notes
-  lessonDescription?: string;    // lesson notes
-  groupComment?: string;         // lesson notes
-  programId?: ProgramId;         // lesson notes – derived from classroom
-  dimensionOrder?: string[];     // lesson notes – ordered list of dimension names
-  groupDefaults?: Record<string, 'yes' | 'partial' | 'no' | 'na'>; // lesson notes – initial ratings
-  ratings?: Record<string, 'yes' | 'partial' | 'no' | 'na'>;       // lesson notes – per student after overrides
-  studentComment?: string;       // lesson notes – optional per-student comment
+  lessonTitle?: string;          // lesson + practice notes
+  lessonDescription?: string;    // lesson + practice notes
+  groupComment?: string;         // lesson + practice notes
+  programId?: ProgramId;         // lesson + practice notes – derived from classroom
+  dimensionOrder?: string[];     // lesson + practice notes – ordered list of dimension names
+  groupDefaults?: Record<string, 'yes' | 'partial' | 'no' | 'na'>; // lesson + practice notes – initial ratings
+  ratings?: Record<string, 'yes' | 'partial' | 'no' | 'na'>;       // lesson + practice notes – per student after overrides
+  studentComment?: string;       // lesson + practice notes – optional per-student comment
+  linkedLesson?: {               // practice notes only – optional link to a previously taught lesson
+    observationId: string;       // the lesson observation ID
+    groupId?: string;            // the lesson's groupId (if group lesson)
+    lessonTitle: string;         // denormalized snapshot – NO cascade on lesson edit/delete
+    observedAt: Timestamp;       // denormalized snapshot
+  };
 
   // Note-to-lesson linking (#176)
   linkedLessonObservationId?: string[]; // text/voice/media notes – lesson note IDs this note follows up on

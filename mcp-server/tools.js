@@ -128,7 +128,7 @@ export const TOOL_DEFINITIONS = [
           type: "string",
           description:
             "Filter by observation type. Use list_assessments for richer assessment-specific filtering.",
-          enum: ["text", "voice", "lesson", "assessment"],
+          enum: ["text", "voice", "lesson", "practice", "assessment"],
         },
         days: {
           type: "number",

@@ -80,7 +80,7 @@ export default function ClassroomNoteCard({
   const mediaItems = note.mediaItems || (mediaPath ? buildMediaItemsForObservation(note) : []);
   const isMedia = note.type === 'media';
   const isAssessment = note.type === 'assessment';
-  const isLesson = note.type === 'lesson';
+  const isLesson = note.type === 'lesson' || note.type === 'practice';
 
   return (
     <Card

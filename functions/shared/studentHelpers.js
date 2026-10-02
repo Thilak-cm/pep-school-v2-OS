@@ -32,6 +32,7 @@ function formatObservationForPrompt(obs) {
     observedAt: ts ? ts.toISOString() : null,
     ratings: obs.ratings || obs.dimensionRatings || {},
     dimensionOrder: obs.dimensionOrder || [],
+    ...(obs.linkedLesson ? { linkedLesson: obs.linkedLesson } : {}),
   };
 }
 
