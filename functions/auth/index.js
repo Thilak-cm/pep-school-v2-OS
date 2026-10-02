@@ -1,5 +1,6 @@
 import * as functions from "firebase-functions/v1";
 import { db, sanitizeEmailForDocId } from "../shared/firebase.js";
+import { ALLOWED_EMAIL_DOMAINS, isAllowedEmail } from "../config/authConstants.js";
 
 // Callable: Create pending Firestore profile (no Auth account - Google-only onboarding)
 // - Enforces allowed domains
@@ -41,9 +42,8 @@ export const createAuthUserAndProfile = functions
     }
 
     const emailLc = String(email).trim().toLowerCase();
-    const allowedDomains = ["@pepschoolv2.com", "@ribbons.education", "@accelschool.in"];
-    if (!allowedDomains.some(domain => emailLc.endsWith(domain))) {
-      throw new functions.https.HttpsError("failed-precondition", "Email must be from an allowed domain (@pepschoolv2.com, @ribbons.education, or @accelschool.in)");
+    if (!isAllowedEmail(emailLc)) {
+      throw new functions.https.HttpsError("failed-precondition", `Email must be from an allowed domain (${ALLOWED_EMAIL_DOMAINS.join(", ")})`);
     }
 
     const displayName = `${firstName} ${lastName || ""}`.trim();

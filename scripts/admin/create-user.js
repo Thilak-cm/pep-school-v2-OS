@@ -129,9 +129,10 @@ async function createUserAccount() {
       role = 'teacher';
     }
     
-    // Validate email domain
-    if (!email.endsWith('@pepschoolv2.com')) {
-      console.log('❌ Error: Email must be @pepschoolv2.com domain');
+    // Validate email domain (dynamic import: this script is CJS, constants are ESM)
+    const { isAllowedEmail, ALLOWED_EMAIL_DOMAINS } = await import('../../functions/config/authConstants.js');
+    if (!isAllowedEmail(email)) {
+      console.log(`❌ Error: Email must be from an allowed domain (${ALLOWED_EMAIL_DOMAINS.join(', ')})`);
       return;
     }
     

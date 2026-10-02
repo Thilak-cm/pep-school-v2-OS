@@ -11,6 +11,7 @@ import { httpsCallable } from 'firebase/functions';
 import { db, cloudFunctions } from '../firebase';
 import useNotify from '../notifications/useNotify.js';
 import { formatDate } from '../utils/dateFormat';
+import { ALLOWED_EMAIL_DOMAINS, isAllowedEmail } from '../../../functions/config/authConstants.js';
 import {
   collection,
   getDocs,
@@ -488,10 +489,8 @@ const UsersAccessPage = ({ onBack, currentUser, userRole, manageableClassrooms =
     if (role === 'classroomadmin' || role === 'teacher') {
       if (!userForm.email) errors.email = 'Email is required';
       else {
-        const emailLower = userForm.email.toLowerCase();
-        const allowedDomains = ['@pepschoolv2.com', '@ribbons.education', '@accelschool.in'];
-        if (!allowedDomains.some(domain => emailLower.endsWith(domain))) {
-          errors.email = 'Email must be from @pepschoolv2.com, @ribbons.education, or @accelschool.in';
+        if (!isAllowedEmail(userForm.email)) {
+          errors.email = `Email must be from ${ALLOWED_EMAIL_DOMAINS.join(', ')}`;
         }
       }
       if (!userForm.firstName) errors.firstName = 'First name is required';
@@ -2073,7 +2072,7 @@ const UsersAccessPage = ({ onBack, currentUser, userRole, manageableClassrooms =
                   <Grid size={12}>
                     <TextField
                       label="Email"
-                      placeholder="name@pepschoolv2.com, @ribbons.education, or @accelschool.in"
+                      placeholder={`name${ALLOWED_EMAIL_DOMAINS.join(', ')}`}
                       size="small"
                       fullWidth
                       value={userForm.email}
