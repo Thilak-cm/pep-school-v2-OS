@@ -1,5 +1,17 @@
 # Changelog
 
+# 13.3.5 — 2026-10-02
+
+### Changed
+- Monthly plan generation migrated from `runLLM` + bare `JSON.parse` to `runStructuredLLM` with Zod schema enforcement and bounded repair retry. Transient malformed output (the 2026-10 incident class) self-heals; persistent violations fail loudly as `schema_violation` (#306).
+- Allowed email domains consolidated into `functions/config/authConstants.js` - single source of truth replacing four divergent copies (auth gate, frontend form, admin script).
+- Google Docs control-char sanitizer extracted to `functions/utils/docsText.js` and applied to the report export path (`driveHelpers.js`), closing the unprotected seam found during #306 planning.
+- `runType` trace tag (`run:scheduled` / `run:remediation`) threaded through monthly plan and soul generation pipelines for Langfuse provenance filtering.
+- Functions test glob widened from `test/*.test.mjs` to `**/*.test.mjs` - rescued 554 colocated ghost tests that CI was silently skipping.
+
+### Added
+- `docs/ENGINEERING_PRINCIPLES.md` - six codebase-maintenance concepts grounded in repo examples.
+
 # 13.3.4 — 2026-09-30
 
 ### Changed
