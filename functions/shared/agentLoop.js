@@ -12,7 +12,7 @@ import {
   getOpenRouterKey,
   OPENROUTER_ENDPOINT,
 } from "./openrouter.js";
-import { buildChatBody } from "./llm.js";
+import { buildChatBody, mapUsageDetails } from "./llm.js";
 import { resolveModel } from "./modelRegistry.js";
 import { fetchWithTimeout } from "./http.js";
 
@@ -76,7 +76,7 @@ export async function runAgentLoop({
 
     const generation = trace?.generation({
       name: `agent-iteration-${iteration}`,
-      model: model.model,
+      model: resolvedModelId,
       input: messages[messages.length - 1],
     });
 
@@ -132,16 +132,16 @@ export async function runAgentLoop({
     // Append assistant message to conversation
     messages.push(choice);
 
-    const usage = {
-      input: json?.usage?.prompt_tokens,
-      output: json?.usage?.completion_tokens,
+    const usageDetails = mapUsageDetails(json?.usage);
+    const iterTokens = {
+      input: json?.usage?.prompt_tokens || 0,
+      output: json?.usage?.completion_tokens || 0,
     };
-    const iterTokens = { input: usage.input || 0, output: usage.output || 0 };
     totalTokens += iterTokens.input + iterTokens.output;
 
     // Check for tool calls
     if (choice.tool_calls && choice.tool_calls.length > 0) {
-      generation?.end({ output: { toolCalls: choice.tool_calls.map((tc) => tc.function.name) }, usage });
+      generation?.end({ output: { toolCalls: choice.tool_calls.map((tc) => tc.function.name) }, ...(usageDetails ? { usageDetails } : {}) });
 
       const iterToolCalls = collectTrace ? [] : null;
       for (const tc of choice.tool_calls) {
@@ -202,7 +202,7 @@ export async function runAgentLoop({
       throw new Error("LLM returned empty final content");
     }
 
-    generation?.end({ output: content, usage });
+    generation?.end({ output: content, ...(usageDetails ? { usageDetails } : {}) });
 
     if (collectTrace) {
       iterationTrace.push({

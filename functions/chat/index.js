@@ -345,12 +345,13 @@ export const childChatStream = functions
         userId: decoded.uid,
         metadata: {
           turnId: request.turnId,
-          model: chatConfig.model,
+          model,
           userId: decoded.uid,
           userMessageId: request.userMessageId,
           assistantMessageId: acquisition.turn.assistantMessageId,
           studentId: request.studentId,
           classroomId: context.classroomId,
+          programId: context.programId,
         },
       });
       if (!trace) {

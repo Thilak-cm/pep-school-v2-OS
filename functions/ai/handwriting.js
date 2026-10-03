@@ -140,7 +140,7 @@ export async function downloadImageAsBase64(storagePath, timeoutMs) {
  * Run a VLM call with image(s) and return parsed JSON.
  * Routes through the shared runLLM helper (OpenRouter + Langfuse tracing).
  */
-async function runVLMCall(systemPrompt, userContent, modelInfo, timeoutMs) {
+async function runVLMCall(systemPrompt, userContent, modelInfo, timeoutMs, { traceMetadata } = {}) {
   const enhancedPrompt = systemPrompt.includes("JSON") || systemPrompt.includes("json")
     ? systemPrompt
     : systemPrompt + "\n\nIMPORTANT: You must respond with valid JSON only.";
@@ -156,6 +156,7 @@ async function runVLMCall(systemPrompt, userContent, modelInfo, timeoutMs) {
     maxTokens: modelInfo.maxTokens,
     responseFormat: { type: "json_object" },
     traceName: "writing-analysis",
+    ...(traceMetadata ? { traceMetadata } : {}),
     timeoutMs,
   });
 
@@ -302,7 +303,14 @@ async function runWritingAnalysisForStudent(studentId, { dryRun = false, program
     model: config.model,
     temperature: config.temperature,
     maxTokens: config.max_tokens,
-  }, llmTimeoutMs);
+  }, llmTimeoutMs, {
+    traceMetadata: {
+      studentId,
+      classroomId: studentData?.classroomId,
+      programId,
+      storagePaths: mediaDocs.map((d) => d.storagePath).filter(Boolean),
+    },
+  });
 
   const parsed = parseWritingAnalysisResponse(vlmResult);
   if (!parsed) {
