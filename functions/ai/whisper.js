@@ -105,7 +105,7 @@ export function buildWhisperUsageDetails(json) {
  * @param {object} [opts.deps] - Test injection: { recordTailTrace, getTraceSampleRate }
  * @returns {(end: object, options?: { applySampling?: boolean }) => Promise<void>}
  */
-export function buildRecordExit({ tracingEnabled, mimeType, rawBytes, startTime, deps = {} }) {
+export function buildRecordExit({ tracingEnabled, mimeType, rawBytes, startTime, uid, deps = {} }) {
   const record = deps.recordTailTrace || recordTailTrace;
   const getRate = deps.getTraceSampleRate || getTraceSampleRate;
 
@@ -116,7 +116,7 @@ export function buildRecordExit({ tracingEnabled, mimeType, rawBytes, startTime,
       sampleRate,
       trace: {
         name: "whisper-translate",
-        metadata: { mimeType, audioBytes: rawBytes },
+        metadata: { mimeType, audioBytes: rawBytes, ...(uid ? { uid } : {}) },
         startTime,
       },
       generation: {
@@ -152,7 +152,7 @@ export const aiWhisperTranslate = functions
     // failures unconditionally (level ERROR), successes coin-flipped against
     // config/langfuse_sampling rates.whisper_translate.
     const tracingEnabled = !!(process.env.LANGFUSE_SECRET_KEY && process.env.LANGFUSE_PUBLIC_KEY);
-    const recordExit = buildRecordExit({ tracingEnabled, mimeType, rawBytes, startTime: new Date() });
+    const recordExit = buildRecordExit({ tracingEnabled, mimeType, rawBytes, startTime: new Date(), uid: context.auth.uid });
 
     const blob = base64ToBlob(audioBase64, mimeType);
     const form = new FormData();

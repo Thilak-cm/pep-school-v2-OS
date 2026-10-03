@@ -42,6 +42,59 @@ export function isReasoningModel(model) {
 }
 
 /**
+ * Map raw OpenRouter usage into Langfuse usageDetails shape (#319).
+ * Langfuse expects { input, output, total } for cost computation, plus
+ * optional extra buckets (reasoningTokens, cacheReadTokens) for visibility.
+ */
+export function mapUsageDetails(usage) {
+  if (!usage) return undefined;
+  const details = {};
+  if (Number.isFinite(usage.prompt_tokens)) details.input = usage.prompt_tokens;
+  if (Number.isFinite(usage.completion_tokens)) details.output = usage.completion_tokens;
+  if (Number.isFinite(usage.total_tokens)) details.total = usage.total_tokens;
+  if (Number.isFinite(usage.completion_tokens_details?.reasoning_tokens)) {
+    details.reasoningTokens = usage.completion_tokens_details.reasoning_tokens;
+  }
+  if (Number.isFinite(usage.prompt_tokens_details?.cached_tokens)) {
+    details.cacheReadTokens = usage.prompt_tokens_details.cached_tokens;
+  }
+  return Object.keys(details).length ? details : undefined;
+}
+
+/**
+ * Strip data-URIs from message content for Langfuse trace input (#319).
+ * Replaces inline base64 payloads with a placeholder showing mime type and
+ * approximate size. Does NOT mutate the original array - returns a new one.
+ * The actual request body sent to OpenRouter is never sanitized.
+ */
+export function sanitizeMessagesForTrace(messages) {
+  if (!messages || messages.length === 0) return [];
+  return messages.map((msg) => {
+    if (!Array.isArray(msg.content)) return msg;
+    return {
+      ...msg,
+      content: msg.content.map((part) => {
+        const url = part?.image_url?.url;
+        if (typeof url !== "string" || !url.startsWith("data:")) return part;
+        // Extract mime type and compute approximate byte size from base64 length
+        const semicolonIdx = url.indexOf(";");
+        const commaIdx = url.indexOf(",");
+        const mime = semicolonIdx > 5 ? url.slice(5, semicolonIdx) : "unknown";
+        const base64Len = commaIdx > 0 ? url.length - commaIdx - 1 : 0;
+        const sizeKB = Math.round((base64Len * 3) / 4 / 1024);
+        return {
+          ...part,
+          image_url: {
+            ...part.image_url,
+            url: `[stripped: ${mime}, ${sizeKB}KB]`,
+          },
+        };
+      }),
+    };
+  });
+}
+
+/**
  * Build a request body for the OpenAI-compatible Chat Completions API.
  * Automatically strips unsupported parameters for reasoning models.
  */
@@ -129,11 +182,13 @@ export async function runLLM({
   const activeTrace = trace || null;
   const startTime = new Date();
 
+  const sanitizedInput = sanitizeMessagesForTrace(messages);
+
   const generation = (tracingEnabled && activeTrace)
     ? activeTrace.generation({
       name: `${featureId}-completion`,
       model: resolvedModel,
-      input: messages,
+      input: sanitizedInput,
       metadata: { featureId, requestedModel: model, ...generationMetadata },
     })
     : null;
@@ -160,7 +215,7 @@ export async function runLLM({
       generation: {
         name: `${featureId}-completion`,
         model: resolvedModel,
-        input: messages,
+        input: sanitizedInput,
         metadata: { featureId, requestedModel: model, ...generationMetadata },
         startTime,
         end: { ...end, endTime: new Date() },
@@ -240,11 +295,7 @@ export async function runLLM({
   await recordExit({
     output: content,
     ...(finishReason === "length" ? { level: "WARNING" } : {}),
-    usage: usage ? {
-      input: usage.prompt_tokens,
-      output: usage.completion_tokens,
-      total: usage.total_tokens,
-    } : undefined,
+    ...(usage ? { usageDetails: mapUsageDetails(usage) } : {}),
     metadata: {
       responseModel,
       finishReason,

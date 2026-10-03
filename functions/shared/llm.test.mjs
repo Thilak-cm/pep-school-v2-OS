@@ -214,7 +214,7 @@ describe("runLLM tail sampling (#298)", () => {
     assert.equal(rec.generation.end.level, undefined, "clean success carries no level");
     assert.equal(rec.generation.end.output, "hello");
     assert.ok(rec.generation.end.endTime instanceof Date);
-    assert.deepEqual(rec.generation.end.usage, { input: 10, output: 5, total: 15 });
+    assert.deepEqual(rec.generation.end.usageDetails, { input: 10, output: 5, total: 15 });
   });
 
   it("cap-hit success (finish_reason=length): level WARNING, rate forced to 1 (always keep)", async () => {

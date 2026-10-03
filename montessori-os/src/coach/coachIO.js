@@ -93,6 +93,16 @@ export function makeCoachRequest(noteText, context = {}) {
   if (Array.isArray(context.programIds) && context.programIds.length > 0) {
     payload.programIds = context.programIds.filter(isString).map((s) => s.trim()).filter(Boolean);
   }
+  // #319: cost attribution metadata
+  if (Array.isArray(context.studentIds) && context.studentIds.length > 0) {
+    payload.studentIds = context.studentIds.filter(isString).map((s) => s.trim()).filter(Boolean);
+  }
+  if (isString(context.classroomId) && context.classroomId.trim()) {
+    payload.classroomId = context.classroomId.trim();
+  }
+  if (isString(context.groupId) && context.groupId.trim()) {
+    payload.groupId = context.groupId.trim();
+  }
   return payload;
 }
 

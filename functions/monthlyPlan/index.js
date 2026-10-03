@@ -251,7 +251,7 @@ async function generatePlanInternal(studentId, targetMonth, generatedBy, generat
     maxTokens,
     responseFormat: { type: "json_object" },
     traceName: "monthly-plan",
-    traceMetadata: { studentId, targetMonth },
+    traceMetadata: { studentId, classroomId: studentData.classroomId, programId, targetMonth },
     timeoutMs: llmTimeoutMs,
   });
 

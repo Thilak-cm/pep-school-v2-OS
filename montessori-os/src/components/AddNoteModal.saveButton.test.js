@@ -44,18 +44,18 @@ describe('PEP-283: Save button always enabled with toast guards', () => {
       );
     });
 
-    it('student guard returns early before getSelectedProgramIds', () => {
-      // The student check must come BEFORE getSelectedProgramIds to prevent
+    it('student guard returns early before getSelectedProgramContext', () => {
+      // The student check must come BEFORE getSelectedProgramContext to prevent
       // proceeding with an empty student list
       const fnMatch = modalSource.match(
         /const handleRecipientsNext\s*=\s*async\s*\(\)\s*=>\s*\{([\s\S]*?)\n\s{2}\};/
       );
       const fnBody = fnMatch[1];
       const studentGuardIdx = fnBody.indexOf('selectedStudents.length === 0');
-      const programIdsIdx = fnBody.indexOf('getSelectedProgramIds');
+      const programIdsIdx = fnBody.indexOf('getSelectedProgramContext');
       assert.ok(
         studentGuardIdx > 0 && studentGuardIdx < programIdsIdx,
-        'Student empty guard must appear before getSelectedProgramIds call'
+        'Student empty guard must appear before getSelectedProgramContext call'
       );
     });
   });
