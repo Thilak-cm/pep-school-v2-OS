@@ -273,15 +273,6 @@ function ClassroomTimeline({ classroom, currentUser, userRole, manageableClassro
     toggleFilters
   } = useObservationFilters(filteredNotes);
 
-  // Derive unique curriculum areas for FilterPanel (PEP-33)
-  const availableCurriculumAreas = useMemo(() => {
-    const areas = new Set();
-    classroomNotes.forEach(note => {
-      if (note.curriculumArea) areas.add(note.curriculumArea);
-    });
-    return [...areas].sort();
-  }, [classroomNotes]);
-
   // #221 Sprint 2: no more UI-only slicing — pagination is at the Firestore level
   const displayedObservations = filteredObservations || [];
 
@@ -543,7 +534,7 @@ function ClassroomTimeline({ classroom, currentUser, userRole, manageableClassro
         <HFFilterChip
           active={hasActiveFilters}
           onClick={activeTab === 0 ? toggleFilters : undefined}
-          count={hasActiveFilters ? filters.types.length + filters.creators.length + (filters.dateFrom ? 1 : 0) + (filters.dateTo ? 1 : 0) + filters.curriculumAreas.length : undefined}
+          count={hasActiveFilters ? filters.types.length + filters.creators.length + (filters.dateFrom ? 1 : 0) + (filters.dateTo ? 1 : 0) : undefined}
         />
       </Box>
 
@@ -558,7 +549,6 @@ function ClassroomTimeline({ classroom, currentUser, userRole, manageableClassro
         onFilterChange={handleFilterChange}
         onClearFilters={handleClearFilters}
         onToggleFilters={toggleFilters}
-        availableCurriculumAreas={availableCurriculumAreas}
       />
 
       {/* Tabs — sticky */}

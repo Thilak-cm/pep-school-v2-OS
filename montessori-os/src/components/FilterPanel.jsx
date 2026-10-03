@@ -12,7 +12,7 @@ import {
   ListItem,
   ListItemText
 } from '@mui/material';
-import { X as Clear, Search, Mic, Pencil as EditNote, X as Close, BookOpen as MenuBook, Image as PermMedia, FileText as ReportIcon, ListChecks } from '../icons';
+import { Search, Mic, Pencil as EditNote, X as Close, BookOpen as MenuBook, Image as PermMedia, FileText as ReportIcon, ListChecks } from '../icons';
 import { IconButton } from '@mui/material';
 import { fuzzySearchTeachers } from '../utils/fuzzySearch';
 
@@ -41,7 +41,6 @@ const FilterPanel = ({
   onFilterChange,
   onClearFilters,
   onToggleFilters,
-  availableCurriculumAreas = [],
 }) => {
   const [creatorSearch, setCreatorSearch] = useState('');
   const toDateRef = useRef(null);
@@ -106,7 +105,6 @@ const FilterPanel = ({
               )}
               <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
                 <Button
-                  startIcon={<Clear />}
                   size="small"
                   onClick={onClearFilters}
                   color="secondary"
@@ -162,7 +160,14 @@ const FilterPanel = ({
                   sx={{
                     flex: 1,
                     '& .MuiOutlinedInput-notchedOutline': { border: 'none' },
-                    '& .MuiInputBase-root': { borderRadius: 0 },
+                    '& .MuiInputBase-root': { borderRadius: 0, pt: 1.5 },
+                    '& .MuiInputLabel-root': {
+                      fontWeight: 600,
+                      color: 'text.primary',
+                      fontSize: '0.75rem',
+                      transform: 'translate(14px, -2px) scale(1)',
+                      '&.Mui-focused': { color: 'text.primary' },
+                    },
                   }}
                 />
                 <Box sx={{
@@ -184,7 +189,14 @@ const FilterPanel = ({
                   sx={{
                     flex: 1,
                     '& .MuiOutlinedInput-notchedOutline': { border: 'none' },
-                    '& .MuiInputBase-root': { borderRadius: 0 },
+                    '& .MuiInputBase-root': { borderRadius: 0, pt: 1.5 },
+                    '& .MuiInputLabel-root': {
+                      fontWeight: 600,
+                      color: 'text.primary',
+                      fontSize: '0.75rem',
+                      transform: 'translate(14px, -2px) scale(1)',
+                      '&.Mui-focused': { color: 'text.primary' },
+                    },
                   }}
                 />
               </Box>
@@ -275,10 +287,12 @@ const FilterPanel = ({
                       },
                       transition: 'all 0.2s ease-in-out',
                       ...(voiceActive && {
-                        backgroundColor: 'var(--color-primary)',
+                        backgroundColor: 'var(--color-violet)',
+                        borderColor: 'var(--color-violet)',
                         color: 'white',
                         '&:hover': {
-                          backgroundColor: 'var(--color-primary-dark)',
+                          backgroundColor: 'var(--color-violet)',
+                          borderColor: 'var(--color-violet)',
                         },
                         '&::after': {
                           content: '""',
@@ -293,7 +307,7 @@ const FilterPanel = ({
                       }),
                     }}
                   >
-                    Voice Notes
+                    Voice
                   </Button>
 
                   <Button
@@ -326,10 +340,12 @@ const FilterPanel = ({
                       },
                       transition: 'all 0.2s ease-in-out',
                       ...(textActive && {
-                        backgroundColor: 'var(--color-secondary)',
+                        backgroundColor: 'var(--color-text-soft)',
+                        borderColor: 'var(--color-text-soft)',
                         color: 'white',
                         '&:hover': {
-                          backgroundColor: 'var(--color-secondary-dark)',
+                          backgroundColor: 'var(--color-text-soft)',
+                          borderColor: 'var(--color-text-soft)',
                         },
                         '&::after': {
                           content: '""',
@@ -344,7 +360,7 @@ const FilterPanel = ({
                       }),
                     }}
                   >
-                    Text Notes
+                    Text
                   </Button>
 
                   <Button
@@ -377,10 +393,12 @@ const FilterPanel = ({
                       },
                       transition: 'all 0.2s ease-in-out',
                       ...(lessonActive && {
-                        backgroundColor: 'var(--color-primary-light)',
+                        backgroundColor: 'var(--color-secondary-dark)',
+                        borderColor: 'var(--color-secondary-dark)',
                         color: 'white',
                         '&:hover': {
-                          backgroundColor: 'var(--color-primary)',
+                          backgroundColor: 'var(--color-secondary-dark)',
+                          borderColor: 'var(--color-secondary-dark)',
                         },
                         '&::after': {
                           content: '""',
@@ -395,7 +413,7 @@ const FilterPanel = ({
                       }),
                     }}
                   >
-                    Lesson Notes
+                    Lesson
                   </Button>
 
                   <Button
@@ -428,10 +446,12 @@ const FilterPanel = ({
                       },
                       transition: 'all 0.2s ease-in-out',
                       ...(mediaActive && {
-                        backgroundColor: 'var(--color-sky)',
+                        backgroundColor: 'var(--color-primary)',
+                        borderColor: 'var(--color-primary)',
                         color: 'white',
                         '&:hover': {
-                          backgroundColor: 'var(--color-blue-sky)',
+                          backgroundColor: 'var(--color-primary)',
+                          borderColor: 'var(--color-primary)',
                         },
                         '&::after': {
                           content: '""',
@@ -479,10 +499,12 @@ const FilterPanel = ({
                       },
                       transition: 'all 0.2s ease-in-out',
                       ...(reportActive && {
-                        backgroundColor: 'var(--color-secondary)',
+                        backgroundColor: 'var(--color-amber-text)',
+                        borderColor: 'var(--color-amber-text)',
                         color: 'white',
                         '&:hover': {
-                          backgroundColor: 'var(--color-secondary-dark)',
+                          backgroundColor: 'var(--color-amber-text)',
+                          borderColor: 'var(--color-amber-text)',
                         },
                         '&::after': {
                           content: '""',
@@ -531,10 +553,12 @@ const FilterPanel = ({
                       },
                       transition: 'all 0.2s ease-in-out',
                       ...(assessmentActive && {
-                        backgroundColor: 'var(--color-primary)',
+                        backgroundColor: 'var(--color-amber-text)',
+                        borderColor: 'var(--color-amber-text)',
                         color: 'white',
                         '&:hover': {
-                          backgroundColor: 'var(--color-primary-dark)',
+                          backgroundColor: 'var(--color-amber-text)',
+                          borderColor: 'var(--color-amber-text)',
                         },
                         '&::after': {
                           content: '""',
@@ -556,48 +580,6 @@ const FilterPanel = ({
                 {/* Removed helper text per request */}
               </Box>
 
-              {/* Curriculum area filter (PEP-33) */}
-              {availableCurriculumAreas.length > 0 && (
-                <Box>
-                  <Typography variant="caption" sx={{ mb: 0.5, display: 'block', color: 'text.secondary', fontWeight: 500 }}>
-                    Curriculum Area
-                  </Typography>
-                  <Box sx={{ display: 'flex', gap: 0.75, flexWrap: 'wrap' }}>
-                    {availableCurriculumAreas.map((area) => {
-                      const isActive = (filters.curriculumAreas || []).includes(area);
-                      return (
-                        <Chip
-                          key={area}
-                          label={area}
-                          size="small"
-                          onClick={() => {
-                            const current = filters.curriculumAreas || [];
-                            const next = isActive
-                              ? current.filter((a) => a !== area)
-                              : [...current, area];
-                            onFilterChange('curriculumAreas', next);
-                          }}
-                          sx={{
-                            fontWeight: 500,
-                            fontSize: '0.75rem',
-                            cursor: 'pointer',
-                            ...(isActive ? {
-                              bgcolor: 'var(--color-secondary-dark)',
-                              color: '#fff', // #fff intentional — contrast text on dynamic colored background
-                              '&:hover': { bgcolor: 'var(--color-green-deep)' },
-                            } : {
-                              bgcolor: 'var(--color-green-bg)',
-                              color: 'var(--color-secondary-dark)',
-                              border: '1px solid var(--color-green-mint)',
-                              '&:hover': { bgcolor: 'var(--color-green-bg-mist)' },
-                            }),
-                          }}
-                        />
-                      );
-                    })}
-                  </Box>
-                </Box>
-              )}
             </Box>
           </Box>
         </Paper>

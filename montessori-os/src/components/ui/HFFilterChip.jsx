@@ -1,5 +1,5 @@
-import { ButtonBase, Typography, Box } from '@mui/material';
-import { Filter, ChevronDown } from '../../icons';
+import { ButtonBase, Box } from '@mui/material';
+import { Filter } from '../../icons';
 
 /**
  * Compact filter chip with dropdown indicator — toggles active/inactive.
@@ -12,35 +12,26 @@ import { Filter, ChevronDown } from '../../icons';
  *   sx?: object,
  * }} props
  */
-export default function HFFilterChip({ label = 'Filters', active = false, onClick, count, sx }) {
+export default function HFFilterChip({ active = false, onClick, count, sx }) {
   return (
     <ButtonBase
       onClick={onClick}
       sx={{
         display: 'inline-flex',
         alignItems: 'center',
-        gap: 0.75,
-        px: 1.5,
-        py: 0.75,
+        justifyContent: 'center',
+        gap: 0.5,
+        p: 0.75,
         borderRadius: 'var(--radius-pill)',
         border: '1px solid',
         borderColor: active ? 'var(--color-primary)' : 'var(--color-border)',
         bgcolor: active ? 'var(--color-indigo-bg)' : 'var(--color-paper)',
         transition: 'all 0.2s ease',
+        minWidth: 36,
         ...sx,
       }}
     >
-      <Filter size={14} style={{ color: active ? 'var(--color-primary)' : 'var(--color-text-soft)' }} />
-      <Typography
-        variant="body2"
-        sx={{
-          fontSize: '0.8rem',
-          fontWeight: 600,
-          color: active ? 'var(--color-primary)' : 'var(--color-text-soft)',
-        }}
-      >
-        {label}
-      </Typography>
+      <Filter size={16} style={{ color: active ? 'var(--color-primary)' : 'var(--color-text-soft)' }} />
       {count != null && count > 0 && (
         <Box
           component="span"
@@ -60,7 +51,6 @@ export default function HFFilterChip({ label = 'Filters', active = false, onClic
           {count}
         </Box>
       )}
-      <ChevronDown size={14} style={{ color: active ? 'var(--color-primary)' : 'var(--color-text-faint)' }} />
     </ButtonBase>
   );
 }
