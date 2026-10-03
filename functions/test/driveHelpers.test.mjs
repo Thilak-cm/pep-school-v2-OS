@@ -223,6 +223,34 @@ describe("buildDocInsertRequests formatting", () => {
     assert.deepEqual(buildDocInsertRequests(null), []);
   });
 
+  // Control-char sanitization (Sept 2026 monthly-plan incident, same seam):
+  // the Docs API silently drops control chars, so any that survive into
+  // insertText payloads desync client-computed indices from server state.
+  it("strips control chars from markdown and header fields before any index math", () => {
+    // eslint-disable-next-line no-control-regex -- asserting absence of control chars is the point
+    const controlChars = /[\x00-\x08\x0B\x0C\x0E-\x1F\x7F]/;
+    const dirtyMarkdown = "## Prog\u001Aress\nAakash\u0008 shows empathy.\n### Sub\nDeta\u0000ils.";
+    const dirtyOpts = {
+      ...baseOpts,
+      studentName: "Aakash\u001A Mehta",
+      programName: "Adoles\u0008cent",
+    };
+    const requests = buildDocInsertRequests(dirtyMarkdown, dirtyOpts);
+
+    for (const r of findRequests(requests, "insertText")) {
+      assert.ok(!controlChars.test(r.insertText.text),
+        `control char leaked into insertText: ${JSON.stringify(r.insertText.text)}`);
+    }
+
+    // Style ranges must align with the SANITIZED text lengths (index drift guard):
+    // the name style range should span exactly the cleaned name + newline.
+    const nameInsert = findRequests(requests, "insertText")
+      .find((r) => r.insertText.text.includes("Aakash Mehta"));
+    assert.ok(nameInsert, "sanitized student name should be inserted");
+    const style = findTextStyleForText(requests, "Aakash Mehta");
+    assert.ok(style, "style range must exactly cover the sanitized name text");
+  });
+
   // AC1: Logo insertion
   it("inserts logo as the first request when logoUrl is provided", () => {
     const requests = buildDocInsertRequests(sampleMarkdown, baseOpts);

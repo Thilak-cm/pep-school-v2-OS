@@ -22,7 +22,9 @@
 import * as functions from "firebase-functions/v1";
 import { defineSecret } from "firebase-functions/params";
 import { db } from "../shared/firebase.js";
-import { runLLM, OPENROUTER_API_KEY, LANGFUSE_SECRET_KEY, LANGFUSE_PUBLIC_KEY } from "../shared/llm.js";
+import { OPENROUTER_API_KEY, LANGFUSE_SECRET_KEY, LANGFUSE_PUBLIC_KEY } from "../shared/llm.js";
+import { runStructuredLLM } from "../shared/structuredLLM.js";
+import { MonthlyPlanResponseSchema } from "./planSchema.js";
 import { calculateAge } from "../utils/handwritingAnalysisHelpers.js";
 import { buildUserPrompt } from "./helpers.js";
 import {
@@ -239,9 +241,17 @@ async function generatePlanInternal(studentId, targetMonth, generatedBy, generat
     precedingPlan,
   });
 
-  // 5. Call LLM via runLLM (traced through Langfuse)
-  const { content: rawContent, usage } = await runLLM({
+  // 5. Call LLM via runStructuredLLM (#306): the Zod schema is enforced at
+  // both boundaries - request-side strict json_schema replaces the old
+  // { type: "json_object" }, response-side safeParse replaces bare JSON.parse.
+  // Malformed output (e.g. provider truncation, the 2026-10 incident) gets a
+  // bounded repair retry instead of becoming a permanent failed work item;
+  // persistent violations throw "internal" (schema_violation), which fan-out
+  // workers classify as permanent, same as the old parse failure.
+  const { data: planData, usage } = await runStructuredLLM({
     featureId: "monthly_plan",
+    schema: MonthlyPlanResponseSchema,
+    schemaName: "monthly_plan",
     messages: [
       { role: "system", content: systemPrompt },
       { role: "user", content: userPrompt },
@@ -249,7 +259,6 @@ async function generatePlanInternal(studentId, targetMonth, generatedBy, generat
     model,
     temperature,
     maxTokens,
-    responseFormat: { type: "json_object" },
     traceName: "monthly-plan",
     // runType distinguishes run provenance in Langfuse (tag "run:scheduled"
     // vs "run:remediation") so compensatory reruns of failed work items don't
@@ -261,15 +270,6 @@ async function generatePlanInternal(studentId, targetMonth, generatedBy, generat
   });
 
   const totalTokens = usage?.total_tokens || 0;
-
-  // 6. Parse LLM response
-  let planData;
-  try {
-    planData = JSON.parse(rawContent);
-  } catch (e) { // eslint-disable-line no-unused-vars
-    console.error("[generatePlanInternal] JSON parse failed:", rawContent.slice(0, 500));
-    throw new functions.https.HttpsError("internal", "LLM response is not valid JSON");
-  }
 
   // 7. Archive previous plan (if exists) before overwriting — skip if same month
   const planDocRef = studentRef.collection("ai_summaries").doc("monthly_plan");
@@ -532,6 +532,7 @@ export const generateMonthlyPlan = functions
       resolvedMonth,
       callerUid,
       callerDoc.data().displayName || callerUid,
+      { runType: "remediation" },
     );
 
     return {

@@ -108,7 +108,7 @@ async function getSoulTemplateConfig(programId) {
   return out;
 }
 
-async function callSoulGeneration(observations, interviews, guidelinesContent, studentContext, previousSoul, timeoutMs) {
+async function callSoulGeneration(observations, interviews, guidelinesContent, studentContext, previousSoul, timeoutMs, traceTags) {
   // Read instruction prompt + model settings from Firestore, fall back to hardcoded
   const soulConfig = await getSoulConfig(studentContext.programId);
   const systemPromptTemplate = soulConfig?.systemPrompt || null;
@@ -135,6 +135,7 @@ async function callSoulGeneration(observations, interviews, guidelinesContent, s
     maxTokens,
     traceName: "soul-generation",
     traceMetadata: { studentId: studentContext?.studentId, programId: studentContext?.programId },
+    ...(traceTags?.length ? { traceTags } : {}),
     timeoutMs,
   });
 
@@ -283,7 +284,7 @@ export const generateStudentProfile = functions
 // Reused by the on-demand callable and the Pub/Sub worker.
 // -----------------------------------------------
 
-async function generateSoulForStudent(studentId, { windowDays = 365, generatedForMonth = null, llmTimeoutMs = undefined } = {}) {
+async function generateSoulForStudent(studentId, { windowDays = 365, generatedForMonth = null, llmTimeoutMs = undefined, traceTags = undefined } = {}) {
   const t0 = Date.now();
   const lap = (label) => console.log(`[soul] ${studentId} ${label} +${Date.now() - t0}ms`);
 
@@ -345,6 +346,7 @@ async function generateSoulForStudent(studentId, { windowDays = 365, generatedFo
     { studentId, studentName: studentInfo.studentName, dob: studentInfo.dob, age: studentInfo.age, programId: studentInfo.programId },
     previousSoul,
     llmTimeoutMs,
+    traceTags,
   );
   lap("callSoulGeneration(LLM)");
 
@@ -444,18 +446,23 @@ export const soulWorker = functions
   .onPublish(makeFanoutWorker({
     jobKey: "soulRegen",
     extraKeys: ["targetMonth"],
+    // runType is optional so pre-existing messages without it still parse;
+    // defaults to "scheduled" in process below.
+    optionalKeys: ["runType"],
     isAlreadyDone: async ({ studentId, targetMonth }) => {
       const existingSoul = await db.collection("students").doc(studentId)
         .collection("ai_summaries").doc("soul").get();
       return existingSoul.exists && existingSoul.data().generatedForMonth === targetMonth;
     },
-    process: async ({ studentId, targetMonth }) => {
+    process: async ({ studentId, targetMonth, runType }) => {
       // #288: abort timeout, worker path only. No traced latency data yet
       // (first post-#187 traced run ~Oct 2026), so budget-derived: 240s in a
       // 300s CF leaves 60s headroom. Revisit toward 2x max once data exists.
+      const effectiveRunType = runType || "scheduled";
       const result = await generateSoulForStudent(studentId, {
         generatedForMonth: targetMonth,
         llmTimeoutMs: 240_000,
+        traceTags: [`run:${effectiveRunType}`],
       });
       if (result.status === "skipped") {
         return { state: "skipped", detail: result.reason };
@@ -473,7 +480,7 @@ export const soulWorker = functions
 // worker-side fallback, without recompute drift).
 // -----------------------------------------------
 
-async function publishSoulMessages(studentIds, logPrefix, { targetMonth, executionId }) {
+async function publishSoulMessages(studentIds, logPrefix, { targetMonth, executionId, runType }) {
   if (!targetMonth) {
     throw new Error("publishSoulMessages: targetMonth is required");
   }
@@ -487,7 +494,7 @@ async function publishSoulMessages(studentIds, logPrefix, { targetMonth, executi
   await Promise.all(
     studentIds.map(async (studentId) => {
       try {
-        const payload = JSON.stringify({ studentId, executionId, targetMonth });
+        const payload = JSON.stringify({ studentId, executionId, targetMonth, ...(runType ? { runType } : {}) });
         await soulTopic.publishMessage({ data: Buffer.from(payload) });
         published++;
       } catch (err) {
@@ -526,7 +533,7 @@ export const regenerateSoulsMonthly = functions
         topic: soulTopic,
         executionId,
         targetIds: studentIds,
-        buildPayload: (studentId) => ({ studentId, executionId, targetMonth }),
+        buildPayload: (studentId) => ({ studentId, executionId, targetMonth, runType: "scheduled" }),
       });
 
       const duration = ((Date.now() - startTime) / 1000).toFixed(1);
@@ -595,6 +602,7 @@ export const triggerSoulGeneration = functions
     const result = await publishSoulMessages(studentIds, "[soul-dispatcher]", {
       targetMonth,
       executionId: computeExecutionId("soulRegen"),
+      runType: data?.runType || undefined,
     });
 
     const duration = ((Date.now() - startTime) / 1000).toFixed(1);

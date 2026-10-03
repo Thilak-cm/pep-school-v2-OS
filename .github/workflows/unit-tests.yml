@@ -11,10 +11,10 @@ on:
       - 'montessori-os/package.json'
       - 'montessori-os/test-loader.js'
       - 'montessori-os/test-setup.js'
-      - 'functions/utils/**'
-      - 'functions/config/**'
-      - 'functions/test/**'
-      - 'functions/index.js'
+      # functions/** (not per-subdir filters): tests in functions/test/ cover shared/,
+      # ai/, and domain folders; narrow filters silently skipped runs when covered
+      # files changed (e.g. shared/llm.js edits never triggered llmContracts.test.mjs)
+      - 'functions/**'
       - 'firestore.rules'
       - '.github/workflows/unit-tests.yml'
   pull_request:
@@ -27,10 +27,7 @@ on:
       - 'montessori-os/package.json'
       - 'montessori-os/test-loader.js'
       - 'montessori-os/test-setup.js'
-      - 'functions/utils/**'
-      - 'functions/config/**'
-      - 'functions/test/**'
-      - 'functions/index.js'
+      - 'functions/**'
       - 'firestore.rules'
 
 jobs:
@@ -82,7 +79,4 @@ jobs:
 
       - name: Run unit tests
         working-directory: functions
-        shell: bash
-        run: |
-          shopt -s globstar
-          node --test test/**/*.test.mjs
+        run: npm test
