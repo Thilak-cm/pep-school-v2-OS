@@ -126,6 +126,9 @@ export async function runStructuredLLM({
     trace = langfuse.trace({
       name: llmOptions.traceName || llmOptions.featureId,
       metadata: { featureId: llmOptions.featureId, schemaName, ...llmOptions.traceMetadata },
+      // #306: own-trace path owns its tags, mirroring runLLM (llm.js) - callers
+      // thread run provenance (e.g. "run:scheduled" / "run:remediation") here.
+      ...(llmOptions.traceTags?.length ? { tags: llmOptions.traceTags } : {}),
     });
   }
 
