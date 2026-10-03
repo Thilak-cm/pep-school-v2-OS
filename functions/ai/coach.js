@@ -169,7 +169,12 @@ export const aiCoachReview = functions
         maxTokens: config.max_tokens,
         responseFormat: { type: "json_object" },
         traceName: "coach-review",
-        traceMetadata: { programId: programIds[0] },
+        traceMetadata: {
+          programId: programIds[0],
+          ...(data?.studentIds ? { studentIds: data.studentIds } : {}),
+          ...(data?.classroomId ? { classroomId: data.classroomId } : {}),
+          ...(data?.groupId ? { groupId: data.groupId } : {}),
+        },
       });
 
       // Parse JSON response

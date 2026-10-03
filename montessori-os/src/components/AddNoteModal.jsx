@@ -402,6 +402,7 @@ function AddNoteModal({
   const coachTimerRef = useRef({ t5: null, t10: null });
   const lastCoachSignatureRef = useRef(null);
   const mediaFileInputRef = useRef(null);
+  const pdfItemIdRef = useRef(null); // #319: stable media ID for PDF trace linkage
 
   const { students: mentionableStudents } = useMentionableStudents({ currentUser, userRole });
   const transcriptSuggestions = useTranscriptStudentSuggestions(
@@ -1302,7 +1303,7 @@ function AddNoteModal({
   };
 
   const runPdfSuggestions = async (text, pageCount, fileName) => {
-    const payload = { extractedText: text, pageCount, fileName };
+    const payload = { extractedText: text, pageCount, fileName, itemId: pdfItemIdRef.current };
     const suggestFn = httpsCallable(cloudFunctions, 'suggestPdfTitle');
     const essenceFn = httpsCallable(cloudFunctions, 'extractPdfEssence');
     setPdfTitleLoading(true);
@@ -1454,6 +1455,7 @@ function AddNoteModal({
       setPdfEssence('');
       setPdfExtractedText('');
       setPdfPageCount(null);
+      pdfItemIdRef.current = createMediaItemId();
       setPdfSource({
         file,
         size: file.size,
@@ -1694,7 +1696,7 @@ function AddNoteModal({
       const batchId = `batch_${Date.now().toString(36)}_${Math.random().toString(36).slice(2, 6)}`;
       const itemsToUpload = isPdf
         ? [{
-            id: 'pdf',
+            id: pdfItemIdRef.current || createMediaItemId(),
             kind: 'pdf',
             source: pdfSource,
             displayName: pdfDisplayName,
@@ -1737,7 +1739,8 @@ function AddNoteModal({
             throw new Error('Media source is missing. Please re-select the file and retry.');
           }
 
-          const mediaId = `media_${Date.now().toString(36)}_${Math.random().toString(36).slice(2, 6)}_${studentId.slice(0, 4)}`;
+          // #319: reuse pick-time item.id as mediaId for trace linkage
+          const mediaId = item.id;
           // #221: media docs now written to observations subcollection (storage path unchanged)
           const storagePath = `students/${studentId}/media/${mediaId}/original.${item.source.extension}`;
 
@@ -2121,7 +2124,7 @@ function AddNoteModal({
       return;
     }
 
-    coachProgramContextRef.current = { programId };
+    coachProgramContextRef.current = { programId, studentIds: [...selectedStudents] };
     const noteType = noteData === transcriptionData ? 'voice' : 'text';
     const signature = buildCoachSignature(noteData, selectedStudents, noteType);
 

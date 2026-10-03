@@ -224,7 +224,7 @@ async function getJudgeConfig(programId) {
   return data;
 }
 
-async function callReportJudge(reportText, notes, studentContext, programId) {
+async function callReportJudge(reportText, notes, studentContext, programId, { trace } = {}) {
   const judgeConfig = await getJudgeConfig(programId);
   if (!judgeConfig || !judgeConfig.systemPrompt) {
     console.warn("[report-judge] No judge config found for program:", programId);
@@ -265,7 +265,8 @@ async function callReportJudge(reportText, notes, studentContext, programId) {
       maxTokens: Number.isFinite(judgeConfig.max_tokens) ? judgeConfig.max_tokens : JUDGE_DEFAULTS.max_tokens,
       responseFormat: { type: "json_object" },
       traceName: "baseline-judge",
-      traceMetadata: { programId },
+      traceMetadata: { studentId: studentContext?.studentId, programId, noteCount: notes.length },
+      ...(trace ? { trace } : {}),
     });
 
     return parseJudgeResponse(rawContent);
@@ -418,11 +419,12 @@ export const generateStudentReport = functions
     const { displayName: requesterName } = await checkReportPermission(context.auth.uid, studentId);
     const reportType = data?.reportType === "baseline" ? "baseline" : "term";
 
+    const studentInfo = await getStudentWithProgram(studentId);
     const langfuse = createLangfuse();
     const trace = langfuse.trace({
       name: "generate-student-report",
       userId: context.auth.uid,
-      metadata: { studentId, reportType },
+      metadata: { studentId, classroomId: studentInfo.classroomId, programId: studentInfo.programId, reportType },
     });
 
     const result = await runSingleReport({
@@ -480,6 +482,13 @@ export const previewStudentReport = functions
       throw new functions.https.HttpsError("invalid-argument", "studentId is required");
     }
 
+    const langfuse = createLangfuse();
+    const trace = langfuse.trace({
+      name: "preview-student-report",
+      userId: context.auth.uid,
+      metadata: { studentId, preview: true },
+    });
+
     const result = await runSingleReport({
       studentId,
       dateRangeStart: data?.dateRangeStart || null,
@@ -490,7 +499,13 @@ export const previewStudentReport = functions
         ? { staticSystemPrompt: data.staticSystemPrompt, dynamicSystemPrompt: data.dynamicSystemPrompt }
         : null,
       dryRun: true,
+      trace,
     });
+
+    trace.update({
+      output: { status: result.status, noteCount: result.payload.noteCount },
+    });
+    await langfuse.flushAsync();
 
     return {
       status: result.status,
@@ -723,14 +738,8 @@ export const exportReportToDrive = functions
           ? (await fetchStudentNotesForDateRange(studentId, judgeStartDate, judgeEndDate)).map(formatObservationForPrompt)
           : [];
 
-        const judgeSpan = trace.generation({
-          name: "report-judge",
-          model: JUDGE_DEFAULTS.model,
-          input: { reportLength: report.reportText.length, noteCount: judgeNotes.length },
-        });
-        const judgeStudentInfo = { studentName, programId: report.programId || programId };
-        reportEval = await callReportJudge(report.reportText, judgeNotes, judgeStudentInfo, report.programId || programId);
-        judgeSpan.end({ output: reportEval || { error: "judge returned null" } });
+        const judgeStudentInfo = { studentName, studentId, programId: report.programId || programId };
+        reportEval = await callReportJudge(report.reportText, judgeNotes, judgeStudentInfo, report.programId || programId, { trace });
 
         if (reportEval) {
           // Persist reportEval on the report doc
@@ -1000,7 +1009,7 @@ export const checkReportReadiness = functions
       maxTokens: prompt.max_tokens,
       responseFormat: { type: "json_object" },
       traceName: "report-readiness",
-      traceMetadata: { studentId, reportType, noteCount: formatted.length },
+      traceMetadata: { studentId, classroomId: studentInfo.classroomId, programId: studentInfo.programId, reportType, noteCount: formatted.length },
     });
 
     const scores = parseReadinessResponse(rawContent);

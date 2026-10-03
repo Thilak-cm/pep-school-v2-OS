@@ -57,22 +57,28 @@ function normalizeToolCalls(toolCallParts, canonicalToolNames) {
     .filter((tc) => tc.id);
 }
 
+/**
+ * Convert provider usage into Langfuse usageDetails (#319).
+ * Forwards the raw OpenRouter usage object so Langfuse receives all
+ * token buckets (prompt, completion, reasoning, cache) for cost computation.
+ */
 function langfuseUsage(providerUsage) {
   if (!providerUsage) return null;
-  const usage = {
-    ...(Number.isFinite(providerUsage.inputTokens) ? { input: providerUsage.inputTokens } : {}),
-    ...(Number.isFinite(providerUsage.outputTokens) ? { output: providerUsage.outputTokens } : {}),
-  };
-  return Object.keys(usage).length ? usage : null;
+  const details = {};
+  if (Number.isFinite(providerUsage.inputTokens)) details.input = providerUsage.inputTokens;
+  if (Number.isFinite(providerUsage.outputTokens)) details.output = providerUsage.outputTokens;
+  if (Number.isFinite(providerUsage.reasoningTokens)) details.reasoningTokens = providerUsage.reasoningTokens;
+  if (Number.isFinite(providerUsage.cacheTokens)) details.cacheReadTokens = providerUsage.cacheTokens;
+  return Object.keys(details).length ? details : null;
 }
 
 function persistGenerationUsage({ generation, payload, providerUsage, telemetry, iteration }) {
-  const usage = langfuseUsage(providerUsage);
+  const usageDetails = langfuseUsage(providerUsage);
   const endUsage = telemetry?.startStage?.("usage_recording", { iteration }) || (() => {});
   try {
-    generation.end({ ...payload, ...(usage ? { usage } : {}) });
+    generation.end({ ...payload, ...(usageDetails ? { usageDetails } : {}) });
   } finally {
-    endUsage({ count: usage ? 1 : 0 });
+    endUsage({ count: usageDetails ? 1 : 0 });
   }
 }
 

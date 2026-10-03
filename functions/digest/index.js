@@ -562,6 +562,7 @@ export const weeklyDigestClassroomAdmin = functions
                 iterations: result.iterations,
                 recipients: recipientEmails,
                 emailDelivery: emailResults,
+                studentCount: statsDoc?.students?.length || 0,
               },
             });
             digestCount++;

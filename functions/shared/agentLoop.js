@@ -76,7 +76,7 @@ export async function runAgentLoop({
 
     const generation = trace?.generation({
       name: `agent-iteration-${iteration}`,
-      model: model.model,
+      model: resolvedModelId,
       input: messages[messages.length - 1],
     });
 

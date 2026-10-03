@@ -72,7 +72,7 @@ export const aiTextCleanup = functions
       temperature: config.temperature,
       maxTokens: config.max_tokens,
       traceName: "text-cleanup",
-      traceMetadata: { textLength: text.length, promptVersion: config.version },
+      traceMetadata: { textLength: text.length, promptVersion: config.version, uid: context.auth.uid },
     });
 
     return {
