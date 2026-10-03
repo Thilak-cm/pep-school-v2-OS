@@ -337,7 +337,7 @@ test("runStreamingAgentLoop preserves per-iteration provider milestones and accu
   assert.equal(summary.dimensions.providerResponseBytes > 0, true);
   assert.equal(summary.stages.usage_recording.count, 1);
   assert.equal(summary.stages.usage_recording_2.count, 1);
-  assert.deepEqual(generationEnds.map((value) => value.usage), [
+  assert.deepEqual(generationEnds.map((value) => value.usageDetails), [
     { input: 10, output: 2 },
     { input: 20, output: 4 },
   ]);
