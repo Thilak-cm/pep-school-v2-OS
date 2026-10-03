@@ -1354,6 +1354,7 @@ interface StatsClassroomDoc {
     voice: number;
     text: number;
     lesson: number;
+    practice: number;
     media: number;
     total: number;
   };
@@ -1365,10 +1366,11 @@ interface StatsClassroomDoc {
   };
 
   effortActivityByType: {       // deduped per-type activity tiers
-    voice: { daily: Record<string, number>; weekly: Record<string, number>; monthly: Record<string, number>; };
-    text:  { daily: Record<string, number>; weekly: Record<string, number>; monthly: Record<string, number>; };
-    lesson:{ daily: Record<string, number>; weekly: Record<string, number>; monthly: Record<string, number>; };
-    media: { daily: Record<string, number>; weekly: Record<string, number>; monthly: Record<string, number>; };
+    voice:    { daily: Record<string, number>; weekly: Record<string, number>; monthly: Record<string, number>; };
+    text:     { daily: Record<string, number>; weekly: Record<string, number>; monthly: Record<string, number>; };
+    lesson:   { daily: Record<string, number>; weekly: Record<string, number>; monthly: Record<string, number>; };
+    practice: { daily: Record<string, number>; weekly: Record<string, number>; monthly: Record<string, number>; };
+    media:    { daily: Record<string, number>; weekly: Record<string, number>; monthly: Record<string, number>; };
   };
 
   studentCount: number;
@@ -1380,18 +1382,21 @@ interface StatsClassroomDoc {
     status: string;
     observations: number;       // voice + text in THIS classroom
     lessons: number;            // lessons in THIS classroom
+    practice: number;           // practice notes in THIS classroom
     media: number;              // media in THIS classroom
     handwritten: number;        // handwritten subset of media
     assessments: number;        // assessment notes (#274) — no longer counted as observations
     questionsAnswered: number;  // notes with openQuestion set, any type (#274)
     observations7d: number;
     lessons7d: number;
+    practice7d: number;
     media7d: number;
     handwritten7d: number;
     assessments7d: number;
     questionsAnswered7d: number;
     observations30d: number;
     lessons30d: number;
+    practice30d: number;
     media30d: number;
     handwritten30d: number;
     assessments30d: number;

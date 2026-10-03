@@ -36,7 +36,8 @@ import {
   serverTimestamp,
   updateDoc,
   setDoc,
-  deleteDoc
+  deleteDoc,
+  deleteField
 } from 'firebase/firestore';
 import { db } from '../firebase';
 import useNotify from '../notifications/useNotify';
@@ -492,6 +493,8 @@ function LessonNoteWizard({
         comment: editObservation.studentComment || '',
       }
     });
+
+    setLinkedLesson(editObservation.linkedLesson || null);
 
     initialPrefillDoneRef.current = true;
     editPrefillDoneRef.current = true;
@@ -992,6 +995,7 @@ function LessonNoteWizard({
           updatedAt: serverTimestamp(),
           lastEditedBy: currentUser?.uid || null,
           lastEditedAt: serverTimestamp(),
+          ...(noteSubType === 'practice' ? { linkedLesson: linkedLesson ?? deleteField() } : {}),
         };
         await observationOperations.updateObservationFields({
           studentId,
@@ -1016,7 +1020,7 @@ function LessonNoteWizard({
 
           const isPractice = noteSubType === 'practice';
           const observationId = isPractice
-            ? `practice_${Date.now().toString(36)}_${Math.random().toString(36).slice(2, 6)}`
+            ? `practice_${Date.now().toString(36)}_${Math.random().toString(36).slice(2, 6)}_${studentId.slice(0, 4)}`
             : `lesson_${Date.now().toString(36)}_${Math.random().toString(36).slice(2, 6)}_${studentId.slice(0, 4)}`;
           const lessonData = {
             studentId,

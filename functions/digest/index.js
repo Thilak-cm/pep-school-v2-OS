@@ -217,9 +217,11 @@ export function buildFirstUserMessage(classroomDoc, statsCacheDoc, contextualNot
     lessons7d: t.lessons7d || 0,
     media7d: t.media7d || 0,
     assessments7d: t.assessments7d || 0,
-    total7d: (t.observations7d || 0) + (t.lessons7d || 0) + (t.media7d || 0) + (t.assessments7d || 0),
+    practice7d: t.practice7d || 0,
+    total7d: (t.observations7d || 0) + (t.lessons7d || 0) + (t.practice7d || 0) + (t.media7d || 0) + (t.assessments7d || 0),
     observations: t.observations || 0,
     lessons: t.lessons || 0,
+    practice: t.practice || 0,
     media: t.media || 0,
     assessments: t.assessments || 0,
   }));
@@ -279,7 +281,7 @@ export function buildFirstUserMessage(classroomDoc, statsCacheDoc, contextualNot
     "## Teacher Activity (last 7 days)",
     ...teachers.map(
       (t) =>
-        `- ${t.name}: ${t.total7d} notes (${t.observations7d} obs, ${t.lessons7d} lessons, ${t.media7d} media, ${t.assessments7d} assessments) | all-time: ${t.observations + t.lessons + t.media + t.assessments}`
+        `- ${t.name}: ${t.total7d} notes (${t.observations7d} obs, ${t.lessons7d} lessons, ${t.practice7d} practice, ${t.media7d} media, ${t.assessments7d} assessments) | all-time: ${t.observations + t.lessons + t.practice + t.media + t.assessments}`
     ),
     "",
     "## Students",

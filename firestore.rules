@@ -425,7 +425,8 @@ service cloud.firestore {
               'ratings',
               'studentComment',
               'lessonMode',
-              'teacherComment'
+              'teacherComment',
+              'linkedLesson'
             ]) &&
             request.resource.data.type == resource.data.type &&
             request.resource.data.createdBy == resource.data.createdBy &&

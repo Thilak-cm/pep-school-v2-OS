@@ -86,6 +86,7 @@ export default function NoteBottomSheet({
   carouselIndex,
   onCarouselNavigate,
   onObservationDeleted,
+  onSwapObservation,
   classroomTeachers = [],
 }) {
   const notify = useNotify();
@@ -252,7 +253,7 @@ export default function NoteBottomSheet({
 
   // -- Lesson navigate edit --
   const handleEditLessonNavigate = () => {
-    if (!observation || observation.type !== 'lesson') return;
+    if (!observation || (observation.type !== 'lesson' && observation.type !== 'practice')) return;
     if (!canEditCurrent) { notify.error(getPermissionErrorMessage()); return; }
     const targetStudentId = observation.parentStudentId || observation.studentId || student?.id;
     const targetClassroomId = observation.classroomId || student?.classroomId || null;
@@ -267,6 +268,26 @@ export default function NoteBottomSheet({
       }));
     } catch (e) { reportCaughtError(e, 'NoteBottomSheet', 'lesson navigate'); }
     handleClose();
+  };
+
+  // -- Linked lesson tap (practice notes) --
+  const handleLinkedLessonTap = async (linkedLesson) => {
+    if (!linkedLesson?.observationId) return;
+    const targetStudentId = observation?.studentId || observation?.parentStudentId || student?.id;
+    if (!targetStudentId) return;
+    try {
+      const linkedDocRef = doc(db, 'students', targetStudentId, 'observations', linkedLesson.observationId);
+      const linkedSnap = await getDoc(linkedDocRef);
+      if (!linkedSnap.exists()) {
+        notify.info('Linked lesson no longer exists');
+        return;
+      }
+      const linkedObs = { id: linkedSnap.id, ...linkedSnap.data(), studentId: targetStudentId };
+      onSwapObservation?.(linkedObs);
+    } catch (e) {
+      reportCaughtError(e, 'NoteBottomSheet', 'linked lesson tap');
+      notify.error('Could not open linked lesson');
+    }
   };
 
   // -- Delete --
@@ -522,7 +543,7 @@ export default function NoteBottomSheet({
               onEditTextChange={setEditText}
             />
           ) : (observation.type === 'lesson' || observation.type === 'practice') ? (
-            <LessonAndPracticeContent observation={observation} />
+            <LessonAndPracticeContent observation={observation} onLinkedLessonTap={handleLinkedLessonTap} />
           ) : isMedia ? (
             <MediaContent
               observation={observation}

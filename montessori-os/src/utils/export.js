@@ -328,7 +328,7 @@ export const generateTextContent = ({
     return list
       .map((obs, index) => {
         const date = formatTimestampForText(obs.observedAt || obs.timestamp);
-        if (obs.type === 'lesson') {
+        if (obs.type === 'lesson' || obs.type === 'practice') {
           return formatLessonObservation(obs, index, date);
         }
         return formatGeneralObservation(obs, index, date);

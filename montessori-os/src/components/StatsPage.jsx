@@ -239,11 +239,11 @@ const StatsPage = ({ user, role, manageableClassrooms = [], onBack, onNavigateTo
     // Fall back to all-time effortCounts if effortActivityByType not yet in cache docs
     const hasTypeTiers = classroomDocs.some(d => d.effortActivityByType);
     if (!hasTypeTiers) {
-      const nc = { observations: 0, lesson: 0, media: 0, assessment: 0 };
+      const nc = { observations: 0, lesson: 0, practice: 0, media: 0, assessment: 0 };
       for (const doc of classroomDocs) {
         const c = doc.effortCounts || {};
         nc.observations += (c.voice || 0) + (c.text || 0);
-        nc.lesson += c.lesson || 0; nc.media += c.media || 0; nc.assessment += c.assessment || 0;
+        nc.lesson += c.lesson || 0; nc.practice += c.practice || 0; nc.media += c.media || 0; nc.assessment += c.assessment || 0;
       }
       return [
         { name: 'Observations', value: nc.observations, color: '#4f46e5' }, /* Recharts */
@@ -828,6 +828,7 @@ const StatsPage = ({ user, role, manageableClassrooms = [], onBack, onNavigateTo
               {visibleSeries.observations && <Line type="monotone" dataKey="observations" name="Observations" stroke="#4f46e5" strokeWidth={2.5} dot={{ fill: '#4f46e5', r: 3 }} />} {/* Recharts */}
               {visibleSeries.lessons && <Line type="monotone" dataKey="lessons" name="Lessons" stroke="#059669" strokeWidth={2.5} dot={{ fill: '#059669', r: 3 }} />} {/* Recharts */}
               {visibleSeries.media && <Line type="monotone" dataKey="media" name="Media" stroke="#ec4899" strokeWidth={2.5} dot={{ fill: '#ec4899', r: 3 }} />} {/* Recharts */}
+              {visibleSeries.practice && <Line type="monotone" dataKey="practice" name="Practice" stroke="#7c3aed" strokeWidth={2.5} dot={{ fill: '#7c3aed', r: 3 }} />} {/* Recharts */}
               {visibleSeries.assessments && <Line type="monotone" dataKey="assessments" name="Assessments" stroke="#d97706" strokeWidth={2.5} dot={{ fill: '#d97706', r: 3 }} />} {/* Recharts */}
             </LineChart>
           </ResponsiveContainer>
