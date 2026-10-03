@@ -1,5 +1,16 @@
 # Changelog
 
+# 13.4.0 - 2026-10-02
+
+### Changed
+- Langfuse cost instrumentation across all 13 AI pipelines: `usageDetails` replaces legacy `usage` field with mapped key names for correct cost computation; reasoning and cached token buckets forwarded (#319).
+- Data-URI sanitizer strips children's photos/handwriting from Langfuse trace input; storage paths in metadata provide provenance for debugging (#319).
+- Per-pipeline trace metadata enriched with `studentId`, `classroomId`, `programId` for per-student cost attribution (#319).
+- Chat and digest agentLoop report resolved model slug instead of config alias (#319).
+- Reports-Preview mirrors generate tracing: parent trace, metadata, `flushAsync()` on all paths (#319).
+- Reports-Judge nested under parent trace with `studentId`/`noteCount`; hollow manual span removed (#319).
+- AddNoteModal: PDF media ID hoisted to pick-time for trace-to-upload correlation (#319).
+
 # 13.3.4 - 2026-09-30
 
 ### Removed
