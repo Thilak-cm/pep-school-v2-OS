@@ -1,7 +1,7 @@
 # Pep OS Overview
 
-Generated: 2026-09-30T22:45:08.829Z
-App version: 13.3.4
+Generated: 2026-10-03T01:47:39.388Z
+App version: 13.3.5
 
 ## App Snapshot
 
@@ -155,6 +155,11 @@ App version: 13.3.4
 
 ## Recent Changes
 
+### 13.3.5 (2026-10-02)
+- Monthly plan generation migrated from `runLLM` + bare `JSON.parse` to `runStructuredLLM` with Zod schema enforcement and bounded repair retry. Transient malformed output (the 2026-10 incident class) self-heals; persistent violations fail loudly as `schema_violation` (#306).
+- Allowed email domains consolidated into `functions/config/authConstants.js` - single source of truth replacing four divergent copies (auth gate, frontend form, admin script).
+- Google Docs control-char sanitizer extracted to `functions/utils/docsText.js` and applied to the report export path (`driveHelpers.js`), closing the unprotected seam found during #306 planning.
+
 ### 13.3.4 (2026-09-30)
 - `runLLM` retries `finish_reason: "error"` (provider mid-stream failures) with bounded plain re-roll - max 2 retries (3 calls total), no backoff. Exhaustion throws `HttpsError("unavailable")` so fan-out workers NACK/redeliver instead of permanently failing (#310).
 - Failed provider-error attempts recorded as Langfuse ERROR generations with attempt index and token usage, nested under one trace per call (#310).
@@ -168,9 +173,4 @@ App version: 13.3.4
 - Digest docs store parsed `contentJson` (Firestore map) instead of rendered `htmlContent`; HTML rendered at send time only (#300).
 - CF2 superadmin prompt receives stringified JSON instead of HTML markup (~11k tokens saved per run) (#300).
 - Integrity contract (`verifyDigest`) asserts `contentJson` presence (#300).
-
-### 13.3.1 (2026-09-27)
-- Per-feature Langfuse tail-based sampling: `text_cleanup` and `whisper_translate` sampled at 10% for clean successes; failures/cap-hits always kept. Configured via `config/langfuse_sampling` doc (#298).
-- Error levels standardized across LLM plumbing: `runLLM` (ERROR on timeout/network/http/empty, WARNING on cap-hit), `agentLoop` (ERROR on timeout/network), `structuredLLM` (WARNING on validation failure, ERROR on repair exhaustion), `whisper-translate` (ERROR on network/http) (#298).
-- Whisper-translate generations now report `usageDetails: { audio_seconds }` for non-zero cost in Langfuse (#298).
 
