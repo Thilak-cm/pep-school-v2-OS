@@ -49,13 +49,13 @@ export function isReasoningModel(model) {
 export function mapUsageDetails(usage) {
   if (!usage) return undefined;
   const details = {};
-  if (usage.prompt_tokens != null) details.input = usage.prompt_tokens;
-  if (usage.completion_tokens != null) details.output = usage.completion_tokens;
-  if (usage.total_tokens != null) details.total = usage.total_tokens;
-  if (usage.completion_tokens_details?.reasoning_tokens != null) {
+  if (Number.isFinite(usage.prompt_tokens)) details.input = usage.prompt_tokens;
+  if (Number.isFinite(usage.completion_tokens)) details.output = usage.completion_tokens;
+  if (Number.isFinite(usage.total_tokens)) details.total = usage.total_tokens;
+  if (Number.isFinite(usage.completion_tokens_details?.reasoning_tokens)) {
     details.reasoningTokens = usage.completion_tokens_details.reasoning_tokens;
   }
-  if (usage.prompt_tokens_details?.cached_tokens != null) {
+  if (Number.isFinite(usage.prompt_tokens_details?.cached_tokens)) {
     details.cacheReadTokens = usage.prompt_tokens_details.cached_tokens;
   }
   return Object.keys(details).length ? details : undefined;

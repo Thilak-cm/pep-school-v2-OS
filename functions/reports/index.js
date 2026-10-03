@@ -482,30 +482,40 @@ export const previewStudentReport = functions
       throw new functions.https.HttpsError("invalid-argument", "studentId is required");
     }
 
+    const studentInfo = await getStudentWithProgram(studentId);
     const langfuse = createLangfuse();
     const trace = langfuse.trace({
       name: "preview-student-report",
       userId: context.auth.uid,
-      metadata: { studentId, preview: true },
+      metadata: {
+        studentId,
+        classroomId: studentInfo.classroomId,
+        programId: studentInfo.programId,
+        preview: true,
+      },
     });
 
-    const result = await runSingleReport({
-      studentId,
-      dateRangeStart: data?.dateRangeStart || null,
-      dateRangeEnd: data?.dateRangeEnd || null,
-      requesterId: context.auth.uid,
-      configOverrides: data?.config || null,
-      promptOverride: (typeof data?.staticSystemPrompt === "string" && data.staticSystemPrompt.trim()) || (typeof data?.dynamicSystemPrompt === "string" && data.dynamicSystemPrompt.trim())
-        ? { staticSystemPrompt: data.staticSystemPrompt, dynamicSystemPrompt: data.dynamicSystemPrompt }
-        : null,
-      dryRun: true,
-      trace,
-    });
+    let result;
+    try {
+      result = await runSingleReport({
+        studentId,
+        dateRangeStart: data?.dateRangeStart || null,
+        dateRangeEnd: data?.dateRangeEnd || null,
+        requesterId: context.auth.uid,
+        configOverrides: data?.config || null,
+        promptOverride: (typeof data?.staticSystemPrompt === "string" && data.staticSystemPrompt.trim()) || (typeof data?.dynamicSystemPrompt === "string" && data.dynamicSystemPrompt.trim())
+          ? { staticSystemPrompt: data.staticSystemPrompt, dynamicSystemPrompt: data.dynamicSystemPrompt }
+          : null,
+        dryRun: true,
+        trace,
+      });
 
-    trace.update({
-      output: { status: result.status, noteCount: result.payload.noteCount },
-    });
-    await langfuse.flushAsync();
+      trace.update({
+        output: { status: result.status, noteCount: result.payload.noteCount },
+      });
+    } finally {
+      await langfuse.flushAsync();
+    }
 
     return {
       status: result.status,

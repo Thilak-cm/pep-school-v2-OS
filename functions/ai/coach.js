@@ -171,9 +171,12 @@ export const aiCoachReview = functions
         traceName: "coach-review",
         traceMetadata: {
           programId: programIds[0],
-          ...(data?.studentIds ? { studentIds: data.studentIds } : {}),
-          ...(data?.classroomId ? { classroomId: data.classroomId } : {}),
-          ...(data?.groupId ? { groupId: data.groupId } : {}),
+          ...(Array.isArray(data?.studentIds) && data.studentIds.length > 0
+            ? { studentIds: data.studentIds.map(String).filter(Boolean) } : {}),
+          ...(typeof data?.classroomId === "string" && data.classroomId.trim()
+            ? { classroomId: data.classroomId.trim() } : {}),
+          ...(typeof data?.groupId === "string" && data.groupId.trim()
+            ? { groupId: data.groupId.trim() } : {}),
         },
       });
 

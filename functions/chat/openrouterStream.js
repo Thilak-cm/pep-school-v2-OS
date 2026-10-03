@@ -67,6 +67,7 @@ function langfuseUsage(providerUsage) {
   const details = {};
   if (Number.isFinite(providerUsage.inputTokens)) details.input = providerUsage.inputTokens;
   if (Number.isFinite(providerUsage.outputTokens)) details.output = providerUsage.outputTokens;
+  if (Number.isFinite(providerUsage.totalTokens)) details.total = providerUsage.totalTokens;
   if (Number.isFinite(providerUsage.reasoningTokens)) details.reasoningTokens = providerUsage.reasoningTokens;
   if (Number.isFinite(providerUsage.cacheTokens)) details.cacheReadTokens = providerUsage.cacheTokens;
   return Object.keys(details).length ? details : null;
@@ -194,6 +195,7 @@ export async function streamOpenRouterTurn({
           providerUsage = {
             inputTokens: json.usage.prompt_tokens,
             outputTokens: json.usage.completion_tokens,
+            totalTokens: json.usage.total_tokens,
             reasoningTokens: json.usage.completion_tokens_details?.reasoning_tokens,
             cacheTokens: json.usage.prompt_tokens_details?.cached_tokens,
           };

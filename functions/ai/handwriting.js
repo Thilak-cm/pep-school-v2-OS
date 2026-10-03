@@ -304,7 +304,12 @@ async function runWritingAnalysisForStudent(studentId, { dryRun = false, program
     temperature: config.temperature,
     maxTokens: config.max_tokens,
   }, llmTimeoutMs, {
-    traceMetadata: { studentId, classroomId: studentData?.classroomId, programId },
+    traceMetadata: {
+      studentId,
+      classroomId: studentData?.classroomId,
+      programId,
+      storagePaths: mediaDocs.map((d) => d.storagePath).filter(Boolean),
+    },
   });
 
   const parsed = parseWritingAnalysisResponse(vlmResult);
