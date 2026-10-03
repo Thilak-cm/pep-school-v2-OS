@@ -33,7 +33,7 @@ export function formatWeekLabel(weekStartDay) {
   }
   return `${month(start)} ${start.getUTCDate()} - ${month(end)} ${end.getUTCDate()}, ${yearTag}`;
 }
-const NOTE_FIELDS = ["observations", "lessons", "media", "assessments"];
+const NOTE_FIELDS = ["observations", "lessons", "practice", "media", "assessments"];
 
 const fmt = (value) => Number(value || 0).toLocaleString("en-US");
 
@@ -136,6 +136,7 @@ export function renderStatsTable(row, studentCount) {
   const rows = [
     statRow("Observations", windowValues("observations")),
     statRow("Lessons", windowValues("lessons")),
+    statRow("Practice", windowValues("practice")),
     statRow("Media", windowValues("media")),
     statRow("Assessments", windowValues("assessments")),
     statRow("Questions answered", windowValues("questionsAnswered")),

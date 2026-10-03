@@ -12,6 +12,7 @@ export { formatTimestamp };
  */
 export const getObservationTypeIcon = (type) => {
   if (type === 'lesson') return <MenuBook size={16} />;
+  if (type === 'practice') return <MenuBook size={16} />;
   if (type === 'media') return <PhotoLibrary size={16} />;
   if (type === 'report') return <Description size={16} />;
   return <Visibility size={16} />;
@@ -24,6 +25,7 @@ export const getObservationTypeIcon = (type) => {
  */
 export const getObservationTypeText = (type) => {
   if (type === 'lesson') return 'Lesson Note';
+  if (type === 'practice') return 'Practice Note';
   if (type === 'media') return 'Media Note';
   if (type === 'report') return 'Report';
   return 'Observation';

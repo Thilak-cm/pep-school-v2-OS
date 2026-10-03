@@ -1,5 +1,26 @@
 # Changelog
 
+# 13.4.0 - 2026-10-02
+
+### Added
+- Practice note observation type - structured follow-up of previously taught lessons, entered via radio toggle inside the lesson note wizard (#227).
+- Link suggester for individual practice notes - debounced Fuse.js search over student's lesson history, same-teacher-first, max 3 results, dismissible (#227).
+- "Follow-up of..." linked lesson chip in note bottom sheet with tap-to-navigate and toast-if-deleted (#227).
+- 5th "Practice" line item across all stats surfaces - pie chart, legend, activity trend, comparison, period stats, weekly digest (#227).
+- Practice filter button in both Student and Classroom timeline FilterPanels (#227).
+- `PRACTICE` export kind with `linkedLesson` passthrough in `cleanObservationData` (#227).
+- `'practice'` in firestore.rules `isAllowedNonMediaObservationType` whitelist and `linkedLesson` in edit allowlist (#227).
+- `'practice'` in MCP server type filter enum (#227).
+- AI context: practice notes render with `linkedLessonContext` suffix in `formatObservationForPrompt` (#227).
+- Practice note support in monthly plan serialization, digest teacher counts, grouped note cards/dialogs, and observation utils (#227).
+
+### Changed
+- `LessonContent.jsx` renamed to `LessonAndPracticeContent.jsx` - same book icon, violet chip for practice (#227).
+- Superadmin-only soft launch gate - non-superadmins see "Coming soon" toast (#227).
+
+### Removed
+- Dead `functions/config/practiceDimensions.js` - frontend `lessonNoteConstraints.js` is the single source of truth (#227).
+
 # 13.3.4 - 2026-09-30
 
 ### Removed

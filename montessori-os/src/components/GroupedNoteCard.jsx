@@ -151,7 +151,7 @@ export default function GroupedNoteCard({
   const note = groupedNote.representativeNote;
   const chipConfig = getTypeChipConfig(note.type);
   const teacher = getTeacherForNote(note, classroomTeachers);
-  const isLesson = note.type === 'lesson';
+  const isLesson = note.type === 'lesson' || note.type === 'practice';
   const isAssessment = note.type === 'assessment';
 
   const studentsInGroup = groupedNote.studentIds

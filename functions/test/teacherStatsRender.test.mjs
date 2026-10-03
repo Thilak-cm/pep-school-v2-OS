@@ -17,9 +17,9 @@ const day = (iso) => Math.floor(Date.parse(iso) / DAY_MS);
 
 const teacherRow = (id, overrides = {}) => ({
   id, name: `Teacher ${id}`, email: `${id}@pep.school`, status: "active",
-  observations: 10, lessons: 4, media: 3, handwritten: 1, assessments: 2, questionsAnswered: 5,
-  observations7d: 5, lessons7d: 2, media7d: 1, handwritten7d: 0, assessments7d: 1, questionsAnswered7d: 2,
-  observations30d: 8, lessons30d: 3, media30d: 2, handwritten30d: 1, assessments30d: 2, questionsAnswered30d: 4,
+  observations: 10, lessons: 4, practice: 1, media: 3, handwritten: 1, assessments: 2, questionsAnswered: 5,
+  observations7d: 5, lessons7d: 2, practice7d: 0, media7d: 1, handwritten7d: 0, assessments7d: 1, questionsAnswered7d: 2,
+  observations30d: 8, lessons30d: 3, practice30d: 1, media30d: 2, handwritten30d: 1, assessments30d: 2, questionsAnswered30d: 4,
   studentsReached: 20, studentsReached7d: 12, studentsReached30d: 18,
   ...overrides,
 });
@@ -40,9 +40,9 @@ test("previous week starts on the Monday before the run date", () => {
 
 test("totalNotes sums observations, lessons, media, and assessments per window", () => {
   const row = teacherRow("t1");
-  assert.equal(totalNotes(row, ""), 19);
+  assert.equal(totalNotes(row, ""), 20);
   assert.equal(totalNotes(row, "7d"), 9);
-  assert.equal(totalNotes(row, "30d"), 15);
+  assert.equal(totalNotes(row, "30d"), 16);
 });
 
 test("daily series aggregates note counts across classrooms with Mon–Sun labels", () => {
@@ -50,8 +50,8 @@ test("daily series aggregates note counts across classrooms with Mon–Sun label
   const mon = String(weekStart);
   const wed = String(weekStart + 2);
   const caches = [
-    cache("c1", [teacherRow("t1")], {t1: {[mon]: {observations: 2, lessons: 1, media: 0, handwritten: 0, assessments: 1, questionsAnswered: 1}}}),
-    cache("c2", [teacherRow("t1")], {t1: {[mon]: {observations: 1, lessons: 0, media: 1, handwritten: 0, assessments: 0, questionsAnswered: 0}, [wed]: {observations: 3, lessons: 0, media: 0, handwritten: 0, assessments: 0, questionsAnswered: 0}}}),
+    cache("c1", [teacherRow("t1")], {t1: {[mon]: {observations: 2, lessons: 1, practice: 0, media: 0, handwritten: 0, assessments: 1, questionsAnswered: 1}}}),
+    cache("c2", [teacherRow("t1")], {t1: {[mon]: {observations: 1, lessons: 0, practice: 0, media: 1, handwritten: 0, assessments: 0, questionsAnswered: 0}, [wed]: {observations: 3, lessons: 0, practice: 0, media: 0, handwritten: 0, assessments: 0, questionsAnswered: 0}}}),
   ];
   const series = buildDailySeries(caches, "t1", weekStart);
   assert.equal(series.length, 7);
@@ -112,7 +112,7 @@ test("bar chart renders seven bars with counts and handles all-zero weeks", () =
 
 test("stats table shows all rows, windows, and children covered formats", () => {
   const html = renderStatsTable(teacherRow("t1"), 35);
-  for (const label of ["Observations", "Lessons", "Media", "Assessments", "Questions answered", "Total notes", "Children covered"]) {
+  for (const label of ["Observations", "Lessons", "Practice", "Media", "Assessments", "Questions answered", "Total notes", "Children covered"]) {
     assert.ok(html.includes(label), `missing row ${label}`);
   }
   assert.ok(html.includes("All time"));
@@ -123,16 +123,16 @@ test("stats table shows all rows, windows, and children covered formats", () => 
   assert.ok(html.includes(">20<"));
   // Total notes per window.
   assert.ok(html.includes(">9<"));
-  assert.ok(html.includes(">15<"));
-  assert.ok(html.includes(">19<"));
+  assert.ok(html.includes(">16<"));
+  assert.ok(html.includes(">20<"));
 });
 
 test("teacher email renders chart, classroom sections, and zero-activity weeks", () => {
   const series = Array.from({length: 7}, (_, index) => ({label: ["Mon", "Tue", "Wed", "Thu", "Fri", "Sat", "Sun"][index], count: 0}));
   const zeroRow = teacherRow("t1", {
-    observations: 0, lessons: 0, media: 0, assessments: 0, questionsAnswered: 0,
-    observations7d: 0, lessons7d: 0, media7d: 0, assessments7d: 0, questionsAnswered7d: 0,
-    observations30d: 0, lessons30d: 0, media30d: 0, assessments30d: 0, questionsAnswered30d: 0,
+    observations: 0, lessons: 0, practice: 0, media: 0, assessments: 0, questionsAnswered: 0,
+    observations7d: 0, lessons7d: 0, practice7d: 0, media7d: 0, assessments7d: 0, questionsAnswered7d: 0,
+    observations30d: 0, lessons30d: 0, practice30d: 0, media30d: 0, assessments30d: 0, questionsAnswered30d: 0,
     studentsReached: 0, studentsReached7d: 0, studentsReached30d: 0,
   });
   const html = renderTeacherEmail({

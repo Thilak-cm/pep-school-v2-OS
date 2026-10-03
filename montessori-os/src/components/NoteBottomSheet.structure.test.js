@@ -6,7 +6,7 @@ import { access, constants } from 'node:fs/promises';
 const containerPath = new URL('./noteBottomSheet/NoteBottomSheet.jsx', import.meta.url);
 const sharedHeaderPath = new URL('./noteBottomSheet/SharedHeader.jsx', import.meta.url);
 const voiceContentPath = new URL('./noteBottomSheet/VoiceContent.jsx', import.meta.url);
-const lessonContentPath = new URL('./noteBottomSheet/LessonContent.jsx', import.meta.url);
+const lessonContentPath = new URL('./noteBottomSheet/LessonAndPracticeContent.jsx', import.meta.url);
 const mediaContentPath = new URL('./noteBottomSheet/MediaContent.jsx', import.meta.url);
 const actionButtonsPath = new URL('./noteBottomSheet/ActionButtons.jsx', import.meta.url);
 const studentTimelinePath = new URL('./StudentTimeline.jsx', import.meta.url);
@@ -38,7 +38,7 @@ describe('NoteBottomSheet container', () => {
     assert.ok(/SharedHeader/.test(source), 'Should render SharedHeader');
     assert.ok(/TextContent/.test(source), 'Should render TextContent');
     assert.ok(/VoiceContent/.test(source), 'Should render VoiceContent');
-    assert.ok(/LessonContent/.test(source), 'Should render LessonContent');
+    assert.ok(/LessonAndPracticeContent/.test(source), 'Should render LessonAndPracticeContent');
     assert.ok(/MediaContent/.test(source), 'Should render MediaContent');
     assert.ok(/ActionButtons/.test(source), 'Should render ActionButtons');
   });

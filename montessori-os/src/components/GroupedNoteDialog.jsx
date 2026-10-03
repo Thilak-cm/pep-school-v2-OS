@@ -39,7 +39,7 @@ import {
 export default function GroupedNoteDialog({ open, onClose, groupedNote, classroomStudents, classroomTeachers = [], transferredStudents = new Map(), userRole, onNavigateToStudent }) {
   const notify = useNotify();
   const note = groupedNote?.representativeNote;
-  const isLesson = note?.type === 'lesson';
+  const isLesson = note?.type === 'lesson' || note?.type === 'practice';
   const isAssessment = note?.type === 'assessment';
   const [deleteMode, setDeleteMode] = useState(false);
   const [selectedStudentIds, setSelectedStudentIds] = useState(new Set());

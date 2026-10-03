@@ -10,12 +10,15 @@
  * Order matters — lesson > voice > text > media. Anything unmatched → "other".
  *
  * @param {Object} obs - Observation or media document
- * @returns {"lesson"|"voice"|"text"|"media"|"assessment"|"other"}
+ * @returns {"lesson"|"practice"|"voice"|"text"|"media"|"assessment"|"other"}
  */
 export function classifyNote(obs) {
   if (!obs) return "other";
 
   if (obs.type === "assessment" || obs.assessmentKind) return "assessment";
+
+  // Practice: must come before lesson - practice docs have lessonTitle too
+  if (obs.type === "practice") return "practice";
 
   // Lesson: explicit type or has lessonTitle
   if (obs.type === "lesson" || obs.lessonTitle) return "lesson";
