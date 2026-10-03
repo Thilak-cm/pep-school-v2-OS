@@ -297,7 +297,6 @@ const deriveLessonPayload = async (payload, item) => {
     ...(payload.groupDefaults ? { groupDefaults: payload.groupDefaults } : {}),
     ratings: payload.ratings || {},
     studentComment: payload.studentComment || null,
-    attendanceStatus: payload.attendanceStatus || 'present',
     lessonMode: payload.lessonMode || 'individual',
     ...(payload.groupId ? { groupId: payload.groupId } : {}),
     createdBy: payload.createdBy || 'unknown',

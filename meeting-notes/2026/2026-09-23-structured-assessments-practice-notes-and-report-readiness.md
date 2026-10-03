@@ -120,7 +120,8 @@ rahul_takeaway_count: 3
 - **Completion evidence:** Paid plan active; tracing uncapped; receipt submitted for reimbursement.
 - **Baseline at meeting close:** 0%.
 - **Next-meeting check:** Confirm upgrade done.
-- **Carry forward:** Yes
+- **Carry forward:** No
+- **Status update (2026-09-29):** Done - resolved without the paid upgrade. Per-feature Langfuse tail sampling (#298, commits 10864503/6df23e78/8146350b) cut trace volume to stay within the free tier, keeping full observability on errors and tier-1 features. Paid plan not needed; commitment superseded by this smarter solution.
 
 #### Takeaway T6 - Migrate OpenRouter to the PepSchool account
 - **Owner:** Thilak

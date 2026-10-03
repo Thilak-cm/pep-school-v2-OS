@@ -134,7 +134,7 @@ async function callSoulGeneration(observations, interviews, guidelinesContent, s
     temperature,
     maxTokens,
     traceName: "soul-generation",
-    traceMetadata: { studentId: studentContext?.studentId, programId: studentContext?.programId },
+    traceMetadata: { studentId: studentContext?.studentId, classroomId: studentContext?.classroomId, programId: studentContext?.programId },
     ...(traceTags?.length ? { traceTags } : {}),
     timeoutMs,
   });

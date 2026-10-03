@@ -160,7 +160,7 @@ export async function collectClassroomAggregate(classroomId, {
 }
 
 function createTeacherRow(user, id) {
-  return {id, name: user?.displayName || user?.email || "Unknown", email: user?.email || "", status: user?.status || "active", observations: 0, lessons: 0, media: 0, handwritten: 0, assessments: 0, questionsAnswered: 0, observations7d: 0, lessons7d: 0, media7d: 0, handwritten7d: 0, assessments7d: 0, questionsAnswered7d: 0, observations30d: 0, lessons30d: 0, media30d: 0, handwritten30d: 0, assessments30d: 0, questionsAnswered30d: 0, studentsReached: 0, studentsReached7d: 0, studentsReached30d: 0, otherNotes7d: 0, otherCount7d: 0, otherNotes30d: 0, otherCount30d: 0};
+  return {id, name: user?.displayName || user?.email || "Unknown", email: user?.email || "", status: user?.status || "active", observations: 0, lessons: 0, practice: 0, media: 0, handwritten: 0, assessments: 0, questionsAnswered: 0, observations7d: 0, lessons7d: 0, practice7d: 0, media7d: 0, handwritten7d: 0, assessments7d: 0, questionsAnswered7d: 0, observations30d: 0, lessons30d: 0, practice30d: 0, media30d: 0, handwritten30d: 0, assessments30d: 0, questionsAnswered30d: 0, studentsReached: 0, studentsReached7d: 0, studentsReached30d: 0, otherNotes7d: 0, otherCount7d: 0, otherNotes30d: 0, otherCount30d: 0};
 }
 
 function createStudentRow(student) {
@@ -172,7 +172,7 @@ export function buildClassroomCache(classroom, students, usersById, aggregate, n
   const base = {
     cachedAt: Timestamp.fromDate(now), classroomId: classroom.id,
     classroomName: classroom.name || classroom.id, branchId: classroom.branchId || null,
-    effortCounts: {voice: 0, text: 0, lesson: 0, media: 0, total: 0},
+    effortCounts: {voice: 0, text: 0, lesson: 0, practice: 0, media: 0, total: 0},
     effortActivity: {}, effortActivityByType: {}, studentCount: students.length,
     teachers, students: students.map(createStudentRow),
     aggregationState: {version: AGGREGATION_STATE_VERSION, teacherRecent: {}, studentRecent: {}},
@@ -185,7 +185,7 @@ export function buildClassroomCache(classroom, students, usersById, aggregate, n
   cache.teachers = cache.teachers.map((teacher) => ({...teacher, ...studentReachWindows(reach[teacher.id], now.getTime())}));
   cache.teachers = cache.teachers.filter((teacher) => {
     const isGhost = !usersById.has(teacher.id) || teacher.id.startsWith("pending_");
-    return !isGhost || teacher.observations + teacher.lessons + teacher.media > 0;
+    return !isGhost || teacher.observations + teacher.lessons + teacher.practice + teacher.media > 0;
   });
   return cache;
 }

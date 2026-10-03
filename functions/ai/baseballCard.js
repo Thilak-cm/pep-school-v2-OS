@@ -133,7 +133,7 @@ async function callBaseballCard(notes, config, prompt, windowDays, studentContex
     temperature: Number.isFinite(config.temperature) ? config.temperature : BASEBALL_CARD_DEFAULTS.temperature,
     maxTokens: Number.isFinite(config.max_tokens) ? config.max_tokens : BASEBALL_CARD_DEFAULTS.max_tokens,
     traceName: "baseball-card",
-    traceMetadata: { studentId: studentContext?.studentId, windowDays, noteCount: notes.length },
+    traceMetadata: { studentId: studentContext?.studentId, classroomId: studentContext?.classroomId, programId: studentContext?.programId, windowDays, noteCount: notes.length },
     timeoutMs,
   });
 

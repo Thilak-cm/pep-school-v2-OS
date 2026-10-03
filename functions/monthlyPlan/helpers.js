@@ -16,7 +16,7 @@ export function serializeObservation(obs) {
 
   const parts = [`[${dateStr}] (${type})`];
 
-  if (type === "lesson") {
+  if (type === "lesson" || type === "practice") {
     if (obs.lessonTitle) parts.push(obs.lessonTitle);
     if (obs.lessonDescription) parts.push(`— ${obs.lessonDescription}`);
     if (obs.ratings) {

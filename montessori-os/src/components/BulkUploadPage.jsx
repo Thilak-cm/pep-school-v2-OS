@@ -250,7 +250,6 @@ export default function BulkUploadPage({ currentUser, userRole }) {
           ...row,
           studentId: student.id,
           classroomId: student.classroomId,
-          branchId: student.branchId || null,
           programId: student.programId || null,
           studentDisplayName: student.displayName,
         };
@@ -307,7 +306,6 @@ export default function BulkUploadPage({ currentUser, userRole }) {
             data = buildLessonDoc({
               studentId: row.studentId,
               classroomId: row.classroomId,
-              branchId: row.branchId,
               programId: row.programId,
               lessonTitle: row.content,
               date: row.date,
@@ -317,7 +315,6 @@ export default function BulkUploadPage({ currentUser, userRole }) {
             data = buildObservationDoc({
               studentId: row.studentId,
               classroomId: row.classroomId,
-              branchId: row.branchId,
               text: row.content,
               date: row.date,
               currentUser,

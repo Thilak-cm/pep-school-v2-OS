@@ -1,0 +1,202 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Thilak Mohan</title>
+<style>
+*, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+
+body {
+  font-family: -apple-system, "Segoe UI", Roboto, sans-serif;
+  color: #1a1a1a;
+  background: #fff;
+  overflow: hidden;
+}
+
+.slide {
+  display: none;
+  width: 100vw;
+  height: 100vh;
+  padding: 80px 100px;
+  position: relative;
+}
+
+.slide.active { display: flex; flex-direction: column; justify-content: flex-start; }
+
+.slide.centered {
+  justify-content: center;
+  align-items: center;
+}
+
+.slide h1 {
+  font-size: 2rem;
+  font-weight: 700;
+  margin-bottom: 48px;
+  letter-spacing: -0.01em;
+}
+
+.slide ul {
+  list-style: none;
+  max-width: 900px;
+  padding: 0;
+}
+
+.slide ul li {
+  font-size: 1.4rem;
+  line-height: 1.6;
+  margin-bottom: 20px;
+  padding-left: 24px;
+  position: relative;
+}
+
+.slide ul li::before {
+  content: "\2022";
+  position: absolute;
+  left: 0;
+  color: #1a1a1a;
+}
+
+.slide .demo-tag {
+  color: #2563eb;
+  font-weight: 600;
+}
+
+.controls {
+  position: fixed;
+  bottom: 28px;
+  right: 36px;
+  display: flex;
+  align-items: center;
+  gap: 16px;
+  z-index: 10;
+  user-select: none;
+}
+
+.controls button {
+  background: none;
+  border: 1px solid #ccc;
+  border-radius: 4px;
+  padding: 6px 14px;
+  font-size: 0.9rem;
+  cursor: pointer;
+  color: #1a1a1a;
+  font-family: inherit;
+}
+
+.controls button:hover { border-color: #2563eb; color: #2563eb; }
+
+.counter {
+  font-size: 0.9rem;
+  color: #888;
+  min-width: 48px;
+  text-align: center;
+}
+</style>
+</head>
+<body>
+
+<section class="slide" id="slide-1">
+  <h1>Thilak Mohan</h1>
+  <ul>
+    <li>ECE undergrad (VIT) - 2023</li>
+    <li>MS Applied Machine Learning, UMD - May 2025</li>
+    <li>Founding AI Engineer, Promptli - AI governance platform, AWS</li>
+    <li>Built &amp; operate Montessori OS solo - AI platform for Montessori schools, GCP; started in my mom's classroom, grew school-to-school on word of mouth</li>
+  </ul>
+</section>
+
+<section class="slide" id="slide-2">
+  <h1>Montessori OS - by the numbers</h1>
+  <ul>
+    <li>6 schools &middot; ~100 teachers &middot; zero CAC</li>
+    <li>~10 notes/teacher/day &middot; ~20k notes/mo &middot; 7-min avg sessions</li>
+    <li>5 min &rarr; 15 sec per note &middot; 8x capture</li>
+    <li>In production since July 2025</li>
+  </ul>
+</section>
+
+<section class="slide" id="slide-3">
+  <h1>Montessori OS demo 1 (typical teacher workflow)</h1>
+  <ul>
+    <li>Quality is subjective - eval pipeline: rubric induced from principal's judgments, 5 dimensions</li>
+    <li>5 dimensions: duration &middot; modality &middot; independence &middot; evidence &middot; subjectivity</li>
+    <li>Two instruments: deterministic completeness nudge + LLM judge calibrated to the principal</li>
+    <li>Note quality jumped by 34% &middot; note completeness nudge dropped 36% - teachers internalized the rubric</li>
+  </ul>
+</section>
+
+<section class="slide" id="slide-4">
+  <h1>Montessori OS demo 2 (telegram alerting)</h1>
+  <ul>
+    <li>~20 cron'd functions, varied cadence</li>
+    <li>Per-function alerting - alert fatigue + missed edge cases - outcome-based verification</li>
+    <li>Verifiers at fixed offsets check final outputs of function groups - Telegram alerts</li>
+    <li>Caught: all steps green, doc missing - LLM output legal, GDoc API said no</li>
+  </ul>
+</section>
+
+<section class="slide" id="slide-5">
+  <h1>Demo 3 - LLM internals</h1>
+  <ul>
+    <li>124M-param transformer, written from scratch - attention + positional encoding variants</li>
+    <li>Pretrained 2 days on 4xA100s, FineWeb-Edu</li>
+    <li>Base model, no SFT - incoherent by design</li>
+  </ul>
+</section>
+
+<section class="slide" id="slide-6">
+  <h1>My coding agent SDLC</h1>
+  <ul>
+    <li>Code review: trunk vs leaf node</li>
+    <li>Context isolation: speccing, implementing and reviewing happen in 3 independent sessions to reduce risk of drift with more independent eyes anchored to the detailed github issue</li>
+    <li>Human gates: only two step types - no cheap machine verifier, or irreversible/shared-state writes</li>
+    <li>Stack: nvim with plugins to turn ghostty into a minimal very fast and lightweight IDE</li>
+  </ul>
+</section>
+
+<section class="slide" id="slide-7">
+  <h1>What I'm looking for</h1>
+  <ul>
+    <li>Forward-deployed applied AI - close to users, shipping end to end</li>
+    <li>Early team, high ownership - comfortable being the person a problem lands on</li>
+  </ul>
+</section>
+
+<section class="slide centered" id="slide-8">
+  <h1>Questions</h1>
+</section>
+
+<div class="controls">
+  <button id="prev" onclick="go(-1)">&larr; Prev</button>
+  <span class="counter" id="counter"></span>
+  <button id="next" onclick="go(1)">Next &rarr;</button>
+</div>
+
+<script>
+var current = 0;
+var slides = document.querySelectorAll('.slide');
+var total = slides.length;
+var counter = document.getElementById('counter');
+
+function show(i) {
+  slides[current].classList.remove('active');
+  current = i;
+  slides[current].classList.add('active');
+  counter.textContent = (current + 1) + ' / ' + total;
+}
+
+function go(d) {
+  var next = current + d;
+  if (next >= 0 && next < total) show(next);
+}
+
+document.addEventListener('keydown', function(e) {
+  if (e.key === 'ArrowRight' || e.key === 'ArrowDown') go(1);
+  if (e.key === 'ArrowLeft' || e.key === 'ArrowUp') go(-1);
+});
+
+show(0);
+</script>
+</body>
+</html>

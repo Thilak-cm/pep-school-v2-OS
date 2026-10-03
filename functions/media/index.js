@@ -49,7 +49,7 @@ async function loadPhotoConfig(docId, fallbackPrompt, fallbackModel) {
  * Run a VLM call with image(s) and return parsed JSON.
  * Routes through the shared runLLM helper (OpenRouter + Langfuse tracing).
  */
-async function runVLMCall(systemPrompt, userContent, modelInfo, featureId = "photo_classification") {
+async function runVLMCall(systemPrompt, userContent, modelInfo, featureId = "photo_classification", { traceMetadata } = {}) {
   const enhancedPrompt = systemPrompt.includes("JSON") || systemPrompt.includes("json")
     ? systemPrompt
     : systemPrompt + "\n\nIMPORTANT: You must respond with valid JSON only.";
@@ -65,6 +65,7 @@ async function runVLMCall(systemPrompt, userContent, modelInfo, featureId = "pho
     maxTokens: modelInfo.maxTokens || modelInfo.max_tokens,
     responseFormat: { type: "json_object" },
     traceName: featureId,
+    ...(traceMetadata ? { traceMetadata } : {}),
   });
 
   try {
@@ -96,6 +97,9 @@ const analyzePhotoVLMHandler = async (data, context) => {
   if (images.length === 0) {
     throw new functions.https.HttpsError("invalid-argument", "At least one image is required");
   }
+  // #319: extract studentIds for cost attribution in Langfuse traces
+  const studentIds = Array.isArray(data?.studentIds)
+    ? data.studentIds.map(String).filter(Boolean) : [];
   if (images.length > 10) {
     throw new functions.https.HttpsError("invalid-argument", "Too many images; maximum 10 per call");
   }
@@ -123,7 +127,15 @@ const analyzePhotoVLMHandler = async (data, context) => {
 
     try {
       const classification = await runVLMCall(
-        classConfig.systemPrompt, classUserContent, classConfig
+        classConfig.systemPrompt, classUserContent, classConfig,
+        // storagePath is not available at classification time (generated client-side
+        // at save); itemId is the linkage key for trace-to-media correlation (#319).
+        "photo_classification", {
+          traceMetadata: {
+            itemId: img.itemId,
+            ...(studentIds.length > 0 ? { studentIds } : {}),
+          },
+        },
       );
       return {
         itemId: img.itemId,
@@ -197,6 +209,11 @@ export const suggestPdfTitle = functions
       temperature: PDF_TITLE_MODEL.temperature,
       maxTokens: PDF_TITLE_MODEL.max_tokens,
       traceName: "pdf-title",
+      traceMetadata: {
+        ...(data?.itemId ? { itemId: data.itemId } : {}),
+        ...(Array.isArray(data?.studentIds) && data.studentIds.length > 0
+          ? { studentIds: data.studentIds.map(String).filter(Boolean) } : {}),
+      },
     });
 
     return { title: title.split("\n")[0].trim() };
@@ -228,6 +245,11 @@ export const extractPdfEssence = functions
       temperature: PDF_ESSENCE_MODEL.temperature,
       maxTokens: PDF_ESSENCE_MODEL.max_tokens,
       traceName: "pdf-essence",
+      traceMetadata: {
+        ...(data?.itemId ? { itemId: data.itemId } : {}),
+        ...(Array.isArray(data?.studentIds) && data.studentIds.length > 0
+          ? { studentIds: data.studentIds.map(String).filter(Boolean) } : {}),
+      },
     });
 
     return { essence_text: essence.trim() };

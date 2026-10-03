@@ -245,7 +245,6 @@ test('buildObservationDoc creates correct text observation structure', () => {
   const doc = buildObservationDoc({
     studentId: 's1',
     classroomId: 'c1',
-    branchId: 'b1',
     text: 'Worked independently on bead material',
     date: '2026-01-15',
     currentUser: MOCK_USER,
@@ -253,7 +252,8 @@ test('buildObservationDoc creates correct text observation structure', () => {
   });
   assert.equal(doc.studentId, 's1');
   assert.equal(doc.classroomId, 'c1');
-  assert.equal(doc.branchId, 'b1');
+  // #294: branchId denorm removed - branch derives from student -> classroom
+  assert.ok(!('branchId' in doc));
   assert.equal(doc.type, 'text');
   assert.equal(doc.text, 'Worked independently on bead material');
   assert.equal(doc.createdBy, 'admin1');
@@ -267,7 +267,6 @@ test('buildObservationDoc parses date string to Date object', () => {
   const doc = buildObservationDoc({
     studentId: 's1',
     classroomId: 'c1',
-    branchId: 'b1',
     text: 'Note text',
     date: '2026-01-15',
     currentUser: MOCK_USER,
@@ -283,7 +282,6 @@ test('buildLessonDoc creates correct lesson observation structure', () => {
   const doc = buildLessonDoc({
     studentId: 's1',
     classroomId: 'c1',
-    branchId: 'b1',
     programId: 'primary',
     lessonTitle: 'Introduction to Fractions',
     date: '2026-01-15',
@@ -292,6 +290,7 @@ test('buildLessonDoc creates correct lesson observation structure', () => {
   });
   assert.equal(doc.studentId, 's1');
   assert.equal(doc.classroomId, 'c1');
+  assert.ok(!('branchId' in doc));
   assert.equal(doc.type, 'lesson');
   assert.equal(doc.lessonTitle, 'Introduction to Fractions');
   assert.equal(doc.programId, 'primary');
@@ -300,17 +299,20 @@ test('buildLessonDoc creates correct lesson observation structure', () => {
   assert.equal(doc.groupId, 'grp_456');
 });
 
-test('buildLessonDoc sets attendanceStatus to present', () => {
+test('buildLessonDoc does not include removed dead fields (#294)', () => {
   const doc = buildLessonDoc({
     studentId: 's1',
     classroomId: 'c1',
-    branchId: 'b1',
     programId: 'primary',
     lessonTitle: 'Algebra',
     date: '2026-02-01',
     currentUser: MOCK_USER,
   });
-  assert.equal(doc.attendanceStatus, 'present');
+  // attendanceStatus was a never-varying stub ('present' always); branchId a
+  // partial denorm no reader used. Guard against reintroduction from old
+  // doc-shape snippets.
+  assert.ok(!('attendanceStatus' in doc));
+  assert.ok(!('branchId' in doc));
 });
 
 // --- checkDuplicates ---

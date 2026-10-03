@@ -248,6 +248,20 @@ test('cleanObservationData: falls back ratings to dimensionRatings', () => {
   assert.deepEqual(cleaned.ratings, { A: 'yes' });
 });
 
+test('cleanObservationData: omits removed dead fields (#294)', () => {
+  // attendanceStatus (never-varying stub) and branchId (partial denorm with
+  // no reader) were removed from observation docs. Exports must not
+  // resurrect them, even for legacy docs that still carry the fields.
+  const cleaned = cleanObservationData({
+    attendanceStatus: 'present',
+    branchId: 'hsr',
+    lessonTitle: 'Pink Tower'
+  });
+  assert.ok(!('attendanceStatus' in cleaned));
+  assert.ok(!('branchId' in cleaned));
+  assert.equal(cleaned.lessonTitle, 'Pink Tower');
+});
+
 // --- formatTimestampForText ---
 
 test('formatTimestampForText: "No timestamp" for falsy', () => {

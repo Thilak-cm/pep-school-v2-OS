@@ -402,6 +402,7 @@ function AddNoteModal({
   const coachTimerRef = useRef({ t5: null, t10: null });
   const lastCoachSignatureRef = useRef(null);
   const mediaFileInputRef = useRef(null);
+  const pdfItemIdRef = useRef(null); // #319: stable media ID for PDF trace linkage
 
   const { students: mentionableStudents } = useMentionableStudents({ currentUser, userRole });
   const transcriptSuggestions = useTranscriptStudentSuggestions(
@@ -447,8 +448,8 @@ function AddNoteModal({
     lastCoachSignatureRef.current = null;
   };
 
-  // Resolve selected students' programIds via their classrooms; dedupe classroom reads
-  async function getSelectedProgramIds(studentIds) {
+  // Resolve selected students' programIds and classroomIds via their classrooms; dedupe classroom reads
+  async function getSelectedProgramContext(studentIds) {
     try {
       const studentSnaps = await Promise.all(
         (studentIds || []).map((sid) => getDoc(doc(db, 'students', sid)))
@@ -472,9 +473,9 @@ function AddNoteModal({
             .filter(Boolean)
         )
       );
-      return programIds;
+      return { programIds, classroomIds };
     } catch (_) {
-      return [];
+      return { programIds: [], classroomIds: [] };
     }
   }
 
@@ -1302,7 +1303,11 @@ function AddNoteModal({
   };
 
   const runPdfSuggestions = async (text, pageCount, fileName) => {
-    const payload = { extractedText: text, pageCount, fileName };
+    const payload = {
+      extractedText: text, pageCount, fileName, itemId: pdfItemIdRef.current,
+      // #319: pass selected students for cost attribution in Langfuse traces
+      ...(selectedStudents.length > 0 ? { studentIds: [...selectedStudents] } : {}),
+    };
     const suggestFn = httpsCallable(cloudFunctions, 'suggestPdfTitle');
     const essenceFn = httpsCallable(cloudFunctions, 'extractPdfEssence');
     setPdfTitleLoading(true);
@@ -1354,6 +1359,8 @@ function AddNoteModal({
 
       const res = await vlmFn({
         images: images.map(({ itemId, imageBase64, contentType }) => ({ itemId, imageBase64, contentType })),
+        // #319: pass selected students for cost attribution in Langfuse traces
+        ...(selectedStudents.length > 0 ? { studentIds: [...selectedStudents] } : {}),
       });
 
       // Response contains per-photo classification results (PEP-146)
@@ -1454,6 +1461,7 @@ function AddNoteModal({
       setPdfEssence('');
       setPdfExtractedText('');
       setPdfPageCount(null);
+      pdfItemIdRef.current = createMediaItemId();
       setPdfSource({
         file,
         size: file.size,
@@ -1694,7 +1702,7 @@ function AddNoteModal({
       const batchId = `batch_${Date.now().toString(36)}_${Math.random().toString(36).slice(2, 6)}`;
       const itemsToUpload = isPdf
         ? [{
-            id: 'pdf',
+            id: pdfItemIdRef.current || createMediaItemId(),
             kind: 'pdf',
             source: pdfSource,
             displayName: pdfDisplayName,
@@ -1737,7 +1745,8 @@ function AddNoteModal({
             throw new Error('Media source is missing. Please re-select the file and retry.');
           }
 
-          const mediaId = `media_${Date.now().toString(36)}_${Math.random().toString(36).slice(2, 6)}_${studentId.slice(0, 4)}`;
+          // #319: reuse pick-time item.id as mediaId for trace linkage
+          const mediaId = item.id;
           // #221: media docs now written to observations subcollection (storage path unchanged)
           const storagePath = `students/${studentId}/media/${mediaId}/original.${item.source.extension}`;
 
@@ -2109,7 +2118,7 @@ function AddNoteModal({
     }
 
     setSaving(true);
-    const programIds = await getSelectedProgramIds(selectedStudents);
+    const { programIds, classroomIds } = await getSelectedProgramContext(selectedStudents);
     if (programIds.length !== 1) {
       await saveNote(null);
       return;
@@ -2121,7 +2130,16 @@ function AddNoteModal({
       return;
     }
 
-    coachProgramContextRef.current = { programId };
+    // groupId mirrors the save handler pattern: generated for multi-student notes
+    const groupId = selectedStudents.length > 1
+      ? `group_${Date.now().toString(36)}_${Math.random().toString(36).slice(2, 6)}`
+      : undefined;
+    coachProgramContextRef.current = {
+      programId,
+      studentIds: [...selectedStudents],
+      classroomId: classroomIds[0] || undefined,
+      ...(groupId ? { groupId } : {}),
+    };
     const noteType = noteData === transcriptionData ? 'voice' : 'text';
     const signature = buildCoachSignature(noteData, selectedStudents, noteType);
 

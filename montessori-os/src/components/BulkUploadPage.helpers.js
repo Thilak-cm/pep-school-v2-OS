@@ -162,13 +162,12 @@ export function matchStudentNames(csvNames, students, filter = {}) {
  * @param {object} params
  * @returns {object} Firestore-ready observation data (without serverTimestamp)
  */
-export function buildObservationDoc({ studentId, classroomId, branchId, text, date, currentUser, groupId }) {
+export function buildObservationDoc({ studentId, classroomId, text, date, currentUser, groupId }) {
   const now = new Date();
   const observedAt = date ? new Date(date + 'T00:00:00') : now;
   const doc = {
     studentId,
     classroomId,
-    branchId: branchId || null,
     type: 'text',
     text,
     observedAt,
@@ -188,17 +187,15 @@ export function buildObservationDoc({ studentId, classroomId, branchId, text, da
  * @param {object} params
  * @returns {object} Firestore-ready lesson observation data
  */
-export function buildLessonDoc({ studentId, classroomId, branchId, programId, lessonTitle, date, currentUser, groupId }) {
+export function buildLessonDoc({ studentId, classroomId, programId, lessonTitle, date, currentUser, groupId }) {
   const now = new Date();
   const observedAt = date ? new Date(date + 'T00:00:00') : now;
   const doc = {
     studentId,
     classroomId,
-    branchId: branchId || null,
     type: 'lesson',
     lessonTitle,
     programId: programId || null,
-    attendanceStatus: 'present',
     observedAt,
     createdAt: now,
     updatedAt: now,

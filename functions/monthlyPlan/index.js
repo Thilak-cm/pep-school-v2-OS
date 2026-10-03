@@ -264,7 +264,7 @@ async function generatePlanInternal(studentId, targetMonth, generatedBy, generat
     // vs "run:remediation") so compensatory reruns of failed work items don't
     // blend into batch-run analytics. Tag for one-click UI filtering, metadata
     // for structured queries - both carried deliberately.
-    traceMetadata: { studentId, targetMonth, ...(runType ? { runType } : {}) },
+    traceMetadata: { studentId, classroomId: studentData.classroomId, programId, targetMonth, ...(runType ? { runType } : {}) },
     ...(runType ? { traceTags: [`run:${runType}`] } : {}),
     timeoutMs: llmTimeoutMs,
   });

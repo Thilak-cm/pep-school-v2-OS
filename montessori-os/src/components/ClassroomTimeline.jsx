@@ -701,6 +701,7 @@ function ClassroomTimeline({ classroom, currentUser, userRole, manageableClassro
         carouselList={selectedNote?.type === 'media' && selectedNote.mediaItems?.length > 1 ? selectedNote.mediaItems : undefined}
         carouselIndex={selectedMediaIndex}
         onCarouselNavigate={handleMediaNavigate}
+        onSwapObservation={(obs) => setSelectedNote(obs)}
       />
 
       {/* Grouped note expansion dialog */}

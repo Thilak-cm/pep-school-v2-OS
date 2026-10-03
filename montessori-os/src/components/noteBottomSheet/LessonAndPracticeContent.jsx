@@ -5,18 +5,31 @@ import {
   LESSON_RATING_LABELS,
   LESSON_RATING_COLORS,
 } from '../../utils/lessonNoteConstraints';
-export default function LessonContent({ observation }) {
+export default function LessonAndPracticeContent({ observation, onLinkedLessonTap }) {
   if (!observation) return null;
   const dimensions = getLessonDimensions(observation);
+  const isPractice = observation.type === 'practice';
 
   return (
     <Box sx={{ display: 'flex', flexDirection: 'column', gap: 1.5 }}>
-      {/* Lesson title */}
+      {/* Title */}
       <Typography variant="h6" sx={{ fontWeight: 700, fontSize: '1.15rem', color: 'var(--color-text)' }}>
-        {observation.lessonTitle || 'Lesson Note'}
+        {observation.lessonTitle || (isPractice ? 'Practice Note' : 'Lesson Note')}
       </Typography>
 
-      {/* "Presented to {student} {date}" subtitle */}
+      {/* Linked lesson reference (practice only) */}
+      {isPractice && observation.linkedLesson && (
+        <Chip
+          size="small"
+          label={`Follow-up of: ${observation.linkedLesson.lessonTitle}${observation.linkedLesson.observedAt ? ` (${new Date(observation.linkedLesson.observedAt?.toDate?.() || observation.linkedLesson.observedAt).toLocaleDateString()})` : ''}`}
+          variant="outlined"
+          color="primary"
+          onClick={() => onLinkedLessonTap?.(observation.linkedLesson)}
+          sx={{ cursor: onLinkedLessonTap ? 'pointer' : 'default', justifyContent: 'flex-start', width: 'fit-content' }}
+        />
+      )}
+
+      {/* Description */}
       {observation.lessonDescription && (
         <Typography variant="body2" sx={{ color: 'var(--color-text)', fontSize: '0.88rem', lineHeight: 1.6 }}>
           {observation.lessonDescription}

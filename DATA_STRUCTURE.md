@@ -62,7 +62,7 @@ Notes:
 - Observation docs are fan-out per student (for group notes, write one doc per student). This makes student timelines trivial and admin analytics fast via collection group queries.
 
 Branch model overview
-- Add a first-class `branchId` dimension to core docs (users, classrooms, students, observations) to isolate data per campus/center.
+- Add a first-class `branchId` dimension to core docs (users, classrooms, students) to isolate data per campus/center (observation branchId later removed in #294).
 - `branches` is a lightweight metadata collection; you created four empty docs already: `hsr`, `whitefield`, `varthur`, `kokapet`.
 - Programs are global at `/programs/{programId}`.
 
@@ -277,7 +277,7 @@ interface Student {
 Guidance
 - Queries commonly include `classroomId` and `status`.
 - If a student moves classrooms, update `classroomId` and adjust `studentCount` in both rooms server-side.
- - When a student transfers across branches, update `branchId` to the new classroom's branch; historical observations remain under their original `branchId` for analytics integrity.
+ - When a student transfers across branches, update `branchId` on the student doc to the new classroom's branch. Observation docs do not carry `branchId` (removed in #294); branch is derived via student -> classroom -> branch.
  - Student IDs follow `YYYY-XXX-NNN` where:
    - `YYYY` is the current year at creation time (e.g., 2026)
   - `XXX` is a three-letter classroom code derived from the classroom document ID (slug), uppercased and padded
@@ -286,7 +286,7 @@ Guidance
 
 Subcollections
 - `placements/{placementId}` – classroom history per student (see above).
-- `observations/{observationId}` – per-student notes (text/voice/lesson). Shape: `{ type: 'text' | 'voice' | 'lesson', text: string, studentId: string, classroomId: string, createdBy: string (uid), createdByName: string, createdByEmail: string, observedAt: Timestamp, createdAt: Timestamp, updatedAt: Timestamp, groupId?: string, durationSec?: number, coach?: { status: string, reason: string, nudgesShown: Array, selections?: Record<string, string> }, lessonTitle?: string }`. The `classroomId` field is denormalized from the student's classroom at write time; enables direct collection group queries by classroom. The `groupId` field links fan-out docs from a single multi-student observation.
+- `observations/{observationId}` – per-student notes (text/voice/lesson/practice). Shape: `{ type: 'text' | 'voice' | 'lesson' | 'practice', text: string, studentId: string, classroomId: string, createdBy: string (uid), createdByName: string, createdByEmail: string, observedAt: Timestamp, createdAt: Timestamp, updatedAt: Timestamp, groupId?: string, durationSec?: number, coach?: { status: string, reason: string, nudgesShown: Array, selections?: Record<string, string> }, lessonTitle?: string }`. The `classroomId` field is denormalized from the student's classroom at write time; enables direct collection group queries by classroom. The `groupId` field links fan-out docs from a single multi-student observation.
 - `media/{mediaId}` – uploaded photo/video/PDF files attached to observations (see below).
 - `ai_summaries/weekly_snapshot` – unified weekly student snapshot combining baseball card content, behaviour flag signals, and missing domains (PEP-229). Overwritten each weekly batch run; previous snapshot archived to `history/{weekKey}` subcollection before overwrite. On-demand regeneration snapshots the previous state into an `edits` array before overwriting, providing a within-week audit trail. Shape: `{ summary: string, bullets: string[], redFlag: { severity: string | null, reason: string | null }, coverageGaps: string[], severity: 'clear' | 'low' | 'medium' | 'high', severityScore: number, prevSeverity: string, prevSeverityScore: number, weekKey: string, weekBaselineSeverity: string, weekBaselineSeverityScore: number, escalatedThisWeek: boolean, improvedThisWeek: boolean, noteCount: number, evidenceCount: number, windowDays: number, timezone: string, model: string, temperature: number, generatedAt: Timestamp, lastUpdatedAt: Timestamp, status: 'ok' | 'no_notes', sourceNoteIds: string[], rawContent?: string, migratedAt?: Timestamp, regeneratedBy: { uid: string, displayName: string | null, role: string } | null, edits: Array<{ severity: string | null, severityScore: number | null, summary: string, redFlag: { severity: string | null, reason: string | null }, coverageGaps: string[], regeneratedBy: { uid: string, displayName: string | null, role: string } | null, generatedAt: Timestamp | null, replacedAt: Timestamp }> }`. `regeneratedBy` is set on manual regens (null for batch runs). `edits` accumulates previous states within the week — each entry captures the snapshot that was replaced. The batch run archives the full doc (including `edits`) to `history/{weekKey}` and resets `edits` to `[]`. Architecture decision: hardcoded doc name (`weekly_snapshot`) over computable weekKey path — every consumer reads at a stable path with zero client-side weekKey computation. Week identity is a field, not the path.
 - `ai_summaries/weekly_snapshot/history/{weekKey}` – archived weekly snapshots. Full copy of the previous `weekly_snapshot` doc plus `archivedAt: Timestamp`. Created only by the scheduled Monday batch (`generateBaseballCards`), never by on-demand regeneration. History retained indefinitely; one doc per week per student (no 1MB limit concern). Architecture decision: subcollection over sibling docs — current snapshot reads are frequent while longitudinal history queries are rare. Subcollection keeps these cleanly separated.
@@ -704,7 +704,6 @@ interface Observation {
   // Identity
   studentId: string;             // must equal parent {studentId}
   classroomId: string;           // denorm for queries; equals student's classroomId at creation
-  branchId: BranchId;            // denorm for analytics; equals student's branch at creation
   groupId?: string;              // shared id across fan-out docs for a multi-student note
                                    // Format: `group_${Date.now().toString(36)}_${Math.random().toString(36).slice(2, 6)}`
                                    // Set when creating notes for multiple students (text/voice/lesson notes)
@@ -713,7 +712,7 @@ interface Observation {
                                    // Optional: single-student notes and legacy notes may not have this field
   
   // Content
-  type: 'text' | 'voice' | 'lesson' | 'assessment';
+  type: 'text' | 'voice' | 'lesson' | 'practice' | 'assessment';
   assessmentKind?: 'structured' | 'medical';
   schemaVersion?: 1;
   sourceId?: string;              // Structured only: source manifest id
@@ -748,15 +747,25 @@ interface Observation {
   text?: string;                 // free text for text/voice notes
   durationSec?: number;          // voice notes only
   sttConfidence?: number;        // voice notes only
-  lessonTitle?: string;          // lesson notes
-  lessonDescription?: string;    // lesson notes
-  groupComment?: string;         // lesson notes
-  programId?: ProgramId;         // lesson notes – derived from classroom
-  dimensionOrder?: string[];     // lesson notes – ordered list of dimension names
-  groupDefaults?: Record<string, 'yes' | 'partial' | 'no' | 'na'>; // lesson notes – initial ratings
-  ratings?: Record<string, 'yes' | 'partial' | 'no' | 'na'>;       // lesson notes – per student after overrides
-  studentComment?: string;       // lesson notes – optional per-student comment
-  attendanceStatus?: 'present' | 'absent'; // lesson notes
+  lessonTitle?: string;          // lesson + practice notes
+  lessonDescription?: string;    // lesson + practice notes
+  groupComment?: string;         // lesson + practice notes
+  programId?: ProgramId;         // lesson + practice notes – derived from classroom
+  dimensionOrder?: string[];     // lesson + practice notes – ordered list of dimension names
+  groupDefaults?: Record<string, 'yes' | 'partial' | 'no' | 'na'>; // lesson + practice notes – initial ratings
+  ratings?: Record<string, 'yes' | 'partial' | 'no' | 'na'>;       // lesson + practice notes – per student after overrides
+  studentComment?: string;       // lesson + practice notes – optional per-student comment
+  linkedLesson?: {               // practice notes only – optional link to a previously taught lesson
+    observationId: string;       // the lesson observation ID
+    groupId?: string;            // the lesson's groupId (if group lesson)
+    lessonTitle: string;         // denormalized snapshot – NO cascade on lesson edit/delete
+    observedAt: Timestamp;       // denormalized snapshot
+  };
+
+  // Note-to-lesson linking (#176)
+  linkedLessonObservationId?: string[]; // text/voice/media notes – lesson note IDs this note follows up on
+                                        // (legacy docs may carry a single string; readers normalize)
+  linkedObservations?: string[];        // lesson notes – backlink: observation/media IDs tagged to this lesson
 
   // 🆕 Coach (GPT review result + telemetry; no schema/prompt version fields) — text/voice notes
   coach?: {
@@ -841,8 +850,14 @@ Group notes (groupId)
 - Notes without `groupId` (single-student notes or legacy notes) display individually
 - For lesson notes: `groupId` is set when `lessonMode === 'group'`; individual lesson notes do not have `groupId`
 
-Branch transfer behavior
-- Existing observations retain their original `branchId` when a student transfers to another branch. New observations pick up the student's current branch.
+Branch derivation
+- Observations do not carry a `branchId` (#294 removed it: the denorm was only
+  written by bulk upload and assessments, never by app note flows, and no
+  reader used it). Derive branch via student -> classroom -> `branchId`.
+- Trade-off accepted in #294: derivation always yields the student's CURRENT
+  branch. The old (partial) denorm nominally preserved branch-at-creation for
+  transferred students, but no consumer ever read it. If branch-level
+  historical analytics become a requirement, reintroduce deliberately.
 
 Access policy: See [Pep OS Access-Control Policy](docs/security/access-control-policy.md).
 
@@ -1212,8 +1227,6 @@ MCP tools: `list_brain`, `get_brain_file`.
 - `students`
   - `branchId ASC, classroomId ASC, status ASC`
 - collection group `observations`
-  - `branchId ASC, observedAt DESC`
-  - `branchId ASC, createdBy ASC, observedAt DESC`
   - `classroomId ASC, observedAt DESC`
   - `groupId ASC, observedAt DESC` (for grouping multi-student notes in UI)
   - Stats composite: `classroomId ASC, createdAt ASC` (`COLLECTION_GROUP` scope)
@@ -1244,7 +1257,7 @@ See [Pep OS Access-Control Policy](docs/security/access-control-policy.md).
   - For lesson notes: set `groupId` when `lessonMode === 'group'`
 
 Migration/backfill (branches)
-- Add `branchId: 'hsr'` to all existing `classrooms`, `students`, and `observations`.
+- Add `branchId: 'hsr'` to all existing `classrooms` and `students` (observations were included in the original backfill, but observation branchId was removed in #294 - do not re-add it).
 - For `users` with role `teacher`, set `branchIds` based on assigned classrooms; optionally set `homeBranchId` for other roles.
 - Validate schema invariants and fix mismatches after backfill.
 
@@ -1341,6 +1354,7 @@ interface StatsClassroomDoc {
     voice: number;
     text: number;
     lesson: number;
+    practice: number;
     media: number;
     total: number;
   };
@@ -1352,10 +1366,11 @@ interface StatsClassroomDoc {
   };
 
   effortActivityByType: {       // deduped per-type activity tiers
-    voice: { daily: Record<string, number>; weekly: Record<string, number>; monthly: Record<string, number>; };
-    text:  { daily: Record<string, number>; weekly: Record<string, number>; monthly: Record<string, number>; };
-    lesson:{ daily: Record<string, number>; weekly: Record<string, number>; monthly: Record<string, number>; };
-    media: { daily: Record<string, number>; weekly: Record<string, number>; monthly: Record<string, number>; };
+    voice:    { daily: Record<string, number>; weekly: Record<string, number>; monthly: Record<string, number>; };
+    text:     { daily: Record<string, number>; weekly: Record<string, number>; monthly: Record<string, number>; };
+    lesson:   { daily: Record<string, number>; weekly: Record<string, number>; monthly: Record<string, number>; };
+    practice: { daily: Record<string, number>; weekly: Record<string, number>; monthly: Record<string, number>; };
+    media:    { daily: Record<string, number>; weekly: Record<string, number>; monthly: Record<string, number>; };
   };
 
   studentCount: number;
@@ -1367,18 +1382,21 @@ interface StatsClassroomDoc {
     status: string;
     observations: number;       // voice + text in THIS classroom
     lessons: number;            // lessons in THIS classroom
+    practice: number;           // practice notes in THIS classroom
     media: number;              // media in THIS classroom
     handwritten: number;        // handwritten subset of media
     assessments: number;        // assessment notes (#274) — no longer counted as observations
     questionsAnswered: number;  // notes with openQuestion set, any type (#274)
     observations7d: number;
     lessons7d: number;
+    practice7d: number;
     media7d: number;
     handwritten7d: number;
     assessments7d: number;
     questionsAnswered7d: number;
     observations30d: number;
     lessons30d: number;
+    practice30d: number;
     media30d: number;
     handwritten30d: number;
     assessments30d: number;
@@ -1463,7 +1481,7 @@ Access policy: See [Pep OS Access-Control Policy](docs/security/access-control-p
 
 ## ✅ Rationale
 - Fan-out per student + collection group queries balances write cost (bounded by class size) with extremely fast reads
-- Denormalized `classroomId` and `branchId` on observations support efficient queries
+- Denormalized `classroomId` on observations supports efficient queries
 - Cached creator name/email prevents n+1 user lookups in UI and reports
 - Feedback is stored as a global user-input channel
 

@@ -168,7 +168,7 @@ export function groupByCalendarDay(items) {
 /**
  * Get chip config (label, tone, iconName) for a note type.
  *
- * @param {string} type - 'text' | 'voice' | 'lesson' | 'media' | 'assessment' | 'report'
+ * @param {string} type - 'text' | 'voice' | 'lesson' | 'practice' | 'media' | 'assessment' | 'report'
  * @returns {{ label: string, tone: string, iconName: string }}
  */
 export function getTypeChipConfig(type) {
@@ -179,6 +179,8 @@ export function getTypeChipConfig(type) {
       return { label: 'Voice', tone: 'violet', iconName: 'Mic' };
     case 'lesson':
       return { label: 'Lesson', tone: 'green', iconName: 'BookOpen' };
+    case 'practice':
+      return { label: 'Practice', tone: 'violet', iconName: 'BookOpen' };
     case 'media':
       return { label: 'Media', tone: 'indigo', iconName: 'Image' };
     case 'assessment':

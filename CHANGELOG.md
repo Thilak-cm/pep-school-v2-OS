@@ -1,22 +1,42 @@
 # Changelog
 
-# 13.3.5 — 2026-10-02
-
-### Changed
-- Monthly plan generation migrated from `runLLM` + bare `JSON.parse` to `runStructuredLLM` with Zod schema enforcement and bounded repair retry. Transient malformed output (the 2026-10 incident class) self-heals; persistent violations fail loudly as `schema_violation` (#306).
-- Allowed email domains consolidated into `functions/config/authConstants.js` - single source of truth replacing four divergent copies (auth gate, frontend form, admin script).
-- Google Docs control-char sanitizer extracted to `functions/utils/docsText.js` and applied to the report export path (`driveHelpers.js`), closing the unprotected seam found during #306 planning.
-- `runType` trace tag (`run:scheduled` / `run:remediation`) threaded through monthly plan and soul generation pipelines for Langfuse provenance filtering.
-- Functions test glob widened from `test/*.test.mjs` to `**/*.test.mjs` - rescued 554 colocated ghost tests that CI was silently skipping.
+# 13.4.0 - 2026-10-02
 
 ### Added
-- `docs/ENGINEERING_PRINCIPLES.md` - six codebase-maintenance concepts grounded in repo examples.
-
-# 13.3.4 — 2026-09-30
+- Practice note observation type - structured follow-up of previously taught lessons, entered via radio toggle inside the lesson note wizard (#227).
+- Link suggester for individual practice notes - debounced Fuse.js search over student's lesson history, same-teacher-first, max 3 results, dismissible (#227).
+- "Follow-up of..." linked lesson chip in note bottom sheet with tap-to-navigate and toast-if-deleted (#227).
+- 5th "Practice" line item across all stats surfaces - pie chart, legend, activity trend, comparison, period stats, weekly digest (#227).
+- Practice filter button in both Student and Classroom timeline FilterPanels (#227).
+- `PRACTICE` export kind with `linkedLesson` passthrough in `cleanObservationData` (#227).
+- `'practice'` in firestore.rules `isAllowedNonMediaObservationType` whitelist and `linkedLesson` in edit allowlist (#227).
+- `'practice'` in MCP server type filter enum (#227).
+- AI context: practice notes render with `linkedLessonContext` suffix in `formatObservationForPrompt` (#227).
+- Practice note support in monthly plan serialization, digest teacher counts, grouped note cards/dialogs, and observation utils (#227).
 
 ### Changed
-- `runLLM` retries `finish_reason: "error"` (provider mid-stream failures) with bounded plain re-roll - max 2 retries (3 calls total), no backoff. Exhaustion throws `HttpsError("unavailable")` so fan-out workers NACK/redeliver instead of permanently failing (#310).
-- Failed provider-error attempts recorded as Langfuse ERROR generations with attempt index and token usage, nested under one trace per call (#310).
+- Langfuse cost instrumentation across all 13 AI pipelines: `usageDetails` replaces legacy `usage` field with mapped key names for correct cost computation; reasoning and cached token buckets forwarded (#319).
+- Data-URI sanitizer strips children's photos/handwriting from Langfuse trace input; storage paths in metadata provide provenance for debugging (#319).
+- Per-pipeline trace metadata enriched with `studentId`, `classroomId`, `programId` for per-student cost attribution (#319).
+- Chat and digest agentLoop report resolved model slug instead of config alias (#319).
+- Reports-Preview mirrors generate tracing: parent trace, metadata, `flushAsync()` on all paths (#319).
+- Reports-Judge nested under parent trace with `studentId`/`noteCount`; hollow manual span removed (#319).
+- AddNoteModal: PDF media ID hoisted to pick-time for trace-to-upload correlation (#319).
+- `LessonContent.jsx` renamed to `LessonAndPracticeContent.jsx` - same book icon, violet chip for practice (#227).
+- Superadmin-only soft launch gate - non-superadmins see "Coming soon" toast (#227).
+
+### Removed
+- Dead `functions/config/practiceDimensions.js` - frontend `lessonNoteConstraints.js` is the single source of truth (#227).
+
+# 13.3.4 - 2026-09-30
+
+### Removed
+- Dead `attendanceStatus` field from all observation write sites (`LessonNotes`, `saveQueue`, bulk upload) and prompt/export paths - it was hardcoded `'present'` everywhere and no absent-marking UI ever existed (#294).
+- Dead observation-doc `branchId` denorm: write sites (saveQueue, bulk upload, assessments CF), MCP `query_observations` filter, and the unused `(branchId, observedAt)` composite index - branch derives via student -> classroom (#294).
+- `LESSON_ATTENDANCE_LABELS` / `LESSON_ATTENDANCE_COLORS` constants and the dead import in `export.js` (#294).
+
+### Added
+- Ops script `observation-field-hygiene.mjs`: strips dead fields from all observation docs (dry-run by default, `--yes` gate, exit 2 on pending work) and emits doc-ID-shape and per-type field censuses to gate #227 and feed #295 (#294).
 
 # 13.3.3 — 2026-09-28
 

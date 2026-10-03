@@ -9,6 +9,7 @@ const TYPE_LABELS = {
   text: 'OBSERVATION',
   voice: 'VOICE NOTE',
   lesson: 'LESSON NOTE',
+  practice: 'PRACTICE NOTE',
   media: 'MEDIA NOTE',
   assessment: 'ASSESSMENT',
 };

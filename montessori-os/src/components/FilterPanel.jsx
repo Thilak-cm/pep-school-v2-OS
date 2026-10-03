@@ -12,7 +12,7 @@ import {
   ListItem,
   ListItemText
 } from '@mui/material';
-import { Search, Mic, Pencil as EditNote, X as Close, BookOpen as MenuBook, Image as PermMedia, FileText as ReportIcon, ListChecks } from '../icons';
+import { X as Clear, Search, Mic, Pencil as EditNote, X as Close, BookOpen as MenuBook, RotateCcw, Image as PermMedia, FileText as ReportIcon, ListChecks } from '../icons';
 import { IconButton } from '@mui/material';
 import { fuzzySearchTeachers } from '../utils/fuzzySearch';
 
@@ -53,6 +53,7 @@ const FilterPanel = ({
   const voiceActive = filters.types?.includes('voice');
   const textActive = filters.types?.includes('text');
   const lessonActive = filters.types?.includes('lesson');
+  const practiceActive = filters.types?.includes('practice');
   const mediaActive = filters.types?.includes('media');
   const reportActive = filters.types?.includes('report');
   const assessmentActive = filters.types?.includes('assessment');
@@ -414,6 +415,57 @@ const FilterPanel = ({
                     }}
                   >
                     Lesson
+                  </Button>
+
+                  <Button
+                    variant={practiceActive ? 'contained' : 'outlined'}
+                    size="small"
+                    startIcon={<RotateCcw />}
+                    onClick={() => {
+                      const currentTypes = filters.types || [];
+                      const newTypes = currentTypes.includes('practice')
+                        ? currentTypes.filter((t) => t !== 'practice')
+                        : [...currentTypes, 'practice'];
+                      onFilterChange('types', newTypes);
+                    }}
+                    sx={{
+                      minWidth: 120,
+                      height: 40,
+                      borderRadius: 2,
+                      textTransform: 'none',
+                      fontWeight: 500,
+                      borderWidth: 2,
+                      position: 'relative',
+                      overflow: 'hidden',
+                      '&:hover': {
+                        borderWidth: 2,
+                        transform: 'translateY(-1px)',
+                        boxShadow: '0 4px 12px rgba(0,0,0,0.15)',
+                      },
+                      '&:active': {
+                        transform: 'translateY(0px)',
+                      },
+                      transition: 'all 0.2s ease-in-out',
+                      ...(practiceActive && {
+                        backgroundColor: '#7c3aed',
+                        color: 'white',
+                        '&:hover': {
+                          backgroundColor: '#6d28d9',
+                        },
+                        '&::after': {
+                          content: '""',
+                          position: 'absolute',
+                          top: 0,
+                          left: 0,
+                          right: 0,
+                          bottom: 0,
+                          background: 'linear-gradient(45deg, rgba(255,255,255,0.1) 0%, rgba(255,255,255,0.05) 100%)',
+                          pointerEvents: 'none',
+                        },
+                      }),
+                    }}
+                  >
+                    Practice
                   </Button>
 
                   <Button
