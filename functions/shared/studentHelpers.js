@@ -33,7 +33,7 @@ function formatObservationForPrompt(obs) {
     ratings: obs.ratings || obs.dimensionRatings || {},
     dimensionOrder: obs.dimensionOrder || [],
     ...(obs.linkedLesson ? { linkedLesson: obs.linkedLesson } : {}),
-    ...(obs.linkedLesson ? { linkedLessonContext: obs.linkedLesson.observedAt ? `follow-up of lesson taught ${obs.linkedLesson.observedAt.toDate ? obs.linkedLesson.observedAt.toDate().toISOString().slice(0, 10) : new Date(obs.linkedLesson.observedAt).toISOString().slice(0, 10)}` : 'follow-up of a previously taught lesson' } : {}),
+    ...(obs.linkedLesson ? { linkedLessonContext: obs.linkedLesson.observedAt ? `follow-up of lesson taught ${obs.linkedLesson.observedAt.toDate ? obs.linkedLesson.observedAt.toDate().toISOString().slice(0, 10) : new Date(obs.linkedLesson.observedAt).toISOString().slice(0, 10)}` : "follow-up of a previously taught lesson" } : {}),
   };
 }
 
