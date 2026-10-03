@@ -38,11 +38,11 @@ export const SECTION_NAMES = [
 const PlanItemSchema = z.object({
   work: z.string().min(1),
   basis: z.enum(["observed", "ageBenchmark", "diagnostic", "conditional"]),
-  why: z.string(),
-  hook: z.string(),
-  offer: z.string(),
-  next: z.string(),
-  watch: z.string(),
+  why: z.string().min(1),
+  hook: z.string().min(1),
+  offer: z.string().min(1),
+  next: z.string().min(1),
+  watch: z.string().min(1),
 });
 
 const PlanSectionSchema = z.object({

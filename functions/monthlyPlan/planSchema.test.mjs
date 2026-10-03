@@ -282,3 +282,53 @@ test("persistent shape violation exhausts repairs and throws schema_violation", 
   );
   assert.equal(stub.calls.length, 3); // initial + 2 repairs
 });
+
+// ---------------------------------------------------------------------------
+// traceTags threading (AC-3 / AC-5: run provenance reaches own-trace)
+// ---------------------------------------------------------------------------
+
+test("traceTags are forwarded to the own-trace Langfuse trace", async () => {
+  const stub = stubRunLLM([{ content: JSON.stringify(validPlan()) }]);
+
+  // Fake Langfuse client to capture the trace creation payload.
+  const traces = [];
+  const fakeLangfuse = {
+    trace(payload) {
+      const t = { payload, gens: [] };
+      t.generation = (gp) => {
+        const g = { create: gp, ends: [] };
+        t.gens.push(g);
+        return { end: (e) => g.ends.push(e) };
+      };
+      traces.push(t);
+      return t;
+    },
+    flushAsync: async () => {},
+  };
+
+  // Inject env so structuredLLM creates its own trace (own-trace path).
+  const savedSK = process.env.LANGFUSE_SECRET_KEY;
+  const savedPK = process.env.LANGFUSE_PUBLIC_KEY;
+  process.env.LANGFUSE_SECRET_KEY = "sk-test";
+  process.env.LANGFUSE_PUBLIC_KEY = "pk-test";
+  try {
+    await runStructuredLLM({
+      schema: MonthlyPlanResponseSchema,
+      schemaName: "monthly_plan",
+      featureId: "monthly_plan",
+      messages: [{ role: "system", content: "sys" }, { role: "user", content: "u" }],
+      model: "test-model",
+      traceTags: ["run:scheduled"],
+      deps: { runLLM: stub.runLLM, createLangfuse: () => fakeLangfuse },
+    });
+  } finally {
+    if (savedSK === undefined) delete process.env.LANGFUSE_SECRET_KEY;
+    else process.env.LANGFUSE_SECRET_KEY = savedSK;
+    if (savedPK === undefined) delete process.env.LANGFUSE_PUBLIC_KEY;
+    else process.env.LANGFUSE_PUBLIC_KEY = savedPK;
+  }
+
+  assert.equal(traces.length, 1, "exactly one own-trace created");
+  assert.deepEqual(traces[0].payload.tags, ["run:scheduled"],
+    "traceTags must reach the Langfuse trace so run provenance is filterable");
+});

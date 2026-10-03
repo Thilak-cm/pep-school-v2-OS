@@ -113,6 +113,7 @@ export async function runStructuredLLM({
   ...llmOptions
 }) {
   const runLLM = deps.runLLM || defaultRunLLM;
+  const createLangfuseFn = deps.createLangfuse || createLangfuse;
   const responseFormat = buildJsonSchemaResponseFormat(schema, schemaName);
 
   // One trace for all attempts. runLLM creates its own trace per call when none
@@ -122,7 +123,7 @@ export async function runStructuredLLM({
   let langfuse = null;
   let trace = llmOptions.trace || null;
   if (!trace && process.env.LANGFUSE_SECRET_KEY && process.env.LANGFUSE_PUBLIC_KEY) {
-    langfuse = createLangfuse();
+    langfuse = createLangfuseFn();
     trace = langfuse.trace({
       name: llmOptions.traceName || llmOptions.featureId,
       metadata: { featureId: llmOptions.featureId, schemaName, ...llmOptions.traceMetadata },

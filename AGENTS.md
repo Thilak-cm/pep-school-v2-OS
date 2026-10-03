@@ -25,7 +25,7 @@ Explore the tree directly for current structure - it changes often.
 
 Frontend: run from `montessori-os/` - standard Vite commands (`npm run dev`, `build`, `lint`, `test`). Always run tests via `npm test` (it wires a custom ESM loader; bare `node --test` fails).
 
-Cloud Functions: run from `functions/` - `npm run lint` (Google style guide), `npm test` (Node built-in runner; same command CI runs). Keep `functions/test/` flat - the test glob does not recurse into subdirectories.
+Cloud Functions: run from `functions/` - `npm run lint` (Google style guide), `npm test` (Node built-in runner; same command CI runs). Tests can be colocated with source (`shared/llm.test.mjs`) or in `functions/test/` - the glob picks up `**/*.test.mjs`.
 
 Deploy: run from root - `npm run deploy`, `deploy:functions`, `deploy:hosting`, `deploy:firestore`.
 

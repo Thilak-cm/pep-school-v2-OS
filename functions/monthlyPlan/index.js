@@ -532,6 +532,7 @@ export const generateMonthlyPlan = functions
       resolvedMonth,
       callerUid,
       callerDoc.data().displayName || callerUid,
+      { runType: "remediation" },
     );
 
     return {

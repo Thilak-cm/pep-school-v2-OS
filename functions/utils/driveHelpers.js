@@ -259,7 +259,18 @@ export function buildDocInsertRequests(markdown, opts) {
   // Sanitize BEFORE any parsing or length counting. All style-range indices
   // below are computed from text lengths; sanitizing later (or not at all)
   // causes index drift against the Docs API - see utils/docsText.js.
+  // Defensive: sanitize all string inputs, not just markdown - opts fields
+  // (studentName, programName, classroomName, academicYear) are currently
+  // DB-sourced, but if any ever comes from LLM output or user input, an
+  // unsanitized path would reopen the index-drift seam.
   markdown = sanitizeForGDocsApi(markdown);
+  if (opts) {
+    for (const key of ["studentName", "programName", "classroomName", "academicYear"]) {
+      if (typeof opts[key] === "string") {
+        opts[key] = sanitizeForGDocsApi(opts[key]);
+      }
+    }
+  }
 
   const lines = markdown.split("\n");
   const hasOpts = opts && opts.studentName;
@@ -305,7 +316,7 @@ export function buildDocInsertRequests(markdown, opts) {
     }
 
     // 2. Student name heading
-    const nameText = sanitizeForGDocsApi(opts.studentName) + "\n";
+    const nameText = opts.studentName + "\n";
     requests.push({
       insertText: { location: { index: idx }, text: nameText },
     });
@@ -327,7 +338,7 @@ export function buildDocInsertRequests(markdown, opts) {
     const startStr = formatDateForMeta(opts.startDate);
     const endStr = formatDateForMeta(opts.endDate);
     const datePipe = startStr ? ` | ${startStr} to ${endStr || "date"}` : "";
-    const metaText = sanitizeForGDocsApi(`${opts.programName || ""} | ${opts.classroomName || ""}${datePipe} | AY ${opts.academicYear || ""}`) + "\n";
+    const metaText = `${opts.programName || ""} | ${opts.classroomName || ""}${datePipe} | AY ${opts.academicYear || ""}` + "\n";
     requests.push({
       insertText: { location: { index: idx }, text: metaText },
     });

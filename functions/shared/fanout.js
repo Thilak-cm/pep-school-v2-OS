@@ -73,6 +73,8 @@ export function parseFanoutMessage(message, extraKeys = [], optionalKeys = []) {
     const value = json[key];
     if (typeof value === "string" && value.trim()) {
       parsed[key] = value;
+    } else if (value !== undefined && value !== null) {
+      console.warn(`[fanout] optionalKey "${key}" has unexpected type ${typeof value} or is empty, skipping`);
     }
   }
   return parsed;
