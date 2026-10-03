@@ -32,13 +32,18 @@ Summarize the issue's current state and show the system diagram, then begin with
 
 **Rules:**
 - **One question per message.** Wait for each answer before continuing.
-- **Provide your recommended answer** with reasoning for every question — the user can accept, reject, or modify.
+- **Tier every question before asking it.** Trivial/mechanical decisions (naming, copying an established pattern, obvious defaults): recommend-confirm is fine — state your recommendation with reasoning. Consequential decisions (trade-offs, shared contracts, data shapes, security, anything trunk): **never lead with a recommendation.** Present only the facts — current code behavior, constraints, what's in scope — then ask the user to propose an answer with their reasoning. The leaf/trunk rule applied to decisions is the tier classifier; when uncertain, treat as consequential.
+- **Stress-test user proposals, don't rubber-stamp them.** After the user proposes on a consequential decision: raise the strongest objection, the edge cases it breaks, a steelmanned alternative, and how industry handles it. Never accept a proposal without first naming its strongest objection. Offer your own view only after their proposal has been examined, or when the user is stuck or explicitly asks. Why: recommend-then-confirm anchors the user and invites sycophancy-driven rubber-stamping; the author's forced specificity is where the engineering learning lives (Google design docs, Amazon PR/FAQ review model).
 - **Codebase-first.** Never ask factual questions about the current system — read the code and state what you found. Only ask for *decisions*: intent, priorities, constraints, tradeoffs. Ground questions in findings: "Currently X does Y (`file.js:42`). Should this change?"
 - **Follow the decision tree.** Each answer may open new branches — follow them, don't skip ahead.
 - **For bugs:** reproducible steps, expected vs actual, environment, fix constraints. **For features:** who benefits, desired behavior, edge cases, error states, constraints, what explicitly should NOT change.
 - Confirm priority and labels if they seem misaligned.
 
 Grill on (adapt to the issue): happy path and edge cases, error surfacing, data shape changes and migrations, roles and access control, interaction with existing features, performance/compatibility constraints, explicit out-of-scope, and which concern wins when two compete.
+
+## Pre-Mortem
+
+Before the convergence gate, run one pre-mortem question: "This spec shipped and caused an incident or missed its goal — what went wrong?" **The user answers first.** Then add failure modes they missed. Fold any real risks back into ACs, decisions, or out-of-scope before proceeding.
 
 ## Convergence Gate
 
@@ -78,7 +83,8 @@ Do not skip this step. Do not self-assess convergence. The subagent call is the 
 
 ### Decisions Made
 [Decisions resolved during speccing that constrain implementation to one path.
- "Decision: [what]. Why: [rationale]." These prevent re-opening resolved questions.]
+ "Decision: [what]. Alternatives considered: [what lost, and why]. Why: [rationale]."
+ These prevent re-opening resolved questions and preserve the reasoning trail.]
 
 ### Context
 [Background, screenshots, links, workarounds]

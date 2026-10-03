@@ -42,11 +42,12 @@ const formatRelativeTime = (ms) => {
 
 // Activity Trend series toggles — persisted so admins keep their preferred view (#none)
 const ACTIVITY_SERIES_STORAGE_KEY = 'pep-stats-activity-series';
-const ACTIVITY_SERIES_DEFAULT = { total: true, observations: false, lessons: false, media: false, assessments: false };
+const ACTIVITY_SERIES_DEFAULT = { total: true, observations: false, lessons: false, practice: false, media: false, assessments: false };
 const ACTIVITY_SERIES_META = [
   { key: 'total', label: 'Total', color: '#334155' },
   { key: 'observations', label: 'Observations', color: '#4f46e5' },
   { key: 'lessons', label: 'Lessons', color: '#059669' },
+  { key: 'practice', label: 'Practice', color: '#7c3aed' },
   { key: 'media', label: 'Media', color: '#ec4899' },
   { key: 'assessments', label: 'Assessments', color: '#d97706' },
 ];
@@ -212,6 +213,7 @@ const StatsPage = ({ user, role, manageableClassrooms = [], onBack, onNavigateTo
       branchId: doc.branchId,
       thisWeekObservationNotes: sumTypeTier(doc, 'voice') + sumTypeTier(doc, 'text'),
       thisWeekLessonNotes: sumTypeTier(doc, 'lesson'),
+      thisWeekPracticeNotes: sumTypeTier(doc, 'practice'),
       thisWeekMediaNotes: sumTypeTier(doc, 'media'),
       thisWeekAssessmentNotes: sumTypeTier(doc, 'assessment'),
     }));
@@ -237,15 +239,16 @@ const StatsPage = ({ user, role, manageableClassrooms = [], onBack, onNavigateTo
     // Fall back to all-time effortCounts if effortActivityByType not yet in cache docs
     const hasTypeTiers = classroomDocs.some(d => d.effortActivityByType);
     if (!hasTypeTiers) {
-      const nc = { observations: 0, lesson: 0, media: 0, assessment: 0 };
+      const nc = { observations: 0, lesson: 0, practice: 0, media: 0, assessment: 0 };
       for (const doc of classroomDocs) {
         const c = doc.effortCounts || {};
         nc.observations += (c.voice || 0) + (c.text || 0);
-        nc.lesson += c.lesson || 0; nc.media += c.media || 0; nc.assessment += c.assessment || 0;
+        nc.lesson += c.lesson || 0; nc.practice += c.practice || 0; nc.media += c.media || 0; nc.assessment += c.assessment || 0;
       }
       return [
         { name: 'Observations', value: nc.observations, color: '#4f46e5' }, /* Recharts */
         { name: 'Lessons', value: nc.lesson, color: '#059669' }, /* Recharts */
+        { name: 'Practice', value: nc.practice, color: '#7c3aed' }, /* Recharts */
         { name: 'Media', value: nc.media, color: '#ec4899' }, /* Recharts */
         { name: 'Assessments', value: nc.assessment, color: '#d97706' } /* Recharts */
       ];
@@ -254,6 +257,7 @@ const StatsPage = ({ user, role, manageableClassrooms = [], onBack, onNavigateTo
     return [
       { name: 'Observations', value: sumTier('voice') + sumTier('text'), color: '#4f46e5' }, /* Recharts */
       { name: 'Lessons', value: sumTier('lesson'), color: '#059669' }, /* Recharts */
+      { name: 'Practice', value: sumTier('practice'), color: '#7c3aed' }, /* Recharts */
       { name: 'Media', value: sumTier('media'), color: '#ec4899' }, /* Recharts */
       { name: 'Assessments', value: sumTier('assessment'), color: '#d97706' } /* Recharts */
     ];
@@ -302,6 +306,7 @@ const StatsPage = ({ user, role, manageableClassrooms = [], onBack, onNavigateTo
     const list = (doc.teachers || []).map(t => {
       const periodObs = is7d ? (t.observations7d || 0) : (t.observations30d || 0);
       const periodLessons = is7d ? (t.lessons7d || 0) : (t.lessons30d || 0);
+      const periodPractice = is7d ? (t.practice7d || 0) : (t.practice30d || 0);
       const periodMedia = is7d ? (t.media7d || 0) : (t.media30d || 0);
       const periodAssessments = is7d ? (t.assessments7d || 0) : (t.assessments30d || 0);
 
@@ -310,9 +315,10 @@ const StatsPage = ({ user, role, manageableClassrooms = [], onBack, onNavigateTo
         name: t.name,
         email: t.email,
         status: t.status,
-        periodObservations: periodObs + periodLessons + periodMedia + periodAssessments,
+        periodObservations: periodObs + periodLessons + periodPractice + periodMedia + periodAssessments,
         periodObservationNotes: periodObs,
         periodLessonNotes: periodLessons,
+        periodPracticeNotes: periodPractice,
         periodMediaNotes: periodMedia,
         periodAssessmentNotes: periodAssessments,
         otherClassroomCount: is7d
@@ -367,6 +373,7 @@ const StatsPage = ({ user, role, manageableClassrooms = [], onBack, onNavigateTo
 
     const obsMerged = mergeType(['voice', 'text']);  // observations = voice + text
     const lessonMerged = mergeType(['lesson']);
+    const practiceMerged = mergeType(['practice']);
     const mediaMerged = mergeType(['media']);
     const assessmentMerged = mergeType(['assessment']);
 
@@ -374,6 +381,7 @@ const StatsPage = ({ user, role, manageableClassrooms = [], onBack, onNavigateTo
     const allKeys = [...new Set([
       ...Object.keys(obsMerged),
       ...Object.keys(lessonMerged),
+      ...Object.keys(practiceMerged),
       ...Object.keys(mediaMerged),
       ...Object.keys(assessmentMerged),
     ])].sort();
@@ -404,9 +412,10 @@ const StatsPage = ({ user, role, manageableClassrooms = [], onBack, onNavigateTo
       period: formatLabel(key, period, i),
       observations: obsMerged[key] || 0,
       lessons: lessonMerged[key] || 0,
+      practice: practiceMerged[key] || 0,
       media: mediaMerged[key] || 0,
       assessments: assessmentMerged[key] || 0,
-      total: (obsMerged[key] || 0) + (lessonMerged[key] || 0) + (mediaMerged[key] || 0) + (assessmentMerged[key] || 0),
+      total: (obsMerged[key] || 0) + (lessonMerged[key] || 0) + (practiceMerged[key] || 0) + (mediaMerged[key] || 0) + (assessmentMerged[key] || 0),
     }));
   };
 
@@ -472,6 +481,10 @@ const StatsPage = ({ user, role, manageableClassrooms = [], onBack, onNavigateTo
         <Box sx={{ display: 'flex', alignItems: 'center', gap: 0.6 }}>
           <Box sx={{ width: 10, height: 10, borderRadius: '50%', backgroundColor: '#059669' }} />
           <Typography variant="caption" sx={{ color: 'text.secondary', fontWeight: 600 }}>Lessons</Typography>
+        </Box>
+        <Box sx={{ display: 'flex', alignItems: 'center', gap: 0.6 }}>
+          <Box sx={{ width: 10, height: 10, borderRadius: '50%', backgroundColor: '#7c3aed' }} />
+          <Typography variant="caption" sx={{ color: 'text.secondary', fontWeight: 600 }}>Practice</Typography>
         </Box>
         <Box sx={{ display: 'flex', alignItems: 'center', gap: 0.6 }}>
           <Box sx={{ width: 10, height: 10, borderRadius: '50%', backgroundColor: '#ec4899' }} />
@@ -576,6 +589,7 @@ const StatsPage = ({ user, role, manageableClassrooms = [], onBack, onNavigateTo
       name: classroom.name,
       Observations: classroom.thisWeekObservationNotes ?? classroom.thisWeekObservations ?? 0,
       'Lesson Notes': classroom.thisWeekLessonNotes ?? 0,
+      Practice: classroom.thisWeekPracticeNotes ?? 0,
       'Media Notes': classroom.thisWeekMediaNotes ?? 0,
       Assessments: classroom.thisWeekAssessmentNotes ?? 0
     }));
@@ -670,6 +684,7 @@ const StatsPage = ({ user, role, manageableClassrooms = [], onBack, onNavigateTo
             />
               <Bar dataKey="Observations" stackId="notes" fill="#4f46e5" radius={[0, 0, 0, 0]} /> {/* Recharts — hex required */}
               <Bar dataKey="Lesson Notes" stackId="notes" fill="#059669" radius={[0, 0, 0, 0]} /> {/* Recharts */}
+              <Bar dataKey="Practice" stackId="notes" fill="#7c3aed" radius={[0, 0, 0, 0]} /> {/* Recharts */}
               <Bar dataKey="Media Notes" stackId="notes" fill="#ec4899" radius={[0, 0, 0, 0]} /> {/* Recharts */}
               <Bar dataKey="Assessments" stackId="notes" fill="#d97706" radius={[0, 0, 0, 0]} /> {/* Recharts */}
             </RechartsBarChart>
@@ -813,6 +828,7 @@ const StatsPage = ({ user, role, manageableClassrooms = [], onBack, onNavigateTo
               {visibleSeries.observations && <Line type="monotone" dataKey="observations" name="Observations" stroke="#4f46e5" strokeWidth={2.5} dot={{ fill: '#4f46e5', r: 3 }} />} {/* Recharts */}
               {visibleSeries.lessons && <Line type="monotone" dataKey="lessons" name="Lessons" stroke="#059669" strokeWidth={2.5} dot={{ fill: '#059669', r: 3 }} />} {/* Recharts */}
               {visibleSeries.media && <Line type="monotone" dataKey="media" name="Media" stroke="#ec4899" strokeWidth={2.5} dot={{ fill: '#ec4899', r: 3 }} />} {/* Recharts */}
+              {visibleSeries.practice && <Line type="monotone" dataKey="practice" name="Practice" stroke="#7c3aed" strokeWidth={2.5} dot={{ fill: '#7c3aed', r: 3 }} />} {/* Recharts */}
               {visibleSeries.assessments && <Line type="monotone" dataKey="assessments" name="Assessments" stroke="#d97706" strokeWidth={2.5} dot={{ fill: '#d97706', r: 3 }} />} {/* Recharts */}
             </LineChart>
           </ResponsiveContainer>
@@ -1380,6 +1396,7 @@ const StatsPage = ({ user, role, manageableClassrooms = [], onBack, onNavigateTo
                           <Box sx={{ display: 'flex', alignItems: 'center', gap: 1, flexWrap: 'wrap' }}>
                             <Chip size="small" variant="outlined" color="success" label={`Observations: ${teacher.periodObservationNotes ?? 0}`} />
                             <Chip size="small" variant="outlined" color="info" label={`Lessons: ${teacher.periodLessonNotes ?? 0}`} />
+                            <Chip size="small" variant="outlined" sx={{ borderColor: '#7c3aed', color: '#7c3aed' }} label={`Practice: ${teacher.periodPracticeNotes ?? 0}`} />
                             <Chip size="small" variant="outlined" sx={{ borderColor: '#ec4899', color: '#ec4899' }} label={`Media: ${teacher.periodMediaNotes ?? 0}`} />
                             <Chip size="small" variant="outlined" sx={{ borderColor: '#d97706', color: '#d97706' }} label={`Assessments: ${teacher.periodAssessmentNotes ?? 0}`} />
                           </Box>

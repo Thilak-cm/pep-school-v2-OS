@@ -24,6 +24,34 @@ export const LESSON_PROGRAM_DIMENSIONS = {
   ]
 };
 
+/**
+ * Placeholder practice note dimensions per program level.
+ * Swap with Rahul's real labels when delivered (Takeaway R2, #227).
+ * Same yes|partial|no|na rating scale as lesson dimensions.
+ */
+export const PRACTICE_PROGRAM_DIMENSIONS = {
+  toddler: [
+    'Dimension 1',
+    'Dimension 2',
+    'Dimension 3',
+  ],
+  primary: [
+    'Dimension 1',
+    'Dimension 2',
+    'Dimension 3',
+  ],
+  elementary: [
+    'Dimension 1',
+    'Dimension 2',
+    'Dimension 3',
+  ],
+  adolescent: [
+    'Dimension 1',
+    'Dimension 2',
+    'Dimension 3',
+  ],
+};
+
 // Hex literals intentional — downstream code concatenates hex-alpha suffixes (e.g. `${color}22`)
 export const LESSON_RATING_OPTIONS = [
   { value: 'yes', label: 'Yes', color: '#0f766e' },

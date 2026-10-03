@@ -63,9 +63,9 @@ test("pending media is a hard cursor barrier", () => {
 function baseCache(classroomId, teacherId, studentId, recent = {}) {
   return {
     classroomId, classroomName: classroomId, branchId: "b", studentCount: 1,
-    effortCounts: {voice: 0, text: 0, lesson: 0, media: 0, total: 0},
+    effortCounts: {voice: 0, text: 0, lesson: 0, practice: 0, media: 0, total: 0},
     effortActivity: {}, effortActivityByType: {},
-    teachers: [{id: teacherId, name: teacherId, email: "", status: "active", observations: 0, lessons: 0, media: 0, handwritten: 0}],
+    teachers: [{id: teacherId, name: teacherId, email: "", status: "active", observations: 0, lessons: 0, practice: 0, media: 0, handwritten: 0}],
     students: [{id: studentId, name: studentId, status: "active", totalMentions: 0, mediaMentions: 0, handwrittenMentions: 0}],
     aggregationState: {version: AGGREGATION_STATE_VERSION, teacherRecent: recent.teacherRecent || {}, studentRecent: recent.studentRecent || {}},
   };
@@ -83,7 +83,7 @@ test("all numeric fields update and rolling windows expire exactly", () => {
     studentRecent: {s1: {[expiredDay]: {mentions: 9, media: 0, handwritten: 0}}},
   });
   const next = applyDeltaToCache(cache, aggregate, now);
-  assert.deepEqual(next.effortCounts, {voice: 1, text: 0, lesson: 0, media: 1, total: 2});
+  assert.deepEqual(next.effortCounts, {voice: 1, text: 0, lesson: 0, practice: 0, media: 1, total: 2});
   assert.equal(next.teachers[0].observations, 1);
   assert.equal(next.teachers[0].media, 1);
   assert.equal(next.teachers[0].handwritten, 1);
@@ -133,6 +133,26 @@ test("new day-count fields merge through the delta path automatically", () => {
   assert.equal(next.aggregationState.teacherRecent.t1[recentDay].questionsAnswered, 3);
   assert.equal(next.teachers[0].assessments7d, 4);
   assert.equal(next.teachers[0].questionsAnswered7d, 3);
+});
+
+test("practice notes count separately from lessons and observations", () => {
+  const now = new Date("2026-08-22T12:00:00Z");
+  const state = createDeltaAccumulator(now);
+  addObservationToDelta(state, observation("p", {type: "practice", lessonTitle: "Addition", observedAt: new Date("2026-08-21T12:00:00Z")}));
+  addObservationToDelta(state, observation("l", {type: "lesson", lessonTitle: "Subtraction", observedAt: new Date("2026-08-21T12:00:00Z")}));
+  const aggregate = finalizeDelta(state).classrooms.get("c1");
+  assert.equal(aggregate.teacherTotals.t1.practice, 1);
+  assert.equal(aggregate.teacherTotals.t1.lessons, 1);
+  assert.equal(aggregate.teacherTotals.t1.observations, 0);
+  assert.equal(aggregate.effortCounts.practice, 1);
+  assert.equal(aggregate.effortCounts.lesson, 1);
+  const cache = baseCache("c1", "t1", "s1");
+  const next = applyDeltaToCache(cache, aggregate, now);
+  assert.equal(next.teachers[0].practice, 1);
+  assert.equal(next.teachers[0].lessons, 1);
+  assert.equal(next.effortCounts.practice, 1);
+  assert.equal(next.teachers[0].practice7d, 1);
+  assert.equal(next.teachers[0].practice30d, 1);
 });
 
 test("cross-classroom counts use distinct classrooms and age with rolling state", () => {

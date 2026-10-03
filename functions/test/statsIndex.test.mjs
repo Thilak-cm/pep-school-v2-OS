@@ -98,7 +98,7 @@ const emptyCache = (classroomId) => ({
   classroomId,
   classroomName: classroomId,
   cachedAt: "old-cache",
-  effortCounts: {voice: 0, text: 0, lesson: 0, media: 0, total: 0},
+  effortCounts: {voice: 0, text: 0, lesson: 0, practice: 0, media: 0, total: 0},
   effortActivity: {},
   effortActivityByType: {},
   teachers: [],

@@ -47,7 +47,7 @@ import { createObservationOperations } from '../../../../shared/firebase/observa
 import SharedHeader from './SharedHeader';
 import TextContent from './TextContent';
 import VoiceContent from './VoiceContent';
-import LessonContent from './LessonContent';
+import LessonAndPracticeContent from './LessonAndPracticeContent';
 import MediaContent from './MediaContent';
 import ActionButtons from './ActionButtons';
 import useMediaPreview from './useMediaPreview';
@@ -86,6 +86,7 @@ export default function NoteBottomSheet({
   carouselIndex,
   onCarouselNavigate,
   onObservationDeleted,
+  onSwapObservation,
   classroomTeachers = [],
 }) {
   const notify = useNotify();
@@ -124,7 +125,7 @@ export default function NoteBottomSheet({
   const media = useMediaPreview(observation, currentUser, notify);
 
   // ----- Derived permissions -----
-  const isLessonObservation = observation?.type === 'lesson';
+  const isLessonObservation = observation?.type === 'lesson' || observation?.type === 'practice';
   const isMedia = observation?.type === 'media';
   const isAssessment = observation?.type === 'assessment';
   const canEditCurrent = canEditObservation(observation, currentUser, userRole);
@@ -252,7 +253,7 @@ export default function NoteBottomSheet({
 
   // -- Lesson navigate edit --
   const handleEditLessonNavigate = () => {
-    if (!observation || observation.type !== 'lesson') return;
+    if (!observation || (observation.type !== 'lesson' && observation.type !== 'practice')) return;
     if (!canEditCurrent) { notify.error(getPermissionErrorMessage()); return; }
     const targetStudentId = observation.parentStudentId || observation.studentId || student?.id;
     const targetClassroomId = observation.classroomId || student?.classroomId || null;
@@ -267,6 +268,26 @@ export default function NoteBottomSheet({
       }));
     } catch (e) { reportCaughtError(e, 'NoteBottomSheet', 'lesson navigate'); }
     handleClose();
+  };
+
+  // -- Linked lesson tap (practice notes) --
+  const handleLinkedLessonTap = async (linkedLesson) => {
+    if (!linkedLesson?.observationId) return;
+    const targetStudentId = observation?.studentId || observation?.parentStudentId || student?.id;
+    if (!targetStudentId) return;
+    try {
+      const linkedDocRef = doc(db, 'students', targetStudentId, 'observations', linkedLesson.observationId);
+      const linkedSnap = await getDoc(linkedDocRef);
+      if (!linkedSnap.exists()) {
+        notify.info('Linked lesson no longer exists');
+        return;
+      }
+      const linkedObs = { id: linkedSnap.id, ...linkedSnap.data(), studentId: targetStudentId };
+      onSwapObservation?.(linkedObs);
+    } catch (e) {
+      reportCaughtError(e, 'NoteBottomSheet', 'linked lesson tap');
+      notify.error('Could not open linked lesson');
+    }
   };
 
   // -- Delete --
@@ -350,7 +371,7 @@ export default function NoteBottomSheet({
       notify.success(reassignToStudentName ? `Note reassigned to ${reassignToStudentName}` : 'Note reassigned', {
         duration: 6000, id: `reassign-${observation.id}`, actionLabel: 'View Note',
         onUndo: () => {
-          try { window.dispatchEvent(new CustomEvent('navigateToStudentNotes', { detail: { studentId: newStudentId, noteTypeFilter: observation?.type === 'lesson' ? 'lesson' : 'textVoice' } })); }
+          try { window.dispatchEvent(new CustomEvent('navigateToStudentNotes', { detail: { studentId: newStudentId, noteTypeFilter: (observation?.type === 'lesson' || observation?.type === 'practice') ? 'lesson' : 'textVoice' } })); }
           catch (e) { reportCaughtError(e, 'NoteBottomSheet', 'reassign view note'); }
         },
       });
@@ -371,7 +392,7 @@ export default function NoteBottomSheet({
                 sourceId: observation?.sourceId || null,
                 observationId: observation?.assessmentKind === 'medical' ? observation?.id : null,
               }
-            : { studentId: student.id, student, noteTypeFilter: observation?.type === 'lesson' ? 'lesson' : 'textVoice' }
+            : { studentId: student.id, student, noteTypeFilter: (observation?.type === 'lesson' || observation?.type === 'practice') ? 'lesson' : 'textVoice' }
         }));
       } catch (e) { reportCaughtError(e, 'NoteBottomSheet', 'view student timeline'); }
       handleClose();
@@ -521,8 +542,8 @@ export default function NoteBottomSheet({
               editText={editText}
               onEditTextChange={setEditText}
             />
-          ) : observation.type === 'lesson' ? (
-            <LessonContent observation={observation} />
+          ) : (observation.type === 'lesson' || observation.type === 'practice') ? (
+            <LessonAndPracticeContent observation={observation} onLinkedLessonTap={handleLinkedLessonTap} />
           ) : isMedia ? (
             <MediaContent
               observation={observation}

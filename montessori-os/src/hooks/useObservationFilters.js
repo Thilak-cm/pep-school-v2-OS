@@ -84,6 +84,7 @@ export const useObservationFilters = (observations = [], noteTypeFilter = null) 
       const selectedTypes = new Set(filters.types || []);
       if (overrideNoteTypeFilter === 'lesson') {
         selectedTypes.add('lesson');
+        selectedTypes.add('practice');
       }
       if (overrideNoteTypeFilter === 'textVoice') {
         selectedTypes.add('voice');

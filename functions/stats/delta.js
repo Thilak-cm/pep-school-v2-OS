@@ -64,10 +64,10 @@ export function isCountableObservation(observation = {}) {
   return observation.type !== "media" || observation.status === "ready";
 }
 
-const emptyCounts = () => ({voice: 0, text: 0, lesson: 0, media: 0, total: 0});
-const emptyTeacherCounts = () => ({observations: 0, lessons: 0, media: 0, handwritten: 0, assessments: 0, questionsAnswered: 0});
+const emptyCounts = () => ({voice: 0, text: 0, lesson: 0, practice: 0, media: 0, total: 0});
+const emptyTeacherCounts = () => ({observations: 0, lessons: 0, practice: 0, media: 0, handwritten: 0, assessments: 0, questionsAnswered: 0});
 const emptyStudentCounts = () => ({totalMentions: 0, mediaMentions: 0, handwrittenMentions: 0});
-const emptyTeacherDayCounts = () => ({observations: 0, lessons: 0, media: 0, handwritten: 0, assessments: 0, questionsAnswered: 0});
+const emptyTeacherDayCounts = () => ({observations: 0, lessons: 0, practice: 0, media: 0, handwritten: 0, assessments: 0, questionsAnswered: 0});
 const emptyStudentDayCounts = () => ({mentions: 0, media: 0, handwritten: 0});
 const dayKey = (atMs) => String(Math.floor(atMs / DAY_MS));
 const windowCutoffDay = (nowMs, days) => Math.floor(nowMs / DAY_MS) - days + 1;
@@ -81,7 +81,7 @@ function emptyClassroomDelta(now) {
   return {
     effortCounts: emptyCounts(),
     effortActivity: createActivityTiers(now),
-    effortActivityByType: Object.fromEntries(["voice", "text", "lesson", "media"].map((type) => [type, createActivityTiers(now)])),
+    effortActivityByType: Object.fromEntries(["voice", "text", "lesson", "practice", "media"].map((type) => [type, createActivityTiers(now)])),
     teacherTotals: new Map(), teacherRecent: new Map(),
     studentTotals: new Map(), studentRecent: new Map(),
     // Ephemeral per-teacher student ID sets (#274). Consumed by reconcile's
@@ -167,6 +167,7 @@ export function addObservationToDelta(state, observation, {countAction = true} =
   // open question), so it increments alongside — not instead of — the type.
   const applyTeacherCounts = (counts) => {
     if (type === "lesson") counts.lessons++;
+    else if (type === "practice") counts.practice++;
     else if (type === "assessment") counts.assessments++;
     else if (type === "media") {
       counts.media++;
@@ -231,7 +232,7 @@ function mergeRecent(existing = {}, added = {}, cutoffDay, currentDay, factory) 
 // ephemeral ID sets that only exist during full reconciliation (#274). See
 // studentReachWindows below, consumed exclusively by buildClassroomCache.
 function teacherWindows(days, nowMs) {
-  const result = {observations7d: 0, lessons7d: 0, media7d: 0, handwritten7d: 0, assessments7d: 0, questionsAnswered7d: 0, observations30d: 0, lessons30d: 0, media30d: 0, handwritten30d: 0, assessments30d: 0, questionsAnswered30d: 0};
+  const result = {observations7d: 0, lessons7d: 0, practice7d: 0, media7d: 0, handwritten7d: 0, assessments7d: 0, questionsAnswered7d: 0, observations30d: 0, lessons30d: 0, practice30d: 0, media30d: 0, handwritten30d: 0, assessments30d: 0, questionsAnswered30d: 0};
   for (const [key, counts] of Object.entries(days || {})) {
     const day = Number(key);
     if (day > Math.floor(nowMs / DAY_MS)) continue;
@@ -239,6 +240,7 @@ function teacherWindows(days, nowMs) {
       if (day < windowCutoffDay(nowMs, days)) continue;
       result[`observations${suffix}`] += counts.observations || 0;
       result[`lessons${suffix}`] += counts.lessons || 0;
+      result[`practice${suffix}`] += counts.practice || 0;
       result[`media${suffix}`] += counts.media || 0;
       result[`handwritten${suffix}`] += counts.handwritten || 0;
       result[`assessments${suffix}`] += counts.assessments || 0;
@@ -292,7 +294,7 @@ export function applyDeltaToCache(cache, aggregate, now = new Date()) {
   const next = {...cache, effortCounts: addCounts(cache.effortCounts, aggregate?.effortCounts || emptyCounts())};
   next.effortActivity = mergeActivity(cache.effortActivity, aggregate?.effortActivity, now);
   next.effortActivityByType = {};
-  for (const type of ["voice", "text", "lesson", "media"]) next.effortActivityByType[type] = mergeActivity(cache.effortActivityByType?.[type], aggregate?.effortActivityByType?.[type], now);
+  for (const type of ["voice", "text", "lesson", "practice", "media"]) next.effortActivityByType[type] = mergeActivity(cache.effortActivityByType?.[type], aggregate?.effortActivityByType?.[type], now);
   const nowMs = now.getTime();
   const currentDay = Math.floor(nowMs / DAY_MS);
   const teacherIds = new Set([...Object.keys(currentState.teacherRecent || {}), ...Object.keys(aggregate?.teacherRecent || {})]);
@@ -313,7 +315,7 @@ export function reconcileCrossClassroomCounts(caches, now = new Date()) {
     for (const [teacherId, events] of Object.entries(cache.aggregationState?.teacherRecent || {})) {
       const windows = teacherWindows(events, nowMs);
       if (!activity.has(teacherId)) activity.set(teacherId, new Map());
-      activity.get(teacherId).set(cache.classroomId, {notes7d: windows.observations7d + windows.lessons7d + windows.media7d + windows.assessments7d, notes30d: windows.observations30d + windows.lessons30d + windows.media30d + windows.assessments30d});
+      activity.get(teacherId).set(cache.classroomId, {notes7d: windows.observations7d + windows.lessons7d + windows.practice7d + windows.media7d + windows.assessments7d, notes30d: windows.observations30d + windows.lessons30d + windows.practice30d + windows.media30d + windows.assessments30d});
     }
   }
   return caches.map((cache) => ({...cache, teachers: (cache.teachers || []).map((teacher) => {

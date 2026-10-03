@@ -36,10 +36,12 @@ import {
   serverTimestamp,
   updateDoc,
   setDoc,
-  deleteDoc
+  deleteDoc,
+  deleteField
 } from 'firebase/firestore';
 import { db } from '../firebase';
 import useNotify from '../notifications/useNotify';
+import Fuse from 'fuse.js';
 import { genericFuzzySearch } from '../utils/fuzzySearch';
 import useInlineVoice from '../hooks/useInlineVoice';
 import InlineVoiceOverlay from './InlineVoiceOverlay';
@@ -49,12 +51,14 @@ import { trackEvent, lengthBucket } from '../utils/analytics';
 import { createObservationOperations } from '../../../shared/firebase/observationOperations.js';
 import {
   LESSON_PROGRAM_DIMENSIONS,
+  PRACTICE_PROGRAM_DIMENSIONS,
   LESSON_RATING_OPTIONS,
   LESSON_RATING_LABELS,
   LESSON_RATING_COLORS,
   deriveDimensionKeyFromProgram,
   normalizeClassroomId
 } from '../utils/lessonNoteConstraints';
+import { isSuperAdmin } from '../utils/roleUtils';
 
 const observationOperations = createObservationOperations({
   db,
@@ -125,6 +129,7 @@ function LessonNoteWizard({
     groupComment: '',
     classroomId: initialClassroomId || ''
   });
+  const [noteSubType, setNoteSubType] = useState(editObservation?.type === 'practice' ? 'practice' : 'lesson'); // 'lesson' | 'practice'
   const [lessonMode, setLessonMode] = useState('individual'); // 'individual' | 'group'
   const [classrooms, setClassrooms] = useState([]);
   const [students, setStudents] = useState([]);
@@ -151,6 +156,13 @@ function LessonNoteWizard({
   const [studentCommentCleaning, setStudentCommentCleaning] = useState({});
   const [studentCommentCleanedOnce, setStudentCommentCleanedOnce] = useState({});
   const [studentCommentPrevText, setStudentCommentPrevText] = useState({});
+  // Link suggester state (individual practice only)
+  const [linkSuggestions, setLinkSuggestions] = useState([]);
+  const [linkedLesson, setLinkedLesson] = useState(null);
+  const [linkDismissed, setLinkDismissed] = useState(false);
+  const linkDebounceRef = useRef(null);
+  const [studentLessons, setStudentLessons] = useState([]);
+
   const initialPrefillDoneRef = useRef(false);
   const editPrefillDoneRef = useRef(false);
   const inputRefs = useRef({
@@ -293,12 +305,16 @@ function LessonNoteWizard({
   };
 
   const dimensionList = useMemo(() => {
+    if (noteSubType === 'practice') {
+      // Practice uses hardcoded placeholder dimensions (no Firestore config override)
+      return PRACTICE_PROGRAM_DIMENSIONS[dimensionKey] || PRACTICE_PROGRAM_DIMENSIONS.primary;
+    }
     const programId = selectedClassroom?.programId;
     const configured = getConfiguredDimensions(programId);
     if (configured && configured.length > 0) return configured;
     return LESSON_PROGRAM_DIMENSIONS[dimensionKey] || LESSON_PROGRAM_DIMENSIONS.primary;
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [selectedClassroom?.programId, lessonConfig, dimensionKey]);
+  }, [selectedClassroom?.programId, lessonConfig, dimensionKey, noteSubType]);
 
   useEffect(() => {
     if (editObservation) return;
@@ -394,6 +410,59 @@ function LessonNoteWizard({
     return studentsByClassroom[context.classroomId] || [];
   }, [context.classroomId, studentsByClassroom]);
 
+  // Link suggester: fetch lesson observations for the selected student (individual practice only)
+  useEffect(() => {
+    if (noteSubType !== 'practice' || lessonMode !== 'individual' || selectedStudents.length !== 1) {
+      setStudentLessons([]);
+      setLinkSuggestions([]);
+      return;
+    }
+    const studentId = selectedStudents[0];
+    let cancelled = false;
+    const fetchLessons = async () => {
+      try {
+        const q = query(
+          collection(db, 'students', studentId, 'observations'),
+          where('type', '==', 'lesson')
+        );
+        const snap = await getDocs(q);
+        if (cancelled) return;
+        const lessons = snap.docs.map((d) => ({ id: d.id, ...d.data() }));
+        lessons.sort((a, b) => {
+          const ta = a.observedAt?.toDate?.() || a.observedAt || new Date(0);
+          const tb = b.observedAt?.toDate?.() || b.observedAt || new Date(0);
+          return tb - ta;
+        });
+        setStudentLessons(lessons);
+      } catch {
+        setStudentLessons([]);
+      }
+    };
+    fetchLessons();
+    return () => { cancelled = true; };
+  }, [noteSubType, lessonMode, selectedStudents]);
+
+  // Link suggester: debounced Fuse.js search on title, same-teacher first, max 3
+  useEffect(() => {
+    if (linkDebounceRef.current) clearTimeout(linkDebounceRef.current);
+    if (noteSubType !== 'practice' || lessonMode !== 'individual' || linkDismissed || !context.lessonTitle.trim() || studentLessons.length === 0) {
+      setLinkSuggestions([]);
+      return;
+    }
+    linkDebounceRef.current = setTimeout(() => {
+      const fuse = new Fuse(studentLessons, { keys: ['lessonTitle'], threshold: 0.4 });
+      const results = fuse.search(context.lessonTitle.trim());
+      // Sort: same teacher first, then by Fuse score (index order)
+      const sorted = results.map((r) => r.item).sort((a, b) => {
+        const aTeacher = a.createdBy === currentUser?.uid ? 0 : 1;
+        const bTeacher = b.createdBy === currentUser?.uid ? 0 : 1;
+        return aTeacher - bTeacher;
+      });
+      setLinkSuggestions(sorted.slice(0, 3));
+    }, 500);
+    return () => { if (linkDebounceRef.current) clearTimeout(linkDebounceRef.current); };
+  }, [context.lessonTitle, noteSubType, lessonMode, linkDismissed, studentLessons, currentUser?.uid]);
+
   // Prefill values for editing an existing lesson note
   useEffect(() => {
     if (!editObservation || editPrefillDoneRef.current) return;
@@ -424,6 +493,8 @@ function LessonNoteWizard({
         comment: editObservation.studentComment || '',
       }
     });
+
+    setLinkedLesson(editObservation.linkedLesson || null);
 
     initialPrefillDoneRef.current = true;
     editPrefillDoneRef.current = true;
@@ -924,13 +995,14 @@ function LessonNoteWizard({
           updatedAt: serverTimestamp(),
           lastEditedBy: currentUser?.uid || null,
           lastEditedAt: serverTimestamp(),
+          ...(noteSubType === 'practice' ? { linkedLesson: linkedLesson ?? deleteField() } : {}),
         };
         await observationOperations.updateObservationFields({
           studentId,
           observationId: obsId,
           fields: payload,
         });
-        notify.success('Lesson note updated.');
+        notify.success(noteSubType === 'practice' ? 'Practice note updated.' : 'Lesson note updated.');
         setIsDirty(false);
         onSaved?.({ observationId: obsId, studentId });
       } else {
@@ -946,11 +1018,14 @@ function LessonNoteWizard({
             ratings[dimension] = overrideValue || baseValue;
           });
 
-          const observationId = `lesson_${Date.now().toString(36)}_${Math.random().toString(36).slice(2, 6)}_${studentId.slice(0, 4)}`;
+          const isPractice = noteSubType === 'practice';
+          const observationId = isPractice
+            ? `practice_${Date.now().toString(36)}_${Math.random().toString(36).slice(2, 6)}_${studentId.slice(0, 4)}`
+            : `lesson_${Date.now().toString(36)}_${Math.random().toString(36).slice(2, 6)}_${studentId.slice(0, 4)}`;
           const lessonData = {
             studentId,
             classroomId: context.classroomId,
-            type: 'lesson',
+            type: isPractice ? 'practice' : 'lesson',
             lessonTitle: context.lessonTitle.trim(),
             lessonDescription: context.lessonDescription.trim() || null,
             groupComment: context.groupComment.trim() || null,
@@ -961,6 +1036,7 @@ function LessonNoteWizard({
             studentComment: studentOverrides[studentId]?.comment?.trim() || null,
             lessonMode,
             ...(groupId ? { groupId } : {}),
+            ...(isPractice && linkedLesson ? { linkedLesson } : {}),
             createdBy: currentUser?.uid || 'unknown',
             createdByName: currentUser?.displayName || 'Unknown Teacher',
             createdByEmail: currentUser?.email || 'unknown@email.com',
@@ -986,7 +1062,7 @@ function LessonNoteWizard({
             id: observationId,
             studentId,
             classroomId: context.classroomId,
-            type: 'lesson',
+            type: isPractice ? 'practice' : 'lesson',
             lessonTitle: context.lessonTitle.trim(),
             observedAt: observedAtClient,
             createdBy: currentUser?.uid || 'unknown',
@@ -1002,7 +1078,7 @@ function LessonNoteWizard({
         });
         if (onSave) {
           onSave({
-            noteType: 'lesson',
+            noteType: noteSubType,
             studentIds: selectedStudents,
             classroomId,
             notes: savedNotes,
@@ -1010,7 +1086,7 @@ function LessonNoteWizard({
           });
         }
 
-        notify.success('Lesson note saved', {
+        notify.success(noteSubType === 'practice' ? 'Practice note saved' : 'Lesson note saved', {
           actionLabel: 'View',
           duration: 5000,
           onUndo: () => {
@@ -1119,7 +1195,7 @@ function LessonNoteWizard({
         <Box sx={{ display: 'flex', justifyContent: 'space-between', gap: 2, flexWrap: 'wrap' }}>
           <Box>
             <Typography variant="h6" sx={{ fontWeight: 700 }}>
-              Lesson context & students
+              {noteSubType === 'practice' ? 'Practice context & students' : 'Lesson context & students'}
             </Typography>
             <Typography variant="body2" color="text.secondary">
               Fill the basics, then pick students or a saved group.
@@ -1231,6 +1307,75 @@ function LessonNoteWizard({
                 size="small"
                 variant="outlined"
                 sx={{ fontSize: '0.75rem', color: 'var(--color-text-soft)', borderColor: 'var(--grey-300)' }}
+              />
+            </Box>
+          )}
+          {/* Note type radio: First time / Practice - shown after title */}
+          {!isEditMode && (
+            <ToggleButtonGroup
+              value={noteSubType}
+              exclusive
+              onChange={(_, value) => {
+                if (!value) return;
+                if (value === 'practice' && !isSuperAdmin(userRole)) {
+                  notify.info('Coming soon');
+                  return;
+                }
+                setNoteSubType(value);
+                setLinkedLesson(null);
+                setLinkDismissed(false);
+                setLinkSuggestions([]);
+                markDirty();
+              }}
+              size="small"
+              fullWidth
+              sx={{ maxWidth: 300 }}
+            >
+              <ToggleButton value="lesson">First time</ToggleButton>
+              <ToggleButton value="practice">Practice</ToggleButton>
+            </ToggleButtonGroup>
+          )}
+          {/* Link suggester: individual practice only */}
+          {noteSubType === 'practice' && lessonMode === 'individual' && !linkDismissed && linkSuggestions.length > 0 && !linkedLesson && (
+            <Box sx={{ display: 'flex', flexDirection: 'column', gap: 0.5 }}>
+              <Box sx={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
+                <Typography variant="caption" color="text.secondary">Link to a previous lesson?</Typography>
+                <Button size="small" onClick={() => setLinkDismissed(true)} sx={{ minWidth: 'auto', fontSize: '0.7rem' }}>Dismiss</Button>
+              </Box>
+              {linkSuggestions.map((lesson) => {
+                const date = lesson.observedAt?.toDate?.() || lesson.observedAt;
+                const dateStr = date ? new Date(date).toLocaleDateString() : '';
+                return (
+                  <Chip
+                    key={lesson.id}
+                    label={`${lesson.lessonTitle || 'Untitled'}${dateStr ? ` (${dateStr})` : ''}`}
+                    size="small"
+                    variant="outlined"
+                    onClick={() => {
+                      setLinkedLesson({
+                        observationId: lesson.id,
+                        groupId: lesson.groupId || null,
+                        lessonTitle: lesson.lessonTitle || '',
+                        observedAt: lesson.observedAt || null,
+                      });
+                      setLinkSuggestions([]);
+                      markDirty();
+                    }}
+                    sx={{ cursor: 'pointer', justifyContent: 'flex-start', width: 'fit-content' }}
+                  />
+                );
+              })}
+            </Box>
+          )}
+          {/* Linked lesson display */}
+          {linkedLesson && (
+            <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
+              <Chip
+                label={`Follow-up of: ${linkedLesson.lessonTitle}${linkedLesson.observedAt ? ` (${new Date(linkedLesson.observedAt?.toDate?.() || linkedLesson.observedAt).toLocaleDateString()})` : ''}`}
+                size="small"
+                color="primary"
+                variant="outlined"
+                onDelete={() => { setLinkedLesson(null); setLinkDismissed(false); }}
               />
             </Box>
           )}
@@ -1755,7 +1900,7 @@ function LessonNoteWizard({
           onClick={handleSave}
           disabled={saving}
         >
-          {saving ? 'Saving…' : 'Save Lesson Note'}
+          {saving ? 'Saving…' : noteSubType === 'practice' ? 'Save Practice Note' : 'Save Lesson Note'}
         </Button>
       </Box>
 

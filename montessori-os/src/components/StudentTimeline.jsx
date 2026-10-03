@@ -359,7 +359,7 @@ function StudentTimeline({ student, currentUser, userRole, noteTypeFilter = null
       return;
     }
     let types = [];
-    if (noteTypeFilter === 'lesson') types = ['lesson'];
+    if (noteTypeFilter === 'lesson') types = ['lesson', 'practice'];
     setFilters((prev) => ({ ...prev, types }));
   }, [noteTypeFilter, setFilters]);
 
@@ -996,6 +996,7 @@ function StudentTimeline({ student, currentUser, userRole, noteTypeFilter = null
         carouselIndex={mediaPreview?.carouselIndex}
         onCarouselNavigate={(direction) => navigateMediaPreview(direction)}
         onObservationDeleted={() => refresh()}
+        onSwapObservation={(obs) => setSelectedObservation(obs)}
       />
 
       {/* Media Dialog */}

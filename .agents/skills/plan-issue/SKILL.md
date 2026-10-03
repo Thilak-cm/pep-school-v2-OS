@@ -30,7 +30,7 @@ The approved plan stays in conversation context. Run `/implement-issue` in the *
 
 Map each acceptance criterion to code changes. Identify files to modify, constraints (storage rules budget, role-based access), and check the issue's "Decisions Made" section — those are resolved constraints that eliminate alternative paths.
 
-**Path convergence check:** determine the implementation approach. If you find yourself wanting to present "Option A vs Option B", the issue has a refinement gap — flag it ("Consider running `/spec-issue` to resolve this, or I can discuss the options here") and add a `## Refinement Gap` section describing the fork, the options with pros/cons, and a recommendation. Otherwise generate the plan directly with no hedging.
+**Path convergence check:** determine the implementation approach. If you find yourself wanting to present "Option A vs Option B", the issue has a refinement gap — flag it ("Consider running `/spec-issue` to resolve this, or I can discuss the options here") and add a `## Refinement Gap` section describing the fork and the facts/constraints of each option. **Do not include a recommendation for consequential forks** (trade-offs, shared contracts, data shapes, security, anything trunk — the leaf/trunk rule applied to decisions): the user proposes a resolution first, then stress-test it (strongest objection, edge cases, steelmanned alternative, industry comparison) before converging. Offer your own view only after their proposal has been examined or they're stuck/ask. Trivial forks (naming, copying an established pattern) may carry a recommendation. Why: recommend-then-confirm anchors the user and invites rubber-stamping. Otherwise generate the plan directly with no hedging.
 
 Plan structure:
 
@@ -72,7 +72,7 @@ Plan structure:
 
 ## Phase 5: Plan Approval
 
-Present the complete plan, area tags, risk profile, and test baseline. Iterate on user feedback until approved. If a refinement gap was flagged, resolve the fork with the user and collapse to a single path before finalizing.
+Present the complete plan, area tags, risk profile, and test baseline. Iterate on user feedback until approved. If a refinement gap was flagged, resolve the fork with the user using the propose-first protocol from Phase 3 (user proposes, you stress-test) and collapse to a single path before finalizing.
 
 On approval: instruct the user to run `/implement-issue` in this same session.
 
