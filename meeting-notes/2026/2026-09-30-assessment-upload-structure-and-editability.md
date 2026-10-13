@@ -79,10 +79,9 @@ rahul_takeaway_count: 1
 - Why it matters: Longest-carried takeaway (origin 2026-08-20); Rahul called costing "important" again; now has an explicit within-week deadline
 - Expected deliverable: Cost-per-child report v1 delivered to Rahul (structure approved 2026-09-23)
 - Tracking refs: #241, #265
-- Completion evidence: Report generated from Langfuse/provider data and sent to Rahul
-- Baseline at meeting close: 10% (structure approved, data pipeline not built)
-- Next-meeting follow-up: Was the report sent and did Rahul review it?
-- Carry forward: Yes
+- Completion evidence: Langfuse dashboard live and accessible to Rahul (2026-10-13); shows cost breakdown by model, per-pipeline runs, daily spend, top 20 use cases; continuously updated as new data arrives
+- Status: **COMPLETED** (2026-10-13) — Dashboard is the live cost report
+- Carry forward: No
 
 #### Takeaway T2 - Show baseball card critical-assessments UI at next week's meeting
 - Commitment: "I can show a UI to you in the next week's meeting."
