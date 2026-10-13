@@ -61,6 +61,7 @@ function ClassroomTimeline({ classroom, currentUser, userRole, manageableClassro
     showFilters,
     setShowFilters,
     filters,
+    committedFilters,
     hasActiveFilters,
     hasCommittedFilters,
     serverFilters,

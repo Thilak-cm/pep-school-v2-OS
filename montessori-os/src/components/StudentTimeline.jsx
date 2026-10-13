@@ -84,6 +84,7 @@ function StudentTimeline({ student, currentUser, userRole, noteTypeFilter = null
   const {
     showFilters,
     filters,
+    committedFilters,
     hasActiveFilters,
     hasCommittedFilters,
     setShowFilters,

@@ -62,7 +62,7 @@ const DISJUNCTION_CAP = 30;
  * - `filters` (draft): free chip-toggling, no queries fired
  * - `committedFilters`: updated only on Apply; drives server-side queries
  */
-export const useObservationFilters = (observations = [], noteTypeFilter = null) => {
+export const useObservationFilters = (_observations = [], noteTypeFilter = null) => {
   const [showFilters, setShowFilters] = useState(false);
   const [filters, setFilters] = useState({ ...EMPTY_FILTERS });
   const [committedFilters, setCommittedFilters] = useState({ ...EMPTY_FILTERS });
