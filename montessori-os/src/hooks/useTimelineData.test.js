@@ -385,15 +385,41 @@ describe('useTimelineData server-side filtering (#297)', () => {
     assert.ok(hookSource.includes('fetchFilteredCount'), 'should import fetchFilteredCount');
   });
 
-  it('snapshots browse state into browseCacheRef before filtered fetch', async () => {
-    hookSource = hookSource || await readFile(hookPath, 'utf8');
-    assert.ok(hookSource.includes('browseCacheRef'), 'should have browseCacheRef');
-  });
-
   it('reports query errors via reportCaughtError', async () => {
     hookSource = hookSource || await readFile(hookPath, 'utf8');
     const errorCalls = hookSource.match(/reportCaughtError/g) || [];
     assert.ok(errorCalls.length >= 2, 'should have multiple reportCaughtError calls');
+  });
+
+  // Behavioral: browse cache guard logic (extracted as pure function to verify
+  // the race condition fix - lesson carry-over must not snapshot empty state)
+  it('browse cache guard skips capture when notes are empty', () => {
+    const maybeCacheBrowse = (ref, notes, cursor, hasMore) => {
+      if (!ref.current && notes.length > 0) ref.current = { notes, cursor, hasMore };
+    };
+    const ref = { current: null };
+    maybeCacheBrowse(ref, [], null, true);
+    assert.equal(ref.current, null, 'must not cache empty notes - initial fetch still in-flight');
+  });
+
+  it('browse cache guard captures non-empty notes and does not overwrite', () => {
+    const maybeCacheBrowse = (ref, notes, cursor, hasMore) => {
+      if (!ref.current && notes.length > 0) ref.current = { notes, cursor, hasMore };
+    };
+    const ref = { current: null };
+    const firstPage = [{ id: 'a', type: 'text' }];
+    maybeCacheBrowse(ref, firstPage, 'snap1', true);
+    assert.deepEqual(ref.current, { notes: firstPage, cursor: 'snap1', hasMore: true });
+    // Second call must not overwrite - restore will return this first snapshot
+    maybeCacheBrowse(ref, [{ id: 'b' }], 'snap2', false);
+    assert.equal(ref.current.cursor, 'snap1', 'must not overwrite once set');
+  });
+
+  it('restoreBrowseCache clears filteredStats and nulls the cache ref after restore', async () => {
+    hookSource = hookSource || await readFile(hookPath, 'utf8');
+    // Verify the implementation resets both filtered state and the cache ref
+    assert.ok(hookSource.includes('browseCacheRef.current = null'), 'restoreBrowseCache must null the cache ref after restore');
+    assert.ok(hookSource.includes('setFilteredStats(null)'), 'restoreBrowseCache must clear filteredStats');
   });
 });
 

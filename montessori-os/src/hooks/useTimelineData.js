@@ -75,6 +75,13 @@ export default function useTimelineData({ scope, id, classroom, userRole, manage
   // Snapshot of browse-mode state, captured before the first filtered fetch.
   // restoreBrowseCache() restores this instantly (no refetch) on Clear All.
   const browseCacheRef = useRef(null);
+  // Ref mirror of committedFilters used inside the initial-fetch async callback.
+  // The async callback closes over the state value at effect-creation time; by
+  // the time it resolves, committedFilters may have changed (lesson carry-over
+  // auto-commits on mount). This ref always reflects the latest value so we can
+  // detect the race and discard a stale browse result.
+  const committedFiltersRef = useRef(committedFilters);
+  useEffect(() => { committedFiltersRef.current = committedFilters; }, [committedFilters]);
 
   /**
    * Post-filter hydrated batch siblings against active server filters.
@@ -200,6 +207,10 @@ export default function useTimelineData({ scope, id, classroom, userRole, manage
           // Fetch first page of notes (browse mode - no filters on initial load)
           const { result, stats } = await fetchPage1(null);
           if (cancelled) return;
+          // On first load (not refresh), discard browse result if a filtered fetch
+          // overtook us — lesson/media carry-over auto-commits on mount, so both
+          // fetches can be in-flight simultaneously. The filtered fetch wins.
+          if (!isRefresh && committedFiltersRef.current) return;
 
           const hydratedPage = await hydrateMediaBatches(id, result.notes);
           if (cancelled) return;
@@ -211,6 +222,7 @@ export default function useTimelineData({ scope, id, classroom, userRole, manage
           // Student scope - first page
           const { result, stats } = await fetchPage1(null);
           if (cancelled) return;
+          if (!isRefresh && committedFiltersRef.current) return;
 
           const hydratedPage = await hydrateMediaBatches(id, result.notes);
           if (cancelled) return;
@@ -246,8 +258,11 @@ export default function useTimelineData({ scope, id, classroom, userRole, manage
     setFilterError(null);
     fetchedBatchIdsRef.current.clear();
 
-    // Snapshot browse state before first filtered fetch
-    if (!browseCacheRef.current) {
+    // Snapshot browse state before first filtered fetch.
+    // Guard with notes.length > 0: on lesson carry-over entry the initial browse
+    // fetch may still be in-flight when committedFilters first changes, so notes
+    // would be [] here and restoreBrowseCache() would restore a blank timeline.
+    if (!browseCacheRef.current && notes.length > 0) {
       browseCacheRef.current = { notes, cursor, hasMore };
     }
 
@@ -349,5 +364,6 @@ export default function useTimelineData({ scope, id, classroom, userRole, manage
     filteredStats,
     filterError,
     restoreBrowseCache,
+    hasBrowseCache: () => !!browseCacheRef.current,
   };
 }

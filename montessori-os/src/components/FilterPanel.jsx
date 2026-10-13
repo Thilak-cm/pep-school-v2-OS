@@ -21,7 +21,6 @@ import { fuzzySearchTeachers } from '../utils/fuzzySearch';
  * @param {Object} props - Component props
  * @param {boolean} props.showFilters - Whether filters are visible
  * @param {Object} props.filters - Current filter values
- * @param {Array} props.uniqueCreators - Array of unique creator names (legacy)
  * @param {Array} props.classroomTeachers - Array of teachers with access to current classroom
  * @param {boolean} props.hasActiveFilters - Whether any filters are active
  * @param {number} props.filteredCount - Number of filtered results

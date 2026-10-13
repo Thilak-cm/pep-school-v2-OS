@@ -1,4 +1,5 @@
 import { useState, useMemo, useCallback, useRef, useEffect } from 'react';
+import reportCaughtError from '../utils/reportCaughtError';
 
 export const EMPTY_FILTERS = {
   dateFrom: '',
@@ -68,13 +69,6 @@ export const useObservationFilters = (observations = [], noteTypeFilter = null) 
   const [preflightError, setPreflightError] = useState(null);
   const initialNoteTypeApplied = useRef(false);
 
-  // Extract unique creators from observations
-  const uniqueCreators = useMemo(() => {
-    const creators = [...new Set(observations.map(obs => 
-      obs.teacherName || obs.teacherEmail || 'Unknown Teacher'
-    ))].sort();
-    return creators;
-  }, [observations]);
 
   // Helper function to get observation date
   const getObservationDate = (obs) => {
@@ -163,10 +157,6 @@ export const useObservationFilters = (observations = [], noteTypeFilter = null) 
     return filtered;
   };
 
-  // Apply filters to observations
-  // eslint-disable-next-line react-hooks/exhaustive-deps
-  const filteredObservations = useMemo(() => applyFilters(observations, noteTypeFilter), [observations, filters, noteTypeFilter]);
-
   // Check if any draft filters are active (for UI chip highlighting)
   const hasActiveFilters = useMemo(() => {
     return !!(
@@ -211,6 +201,11 @@ export const useObservationFilters = (observations = [], noteTypeFilter = null) 
     const product = computeDisjunctionProduct(filters);
     if (product > DISJUNCTION_CAP) {
       setPreflightError('Too many filters selected - remove a few');
+      reportCaughtError(
+        new Error('disjunction-cap-exceeded'),
+        'useObservationFilters',
+        'preflight-cap-breach'
+      );
       return false;
     }
     setPreflightError(null);
@@ -234,18 +229,21 @@ export const useObservationFilters = (observations = [], noteTypeFilter = null) 
     setShowFilters(prev => !prev);
   };
 
-  // Auto-commit for lesson/media carry-over entry path (implicit Apply on mount)
+  // Auto-commit for lesson/media carry-over entry path (implicit Apply on mount).
+  // Bypasses commitFilters() UI path but still enforces the disjunction cap so
+  // future noteTypeFilter values with large type sets don't silently exceed it.
   useEffect(() => {
     if (!noteTypeFilter || initialNoteTypeApplied.current) return;
     initialNoteTypeApplied.current = true;
     const types = [];
     if (noteTypeFilter === 'lesson') { types.push('lesson', 'practice'); }
-    if (noteTypeFilter === 'textVoice') { types.push('voice', 'text'); }
     if (noteTypeFilter === 'media') { types.push('media'); }
     if (types.length > 0) {
       const newFilters = { ...EMPTY_FILTERS, types };
-      setFilters(newFilters);
-      setCommittedFilters(newFilters);
+      if (computeDisjunctionProduct(newFilters) <= DISJUNCTION_CAP) {
+        setFilters(newFilters);
+        setCommittedFilters(newFilters);
+      }
     }
   }, [noteTypeFilter]);
 
@@ -253,11 +251,8 @@ export const useObservationFilters = (observations = [], noteTypeFilter = null) 
     // State
     showFilters,
     filters,
-    setFilters,
     committedFilters,
     serverFilters,
-    uniqueCreators,
-    filteredObservations,
     hasActiveFilters,
     hasCommittedFilters,
     preflightError,

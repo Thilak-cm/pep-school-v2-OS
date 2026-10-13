@@ -556,7 +556,7 @@ function ClassroomTimeline({ classroom, currentUser, userRole, manageableClassro
         <HFFilterChip
           active={hasActiveFilters || hasCommittedFilters}
           onClick={activeTab === 0 ? toggleFilters : undefined}
-          count={(hasActiveFilters || hasCommittedFilters) ? filters.types.length + filters.creators.length + (filters.dateFrom ? 1 : 0) + (filters.dateTo ? 1 : 0) : undefined}
+          count={(hasActiveFilters || hasCommittedFilters) ? committedFilters.types.length + committedFilters.creators.length + (committedFilters.dateFrom ? 1 : 0) + (committedFilters.dateTo ? 1 : 0) : undefined}
         />
       </Box>
 
