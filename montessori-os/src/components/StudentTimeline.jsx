@@ -79,7 +79,23 @@ function StudentTimeline({ student, currentUser, userRole, noteTypeFilter = null
   // Classroom teachers for creator filter
   const [classroomTeachers, setClassroomTeachers] = useState([]);
 
-  // Shared data hook — cursor-based pagination (#221 Sprint 2)
+  // Filter hook — dual-mode: draft (chips) + committed (server queries) (#297)
+  const {
+    showFilters,
+    filters,
+    hasActiveFilters,
+    hasCommittedFilters,
+    setShowFilters,
+    serverFilters,
+    preflightError,
+    handleFilterChange,
+    handleClearFilters: rawClearFilters,
+    commitFilters,
+    toggleFilters,
+    applyFilters,
+  } = useObservationFilters([], noteTypeFilter);
+
+  // Shared data hook — cursor-based pagination (#221 Sprint 2), server-side filtering (#297)
   const {
     notes: observations,
     loading,
@@ -89,9 +105,14 @@ function StudentTimeline({ student, currentUser, userRole, noteTypeFilter = null
     refresh,
     refreshing,
     refreshTick,
+    filterLoading,
+    filteredStats,
+    filterError,
+    restoreBrowseCache,
   } = useTimelineData({
     scope: 'student',
     id: student?.id,
+    committedFilters: serverFilters,
   });
 
   // Stats from statsCache (#221 Sprint 2)
@@ -158,15 +179,6 @@ function StudentTimeline({ student, currentUser, userRole, noteTypeFilter = null
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [observations, student?.classroomId]);
 
-  // Derive unique curriculum areas from notes for FilterPanel
-  const availableCurriculumAreas = useMemo(() => {
-    const areas = new Set();
-    observations.forEach(note => {
-      if (note.curriculumArea) areas.add(note.curriculumArea);
-    });
-    return [...areas].sort();
-  }, [observations]);
-
   const toJsDate = (ts) => {
     if (!ts) return null;
     if (ts.toDate) return ts.toDate();
@@ -213,24 +225,21 @@ function StudentTimeline({ student, currentUser, userRole, noteTypeFilter = null
 
   // #221 Sprint 2: stats from statsCache via useTimelineStats (see hook above)
 
-  // Use the filter hook instead of local state
-  const {
-    showFilters,
-    filters,
-    setFilters,
-    uniqueCreators,
-    filteredObservations,
-    hasActiveFilters,
-    handleFilterChange,
-    handleClearFilters,
-    toggleFilters,
-    applyFilters
-  } = useObservationFilters(observations, null);
+  // Server handles author/type/date filtering; observations arrive already filtered (#297)
+  const visibleObservations = observations;
 
-  // #221 Sprint 2: no more UI-only slicing - pagination at Firestore level
-  const visibleObservations = filteredObservations || [];
+  // Apply: commit filters and auto-close panel
+  const handleApplyFilters = () => {
+    const ok = commitFilters();
+    if (ok) setShowFilters(false);
+  };
 
-  const combinedFiltersActive = hasActiveFilters;
+  // Clear All: restore browse cache when committed filters were active
+  const handleClearFilters = () => {
+    const wasCommitted = hasCommittedFilters;
+    rawClearFilters();
+    if (wasCommitted) restoreBrowseCache();
+  };
 
   const mediaObservations = useMemo(() => {
     return (observations || []).filter((obs) => obs.type === 'media');
@@ -347,21 +356,14 @@ function StudentTimeline({ student, currentUser, userRole, noteTypeFilter = null
 
   const selectedMediaCount = selectedMediaIds.size;
 
+  // noteTypeFilter auto-commit is handled by useObservationFilters (#297)
+  // Media dialog still opens on 'media' noteTypeFilter entry
   useEffect(() => {
-    if (!noteTypeFilter || noteTypeFilter === 'textVoice') {
-      setFilters((prev) => ({ ...prev, types: [] }));
-      return;
-    }
     if (noteTypeFilter === 'media') {
-      setFilters((prev) => ({ ...prev, types: [] }));
       setMediaDialogOpen(true);
       setMediaSubTab('photos');
-      return;
     }
-    let types = [];
-    if (noteTypeFilter === 'lesson') types = ['lesson', 'practice'];
-    setFilters((prev) => ({ ...prev, types }));
-  }, [noteTypeFilter, setFilters]);
+  }, [noteTypeFilter]);
 
   useEffect(() => {
     if (!mediaDialogOpen) {
@@ -725,8 +727,8 @@ function StudentTimeline({ student, currentUser, userRole, noteTypeFilter = null
       {/* Header */}
       <Box sx={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', flexWrap: 'wrap', gap: 1.5 }}>
         <Box sx={{ display: 'flex', alignItems: 'center', gap: 1, flexWrap: 'wrap' }}>
-          {combinedFiltersActive && (
-            <Chip 
+          {hasCommittedFilters && (
+            <Chip
               label={`Showing ${visibleObservations.length} of ${notesOverall} notes`}
               size="small"
               color="primary"
@@ -791,20 +793,30 @@ function StudentTimeline({ student, currentUser, userRole, noteTypeFilter = null
           <FilterPanel
             showFilters={showFilters}
             filters={filters}
-            uniqueCreators={uniqueCreators}
             classroomTeachers={classroomTeachers}
             hasActiveFilters={hasActiveFilters}
             filteredCount={visibleObservations.length}
             onFilterChange={handleFilterChange}
             onClearFilters={handleClearFilters}
+            onApplyFilters={handleApplyFilters}
+            preflightError={preflightError}
             onToggleFilters={toggleFilters}
-            availableCurriculumAreas={availableCurriculumAreas}
           />
 
-          {/* Summary — from statsCache (#221 Sprint 2) */}
+          {/* Filter loading quip */}
+          {filterLoading && (
+            <Box sx={{ textAlign: 'center', py: 2 }}>
+              <CircularProgress size={20} sx={{ mb: 1 }} />
+              <Typography variant="body2" color="text.secondary">
+                Coach Pepper is sifting through the notes...
+              </Typography>
+            </Box>
+          )}
+
+          {/* Summary — filteredStats when filtering, statsCache otherwise (#297) */}
           <Box sx={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', mt: 0.5 }}>
             <Typography variant="body2" color="text.secondary">
-              {notesOverall} notes overall | {notesPast7Days} notes in last 7 days
+              {filteredStats ? filteredStats.label : `${notesOverall} notes overall | ${notesPast7Days} notes in last 7 days`}
             </Typography>
             <Button
               size="small"
@@ -944,7 +956,7 @@ function StudentTimeline({ student, currentUser, userRole, noteTypeFilter = null
             };
 
             return dayGroups.length > 0 ? (
-              <Box sx={{ display: 'flex', flexDirection: 'column', gap: 2, opacity: refreshing ? 0.4 : 1, transition: 'opacity 0.2s' }}>
+              <Box sx={{ display: 'flex', flexDirection: 'column', gap: 2, opacity: (refreshing || filterLoading) ? 0.4 : 1, pointerEvents: (refreshing || filterLoading) ? 'none' : 'auto', transition: 'opacity 0.2s' }}>
                 {dayGroups.map((day) => (
                   <React.Fragment key={day.dateKey}>
                     <DayHeader label={day.label} accent={day.label === 'Today'} />
@@ -968,14 +980,16 @@ function StudentTimeline({ student, currentUser, userRole, noteTypeFilter = null
               </Button>
             </Box>
           )}
-          {visibleObservations.length === 0 && observations.length > 0 && (
-            <Typography variant="body2" color="text.secondary" sx={{ mt: 2, textAlign: 'center' }}>
-              No notes match the current filters.
-            </Typography>
+          {/* Filter error — retryable */}
+          {filterError && (
+            <Box sx={{ textAlign: 'center', py: 3 }}>
+              <Typography variant="body2" color="error" sx={{ mb: 1 }}>{filterError}</Typography>
+              <Button size="small" variant="outlined" onClick={commitFilters} sx={{ textTransform: 'none' }}>Retry</Button>
+            </Box>
           )}
-          {observations.length === 0 && (
+          {!filterError && visibleObservations.length === 0 && (
             <Typography variant="body2" color="text.secondary" sx={{ mt: 2, textAlign: 'center' }}>
-              No notes yet.
+              {hasCommittedFilters ? 'No notes match these filters.' : 'No notes yet.'}
             </Typography>
           )}
         </Box>

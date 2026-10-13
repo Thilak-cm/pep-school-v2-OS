@@ -12,7 +12,7 @@ import {
   ListItem,
   ListItemText
 } from '@mui/material';
-import { X as Clear, Search, Mic, Pencil as EditNote, X as Close, BookOpen as MenuBook, RotateCcw, Image as PermMedia, FileText as ReportIcon, ListChecks } from '../icons';
+import { X as Clear, Search, Pencil as EditNote, X as Close, BookOpen as MenuBook, RotateCcw, Image as PermMedia, ListChecks } from '../icons';
 import { IconButton } from '@mui/material';
 import { fuzzySearchTeachers } from '../utils/fuzzySearch';
 
@@ -40,6 +40,8 @@ const FilterPanel = ({
   totalCount,
   onFilterChange,
   onClearFilters,
+  onApplyFilters,
+  preflightError,
   onToggleFilters,
 }) => {
   const [creatorSearch, setCreatorSearch] = useState('');
@@ -50,12 +52,10 @@ const FilterPanel = ({
     return fuzzySearchTeachers(classroomTeachers, creatorSearch);
   }, [classroomTeachers, creatorSearch]);
 
-  const voiceActive = filters.types?.includes('voice');
-  const textActive = filters.types?.includes('text');
+  const observationActive = filters.types?.includes('voice') || filters.types?.includes('text');
   const lessonActive = filters.types?.includes('lesson');
   const practiceActive = filters.types?.includes('practice');
   const mediaActive = filters.types?.includes('media');
-  const reportActive = filters.types?.includes('report');
   const assessmentActive = filters.types?.includes('assessment');
   return (
     <Box>
@@ -207,7 +207,7 @@ const FilterPanel = ({
             <Box sx={{ display: 'flex', flexDirection: 'column', gap: 2 }}>
               <Box>
                 <Typography variant="caption" sx={{ mb: 0.5, display: 'block', color: 'text.secondary', fontWeight: 500 }}>
-                  Creator
+                  Author
                 </Typography>
                 {classroomTeachers.length > 0 ? (
                   <Autocomplete
@@ -257,20 +257,22 @@ const FilterPanel = ({
                 <Typography variant="caption" sx={{ mb: 0.5, display: 'block', color: 'text.secondary', fontWeight: 500 }}>
                   Note Type
                 </Typography>
-                <Box sx={{ display: 'flex', gap: 1, flexWrap: 'wrap' }}>
+                <Box sx={{ display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', gap: 1 }}>
                   <Button
-                    variant={voiceActive ? 'contained' : 'outlined'}
+                    variant={observationActive ? 'contained' : 'outlined'}
                     size="small"
-                    startIcon={<Mic />}
+                    startIcon={<EditNote />}
                     onClick={() => {
                       const currentTypes = filters.types || [];
-                      const newTypes = currentTypes.includes('voice')
-                        ? currentTypes.filter((t) => t !== 'voice')
-                        : [...currentTypes, 'voice'];
+                      const hasVoice = currentTypes.includes('voice');
+                      const hasText = currentTypes.includes('text');
+                      const newTypes = (hasVoice || hasText)
+                        ? currentTypes.filter((t) => t !== 'voice' && t !== 'text')
+                        : [...currentTypes, 'voice', 'text'];
                       onFilterChange('types', newTypes);
                     }}
                     sx={{
-                      minWidth: 120,
+                      minWidth: 0,
                       height: 40,
                       borderRadius: 2,
                       textTransform: 'none',
@@ -287,7 +289,7 @@ const FilterPanel = ({
                         transform: 'translateY(0px)',
                       },
                       transition: 'all 0.2s ease-in-out',
-                      ...(voiceActive && {
+                      ...(observationActive && {
                         backgroundColor: 'var(--color-violet)',
                         borderColor: 'var(--color-violet)',
                         color: 'white',
@@ -308,60 +310,7 @@ const FilterPanel = ({
                       }),
                     }}
                   >
-                    Voice
-                  </Button>
-
-                  <Button
-                    variant={textActive ? 'contained' : 'outlined'}
-                    size="small"
-                    startIcon={<EditNote />}
-                    onClick={() => {
-                      const currentTypes = filters.types || [];
-                      const newTypes = currentTypes.includes('text')
-                        ? currentTypes.filter((t) => t !== 'text')
-                        : [...currentTypes, 'text'];
-                      onFilterChange('types', newTypes);
-                    }}
-                    sx={{
-                      minWidth: 120,
-                      height: 40,
-                      borderRadius: 2,
-                      textTransform: 'none',
-                      fontWeight: 500,
-                      borderWidth: 2,
-                      position: 'relative',
-                      overflow: 'hidden',
-                      '&:hover': {
-                        borderWidth: 2,
-                        transform: 'translateY(-1px)',
-                        boxShadow: '0 4px 12px rgba(0,0,0,0.15)',
-                      },
-                      '&:active': {
-                        transform: 'translateY(0px)',
-                      },
-                      transition: 'all 0.2s ease-in-out',
-                      ...(textActive && {
-                        backgroundColor: 'var(--color-text-soft)',
-                        borderColor: 'var(--color-text-soft)',
-                        color: 'white',
-                        '&:hover': {
-                          backgroundColor: 'var(--color-text-soft)',
-                          borderColor: 'var(--color-text-soft)',
-                        },
-                        '&::after': {
-                          content: '""',
-                          position: 'absolute',
-                          top: 0,
-                          left: 0,
-                          right: 0,
-                          bottom: 0,
-                          background: 'linear-gradient(45deg, rgba(255,255,255,0.1) 0%, rgba(255,255,255,0.05) 100%)',
-                          pointerEvents: 'none',
-                        },
-                      }),
-                    }}
-                  >
-                    Text
+                    Observations
                   </Button>
 
                   <Button
@@ -376,7 +325,7 @@ const FilterPanel = ({
                       onFilterChange('types', newTypes);
                     }}
                     sx={{
-                      minWidth: 120,
+                      minWidth: 0,
                       height: 40,
                       borderRadius: 2,
                       textTransform: 'none',
@@ -429,7 +378,7 @@ const FilterPanel = ({
                       onFilterChange('types', newTypes);
                     }}
                     sx={{
-                      minWidth: 120,
+                      minWidth: 0,
                       height: 40,
                       borderRadius: 2,
                       textTransform: 'none',
@@ -480,7 +429,7 @@ const FilterPanel = ({
                       onFilterChange('types', newTypes);
                     }}
                     sx={{
-                      minWidth: 120,
+                      minWidth: 0,
                       height: 40,
                       borderRadius: 2,
                       textTransform: 'none',
@@ -521,59 +470,6 @@ const FilterPanel = ({
                     Media
                   </Button>
 
-                  <Button
-                    variant={reportActive ? 'contained' : 'outlined'}
-                    size="small"
-                    startIcon={<ReportIcon />}
-                    onClick={() => {
-                      const currentTypes = filters.types || [];
-                      const newTypes = currentTypes.includes('report')
-                        ? currentTypes.filter((t) => t !== 'report')
-                        : [...currentTypes, 'report'];
-                      onFilterChange('types', newTypes);
-                    }}
-                    sx={{
-                      minWidth: 120,
-                      height: 40,
-                      borderRadius: 2,
-                      textTransform: 'none',
-                      fontWeight: 500,
-                      borderWidth: 2,
-                      position: 'relative',
-                      overflow: 'hidden',
-                      '&:hover': {
-                        borderWidth: 2,
-                        transform: 'translateY(-1px)',
-                        boxShadow: '0 4px 12px rgba(0,0,0,0.15)',
-                      },
-                      '&:active': {
-                        transform: 'translateY(0px)',
-                      },
-                      transition: 'all 0.2s ease-in-out',
-                      ...(reportActive && {
-                        backgroundColor: 'var(--color-amber-text)',
-                        borderColor: 'var(--color-amber-text)',
-                        color: 'white',
-                        '&:hover': {
-                          backgroundColor: 'var(--color-amber-text)',
-                          borderColor: 'var(--color-amber-text)',
-                        },
-                        '&::after': {
-                          content: '""',
-                          position: 'absolute',
-                          top: 0,
-                          left: 0,
-                          right: 0,
-                          bottom: 0,
-                          background: 'linear-gradient(45deg, rgba(255,255,255,0.1) 0%, rgba(255,255,255,0.05) 100%)',
-                          pointerEvents: 'none',
-                        },
-                      }),
-                    }}
-                  >
-                    Reports
-                  </Button>
-
                   {/* Covers both structured and medical (single 'assessment' type) - Rahul, 2026-09-23 */}
                   <Button
                     variant={assessmentActive ? 'contained' : 'outlined'}
@@ -587,7 +483,7 @@ const FilterPanel = ({
                       onFilterChange('types', newTypes);
                     }}
                     sx={{
-                      minWidth: 120,
+                      minWidth: 0,
                       height: 40,
                       borderRadius: 2,
                       textTransform: 'none',
@@ -633,6 +529,32 @@ const FilterPanel = ({
               </Box>
 
             </Box>
+
+            {/* Preflight error */}
+            {preflightError && (
+              <Typography variant="caption" color="error" sx={{ mt: -1 }}>
+                {preflightError}
+              </Typography>
+            )}
+
+            {/* Apply button - gates server-side queries */}
+            {onApplyFilters && (
+              <Button
+                variant="contained"
+                size="small"
+                onClick={onApplyFilters}
+                disabled={!hasActiveFilters}
+                fullWidth
+                sx={{
+                  borderRadius: 2,
+                  textTransform: 'none',
+                  fontWeight: 600,
+                  py: 1,
+                }}
+              >
+                Apply Filters
+              </Button>
+            )}
           </Box>
         </Paper>
       </Collapse>

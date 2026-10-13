@@ -71,36 +71,36 @@ test.beforeEach(async () => {
 
 test('classroomA timeline keeps historical classroomA observations after studentA transfers', async () => {
   const { fetchClassroomTimelineNotes } = timelineQueriesFor('teacherAAuthor');
-  const notes = await assertSucceeds(fetchClassroomTimelineNotes({
+  const result = await assertSucceeds(fetchClassroomTimelineNotes({
     classroomId: 'classroomA',
     pageSize: 20,
   }));
 
   assert.deepEqual(
-    notes.map((note) => note.id).sort(),
+    result.notes.map((note) => note.id).sort(),
     ['observationA', 'observationStudentB'],
   );
 });
 
 test('classroomB timeline only returns observations logged in classroomB', async () => {
   const { fetchClassroomTimelineNotes } = timelineQueriesFor('teacherB');
-  const notes = await assertSucceeds(fetchClassroomTimelineNotes({
+  const result = await assertSucceeds(fetchClassroomTimelineNotes({
     classroomId: 'classroomB',
     pageSize: 20,
   }));
 
-  assert.deepEqual(notes.map((note) => note.id), ['observationB']);
+  assert.deepEqual(result.notes.map((note) => note.id), ['observationB']);
 });
 
 test('current classroomB teacher can read studentA full cross-classroom history', async () => {
   const { fetchStudentTimelineNotes } = timelineQueriesFor('teacherB');
-  const notes = await assertSucceeds(fetchStudentTimelineNotes({
+  const result = await assertSucceeds(fetchStudentTimelineNotes({
     studentId: 'studentA',
     pageSize: 20,
   }));
 
   assert.deepEqual(
-    notes.map((note) => note.id),
+    result.notes.map((note) => note.id),
     ['observationB', 'observationA'],
   );
 });

@@ -10,6 +10,7 @@ export function createTimelineQueries({ db, firestore }) {
   const {
     collection,
     collectionGroup,
+    getCountFromServer,
     getDocs,
     limit,
     orderBy,
@@ -18,9 +19,23 @@ export function createTimelineQueries({ db, firestore }) {
     where,
   } = firestore;
 
-  async function fetchClassroomTimelineNotes({ classroomId, pageSize, cursor = null }) {
+  /**
+   * Compose optional filter constraints for authors, types, and date range.
+   * Used by both fetch and count queries.
+   */
+  function buildFilterConstraints(filters) {
+    const parts = [];
+    if (filters?.authors?.length) parts.push(where('createdBy', 'in', filters.authors));
+    if (filters?.types?.length) parts.push(where('type', 'in', filters.types));
+    if (filters?.dateFrom != null) parts.push(where('observedAt', '>=', filters.dateFrom));
+    if (filters?.dateTo != null) parts.push(where('observedAt', '<=', filters.dateTo));
+    return parts;
+  }
+
+  async function fetchClassroomTimelineNotes({ classroomId, pageSize, cursor = null, filters = null }) {
     const constraints = [
       where('classroomId', '==', classroomId),
+      ...buildFilterConstraints(filters),
       orderBy('observedAt', 'desc'),
       limit(pageSize),
     ];
@@ -30,16 +45,21 @@ export function createTimelineQueries({ db, firestore }) {
       query(collectionGroup(db, 'observations'), ...constraints),
     );
 
-    return snapshot.docs.map((documentSnapshot) => ({
-      id: documentSnapshot.id,
-      parentStudentId: documentSnapshot.ref.parent?.parent?.id,
-      docPath: documentSnapshot.ref.path,
-      ...documentSnapshot.data(),
-    }));
+    const lastDoc = snapshot.docs[snapshot.docs.length - 1] || null;
+    return {
+      notes: snapshot.docs.map((documentSnapshot) => ({
+        id: documentSnapshot.id,
+        parentStudentId: documentSnapshot.ref.parent?.parent?.id,
+        docPath: documentSnapshot.ref.path,
+        ...documentSnapshot.data(),
+      })),
+      lastDocSnapshot: lastDoc,
+    };
   }
 
-  async function fetchStudentTimelineNotes({ studentId, pageSize, cursor = null }) {
+  async function fetchStudentTimelineNotes({ studentId, pageSize, cursor = null, filters = null }) {
     const constraints = [
+      ...buildFilterConstraints(filters),
       orderBy('observedAt', 'desc'),
       limit(pageSize),
     ];
@@ -52,11 +72,31 @@ export function createTimelineQueries({ db, firestore }) {
       ),
     );
 
-    return snapshot.docs.map((documentSnapshot) => ({
-      id: documentSnapshot.id,
-      studentId,
-      ...documentSnapshot.data(),
-    }));
+    const lastDoc = snapshot.docs[snapshot.docs.length - 1] || null;
+    return {
+      notes: snapshot.docs.map((documentSnapshot) => ({
+        id: documentSnapshot.id,
+        studentId,
+        ...documentSnapshot.data(),
+      })),
+      lastDocSnapshot: lastDoc,
+    };
+  }
+
+  async function fetchFilteredCount({ scope, id, filters }) {
+    const filterConstraints = buildFilterConstraints(filters);
+    // Always include orderBy to align with the DESC composite indexes used by
+    // the main fetch query. Without it, a range filter on observedAt implies
+    // ASC direction and Firestore demands a separate ASC composite index.
+    const baseConstraints = scope === 'classroom'
+      ? [where('classroomId', '==', id), ...filterConstraints, orderBy('observedAt', 'desc')]
+      : [...filterConstraints, orderBy('observedAt', 'desc')];
+    const ref = scope === 'classroom'
+      ? collectionGroup(db, 'observations')
+      : collection(db, 'students', id, 'observations');
+    const q = query(ref, ...baseConstraints);
+    const snapshot = await getCountFromServer(q);
+    return snapshot.data().count;
   }
 
   async function fetchStudentBatchObservations({ studentId, batchId }) {
@@ -105,6 +145,7 @@ export function createTimelineQueries({ db, firestore }) {
     fetchActiveClassroomStudents,
     fetchClassroomBatchObservations,
     fetchClassroomTimelineNotes,
+    fetchFilteredCount,
     fetchStudentTimelineNotes,
     fetchStudentBatchObservations,
   };

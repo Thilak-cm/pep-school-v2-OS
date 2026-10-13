@@ -56,7 +56,22 @@ function ClassroomTimeline({ classroom, currentUser, userRole, manageableClassro
   const fetchedTransferredIdsRef = useRef(new Set());
   const [classroomTeachers, setClassroomTeachers] = useState([]);
 
-  // Shared data hook — cursor-based pagination (#221 Sprint 2)
+  // Filter hook — dual-mode: draft (chips) + committed (server queries) (#297)
+  const {
+    showFilters,
+    setShowFilters,
+    filters,
+    hasActiveFilters,
+    hasCommittedFilters,
+    serverFilters,
+    preflightError,
+    handleFilterChange,
+    handleClearFilters: rawClearFilters,
+    commitFilters,
+    toggleFilters,
+  } = useObservationFilters();
+
+  // Shared data hook — cursor-based pagination (#221 Sprint 2), server-side filtering (#297)
   const {
     notes: classroomNotes,
     students: classroomStudents,
@@ -68,12 +83,17 @@ function ClassroomTimeline({ classroom, currentUser, userRole, manageableClassro
     refresh,
     refreshing,
     refreshTick,
+    filterLoading,
+    filteredStats,
+    filterError,
+    restoreBrowseCache,
   } = useTimelineData({
     scope: 'classroom',
     id: classroom?.id,
     classroom,
     userRole,
     manageableClassrooms,
+    committedFilters: serverFilters,
   });
 
   // Toast when refresh completes
@@ -261,20 +281,22 @@ function ClassroomTimeline({ classroom, currentUser, userRole, manageableClassro
     );
   }, [classroomNotes, filteredStudents, searchQuery]);
 
-  // Group filtered notes by time periods
-  // Apply advanced filters (date, creator, type) on top of search-filtered notes
-  const {
-    showFilters,
-    filters,
-    filteredObservations,
-    hasActiveFilters,
-    handleFilterChange,
-    handleClearFilters,
-    toggleFilters
-  } = useObservationFilters(filteredNotes);
+  // When server-side filters are committed, Firestore handles author/type/date filtering.
+  // Client-side search-by-student-name still runs on the (possibly filtered) page.
+  const displayedObservations = filteredNotes;
 
-  // #221 Sprint 2: no more UI-only slicing — pagination is at the Firestore level
-  const displayedObservations = filteredObservations || [];
+  // Apply: commit filters and auto-close panel
+  const handleApplyFilters = () => {
+    const ok = commitFilters();
+    if (ok) setShowFilters(false);
+  };
+
+  // Clear All: restore browse cache when committed filters were active
+  const handleClearFilters = () => {
+    const wasCommitted = hasCommittedFilters;
+    rawClearFilters();
+    if (wasCommitted) restoreBrowseCache();
+  };
 
   // Group notes by groupId, then sort. groupTimelineObservations already
   // dedupes structured assessments by sourceId (isAssessmentGroup wrapper),
@@ -532,9 +554,9 @@ function ClassroomTimeline({ classroom, currentUser, userRole, manageableClassro
           sx={{ flex: 1 }}
         />
         <HFFilterChip
-          active={hasActiveFilters}
+          active={hasActiveFilters || hasCommittedFilters}
           onClick={activeTab === 0 ? toggleFilters : undefined}
-          count={hasActiveFilters ? filters.types.length + filters.creators.length + (filters.dateFrom ? 1 : 0) + (filters.dateTo ? 1 : 0) : undefined}
+          count={(hasActiveFilters || hasCommittedFilters) ? filters.types.length + filters.creators.length + (filters.dateFrom ? 1 : 0) + (filters.dateTo ? 1 : 0) : undefined}
         />
       </Box>
 
@@ -544,10 +566,11 @@ function ClassroomTimeline({ classroom, currentUser, userRole, manageableClassro
         filters={filters}
         classroomTeachers={classroomTeachers}
         hasActiveFilters={hasActiveFilters}
-        filteredCount={filteredObservations.length}
-        /* Intentionally omit totalCount here to avoid duplicate count inside panel */
+        filteredCount={displayedObservations.length}
         onFilterChange={handleFilterChange}
         onClearFilters={handleClearFilters}
+        onApplyFilters={handleApplyFilters}
+        preflightError={preflightError}
         onToggleFilters={toggleFilters}
       />
 
@@ -575,10 +598,20 @@ function ClassroomTimeline({ classroom, currentUser, userRole, manageableClassro
       {/* Header-only tab switching is intentional: horizontal gestures belong to media carousels. */}
       {activeTab === 0 ? (
         <Box sx={{ p: 2, minHeight: '200px' }}>
-          {/* Notes Count — from statsCache (#221 Sprint 2) */}
+          {/* Filter loading quip - grayed timeline with Coach Pepper message */}
+          {filterLoading && (
+            <Box sx={{ textAlign: 'center', py: 2 }}>
+              <CircularProgress size={20} sx={{ mb: 1 }} />
+              <Typography variant="body2" color="text.secondary">
+                Coach Pepper is sifting through the notes...
+              </Typography>
+            </Box>
+          )}
+
+          {/* Notes Count — filteredStats when filtering, statsCache otherwise (#297) */}
           <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', mb: 2 }}>
             <Typography variant="subtitle2" sx={{ fontWeight: 600 }}>
-              {notesPast7Days} notes in past 7 days
+              {filteredStats ? filteredStats.label : `${notesPast7Days} notes in past 7 days`}
             </Typography>
             <Button
               size="small"
@@ -592,15 +625,23 @@ function ClassroomTimeline({ classroom, currentUser, userRole, manageableClassro
             </Button>
           </Box>
 
+          {/* Filter error — retryable */}
+          {filterError && (
+            <Box sx={{ textAlign: 'center', py: 3 }}>
+              <Typography variant="body2" color="error" sx={{ mb: 1 }}>{filterError}</Typography>
+              <Button size="small" variant="outlined" onClick={commitFilters} sx={{ textTransform: 'none' }}>Retry</Button>
+            </Box>
+          )}
+
           {/* Notes Timeline — day-grouped */}
-          {filteredObservations.length === 0 && !refreshing ? (
+          {!filterError && displayedObservations.length === 0 && !refreshing ? (
             <Box sx={{ textAlign: 'center', py: 4 }}>
               <Typography variant="body2" color="text.secondary">
-                {searchQuery ? `No students or observations found for "${searchQuery}"` : 'No activity here yet'}
+                {searchQuery ? `No students or observations found for "${searchQuery}"` : hasCommittedFilters ? 'No notes match these filters' : 'No activity here yet'}
               </Typography>
             </Box>
           ) : (
-            <Box sx={{ display: 'flex', flexDirection: 'column', gap: 2, opacity: refreshing ? 0.4 : 1, transition: 'opacity 0.2s' }}>
+            <Box sx={{ display: 'flex', flexDirection: 'column', gap: 2, opacity: (refreshing || filterLoading) ? 0.4 : 1, pointerEvents: (refreshing || filterLoading) ? 'none' : 'auto', transition: 'opacity 0.2s' }}>
               {dayGroups.map((day) => (
                 <React.Fragment key={day.dateKey}>
                   <DayHeader label={day.label} accent={day.label === 'Today'} />
