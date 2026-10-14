@@ -81,17 +81,17 @@ test.after(async () => {
 
 test('Context 0 — before transfer: classroomA and studentA timelines expose observationA to teacherA', async () => {
   const { timelines } = operationsFor('teacherAAuthor');
-  const classroomNotes = await assertSucceeds(timelines.fetchClassroomTimelineNotes({
+  const classroomResult = await assertSucceeds(timelines.fetchClassroomTimelineNotes({
     classroomId: 'classroomA',
     pageSize: 20,
   }));
-  const studentNotes = await assertSucceeds(timelines.fetchStudentTimelineNotes({
+  const studentResult = await assertSucceeds(timelines.fetchStudentTimelineNotes({
     studentId: 'studentA',
     pageSize: 20,
   }));
 
-  assert.deepEqual(classroomNotes.map((note) => note.id), ['observationA']);
-  assert.deepEqual(studentNotes.map((note) => note.id), ['observationA']);
+  assert.deepEqual(classroomResult.notes.map((note) => note.id), ['observationA']);
+  assert.deepEqual(studentResult.notes.map((note) => note.id), ['observationA']);
 });
 
 test('Context 0 — teacherB cannot read studentA timeline before transfer', async () => {
@@ -197,11 +197,11 @@ test('Context 1 — classroomAdminA loses all access to studentA after graduatin
 
 test('Context 1 — teacherA keeps classroomA history but loses studentA timeline access', async () => {
   const { timelines } = operationsFor('teacherAAuthor');
-  const classroomNotes = await assertSucceeds(timelines.fetchClassroomTimelineNotes({
+  const classroomResult = await assertSucceeds(timelines.fetchClassroomTimelineNotes({
     classroomId: 'classroomA',
     pageSize: 20,
   }));
-  assert.deepEqual(classroomNotes.map((note) => note.id), ['observationA']);
+  assert.deepEqual(classroomResult.notes.map((note) => note.id), ['observationA']);
 
   await assertFails(timelines.fetchStudentTimelineNotes({
     studentId: 'studentA',
@@ -211,17 +211,17 @@ test('Context 1 — teacherA keeps classroomA history but loses studentA timelin
 
 test('Context 1 — teacherB gains studentA history while classroomB timeline is still empty', async () => {
   const { timelines } = operationsFor('teacherB');
-  const studentNotes = await assertSucceeds(timelines.fetchStudentTimelineNotes({
+  const studentResult = await assertSucceeds(timelines.fetchStudentTimelineNotes({
     studentId: 'studentA',
     pageSize: 20,
   }));
-  const classroomNotes = await assertSucceeds(timelines.fetchClassroomTimelineNotes({
+  const classroomResult = await assertSucceeds(timelines.fetchClassroomTimelineNotes({
     classroomId: 'classroomB',
     pageSize: 20,
   }));
 
-  assert.deepEqual(studentNotes.map((note) => note.id), ['observationA']);
-  assert.deepEqual(classroomNotes, []);
+  assert.deepEqual(studentResult.notes.map((note) => note.id), ['observationA']);
+  assert.deepEqual(classroomResult.notes, []);
 });
 
 test('New activity — teacherB creates observationB after the transfer', async () => {
@@ -259,10 +259,10 @@ test('Context 2 — classroom timelines remain historical while teacherB sees fu
     pageSize: 20,
   }));
 
-  assert.deepEqual(classroomA.map((note) => note.id), ['observationA']);
-  assert.deepEqual(classroomB.map((note) => note.id), ['observationB']);
+  assert.deepEqual(classroomA.notes.map((note) => note.id), ['observationA']);
+  assert.deepEqual(classroomB.notes.map((note) => note.id), ['observationB']);
   assert.deepEqual(
-    studentTimeline.map((note) => note.id),
+    studentTimeline.notes.map((note) => note.id),
     ['observationB', 'observationA'],
   );
 });

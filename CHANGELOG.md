@@ -1,5 +1,26 @@
 # Changelog
 
+# 13.5.0 - 2026-10-13
+
+### Added
+- Filter-aware server-side timeline pagination on both classroom and student timelines - author, type, and date filters now query full Firestore history, not just the loaded page window (#297).
+- Six new composite Firestore indexes for `createdBy`, `type`, and `observedAt` combinations across both collection and collection-group scopes (#297).
+- `fetchFilteredCount` aggregation query - filtered stats (`count()`) fetched alongside page 1 in the same try/catch; displayed as "X notes in past 7 days" or "X notes in selected range" (#297).
+- Browse cache in `useTimelineData` - pre-filter page 1 snapshotted before first filtered fetch; Clear All restores instantly without a refetch (#297).
+- Disjunction preflight in `useObservationFilters` - blocks queries exceeding Firestore's 30-disjunction cap with a teacher-friendly error and `reportCaughtError` telemetry tag `preflight-cap-breach` for future query-splitting analysis (#297).
+- GitHub reminder issue #325 to check `preflight-cap-breach` telemetry frequency in Langfuse at the 3-month mark.
+
+### Changed
+- Timeline filter queries upgraded to Apply-gated dual-mode: chip toggling is free (no reads); server query fires only on Apply, resetting cursor to page 1 (#297).
+- Pagination cursor upgraded to `startAfter(DocumentSnapshot)` in both browse and filtered modes - eliminates the identical-`observedAt` timestamp skip edge case (#297).
+- `lesson` carry-over deep-link auto-commits server-side filtered query at mount; `textVoice` carry-over correctly treated as no-op (browse mode) (#297).
+- Student timeline header redesigned: Filter, Export, Media, and Refresh buttons are icon-only, right-aligned alongside stats; stats split into two lines ("X notes all time" / "Y notes in last 7 days") with active filter count badge on the filter icon (#297).
+- "Creator" renamed to "Author" in FilterPanel; note-type grid expanded to 3-column layout; dead `availableCurriculumAreas` prop removed (#297).
+
+### Fixed
+- Client-side filter slicing removed from `useObservationFilters` for server-handled fields - filters no longer silently return empty when matches fall outside the loaded page window (#297).
+- `hydrateMediaBatches` siblings post-filtered against active server filters to prevent non-matching notes leaking into filtered results (#297).
+
 # 13.4.0 - 2026-10-02
 
 ### Added

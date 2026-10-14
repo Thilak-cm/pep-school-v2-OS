@@ -13,7 +13,7 @@
 import { useState, useEffect, useCallback, useRef } from 'react';
 import {
   collection, collectionGroup, query, where, orderBy,
-  getDocs, getDoc, doc, limit, startAfter,
+  getDocs, getCountFromServer, getDoc, doc, limit, startAfter,
 } from 'firebase/firestore';
 import { db } from '../firebase';
 import { createTimelineQueries } from '../../../shared/firebase/timelineQueries.js';
@@ -26,6 +26,7 @@ const {
   fetchActiveClassroomStudents,
   fetchClassroomBatchObservations,
   fetchClassroomTimelineNotes,
+  fetchFilteredCount,
   fetchStudentTimelineNotes,
   fetchStudentBatchObservations,
 } = createTimelineQueries({
@@ -33,6 +34,7 @@ const {
   firestore: {
     collection,
     collectionGroup,
+    getCountFromServer,
     getDocs,
     limit,
     orderBy,
@@ -51,8 +53,9 @@ const {
  * @param {Object} [params.classroom] - classroom object (for classroom scope: teachers, students fetch)
  * @param {string} [params.userRole] - 'superadmin' | 'classroomadmin' | 'teacher'
  * @param {string[]} [params.manageableClassrooms] - for classroomadmin scoping
+ * @param {Object|null} [params.committedFilters] - server-side filters from useObservationFilters
  */
-export default function useTimelineData({ scope, id, classroom, userRole, manageableClassrooms }) {
+export default function useTimelineData({ scope, id, classroom, userRole, manageableClassrooms, committedFilters = null }) {
   const [notes, setNotes] = useState([]);
   const [students, setStudents] = useState([]);
   const [teachers, setTeachers] = useState([]);
@@ -60,16 +63,33 @@ export default function useTimelineData({ scope, id, classroom, userRole, manage
   const [refreshing, setRefreshing] = useState(false);
   const [hasMore, setHasMore] = useState(true);
   const [isLoadingMore, setIsLoadingMore] = useState(false);
-  // Cursor stores raw observedAt value from last doc. Edge case: if two docs share
-  // the exact same observedAt timestamp at a page boundary, one may be skipped.
-  // A fully deterministic fix requires adding orderBy(documentId()) as a tiebreaker,
-  // which needs composite index changes for collectionGroup queries. Low probability
-  // in practice - users can refresh to see any skipped doc.
+  // Cursor stores the last DocumentSnapshot for startAfter pagination.
+  // Using snapshots instead of raw observedAt values eliminates the
+  // identical-timestamp skip edge case at page boundaries.
   const [cursor, setCursor] = useState(null);
   const [refreshTick, setRefreshTick] = useState(0);
+  const [filteredStats, setFilteredStats] = useState(null);
+  const [filterError, setFilterError] = useState(null);
+  const [filterLoading, setFilterLoading] = useState(false);
   const fetchedBatchIdsRef = useRef(new Set());
+  // Snapshot of browse-mode state, captured before the first filtered fetch.
+  // restoreBrowseCache() restores this instantly (no refetch) on Clear All.
+  const browseCacheRef = useRef(null);
+  // Ref mirror of committedFilters used inside the initial-fetch async callback.
+  // The async callback closes over the state value at effect-creation time; by
+  // the time it resolves, committedFilters may have changed (lesson carry-over
+  // auto-commits on mount). This ref always reflects the latest value so we can
+  // detect the race and discard a stale browse result.
+  const committedFiltersRef = useRef(committedFilters);
+  useEffect(() => { committedFiltersRef.current = committedFilters; }, [committedFilters]);
 
-  const hydrateMediaBatches = useCallback(async (ownerId, page) => {
+  /**
+   * Post-filter hydrated batch siblings against active server filters.
+   * Siblings fetched by batchId may not match the committed filter criteria
+   * (e.g., different type or author). Filter them out so they don't leak
+   * into filtered results.
+   */
+  const hydrateMediaBatches = useCallback(async (ownerId, page, serverFilters = null) => {
     if (!ownerId) return page;
     const batchIds = [...new Set(page.map((note) => note.batchId).filter(Boolean))]
       .filter((batchId) => !fetchedBatchIdsRef.current.has(batchId));
@@ -80,11 +100,20 @@ export default function useTimelineData({ scope, id, classroom, userRole, manage
         ? fetchClassroomBatchObservations({ classroomId: ownerId, batchId })
         : fetchStudentBatchObservations({ studentId: ownerId, batchId })),
     );
-    const additions = [];
+    let additions = [];
     results.forEach((result) => {
       if (result.status === 'fulfilled') additions.push(...result.value);
       else reportCaughtError(result.reason, 'useTimelineData', 'media batch siblings fetch');
     });
+    // Post-filter siblings against active server filters so non-matching
+    // notes don't leak into filtered results
+    if (serverFilters) {
+      additions = additions.filter((note) => {
+        if (serverFilters.authors?.length && !serverFilters.authors.includes(note.createdBy)) return false;
+        if (serverFilters.types?.length && !serverFilters.types.includes(note.type)) return false;
+        return true;
+      });
+    }
     const byId = new Map(page.map((note) => [note.id, note]));
     additions.forEach((note) => byId.set(note.id, note));
     return [...byId.values()].sort((a, b) => {
@@ -99,6 +128,37 @@ export default function useTimelineData({ scope, id, classroom, userRole, manage
     ? true
     : checkClassroomAccess(userRole, manageableClassrooms, id);
 
+  /**
+   * Core fetch function used by both initial load and filter changes.
+   * Fetches page 1 (optionally filtered) + count aggregation when filtered.
+   */
+  const fetchPage1 = useCallback(async (serverFilters) => {
+    const fetchArgs = scope === 'classroom'
+      ? { classroomId: id, pageSize: PAGE_SIZE, filters: serverFilters }
+      : { studentId: id, pageSize: PAGE_SIZE, filters: serverFilters };
+    const result = scope === 'classroom'
+      ? await fetchClassroomTimelineNotes(fetchArgs)
+      : await fetchStudentTimelineNotes(fetchArgs);
+
+    // Fire count() alongside page 1 when filtered (same try/catch - fail together)
+    let stats = null;
+    if (serverFilters) {
+      const now = new Date();
+      const sevenDaysAgo = new Date(now.getTime() - 7 * 24 * 60 * 60 * 1000);
+      const hasDateRange = serverFilters.dateFrom || serverFilters.dateTo;
+      const countFilters = hasDateRange
+        ? { ...serverFilters }
+        : { ...serverFilters, dateFrom: sevenDaysAgo };
+      const count = await fetchFilteredCount({ scope, id, filters: countFilters });
+      stats = {
+        count,
+        label: hasDateRange ? `${count} notes in selected range` : `${count} notes in past 7 days`,
+      };
+    }
+
+    return { result, stats };
+  }, [scope, id]);
+
   // Initial fetch + refresh (triggered by refreshTick)
   useEffect(() => {
     if (!id || !hasAccess) {
@@ -107,6 +167,7 @@ export default function useTimelineData({ scope, id, classroom, userRole, manage
       setTeachers([]);
       setLoading(false);
       setHasMore(false);
+      setFilteredStats(null);
       fetchedBatchIdsRef.current.clear();
       return;
     }
@@ -143,31 +204,32 @@ export default function useTimelineData({ scope, id, classroom, userRole, manage
             if (!cancelled) setTeachers(classroomTeachers);
           }
 
-          // Fetch first page of notes
-          const page = await fetchClassroomTimelineNotes({
-            classroomId: id,
-            pageSize: PAGE_SIZE,
-          });
+          // Fetch first page of notes (browse mode - no filters on initial load)
+          const { result, stats } = await fetchPage1(null);
           if (cancelled) return;
+          // On first load (not refresh), discard browse result if a filtered fetch
+          // overtook us — lesson/media carry-over auto-commits on mount, so both
+          // fetches can be in-flight simultaneously. The filtered fetch wins.
+          if (!isRefresh && committedFiltersRef.current) return;
 
-          const hydratedPage = await hydrateMediaBatches(id, page);
+          const hydratedPage = await hydrateMediaBatches(id, result.notes);
           if (cancelled) return;
           setNotes(hydratedPage);
-          setHasMore(page.length >= PAGE_SIZE);
-          setCursor(page.length > 0 ? page[page.length - 1].observedAt : null);
+          setHasMore(result.notes.length >= PAGE_SIZE);
+          setCursor(result.lastDocSnapshot);
+          setFilteredStats(stats);
         } else {
           // Student scope - first page
-          const page = await fetchStudentTimelineNotes({
-            studentId: id,
-            pageSize: PAGE_SIZE,
-          });
+          const { result, stats } = await fetchPage1(null);
           if (cancelled) return;
+          if (!isRefresh && committedFiltersRef.current) return;
 
-          const hydratedPage = await hydrateMediaBatches(id, page);
+          const hydratedPage = await hydrateMediaBatches(id, result.notes);
           if (cancelled) return;
           setNotes(hydratedPage);
-          setHasMore(page.length >= PAGE_SIZE);
-          setCursor(page.length > 0 ? page[page.length - 1].observedAt : null);
+          setHasMore(result.notes.length >= PAGE_SIZE);
+          setCursor(result.lastDocSnapshot);
+          setFilteredStats(stats);
         }
       } catch (err) {
         reportCaughtError(err, 'useTimelineData', `${scope} fetch`);
@@ -184,27 +246,65 @@ export default function useTimelineData({ scope, id, classroom, userRole, manage
     })();
 
     return () => { cancelled = true; };
-  }, [scope, id, hasAccess, classroom?.teacherIds?.length, refreshTick, hydrateMediaBatches]);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [scope, id, hasAccess, classroom?.teacherIds?.length, refreshTick, hydrateMediaBatches, fetchPage1]);
 
-  // Load more - fetch next page using cursor
+  // Filtered fetch - triggered when committedFilters changes
+  useEffect(() => {
+    if (!id || !hasAccess || !committedFilters) return;
+
+    let cancelled = false;
+    setFilterLoading(true);
+    setFilterError(null);
+    fetchedBatchIdsRef.current.clear();
+
+    // Snapshot browse state before first filtered fetch.
+    // Guard with notes.length > 0: on lesson carry-over entry the initial browse
+    // fetch may still be in-flight when committedFilters first changes, so notes
+    // would be [] here and restoreBrowseCache() would restore a blank timeline.
+    if (!browseCacheRef.current && notes.length > 0) {
+      browseCacheRef.current = { notes, cursor, hasMore };
+    }
+
+    (async () => {
+      try {
+        const { result, stats } = await fetchPage1(committedFilters);
+        if (cancelled) return;
+
+        const hydratedPage = await hydrateMediaBatches(id, result.notes, committedFilters);
+        if (cancelled) return;
+        setNotes(hydratedPage);
+        setHasMore(result.notes.length >= PAGE_SIZE);
+        setCursor(result.lastDocSnapshot);
+        setFilteredStats(stats);
+      } catch (err) {
+        reportCaughtError(err, 'useTimelineData', `${scope} filtered fetch`);
+        if (!cancelled) {
+          setFilterError('Something went wrong. Tap to retry.');
+        }
+      } finally {
+        if (!cancelled) setFilterLoading(false);
+      }
+    })();
+
+    return () => { cancelled = true; };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [committedFilters]);
+
+  // Load more - fetch next page using document-snapshot cursor
   const loadMore = useCallback(async () => {
     if (!id || !hasAccess || !cursor || !hasMore || isLoadingMore) return;
 
     setIsLoadingMore(true);
     try {
-      const page = scope === 'classroom'
-        ? await fetchClassroomTimelineNotes({
-          classroomId: id,
-          pageSize: PAGE_SIZE,
-          cursor,
-        })
-        : await fetchStudentTimelineNotes({
-          studentId: id,
-          pageSize: PAGE_SIZE,
-          cursor,
-        });
+      const fetchArgs = scope === 'classroom'
+        ? { classroomId: id, pageSize: PAGE_SIZE, cursor, filters: committedFilters }
+        : { studentId: id, pageSize: PAGE_SIZE, cursor, filters: committedFilters };
+      const result = scope === 'classroom'
+        ? await fetchClassroomTimelineNotes(fetchArgs)
+        : await fetchStudentTimelineNotes(fetchArgs);
 
-      const hydratedPage = await hydrateMediaBatches(id, page);
+      const hydratedPage = await hydrateMediaBatches(id, result.notes, committedFilters);
       setNotes(prev => {
         const byId = new Map(prev.map((note) => [note.id, note]));
         hydratedPage.forEach((note) => byId.set(note.id, note));
@@ -214,19 +314,37 @@ export default function useTimelineData({ scope, id, classroom, userRole, manage
           return bTime - aTime;
         });
       });
-      setHasMore(page.length >= PAGE_SIZE);
-      setCursor(page.length > 0 ? page[page.length - 1].observedAt : null);
+      setHasMore(result.notes.length >= PAGE_SIZE);
+      setCursor(result.lastDocSnapshot);
     } catch (err) {
       reportCaughtError(err, 'useTimelineData', `${scope} loadMore`);
     } finally {
       setIsLoadingMore(false);
     }
-  }, [scope, id, hasAccess, cursor, hasMore, isLoadingMore, hydrateMediaBatches]);
+  }, [scope, id, hasAccess, cursor, hasMore, isLoadingMore, committedFilters, hydrateMediaBatches]);
+
+  /**
+   * Restore cached browse-mode pages. Called on Clear All when committed
+   * filters were active. Instant restoration - no refetch. Teachers use
+   * the explicit Refresh button for freshness (Decision 6).
+   */
+  const restoreBrowseCache = useCallback(() => {
+    if (browseCacheRef.current) {
+      setNotes(browseCacheRef.current.notes);
+      setCursor(browseCacheRef.current.cursor);
+      setHasMore(browseCacheRef.current.hasMore);
+      browseCacheRef.current = null;
+    }
+    setFilteredStats(null);
+    setFilterError(null);
+  }, []);
 
   // Refresh - reset to page 1
   const refresh = useCallback(() => {
+    browseCacheRef.current = null;
     setHasMore(true);
     setCursor(null);
+    setFilteredStats(null);
     setRefreshTick(t => t + 1);
   }, []);
 
@@ -242,5 +360,10 @@ export default function useTimelineData({ scope, id, classroom, userRole, manage
     refresh,
     refreshing,
     refreshTick, // exposed so useTimelineStats can piggyback on the same refresh
+    filterLoading,
+    filteredStats,
+    filterError,
+    restoreBrowseCache,
+    hasBrowseCache: () => !!browseCacheRef.current,
   };
 }

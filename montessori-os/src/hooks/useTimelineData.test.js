@@ -344,6 +344,174 @@ describe('Media merged into observations (#221)', () => {
 const appPath = resolve(__dirname, '..', 'App.jsx');
 const screenRendererPath = resolve(__dirname, '..', 'ScreenRenderer.jsx');
 
+// ──────────────────────────────────────────────
+// #297: Server-side filtering + snapshot cursor
+// ──────────────────────────────────────────────
+
+describe('useTimelineData server-side filtering (#297)', () => {
+  let hookSource;
+
+  it('accepts committedFilters in destructured params', async () => {
+    hookSource = await readFile(hookPath, 'utf8');
+    assert.ok(hookSource.includes('committedFilters'), 'should reference committedFilters');
+  });
+
+  it('passes filters to fetchClassroomTimelineNotes', async () => {
+    hookSource = hookSource || await readFile(hookPath, 'utf8');
+    assert.ok(
+      hookSource.includes('filters:') || hookSource.includes('filters,'),
+      'should pass filters param to fetch function',
+    );
+  });
+
+  it('uses document snapshot cursor instead of raw value', async () => {
+    hookSource = hookSource || await readFile(hookPath, 'utf8');
+    // The new pattern: result.lastDocSnapshot replaces page[last].observedAt
+    assert.ok(hookSource.includes('lastDocSnapshot'), 'should use lastDocSnapshot for cursor');
+  });
+
+  it('exposes restoreBrowseCache for filter-clear restoration', async () => {
+    hookSource = hookSource || await readFile(hookPath, 'utf8');
+    assert.ok(hookSource.includes('restoreBrowseCache'), 'should expose restoreBrowseCache');
+  });
+
+  it('exposes filteredStats for filtered count display', async () => {
+    hookSource = hookSource || await readFile(hookPath, 'utf8');
+    assert.ok(hookSource.includes('filteredStats'), 'should expose filteredStats');
+  });
+
+  it('imports fetchFilteredCount from timelineQueries', async () => {
+    hookSource = hookSource || await readFile(hookPath, 'utf8');
+    assert.ok(hookSource.includes('fetchFilteredCount'), 'should import fetchFilteredCount');
+  });
+
+  it('reports query errors via reportCaughtError', async () => {
+    hookSource = hookSource || await readFile(hookPath, 'utf8');
+    const errorCalls = hookSource.match(/reportCaughtError/g) || [];
+    assert.ok(errorCalls.length >= 2, 'should have multiple reportCaughtError calls');
+  });
+
+  // Behavioral: browse cache guard logic (extracted as pure function to verify
+  // the race condition fix - lesson carry-over must not snapshot empty state)
+  it('browse cache guard skips capture when notes are empty', () => {
+    const maybeCacheBrowse = (ref, notes, cursor, hasMore) => {
+      if (!ref.current && notes.length > 0) ref.current = { notes, cursor, hasMore };
+    };
+    const ref = { current: null };
+    maybeCacheBrowse(ref, [], null, true);
+    assert.equal(ref.current, null, 'must not cache empty notes - initial fetch still in-flight');
+  });
+
+  it('browse cache guard captures non-empty notes and does not overwrite', () => {
+    const maybeCacheBrowse = (ref, notes, cursor, hasMore) => {
+      if (!ref.current && notes.length > 0) ref.current = { notes, cursor, hasMore };
+    };
+    const ref = { current: null };
+    const firstPage = [{ id: 'a', type: 'text' }];
+    maybeCacheBrowse(ref, firstPage, 'snap1', true);
+    assert.deepEqual(ref.current, { notes: firstPage, cursor: 'snap1', hasMore: true });
+    // Second call must not overwrite - restore will return this first snapshot
+    maybeCacheBrowse(ref, [{ id: 'b' }], 'snap2', false);
+    assert.equal(ref.current.cursor, 'snap1', 'must not overwrite once set');
+  });
+
+  it('restoreBrowseCache clears filteredStats and nulls the cache ref after restore', async () => {
+    hookSource = hookSource || await readFile(hookPath, 'utf8');
+    // Verify the implementation resets both filtered state and the cache ref
+    assert.ok(hookSource.includes('browseCacheRef.current = null'), 'restoreBrowseCache must null the cache ref after restore');
+    assert.ok(hookSource.includes('setFilteredStats(null)'), 'restoreBrowseCache must clear filteredStats');
+  });
+});
+
+describe('Firestore indexes for filtered timeline queries (#297)', () => {
+  it('has classroomId + createdBy + observedAt composite index (COLLECTION_GROUP)', async () => {
+    const raw = await readFile(indexesPath, 'utf8');
+    const indexes = JSON.parse(raw);
+    const match = indexes.indexes.find(
+      (idx) =>
+        idx.collectionGroup === 'observations' &&
+        idx.queryScope === 'COLLECTION_GROUP' &&
+        idx.fields.some((f) => f.fieldPath === 'classroomId') &&
+        idx.fields.some((f) => f.fieldPath === 'createdBy') &&
+        idx.fields.some((f) => f.fieldPath === 'observedAt' && f.order === 'DESCENDING'),
+    );
+    assert.ok(match, 'composite index classroomId + createdBy + observedAt DESC should exist');
+  });
+
+  it('has classroomId + type + observedAt composite index (COLLECTION_GROUP)', async () => {
+    const raw = await readFile(indexesPath, 'utf8');
+    const indexes = JSON.parse(raw);
+    const match = indexes.indexes.find(
+      (idx) =>
+        idx.collectionGroup === 'observations' &&
+        idx.queryScope === 'COLLECTION_GROUP' &&
+        idx.fields.some((f) => f.fieldPath === 'classroomId') &&
+        idx.fields.some((f) => f.fieldPath === 'type') &&
+        idx.fields.some((f) => f.fieldPath === 'observedAt' && f.order === 'DESCENDING'),
+    );
+    assert.ok(match, 'composite index classroomId + type + observedAt DESC should exist');
+  });
+
+  it('has classroomId + createdBy + type + observedAt composite index (COLLECTION_GROUP)', async () => {
+    const raw = await readFile(indexesPath, 'utf8');
+    const indexes = JSON.parse(raw);
+    const match = indexes.indexes.find(
+      (idx) =>
+        idx.collectionGroup === 'observations' &&
+        idx.queryScope === 'COLLECTION_GROUP' &&
+        idx.fields.length === 4 &&
+        idx.fields.some((f) => f.fieldPath === 'classroomId') &&
+        idx.fields.some((f) => f.fieldPath === 'createdBy') &&
+        idx.fields.some((f) => f.fieldPath === 'type') &&
+        idx.fields.some((f) => f.fieldPath === 'observedAt' && f.order === 'DESCENDING'),
+    );
+    assert.ok(match, 'composite index classroomId + createdBy + type + observedAt DESC should exist');
+  });
+
+  it('has createdBy + observedAt composite index (COLLECTION scope)', async () => {
+    const raw = await readFile(indexesPath, 'utf8');
+    const indexes = JSON.parse(raw);
+    const match = indexes.indexes.find(
+      (idx) =>
+        idx.collectionGroup === 'observations' &&
+        idx.queryScope === 'COLLECTION' &&
+        idx.fields.length === 2 &&
+        idx.fields.some((f) => f.fieldPath === 'createdBy') &&
+        idx.fields.some((f) => f.fieldPath === 'observedAt' && f.order === 'DESCENDING'),
+    );
+    assert.ok(match, 'composite index createdBy + observedAt DESC (COLLECTION) should exist');
+  });
+
+  it('has type + observedAt composite index (COLLECTION scope)', async () => {
+    const raw = await readFile(indexesPath, 'utf8');
+    const indexes = JSON.parse(raw);
+    const match = indexes.indexes.find(
+      (idx) =>
+        idx.collectionGroup === 'observations' &&
+        idx.queryScope === 'COLLECTION' &&
+        idx.fields.length === 2 &&
+        idx.fields.some((f) => f.fieldPath === 'type') &&
+        idx.fields.some((f) => f.fieldPath === 'observedAt' && f.order === 'DESCENDING'),
+    );
+    assert.ok(match, 'composite index type + observedAt DESC (COLLECTION) should exist');
+  });
+
+  it('has createdBy + type + observedAt composite index (COLLECTION scope)', async () => {
+    const raw = await readFile(indexesPath, 'utf8');
+    const indexes = JSON.parse(raw);
+    const match = indexes.indexes.find(
+      (idx) =>
+        idx.collectionGroup === 'observations' &&
+        idx.queryScope === 'COLLECTION' &&
+        idx.fields.length === 3 &&
+        idx.fields.some((f) => f.fieldPath === 'createdBy') &&
+        idx.fields.some((f) => f.fieldPath === 'type') &&
+        idx.fields.some((f) => f.fieldPath === 'observedAt' && f.order === 'DESCENDING'),
+    );
+    assert.ok(match, 'composite index createdBy + type + observedAt DESC (COLLECTION) should exist');
+  });
+});
+
 describe('Inject wiring removed (#221 Sprint 2)', () => {
   it('App.jsx does not contain timelineInjectRef', async () => {
     const src = await readFile(appPath, 'utf8');

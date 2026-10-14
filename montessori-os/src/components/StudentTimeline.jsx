@@ -11,6 +11,7 @@ import {
   DialogContent,
   DialogActions,
   Button,
+  Badge,
   Chip,
   Tabs,
   Tab,
@@ -79,7 +80,23 @@ function StudentTimeline({ student, currentUser, userRole, noteTypeFilter = null
   // Classroom teachers for creator filter
   const [classroomTeachers, setClassroomTeachers] = useState([]);
 
-  // Shared data hook — cursor-based pagination (#221 Sprint 2)
+  // Filter hook — dual-mode: draft (chips) + committed (server queries) (#297)
+  const {
+    showFilters,
+    filters,
+    committedFilters,
+    hasActiveFilters,
+    hasCommittedFilters,
+    setShowFilters,
+    serverFilters,
+    preflightError,
+    handleFilterChange,
+    handleClearFilters: rawClearFilters,
+    commitFilters,
+    toggleFilters,
+  } = useObservationFilters([], noteTypeFilter);
+
+  // Shared data hook — cursor-based pagination (#221 Sprint 2), server-side filtering (#297)
   const {
     notes: observations,
     loading,
@@ -89,9 +106,15 @@ function StudentTimeline({ student, currentUser, userRole, noteTypeFilter = null
     refresh,
     refreshing,
     refreshTick,
+    filterLoading,
+    filteredStats,
+    filterError,
+    restoreBrowseCache,
+    hasBrowseCache,
   } = useTimelineData({
     scope: 'student',
     id: student?.id,
+    committedFilters: serverFilters,
   });
 
   // Stats from statsCache (#221 Sprint 2)
@@ -158,15 +181,6 @@ function StudentTimeline({ student, currentUser, userRole, noteTypeFilter = null
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [observations, student?.classroomId]);
 
-  // Derive unique curriculum areas from notes for FilterPanel
-  const availableCurriculumAreas = useMemo(() => {
-    const areas = new Set();
-    observations.forEach(note => {
-      if (note.curriculumArea) areas.add(note.curriculumArea);
-    });
-    return [...areas].sort();
-  }, [observations]);
-
   const toJsDate = (ts) => {
     if (!ts) return null;
     if (ts.toDate) return ts.toDate();
@@ -213,24 +227,29 @@ function StudentTimeline({ student, currentUser, userRole, noteTypeFilter = null
 
   // #221 Sprint 2: stats from statsCache via useTimelineStats (see hook above)
 
-  // Use the filter hook instead of local state
-  const {
-    showFilters,
-    filters,
-    setFilters,
-    uniqueCreators,
-    filteredObservations,
-    hasActiveFilters,
-    handleFilterChange,
-    handleClearFilters,
-    toggleFilters,
-    applyFilters
-  } = useObservationFilters(observations, null);
+  // Server handles author/type/date filtering; observations arrive already filtered (#297)
+  const visibleObservations = observations;
 
-  // #221 Sprint 2: no more UI-only slicing - pagination at Firestore level
-  const visibleObservations = filteredObservations || [];
+  // Apply: commit filters and auto-close panel
+  const handleApplyFilters = () => {
+    const ok = commitFilters();
+    if (ok) setShowFilters(false);
+  };
 
-  const combinedFiltersActive = hasActiveFilters;
+  // Clear All: restore browse cache when committed filters were active.
+  // If cache is empty (lesson carry-over entry - initial fetch was in-flight
+  // when filter committed), fall back to refresh so browse mode loads correctly.
+  const handleClearFilters = () => {
+    const wasCommitted = hasCommittedFilters;
+    rawClearFilters();
+    if (wasCommitted) {
+      if (hasBrowseCache()) {
+        restoreBrowseCache();
+      } else {
+        refresh();
+      }
+    }
+  };
 
   const mediaObservations = useMemo(() => {
     return (observations || []).filter((obs) => obs.type === 'media');
@@ -347,21 +366,14 @@ function StudentTimeline({ student, currentUser, userRole, noteTypeFilter = null
 
   const selectedMediaCount = selectedMediaIds.size;
 
+  // noteTypeFilter auto-commit is handled by useObservationFilters (#297)
+  // Media dialog still opens on 'media' noteTypeFilter entry
   useEffect(() => {
-    if (!noteTypeFilter || noteTypeFilter === 'textVoice') {
-      setFilters((prev) => ({ ...prev, types: [] }));
-      return;
-    }
     if (noteTypeFilter === 'media') {
-      setFilters((prev) => ({ ...prev, types: [] }));
       setMediaDialogOpen(true);
       setMediaSubTab('photos');
-      return;
     }
-    let types = [];
-    if (noteTypeFilter === 'lesson') types = ['lesson', 'practice'];
-    setFilters((prev) => ({ ...prev, types }));
-  }, [noteTypeFilter, setFilters]);
+  }, [noteTypeFilter]);
 
   useEffect(() => {
     if (!mediaDialogOpen) {
@@ -654,12 +666,20 @@ function StudentTimeline({ student, currentUser, userRole, noteTypeFilter = null
   const handleDeleteCancel = () => {
     setDeleteConfirmOpen(false);
   };
+  // observations is already server-filtered by committedFilters (author/type/date).
+  // Only exclude non-exportable types — no draft-filter re-apply that could diverge.
   const exportableObservations = useMemo(
-    () => applyFilters(observations.filter((o) => !['media', 'report', 'assessment'].includes(o.type)), null),
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-    [observations, filters]
+    () => observations.filter((o) => !['media', 'report', 'assessment'].includes(o.type)),
+    [observations]
   );
   const exportableCount = exportableObservations.length;
+  const committedFilterCount = useMemo(() => {
+    if (!committedFilters) return 0;
+    return (committedFilters.types?.length || 0) +
+      (committedFilters.creators?.length || 0) +
+      (committedFilters.dateFrom ? 1 : 0) +
+      (committedFilters.dateTo ? 1 : 0);
+  }, [committedFilters]);
   const defaultNoteKind = NOTE_KIND.BOTH;
   const studentLabel = student?.name || student?.displayName || [student?.firstName, student?.lastName].filter(Boolean).join(' ') || 'Student';
 
@@ -722,62 +742,6 @@ function StudentTimeline({ student, currentUser, userRole, noteTypeFilter = null
 
   return (
     <Box sx={{ display: 'flex', flexDirection: 'column', gap: 2, position: 'relative', pb: 8 }}>
-      {/* Header */}
-      <Box sx={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', flexWrap: 'wrap', gap: 1.5 }}>
-        <Box sx={{ display: 'flex', alignItems: 'center', gap: 1, flexWrap: 'wrap' }}>
-          {combinedFiltersActive && (
-            <Chip 
-              label={`Showing ${visibleObservations.length} of ${notesOverall} notes`}
-              size="small"
-              color="primary"
-              variant="outlined"
-            />
-          )}
-          <Button
-            startIcon={<FilterList />}
-            onClick={toggleFilters}
-            variant={hasActiveFilters ? 'contained' : 'outlined'}
-            color={hasActiveFilters ? 'primary' : 'default'}
-            size="small"
-            aria-label="Toggle filters"
-          >
-            Filters
-          </Button>
-          <Button
-            startIcon={exporting ? <CircularProgress size={16} /> : <Download />}
-            onClick={handleOpenExportWizard}
-            variant="outlined"
-            color="secondary"
-            size="small"
-            disabled={exporting || exportableCount === 0}
-            aria-label="Export notes"
-            title={`Export ${exportableCount} notes`}
-          >
-            {exporting ? 'Exporting...' : 'Export'}
-          </Button>
-        </Box>
-        <Box sx={{ display: 'flex', alignItems: 'center' }}>
-          <IconButton
-            aria-label="Open media"
-            title="Media"
-            onClick={() => setMediaDialogOpen(true)}
-            sx={{
-              color: 'var(--grey-900)',
-              border: '1px solid var(--color-border)',
-              backgroundColor: 'var(--color-paper)',
-              width: 40,
-              height: 40,
-              borderRadius: '50%',
-              boxShadow: '0 4px 12px rgba(15, 23, 42, 0.08)',
-              '&:hover': {
-                backgroundColor: 'var(--color-bg)'
-              }
-            }}
-          >
-            <PhotoLibrary />
-          </IconButton>
-        </Box>
-      </Box>
       {loading ? (
         <Box sx={{ display: 'flex', justifyContent: 'center', alignItems: 'center', mt: 4, gap: 2, flexDirection: 'column' }}>
           <CircularProgress size={32} />
@@ -791,31 +755,103 @@ function StudentTimeline({ student, currentUser, userRole, noteTypeFilter = null
           <FilterPanel
             showFilters={showFilters}
             filters={filters}
-            uniqueCreators={uniqueCreators}
             classroomTeachers={classroomTeachers}
             hasActiveFilters={hasActiveFilters}
             filteredCount={visibleObservations.length}
             onFilterChange={handleFilterChange}
             onClearFilters={handleClearFilters}
+            onApplyFilters={handleApplyFilters}
+            preflightError={preflightError}
             onToggleFilters={toggleFilters}
-            availableCurriculumAreas={availableCurriculumAreas}
           />
 
-          {/* Summary — from statsCache (#221 Sprint 2) */}
-          <Box sx={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', mt: 0.5 }}>
-            <Typography variant="body2" color="text.secondary">
-              {notesOverall} notes overall | {notesPast7Days} notes in last 7 days
-            </Typography>
-            <Button
-              size="small"
-              variant="outlined"
-              onClick={refresh}
-              disabled={refreshing}
-              startIcon={<RefreshCw size={14} sx={refreshing ? { animation: 'spin 1s linear infinite', '@keyframes spin': { '0%': { transform: 'rotate(0deg)' }, '100%': { transform: 'rotate(360deg)' } } } : {}} />}
-              sx={{ textTransform: 'none', minWidth: 0, px: 1.5, py: 0.5, fontSize: '0.75rem' }}
-            >
-              Refresh
-            </Button>
+          {/* Filter loading quip */}
+          {filterLoading && (
+            <Box sx={{ textAlign: 'center', py: 2 }}>
+              <CircularProgress size={20} sx={{ mb: 1 }} />
+              <Typography variant="body2" color="text.secondary">
+                Coach Pepper is sifting through the notes...
+              </Typography>
+            </Box>
+          )}
+
+          {/* Summary + actions — filteredStats when filtering, statsCache otherwise (#297) */}
+          <Box sx={{ display: 'flex', alignItems: 'flex-start', justifyContent: 'space-between', gap: 2 }}>
+            <Box sx={{ display: 'flex', flexDirection: 'column', gap: 0.5 }}>
+              <Typography variant="body2" color="text.secondary">
+                {filteredStats ? filteredStats.label : `${notesOverall} notes all time`}
+              </Typography>
+              {!filteredStats && (
+                <Typography variant="body2" color="text.secondary">
+                  {`${notesPast7Days} notes in last 7 days`}
+                </Typography>
+              )}
+            </Box>
+            <Box sx={{ display: 'flex', alignItems: 'center', gap: 0.5, flexShrink: 0 }}>
+              <IconButton
+                aria-label="Open media"
+                title="Media"
+                onClick={() => setMediaDialogOpen(true)}
+                size="small"
+                color="secondary"
+                sx={{
+                  border: '1px solid var(--color-border)',
+                  backgroundColor: 'var(--color-paper)',
+                  '&:hover': { backgroundColor: 'var(--color-bg)' }
+                }}
+              >
+                <PhotoLibrary />
+              </IconButton>
+              <Badge
+                badgeContent={committedFilterCount || null}
+                color="primary"
+                overlap="circular"
+                sx={{ '& .MuiBadge-badge': { fontSize: '0.6rem', minWidth: 16, height: 16 } }}
+              >
+                <IconButton
+                  onClick={toggleFilters}
+                  size="small"
+                  title="Filters"
+                  color="primary"
+                  sx={{
+                    border: (hasActiveFilters || hasCommittedFilters) ? 'none' : '1px solid var(--color-border)',
+                    backgroundColor: (hasActiveFilters || hasCommittedFilters) ? 'primary.main' : 'var(--color-paper)',
+                    color: (hasActiveFilters || hasCommittedFilters) ? '#fff' : undefined,
+                    '&:hover': { backgroundColor: (hasActiveFilters || hasCommittedFilters) ? 'primary.dark' : 'var(--color-bg)' }
+                  }}
+                >
+                  <FilterList size={20} />
+                </IconButton>
+              </Badge>
+              <IconButton
+                onClick={handleOpenExportWizard}
+                size="small"
+                title={`Export ${exportableCount} notes`}
+                disabled={exporting || exportableCount === 0}
+                color="success"
+                sx={{
+                  border: '1px solid var(--color-border)',
+                  backgroundColor: 'var(--color-paper)',
+                  '&:hover': { backgroundColor: 'var(--color-bg)' }
+                }}
+              >
+                {exporting ? <CircularProgress size={16} /> : <Download size={20} />}
+              </IconButton>
+              <IconButton
+                onClick={refresh}
+                disabled={refreshing}
+                size="small"
+                title="Refresh"
+                color="info"
+                sx={{
+                  border: '1px solid var(--color-border)',
+                  backgroundColor: 'var(--color-paper)',
+                  '&:hover': { backgroundColor: 'var(--color-bg)' }
+                }}
+              >
+                <RefreshCw size={16} sx={refreshing ? { animation: 'spin 1s linear infinite', '@keyframes spin': { '0%': { transform: 'rotate(0deg)' }, '100%': { transform: 'rotate(360deg)' } } } : {}} />
+              </IconButton>
+            </Box>
           </Box>
 
           {/* Day-grouped notes timeline */}
@@ -944,7 +980,7 @@ function StudentTimeline({ student, currentUser, userRole, noteTypeFilter = null
             };
 
             return dayGroups.length > 0 ? (
-              <Box sx={{ display: 'flex', flexDirection: 'column', gap: 2, opacity: refreshing ? 0.4 : 1, transition: 'opacity 0.2s' }}>
+              <Box sx={{ display: 'flex', flexDirection: 'column', gap: 2, opacity: (refreshing || filterLoading) ? 0.4 : 1, pointerEvents: (refreshing || filterLoading) ? 'none' : 'auto', transition: 'opacity 0.2s' }}>
                 {dayGroups.map((day) => (
                   <React.Fragment key={day.dateKey}>
                     <DayHeader label={day.label} accent={day.label === 'Today'} />
@@ -968,14 +1004,16 @@ function StudentTimeline({ student, currentUser, userRole, noteTypeFilter = null
               </Button>
             </Box>
           )}
-          {visibleObservations.length === 0 && observations.length > 0 && (
-            <Typography variant="body2" color="text.secondary" sx={{ mt: 2, textAlign: 'center' }}>
-              No notes match the current filters.
-            </Typography>
+          {/* Filter error — retryable */}
+          {filterError && (
+            <Box sx={{ textAlign: 'center', py: 3 }}>
+              <Typography variant="body2" color="error" sx={{ mb: 1 }}>{filterError}</Typography>
+              <Button size="small" variant="outlined" onClick={commitFilters} sx={{ textTransform: 'none' }}>Retry</Button>
+            </Box>
           )}
-          {observations.length === 0 && (
+          {!filterError && visibleObservations.length === 0 && (
             <Typography variant="body2" color="text.secondary" sx={{ mt: 2, textAlign: 'center' }}>
-              No notes yet.
+              {hasCommittedFilters ? 'No notes match these filters.' : 'No notes yet.'}
             </Typography>
           )}
         </Box>
