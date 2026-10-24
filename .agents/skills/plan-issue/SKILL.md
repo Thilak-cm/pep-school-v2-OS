@@ -1,15 +1,15 @@
 ---
 name: plan-issue
-description: Plan implementation of a GitHub issue — context loading, technical plan with test discovery, and user approval. Read-only planning only; no code changes. Produces an approved plan in conversation context for /implement-issue to execute.
+description: Plan implementation of a GitHub issue — context loading, technical plan with test discovery, user approval, then scaffold committed types, stubs, and test cases for /implement-issue to execute in a separate session.
 ---
 
 # Plan Issue
 
-Bridge the gap between a refined GitHub issue and a ready-to-execute plan. Loads codebase context, generates a technical execution plan with test specifications, and gets user approval. **Planning only — no file modifications.**
+Bridge the gap between a refined GitHub issue and a ready-to-execute implementation. Loads codebase context, generates a technical execution plan with test specifications, gets user approval, then scaffolds the contract (types, stubs, tests) and commits it to a feature branch.
 
 Well-refined issues (via `/spec-issue`) should converge on a single implementation path. If multiple paths emerge, that's a refinement gap — flag it, but proceed by discussing the fork with the user.
 
-The approved plan stays in conversation context. Run `/implement-issue` in the **same session** to execute it.
+After approval, the scaffold is committed to a feature branch. The user reviews the committed artifacts at their own pace, then runs `/implement-issue` in a **new session**.
 
 ## Phase 1: Issue Selection
 
@@ -56,8 +56,8 @@ Plan structure:
 
 ## Verification Checklist
 - [ ] All acceptance criteria have test coverage
-- [ ] All new tests written and passing
-- [ ] Existing related tests still passing
+- [ ] All contract tests written and correctly failing (red)
+- [ ] Existing related tests still passing (no regressions from stubs)
 - [ ] Manual testing completed (if UI changes)
 ```
 
@@ -74,15 +74,35 @@ Plan structure:
 
 Present the complete plan, area tags, risk profile, and test baseline. Iterate on user feedback until approved. If a refinement gap was flagged, resolve the fork with the user using the propose-first protocol from Phase 3 (user proposes, you stress-test) and collapse to a single path before finalizing.
 
-On approval: instruct the user to run `/implement-issue` in this same session.
+On approval: proceed to Phase 6 (Scaffold & Commit).
+
+## Phase 6: Scaffold & Commit
+
+After the user approves the plan, write the contract artifacts and commit them.
+
+1. **Create a feature branch** — `{issue-id}-{slug}` (e.g., `gh-123-fix-voice-upload`). Never scaffold on `dev`, `main`, `alt-dev`, or a reused branch.
+
+2. **Write type definitions and interfaces** — define the data shapes, function signatures, and contracts specified in the plan. Place them where the plan's "Files to Modify / Create" section indicates.
+
+3. **Write stub functions** — implement every function signature with a body that throws `new Error('Not implemented')`. Stubs must export the correct interface so test files can import them.
+
+4. **Write test cases** — per the plan's Test Specification, write complete test files covering every acceptance criterion. Tests should import from the stubs and assert the expected behavior.
+
+5. **Run tests to confirm they fail (red)** — every test must fail with "Not implemented" or an assertion error, not an import/syntax error. If tests fail for the wrong reason, fix the scaffold until the failure mode is correct.
+
+6. **Commit the scaffold:**
+   - `chore: add type stubs for [feature] (#123)`
+   - `test: add contract tests for [feature] (#123)`
+
+7. **Update the GitHub issue** via `gh issue comment` with: branch name, list of committed files (types, stubs, tests), and "Contract committed - ready for implementation review."
 
 ## Guardrails
 
-- **Read-only.** No file edits, branches, or commits during this skill. The only output is the approved plan in conversation context.
+- Phases 1-5 are read-only (planning). Phase 6 writes code, but ONLY types, stubs, and tests - no implementation logic.
 - If the plan seems too broad, suggest splitting into multiple issues.
 - If the issue is already "In Progress", warn and ask before proceeding.
 - If refinement gaps happen frequently, note that `/spec-issue` grilling may need improvement.
 
 ## Next Step
 
-> After approval, run `/implement-issue` in this same session. It reads the plan from context and proceeds directly to branch creation, TDD implementation, and verification — no replanning.
+> Review the committed types, stubs, and test cases on the feature branch. When satisfied that the contract is correct, start a **new Claude session** and run `/implement-issue #N`. The fresh session ensures the implementation agent treats the tests as an external contract, not something it authored.
