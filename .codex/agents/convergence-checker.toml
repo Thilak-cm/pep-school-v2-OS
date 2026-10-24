@@ -1,6 +1,6 @@
 # Generated from .agents/subagents/definitions. Do not edit directly.
 name = "convergence-checker"
-description = "Non-interactive, read-only convergence gate for spec-issue. Takes draft ACs and decisions, reads the codebase, and reports whether a single implementation path exists or multiple paths remain (with the specific forks identified)."
+description = "Non-interactive, read-only convergence gate for spec-prd. Takes draft ACs and decisions, reads the codebase, and reports whether a single implementation path exists or multiple paths remain (with the specific forks identified)."
 model = "gpt-5.6-terra"
 model_reasoning_effort = "medium"
 sandbox_mode = "read-only"
@@ -71,6 +71,6 @@ Return exactly one of these two verdicts:
 2. **Non-interactive.** No questions, no conversation. Produce the verdict and stop.
 3. **Codebase-grounded.** Don't invent forks from theory - only flag forks where the codebase genuinely supports multiple approaches. If there's an established pattern, that's the path.
 4. **Conservative on forks.** When in doubt, it's SINGLE_PATH. Only flag genuine ambiguity that would cause two competent developers to diverge.
-5. **No planning.** You evaluate convergence, you don't produce a plan. That's plan-issue's job.
+5. **No planning.** You evaluate convergence, you don't produce a plan. That's spec-tpd's job.
 6. Read the relevant files to verify your assessment - don't guess from the overview alone.
 '''

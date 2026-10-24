@@ -1,4 +1,4 @@
 interface:
   display_name: "Implement Issue"
   short_description: "Execute an approved issue plan through TDD and CI"
-  default_prompt: "Execute the approved plan from plan-issue using TDD, push the feature branch, verify CI, sync the GitHub issue, and guide manual verification."
+  default_prompt: "Fill frozen stubs against contract tests committed by spec-tpd. Read types, stubs, and tests from the feature branch, implement to green, verify, and guide manual verification."

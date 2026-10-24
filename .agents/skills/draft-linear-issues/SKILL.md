@@ -8,7 +8,7 @@ user_invocable: true
 
 ## Goal
 
-Batch-triage a **full meeting transcript** (pasted from Granola or similar - not a summarized MOM) into lightweight issues. Because you have the complete conversation, extract action items, decisions, bugs, and follow-ups with rich context. Archive the transcript, capture explicit carry-forward takeaways, present ONE summary preview with a proposed disposition per item (New / Augment / Drop), and after a single round of user corrections, batch-execute everything. Issues can later be refined via `/spec-issue`.
+Batch-triage a **full meeting transcript** (pasted from Granola or similar - not a summarized MOM) into lightweight issues. Because you have the complete conversation, extract action items, decisions, bugs, and follow-ups with rich context. Archive the transcript, capture explicit carry-forward takeaways, present ONE summary preview with a proposed disposition per item (New / Augment / Drop), and after a single round of user corrections, batch-execute everything. Issues can later be refined via `/spec-prd`.
 
 ## Principles
 
@@ -110,13 +110,13 @@ After execution, update metadata and `## Drafted Issues` only:
 
 ### Phase 8 - Final Summary
 
-Show a summary grouped by project: issues created (number, title, priority, label, project), issues augmented (number + what was added), and dropped items. Tip: `/spec-issue` adds full detail.
+Show a summary grouped by project: issues created (number, title, priority, label, project), issues augmented (number + what was added), and dropped items. Tip: `/spec-prd` adds full detail.
 
 ## Guardrails
 
 - Never create an issue the user hasn't seen in the summary preview; one correction round, then batch execution - no per-item walkthrough. Max 30 items.
 - Seed the archive before the preview; update it after execution.
-- Preserve the `Source: Meeting Transcript — ...` marker for `/spec-issue` detection.
+- Preserve the `Source: Meeting Transcript — ...` marker for `/spec-prd` detection.
 - Keep explicit takeaways separate from high-recall issue extraction - takeaways reflect actual commitments, not backlog volume.
 - Every archive must contain `## Post-Meeting Reflection`, even if `None captured.`
-- When refining an existing draft-sourced issue, direct the user to `/spec-issue`.
+- When refining an existing draft-sourced issue, direct the user to `/spec-prd`.

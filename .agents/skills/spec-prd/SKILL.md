@@ -1,14 +1,16 @@
 ---
-name: spec-issue
-description: Spec an existing GitHub issue with full context, clarifying questions, and a polished description. Use when the user wants to flesh out, refine, or add detail to an existing issue, including requests like "spec #42", "add detail to #42", or "/spec-issue #42".
+name: spec-prd
+description: "PRD pass: grill an existing issue until it converges on exactly one product requirement - what to build, for whom, and what's out of scope. Non-technical; the HOW lives in /spec-tpd. Use when the user says /spec-prd or wants to refine an issue's requirements."
 user_invocable: true
 ---
 
-# Spec Issue
+# Spec PRD - Product Requirements
 
 ## Goal
 
-Take an existing issue and grill it relentlessly until it converges on exactly one implementation path. Speccing is not done until a developer or agent could plan the implementation and arrive at a single approach — no forks, no "Option A vs Option B", no judgment calls left to the implementer. Focus on what should happen and why; extract enough constraints and decisions that *how* becomes obvious.
+Take an existing issue and grill it relentlessly until the WHAT converges on exactly one product requirement. Speccing is done when the acceptance criteria, constraints, decisions, and out-of-scope are specific enough that a separate technical planning step (`/spec-tpd`) can determine HOW without re-opening any product question.
+
+This skill owns requirements, scope, and user-facing behavior. It does NOT own implementation approach, file changes, type shapes, or function signatures - those belong to `/spec-tpd`.
 
 Requires a GitHub issue identifier (e.g., `#42`); ask if not provided.
 
@@ -32,10 +34,11 @@ Summarize the issue's current state and show the system diagram, then begin with
 
 **Rules:**
 - **One question per message.** Wait for each answer before continuing.
-- **Tier every question before asking it.** Trivial/mechanical decisions (naming, copying an established pattern, obvious defaults): recommend-confirm is fine — state your recommendation with reasoning. Consequential decisions (trade-offs, shared contracts, data shapes, security, anything trunk): **never lead with a recommendation.** Present only the facts — current code behavior, constraints, what's in scope — then ask the user to propose an answer with their reasoning. The leaf/trunk rule applied to decisions is the tier classifier; when uncertain, treat as consequential.
-- **Stress-test user proposals, don't rubber-stamp them.** After the user proposes on a consequential decision: raise the strongest objection, the edge cases it breaks, a steelmanned alternative, and how industry handles it. Never accept a proposal without first naming its strongest objection. Offer your own view only after their proposal has been examined, or when the user is stuck or explicitly asks. Why: recommend-then-confirm anchors the user and invites sycophancy-driven rubber-stamping; the author's forced specificity is where the engineering learning lives (Google design docs, Amazon PR/FAQ review model).
-- **Codebase-first.** Never ask factual questions about the current system — read the code and state what you found. Only ask for *decisions*: intent, priorities, constraints, tradeoffs. Ground questions in findings: "Currently X does Y (`file.js:42`). Should this change?"
-- **Follow the decision tree.** Each answer may open new branches — follow them, don't skip ahead.
+- **Stay at the product level.** Ask about behavior, user expectations, edge cases, scope, and constraints. Do NOT ask which files to change, which functions to call, or how to structure the code - that's `/spec-tpd`'s job. If a codebase finding is relevant to a product decision (e.g., "the system currently does X, should it change?"), state the finding and ask the product question, not the technical one.
+- **Tier every question before asking it.** Trivial/mechanical decisions (naming, copying an established pattern, obvious defaults): recommend-confirm is fine - state your recommendation with reasoning. Consequential decisions (trade-offs, user-facing behavior, data semantics, scope boundaries): **never lead with a recommendation.** Present only the facts - current behavior, constraints, what's in scope - then ask the user to propose an answer with their reasoning.
+- **Stress-test user proposals, don't rubber-stamp them.** After the user proposes on a consequential decision: raise the strongest objection, the edge cases it breaks, a steelmanned alternative, and how industry handles it. Never accept a proposal without first naming its strongest objection. Offer your own view only after their proposal has been examined, or when the user is stuck or explicitly asks.
+- **Codebase-first for facts.** Never ask factual questions about the current system - read the code and state what you found. Only ask for *decisions*: intent, priorities, constraints, tradeoffs. Ground questions in findings: "Currently X does Y (`file.js:42`). Should this change?"
+- **Follow the decision tree.** Each answer may open new branches - follow them, don't skip ahead.
 - **For bugs:** reproducible steps, expected vs actual, environment, fix constraints. **For features:** who benefits, desired behavior, edge cases, error states, constraints, what explicitly should NOT change.
 - Confirm priority and labels if they seem misaligned.
 
@@ -96,10 +99,17 @@ Do not skip this step. Do not self-assess convergence. The subagent call is the 
 [Original meeting context — only if draft-sourced; never discard it]
 ```
 
+## Next Step
+
+> After the user approves the updated issue:
+>
+> "PRD is locked. Open a new session and run `/spec-tpd #<issue>` to work
+> out the technical approach before implementation."
+
 ## Defaults & Guardrails
 
 - Title: imperative, ideally under 60 characters. Labels: Bug/Feature/Improvement by type. Priority: always confirm before updating. Assignee: keep existing; set to `me` if unassigned.
-- Keep scope tight — split if ACs exceed five items or the issue spans unrelated concerns.
+- Keep scope tight - split if ACs exceed five items or the issue spans unrelated concerns.
 - Call out related issues and suggest linking.
 - Explore without asking permission; never ask multiple questions in one message; never ask the user codebase facts.
 - Do not draft the description until the convergence-checker subagent returns `SINGLE_PATH`.

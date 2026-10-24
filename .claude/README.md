@@ -5,15 +5,15 @@ This repo shares Claude skills for GitHub issue management:
 - `/draft-linear-issues` — Batch-triage meeting notes into lightweight Backlog issues
   - Skill file: `.claude/skills/draft-linear-issues/SKILL.md`
   - Goal: paste notes -> extract items -> walk through one-at-a-time -> create Backlog issues
-- `/spec-issue` — Spec an existing issue with full context, clarifying questions, and polished descriptions
-  - Skill file: `.claude/skills/spec-issue/SKILL.md`
+- `/spec-prd` — Spec an existing issue with full context, clarifying questions, and polished descriptions
+  - Skill file: `.claude/skills/spec-prd/SKILL.md`
   - Goal: fetch issue -> load context -> clarify -> draft spec -> review -> update issue
 
 ## What Is Shared vs Local
 
 Shared in git:
 
-- `.claude/skills/spec-issue/SKILL.md`
+- `.claude/skills/spec-prd/SKILL.md`
 - `.claude/skills/draft-linear-issues/SKILL.md`
 - `.claude/settings.json` (non-sensitive project defaults)
 - `.claude/README.md` (this guide)
@@ -46,7 +46,7 @@ Shared template:
 ## Spec Demo Flow
 
 1. Create some Backlog issues via `/draft-linear-issues`.
-2. Pick one to spec: `/spec-issue #42`.
+2. Pick one to spec: `/spec-prd #42`.
 3. Answer clarifying questions.
 4. Review the spec draft together.
 5. Approve the update and confirm:
@@ -70,9 +70,9 @@ If acceptance criteria grows too large (more than 3 major checks), split into mu
 
 ## Troubleshooting
 
-- `/spec-issue` not available:
+- `/spec-prd` not available:
   - Re-open Claude in the repo root.
-  - Check that `.claude/skills/spec-issue/SKILL.md` exists.
+  - Check that `.claude/skills/spec-prd/SKILL.md` exists.
 - `/draft-linear-issues` not available:
   - Re-open Claude in the repo root.
   - Check that `.claude/skills/draft-linear-issues/SKILL.md` exists.

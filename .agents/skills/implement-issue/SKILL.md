@@ -1,11 +1,11 @@
 ---
 name: implement-issue
-description: Fill frozen stubs against committed contract tests on a feature branch. Reads types, stubs, and tests from the repo — must run in a separate session from /plan-issue.
+description: Fill frozen stubs against committed contract tests on a feature branch. Reads types, stubs, and tests from the repo - must run in a separate session from /spec-tpd.
 ---
 
 # Implement Issue
 
-Fill stub implementations to pass frozen contract tests committed by `/plan-issue`. Reads the feature branch, types, stubs, and test files directly from the repo — no plan in conversation context needed. Remote CI and PR lifecycle belong to `/review-issue` and `/merge-issue`.
+Fill stub implementations to pass frozen contract tests committed by `/spec-tpd`. Reads the feature branch, types, stubs, and test files directly from the repo — no plan in conversation context needed. Remote CI and PR lifecycle belong to `/review-issue` and `/merge-issue`.
 
 ## Precondition Check
 
@@ -15,7 +15,7 @@ Fill stub implementations to pass frozen contract tests committed by `/plan-issu
    - Stub functions (containing `throw new Error('Not implemented')` or similar)
    - Test files that import from the stubs
 3. **Read the GitHub issue** via `gh issue view` for acceptance criteria, context, and any plan discussion.
-4. **If no frozen artifacts found, stop:** "No committed types/stubs/tests found on this branch. Run `/plan-issue #N` first to scaffold the contract, review it, then run `/implement-issue` in a new session."
+4. **If no frozen artifacts found, stop:** "No committed types/stubs/tests found on this branch. Run `/spec-tpd #N` first to scaffold the contract, review it, then run `/implement-issue` in a new session."
 
 If any committed tests have import or syntax errors (not assertion failures), warn the user — the scaffold may need fixing before implementation.
 
@@ -33,7 +33,7 @@ If any committed tests have import or syntax errors (not assertion failures), wa
 
 6. **Manual verification BEFORE committing:** present the tailored checklist (Phase 3) and wait for user confirmation. Apply any requested changes, re-run tests, and re-verify — all before commits.
 
-7. **Commit** (only after manual verification passes): `feat/fix: [description] (#123)`. Implementation only — tests were already committed by `/plan-issue`.
+7. **Commit** (only after manual verification passes): `feat/fix: [description] (#123)`. Implementation only — tests were already committed by `/spec-tpd`.
 
 **Do not modify frozen tests.** If a frozen test is wrong (testing the wrong behavior, incorrect assertion), flag it to the user. They own the contract. Only the user can approve test changes, and those should be committed separately as `fix(test): [description] (#123)`.
 

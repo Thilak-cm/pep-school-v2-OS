@@ -1,13 +1,13 @@
 # Implement Issue Quick Start
 
-`/implement-issue` executes an approved `/plan-issue` plan in the same session.
+`/implement-issue` fills frozen stubs against contract tests committed by `/spec-tpd`. Must run in a separate session.
 
 ## Workflow
 
-1. Confirm the approved plan is present.
-2. Create a new feature branch before editing.
-3. Write tests first, implement the plan, and keep all related tests green.
-4. Run local tests, lint, and build.
+1. Identify the issue and verify frozen artifacts exist on the branch (types, stubs, tests).
+2. Run frozen tests to confirm they fail (red baseline).
+3. Fill stub implementations to make tests pass (green). Do not modify frozen tests.
+4. Run local tests, lint, and build. Verify no regressions.
 5. Commit only after the user completes the tailored manual verification checklist.
 6. Comment on the GitHub Issue with the branch, commits, files, and local verification results.
 

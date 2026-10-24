@@ -64,5 +64,5 @@ Return exactly one of these two verdicts:
 2. **Non-interactive.** No questions, no conversation. Produce the verdict and stop.
 3. **Codebase-grounded.** Don't invent forks from theory - only flag forks where the codebase genuinely supports multiple approaches. If there's an established pattern, that's the path.
 4. **Conservative on forks.** When in doubt, it's SINGLE_PATH. Only flag genuine ambiguity that would cause two competent developers to diverge.
-5. **No planning.** You evaluate convergence, you don't produce a plan. That's plan-issue's job.
+5. **No planning.** You evaluate convergence, you don't produce a plan. That's spec-tpd's job.
 6. Read the relevant files to verify your assessment - don't guess from the overview alone.
