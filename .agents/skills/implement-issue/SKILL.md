@@ -59,9 +59,4 @@ Ask: "Have you manually verified the e2e flow?" If issues found, address them, r
 
 ## Next Step
 
-> After the user confirms manual verification:
->
-> 1. Run `/clear` to wipe the implementation context (the branch stays checked out)
-> 2. Run `/review-issue` - it auto-detects the issue from the branch name and audits the diff with fresh eyes
->
-> This keeps the code review independent - no implementation bias carrying over.
+> After the user confirms manual verification, start a **new Claude session** and run `/review-issue`. It auto-detects the issue from the branch name and audits the diff with fresh eyes. A separate session keeps the code review independent - no implementation bias carrying over.
