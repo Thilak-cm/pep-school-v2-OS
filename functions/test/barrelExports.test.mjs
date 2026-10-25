@@ -88,6 +88,10 @@ const EXPECTED_EXPORTS = [
   "getAssessmentDownloadUrl",
   "getStructuredAssessmentSource",
   "publishStructuredAssessment",
+  // #313: Your Assessments
+  "listMyAssessmentUploads",
+  "appendAssessmentAttempt",
+  "correctAssessmentGrade",
   // Execution Ledger Verifiers (#229) + Drive integrity check
   "verifyCleanupDeletedChats",
   "verifySoulRegeneration",
