@@ -1,7 +1,7 @@
 # Pep OS Overview
 
-Generated: 2026-10-14T05:53:48.121Z
-App version: 13.5.0
+Generated: 2026-10-25T19:33:12.781Z
+App version: 13.6.0
 
 ## App Snapshot
 
@@ -95,8 +95,8 @@ App version: 13.5.0
 - `montessori-os/src/components/UsersAccessPage.parentFields.test.js`
 
 ### Settings, Feedback, and App Shell (`settings-feedback-shell`)
-- Count: 65
-- Components: `App`, `AppFooter`, `AppHeader`, `AssessmentMatrixSheet`, `AssessmentMatrixSheet.test`, `AssessmentUploadPage`, `AssessmentUploadPage.test`, `BroadcastComposer`, `BroadcastComposer.test`, `BulkUploadPage`, `BulkUploadPage.helpers`, `BulkUploadPage.test`, `ClassroomNoteCard`, `ClassroomStudentCard`, `CopyToClipboardButton`, `DynamicIslandPill`, `DynamicIslandPill.test`, `FeedbackPage`, `GroupedMediaCard`, `GroupedMediaCard.test`, `groupedMediaUtils`, `groupedMediaUtils.test`, `GroupedNoteCard`, `GroupedNoteDialog`, `InlineVoiceOverlay`, `InterviewsPage`, `InterviewsPage.helpers`, `InterviewsPage.test`, `LandingPage`, `LandingPage.test`, `MediaBatchPreview`, `MediaBatchPreview.test`, `MedicalPdfSheet`, `MedicalPdfSheet.test`, `MonthlyPlanTab`, `MonthlyPlanTab.test`, `NoteBottomSheet.structure.test`, `NotesOverTimeDrawer`, `PhotoEditor`, `PlanFeedbackDialog`, `PlanFeedbackDialog.test`, `ProfilePage`, `QuestionDeck`, `QuestionDeck.test`, `ReadinessCheckDialog`, `ReportGenerateDialog`, `ReportPreviewDialog`, `ReportsCard`, `ReportsPage`, `ReportsPage.test`, `ReportTypeLandingPage`, `ReportTypeLandingPage.test`, `ReviewClassroomNotes`, `SettingsPage`, `SettingsPage.test`, `SnapshotBody`, `SnapshotCard`, `StudentAssessmentsPage`, `StudentAssessmentsPage.test`, `StudentMatchReview`, `StudentMatchReview.test`, `VersionBadge`, `VersionBadge.test`, `WritingAnalysisTab`, `WritingAnalysisTab.test`
+- Count: 71
+- Components: `App`, `AppFooter`, `AppHeader`, `AssessmentMatrixSheet`, `AssessmentMatrixSheet.test`, `AssessmentUploadPage`, `AssessmentUploadPage.test`, `BroadcastComposer`, `BroadcastComposer.test`, `BulkUploadPage`, `BulkUploadPage.helpers`, `BulkUploadPage.test`, `ClassroomNoteCard`, `ClassroomStudentCard`, `CopyToClipboardButton`, `CriticalAssessmentsCard`, `CriticalAssessmentsCard.test`, `DynamicIslandPill`, `DynamicIslandPill.test`, `FeedbackPage`, `GroupedMediaCard`, `GroupedMediaCard.test`, `groupedMediaUtils`, `groupedMediaUtils.test`, `GroupedNoteCard`, `GroupedNoteDialog`, `InlineVoiceOverlay`, `InterviewsPage`, `InterviewsPage.helpers`, `InterviewsPage.test`, `LandingPage`, `LandingPage.test`, `MediaBatchPreview`, `MediaBatchPreview.test`, `MedicalPdfSheet`, `MedicalPdfSheet.test`, `MonthlyPlanTab`, `MonthlyPlanTab.test`, `NoteBottomSheet.structure.test`, `NotesOverTimeDrawer`, `PhotoEditor`, `PlanFeedbackDialog`, `PlanFeedbackDialog.test`, `ProfilePage`, `QuestionDeck`, `QuestionDeck.test`, `ReadinessCheckDialog`, `ReportGenerateDialog`, `ReportPreviewDialog`, `ReportsCard`, `ReportsPage`, `ReportsPage.test`, `ReportTypeLandingPage`, `ReportTypeLandingPage.test`, `ReviewClassroomNotes`, `SettingsPage`, `SettingsPage.test`, `SnapshotBody`, `SnapshotCard`, `StudentAssessmentSheet`, `StudentAssessmentSheet.test`, `StudentAssessmentsPage`, `StudentAssessmentsPage.test`, `StudentMatchReview`, `StudentMatchReview.test`, `VersionBadge`, `VersionBadge.test`, `WritingAnalysisTab`, `WritingAnalysisTab.test`, `YourAssessmentLineup`, `YourAssessmentsPage`
 - Representative paths:
 - `montessori-os/src/App.jsx`
 - `montessori-os/src/AppFooter.jsx`
