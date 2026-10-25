@@ -63,7 +63,7 @@ function renderScreen(screen, ctx) {
         ctx.setScreen("yourAssessmentLineup");
       }} />;
     case "yourAssessmentLineup":
-      return <YourAssessmentLineup sourceId={ctx.assessmentLineupSourceId} userRole={ctx.role} currentUser={ctx.user} />;
+      return <YourAssessmentLineup sourceId={ctx.assessmentLineupSourceId} userRole={ctx.role} />;
     case "landingPage":
       return (
         <LandingPage

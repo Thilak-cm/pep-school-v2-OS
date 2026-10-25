@@ -36,27 +36,26 @@ export default function CriticalAssessmentsCard({ studentId }) {
 
     (async () => {
       try {
+        // Compute cutoff here so the date filter runs server-side (before limit),
+        // avoiding a limit(10)-before-filter gap for high-volume students (#313).
+        const cutoff = new Date();
+        cutoff.setDate(cutoff.getDate() - ROLLING_DAYS);
+        const cutoffStr = cutoff.toISOString().slice(0, 10);
+
         const obsRef = collection(db, 'students', studentId, 'observations');
         const q = query(
           obsRef,
           where('type', '==', 'assessment'),
           where('assessmentKind', '==', 'structured'),
           where('criticality', '==', 'high'),
+          where('assessmentDate.endDate', '>=', cutoffStr),
           orderBy('assessmentDate.endDate', 'desc'),
           limit(10),
         );
         const snap = await getDocs(q);
         if (cancelled) return;
 
-        // Client-side rolling window filter
-        const cutoff = new Date();
-        cutoff.setDate(cutoff.getDate() - ROLLING_DAYS);
-        const cutoffStr = cutoff.toISOString().slice(0, 10);
-
-        const results = snap.docs
-          .map((doc) => ({ id: doc.id, ...doc.data() }))
-          .filter((obs) => (obs.assessmentDate?.endDate || '') >= cutoffStr);
-
+        const results = snap.docs.map((doc) => ({ id: doc.id, ...doc.data() }));
         setAssessments(results);
       } catch (err) {
         // Error: log and return null - must not block dashboard

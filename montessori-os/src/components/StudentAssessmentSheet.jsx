@@ -77,7 +77,6 @@ export default function StudentAssessmentSheet({
       onUpdated?.();
       setTimeout(() => onClose?.(), 250);
     } catch (err) {
-      console.error('[StudentAssessmentSheet] append failed:', err);
       notify.error(err.message || 'Failed to save grade');
     } finally {
       setSaving(false);
@@ -100,7 +99,6 @@ export default function StudentAssessmentSheet({
       setCorrectResult(null);
       setCorrectValue('');
     } catch (err) {
-      console.error('[StudentAssessmentSheet] correct failed:', err);
       notify.error(err.message || 'Failed to correct grade');
     } finally {
       setCorrectSaving(false);

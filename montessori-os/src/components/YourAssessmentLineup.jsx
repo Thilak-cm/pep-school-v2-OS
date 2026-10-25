@@ -29,7 +29,7 @@ function currentValue(record, resultNumber) {
   return r?.sourceValue ?? '';
 }
 
-export default function YourAssessmentLineup({ sourceId, userRole, currentUser: _currentUser }) {
+export default function YourAssessmentLineup({ sourceId, userRole }) {
   const [source, setSource] = useState(null);
   const [records, setRecords] = useState([]);
   const [loading, setLoading] = useState(true);

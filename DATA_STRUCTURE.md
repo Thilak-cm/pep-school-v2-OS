@@ -741,7 +741,7 @@ interface Observation {
   gradeStatus?: 'graded' | 'absent'; // #313: set at publish ('absent' if XLSX value is "Absent" case-insensitive, else 'graded')
   attempts?: Array<{               // #313: chronological retest/late-grade chain; append-only via CF
     n: number;                     // 1-indexed, monotonically increasing
-    values: Record<number, string>; // keyed by resultDefinitions[].number
+    values: Record<string, string>; // string-keyed by resultDefinitions[].number (Firestore map keys are always strings; JS numeric access coerces correctly)
     dateTaken: string;             // YYYY-MM-DD
     addedBy: string;               // uid
     addedAt: Timestamp;

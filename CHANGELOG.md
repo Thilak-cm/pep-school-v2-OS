@@ -1,5 +1,26 @@
 # Changelog
 
+# 13.6.0 - 2026-10-25
+
+### Added
+- Assessment criticality flag (`high`/`low`) parsed from XLSX metadata at upload; denormalized to source doc and each observation; absent defaults to `low` (#313).
+- `CriticalAssessmentsCard` on student dashboard - expandable bar below existing stats showing high-criticality assessment chips from the rolling 182-day window; chips open the full matrix sheet (#313).
+- `YourAssessmentsPage` - uploader-scoped list of all assessment uploads with pending/graded counts, slow-burn progress bar, and criticality badge (#313).
+- `YourAssessmentLineup` - per-upload class matrix with sortable columns, absent-student indicators, and per-student drill-down sheet (#313).
+- `appendAssessmentAttempt` Cloud Function - appends a retest or late grade to an absent/graded student's observation; transactional atomic write with source `pendingCount`/`gradedCount` update (#313).
+- `correctAssessmentGrade` Cloud Function - admin-only correction of the original grade on a published observation; transactional read-modify-write (#313).
+- `listMyAssessmentUploads` Cloud Function - returns caller's own assessment sources with denormalized counts, ordered by date (#313).
+- Two new Firestore composite indexes: `structuredAssessmentSources(createdBy+createdAt)` and `observations(type+assessmentKind+criticality+assessmentDate.endDate)` (#313).
+- "Assessments" quick-jump on landing page for all roles (#313).
+- Pre-meeting note system for agent skills - `catch-me-up`, `meeting-prep`, and `draft-linear-issues` surface open agenda items from `meeting-notes/**/*.md` files with `type: pre_meeting_note` and `status: open`.
+
+### Changed
+- `getStructuredAssessmentSource` now accepts optional `studentId`; uploader and scoped admin can access source without student context; response records include `observationId`, `results`, `resultDefinitions`, `gradeStatus`, `criticality`, `attempts` (#313).
+- `StructuredAssessmentSource` schema: added `criticality`, `pendingCount`, `gradedCount` fields (#313).
+- Observation schema: added `criticality`, `gradeStatus`, `attempts[]` fields; "current value" contract documented (#313).
+- Published assessment records now append-only (`attempts[]`) and admin-correctable (`results[i].sourceValue`) via CFs; previously fully immutable (#313).
+- Landing page quick-jump grid uses fixed 3-column layout (`repeat(3, minmax(0, 1fr))`) (#313).
+
 # 13.5.0 - 2026-10-13
 
 ### Added
