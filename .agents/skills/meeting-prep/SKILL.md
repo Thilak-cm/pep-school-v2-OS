@@ -15,7 +15,7 @@ Turn recent repository activity and prior meeting commitments into a compact, Ra
 
 ## Evidence
 
-Use the smallest authoritative source set: GitHub (issues/PRs/labels/projects via app or `gh`), local `git`, current code/CHANGELOG/version files, meeting archives (`meeting-docs/**/*.md` and `meeting-notes/**/*.md` - prioritize `## Post-Meeting Reflection`, owner headings, `#### Takeaway` blocks), and production evidence (Firebase logs, Langfuse, deployed version) when a takeaway's completion definition requires it.
+Use the smallest authoritative source set: GitHub (issues/PRs/labels/projects via app or `gh`), local `git`, current code/CHANGELOG/version files, meeting archives (`meeting-docs/**/*.md` and `meeting-notes/**/*.md` - prioritize `## Post-Meeting Reflection`, owner headings, `#### Takeaway` blocks), pre-meeting notes (`meeting-notes/**/*.md` with `type: pre_meeting_note` and `status: open` - surface `## Agenda Items` content), and production evidence (Firebase logs, Langfuse, deployed version) when a takeaway's completion definition requires it.
 
 Separate facts from inference. Never claim merged/closed/deployed without evidence. If a source is unavailable, use the best read-only fallback and mention the limitation only if it affects the brief.
 
@@ -56,8 +56,9 @@ Optimize for what the user can tell Rahul or use for a product/engineering decis
 
 ## Required Output
 
-Only these four sections, in order:
+Only these sections, in order:
 
+0. **Queued agenda items** (only when open pre-meeting notes exist) - scan `meeting-notes/**/*.md` for `type: pre_meeting_note` with `status: open`. List each `## Agenda Items` entry as-is, prefixed with who it's for. Omit this section entirely if none exist.
 1. **Takeaway progress** - `Thilak: {N}% across {count} active takeaways`, then every carried Thilak-owned takeaway: current %, origin date, strongest evidence, largest gap. A progress ledger, not an issue inventory.
 2. **Done** - the main talking points: outcome-focused bullets with proof points.
 3. **Being done** - current work Rahul may care about: open PRs, in-progress issues, risks, dependencies, with priorities. No chronology, no housekeeping.
