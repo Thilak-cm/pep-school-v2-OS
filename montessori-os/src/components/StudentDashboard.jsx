@@ -30,6 +30,7 @@ import MonthlyPlanTab from './MonthlyPlanTab';
 import WritingAnalysisTab from './WritingAnalysisTab';
 import PlanFeedbackDialog from './PlanFeedbackDialog';
 import NotesOverTimeDrawer from './NotesOverTimeDrawer';
+import CriticalAssessmentsCard from './CriticalAssessmentsCard';
 import NoteBottomSheet from './noteBottomSheet/NoteBottomSheet';
 import { friendlyFunctionError } from '../utils/cloudFunctionErrors';
 import { calculateAgeFromDob } from '../utils/dateFormat';
@@ -1183,6 +1184,9 @@ function StudentDashboard({ student, onOpenTimeline, onOpenFeedback, onOpenChat,
           trackEvent('student_dashboard_chart_toggle', { expanded, studentId }).catch(() => {});
         }}
       />
+
+      {/* ── Critical assessments — #313 ── */}
+      <CriticalAssessmentsCard studentId={student.id} />
 
       {/* ── Regenerate confirmation dialog ── */}
       <Dialog

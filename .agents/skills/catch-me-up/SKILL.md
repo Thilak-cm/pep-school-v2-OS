@@ -44,6 +44,9 @@ Use the smallest set of authoritative sources that can answer the request:
 - **Current implementation and docs:** use `rg`, then read the relevant files.
 - **Cross-cutting feature history:** trace issue → discussion → pull request →
   commit → current code or documentation.
+- **Pre-meeting agenda items:** scan `meeting-notes/**/*.md` for `type: pre_meeting_note`
+  with `status: open`. Always include any found items in the briefing under
+  "What deserves attention," regardless of the request lens.
 
 Do not search every source mechanically. Follow the user's lens and deepen only
 where it improves the briefing.

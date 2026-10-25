@@ -29,6 +29,7 @@ const STATIC_TITLES = {
   alerts: "Alerts",
   interviews: "Interviews",
   broadcastComposer: "Broadcasts",
+  yourAssessments: "Your Assessments",
 };
 
 /**
@@ -80,6 +81,9 @@ export function getPageTitle(screen, state) {
     case "studentAssessments":
       return `${state.getStudentDisplayName?.() || "Student"}'s Assessments`;
 
+    case "yourAssessmentLineup":
+      return state.assessmentLineupTitle || "Assessment Lineup";
+
     case "addUser":
       if (state.usersAccessView === "add") return "Add Users";
       if (state.usersAccessView === "manage") return "Manage Users";
@@ -129,6 +133,10 @@ export function getBackNavigation(screen, state, setters) {
     case "studentAssessments":
     case "assessmentUpload":
       return () => setters.setScreen?.(state.assessmentReturnScreen || "settings");
+    case "yourAssessments":
+      return goLanding;
+    case "yourAssessmentLineup":
+      return () => setters.setScreen?.("yourAssessments");
     case "profile":
       return () => setters.setScreen?.("settings");
     case "feedback": {
@@ -184,6 +192,7 @@ export const FAB_HIDDEN_SCREENS = new Set([
   // studentAssessments left out on purpose (#290): the global FAB shows on
   // the assessments page like other observation screens.
   "assessmentUpload",
+  "yourAssessments", "yourAssessmentLineup",
 ]);
 
 // ── Footer tab mapping ─────────────────────────────────────────────────────

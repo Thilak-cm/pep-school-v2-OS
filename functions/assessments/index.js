@@ -542,6 +542,10 @@ export const publishStructuredAssessment = functions
         rows.map((row) => row.sourceRow),
       ).size,
       recordRefs,
+      // #313: criticality from XLSX metadata; denormed counts for listMyAssessmentUploads
+      criticality: parsed.metadata.criticality || "low",
+      pendingCount: rows.filter((r) => r.gradeStatus === "absent").length,
+      gradedCount: rows.filter((r) => r.gradeStatus !== "absent").length,
       createdBy: context.auth.uid,
       createdByName: user.displayName || user.name || user.email || "Unknown uploader",
       createdAt: now,
@@ -568,6 +572,10 @@ export const publishStructuredAssessment = functions
         assessmentDescription: parsed.metadata.assessmentDescription,
         assessmentDate: parsed.metadata.dateRange,
         resultDefinitions: parsed.resultDefinitions,
+        // #313: criticality + gradeStatus denormalized from source/parser for
+        // CriticalAssessmentsCard queries and lineup pending-count display
+        criticality: parsed.metadata.criticality || "low",
+        gradeStatus: row.gradeStatus || "graded",
         // #290: denormalized so timelines can render "{file} for {N}
         // students" lines straight from the observation query, without a
         // Cloud Function round-trip per entry. Immutable post-publish (no
@@ -946,17 +954,38 @@ export const getStructuredAssessmentSource = functions
     }
     const user = await getCaller(context.auth.uid);
     const sourceId = requiredString(data?.sourceId, "Assessment source", 128);
-    const studentId = requiredString(data?.studentId, "Student", 128);
-    await authorizedStudent(user, context.auth.uid, studentId);
+    // #313: studentId is optional when the caller is the uploader or an admin.
+    // The "Your Assessments" lineup accesses the full source without a student
+    // context; existing callers (AssessmentMatrixSheet, StudentAssessmentsPage)
+    // always pass studentId and are unaffected.
+    const studentId = optionalString(data?.studentId, 128);
     const sourceSnap = await db.collection("structuredAssessmentSources")
       .doc(sourceId)
       .get();
     const source = sourceSnap.data() || {};
-    if (!sourceSnap.exists || !Array.isArray(source.studentIds) ||
-        !source.studentIds.includes(studentId)) {
+    if (!sourceSnap.exists) {
       throw new functions.https.HttpsError(
         "not-found",
         "Assessment source not found.",
+      );
+    }
+    const isUploader = source.createdBy === context.auth.uid;
+    const isAdmin = user.role === "classroomadmin" || user.role === "superadmin";
+    if (studentId) {
+      // Original path: student-scoped access
+      await authorizedStudent(user, context.auth.uid, studentId);
+      if (!Array.isArray(source.studentIds) ||
+          !source.studentIds.includes(studentId)) {
+        throw new functions.https.HttpsError(
+          "not-found",
+          "Assessment source not found.",
+        );
+      }
+    } else if (!isUploader && !isAdmin) {
+      // No studentId and not the uploader or admin - deny
+      throw new functions.https.HttpsError(
+        "permission-denied",
+        "Only the uploader or an admin can access the full assessment.",
       );
     }
     const canDownload = await canAccessClassrooms(
@@ -969,8 +998,10 @@ export const getStructuredAssessmentSource = functions
     // product decision, so student-level access implies classroom-level
     // visibility of every row. Records are assembled server-side because
     // Firestore rules deny cross-student observation reads from clients.
+    // #313: gate includeRecords on canDownload so classroomadmins without
+    // classroom membership cannot read student records from other classrooms.
     let records;
-    if (data?.includeRecords === true) {
+    if (data?.includeRecords === true && canDownload) {
       const recordSnapshot = await db.collectionGroup("observations")
         .where("sourceId", "==", sourceId)
         .get();
@@ -988,9 +1019,19 @@ export const getStructuredAssessmentSource = functions
       records = recordSnapshot.docs.map((docSnap) => {
         const record = docSnap.data();
         return {
+          observationId: docSnap.id,
           studentId: record.studentId || "",
           studentName: nameById.get(record.studentId) || "Unknown student",
           values: record.values || {},
+          results: (record.results || []).map((r) => ({
+            resultNumber: r.resultNumber,
+            label: r.label,
+            sourceValue: r.sourceValue,
+          })),
+          resultDefinitions: record.resultDefinitions || [],
+          gradeStatus: record.gradeStatus || "graded",
+          criticality: record.criticality || "low",
+          attempts: record.attempts || [],
           sourceRow: record.sourceProvenance?.row || 0,
           segment: record.sourceProvenance?.segment || 1,
         };
@@ -1234,4 +1275,329 @@ export const cleanupStaleAssessmentUploads = functions
       medical,
     });
     return {structured, medical};
+  });
+
+// ---------------------------------------------------------------------------
+// #313: Your Assessments - uploader-scoped assessment management
+// ---------------------------------------------------------------------------
+
+/**
+ * List the caller's own assessment uploads with denormalized counts.
+ * Returns source metadata + pendingCount/gradedCount (no observation reads).
+ */
+export const listMyAssessmentUploads = functions
+  .region("asia-south1")
+  .https.onCall(async (_data, context) => {
+    if (!context.auth) {
+      throw new functions.https.HttpsError("unauthenticated", "Sign in required.");
+    }
+    await getCaller(context.auth.uid);
+
+    const snap = await db.collection("structuredAssessmentSources")
+      .where("createdBy", "==", context.auth.uid)
+      .orderBy("createdAt", "desc")
+      .get();
+
+    return snap.docs.map((doc) => {
+      const d = doc.data();
+      return {
+        sourceId: doc.id,
+        assessmentName: d.assessmentName,
+        assessmentDescription: d.assessmentDescription,
+        dateRange: d.dateRange,
+        criticality: d.criticality || "low",
+        resultDefinitions: d.resultDefinitions,
+        studentCount: d.studentCount,
+        recordCount: d.recordCount,
+        pendingCount: d.pendingCount ?? 0,
+        gradedCount: d.gradedCount ?? d.studentCount ?? 0,
+        sourceFileName: d.sourceFileName,
+        createdAt: d.createdAt,
+        publishedAt: d.publishedAt,
+      };
+    });
+  });
+
+/**
+ * Append a retest/late grade to an assessment observation.
+ * Auth: caller must be the source's uploader OR classroomadmin/superadmin.
+ * Transaction: appends to attempts[] + updates gradeStatus + decrements
+ * pendingCount on the source doc if status was 'absent'.
+ */
+export const appendAssessmentAttempt = functions
+  .region("asia-south1")
+  .https.onCall(async (data, context) => {
+    if (!context.auth) {
+      throw new functions.https.HttpsError("unauthenticated", "Sign in required.");
+    }
+    const user = await getCaller(context.auth.uid);
+
+    const observationId = requiredString(data?.observationId, "observationId");
+    const dateTaken = requiredString(data?.dateTaken, "dateTaken");
+    const values = data?.values;
+
+    // Validate dateTaken format and not in the future
+    if (!/^\d{4}-\d{2}-\d{2}$/.test(dateTaken)) {
+      throw new functions.https.HttpsError("invalid-argument", "dateTaken must be YYYY-MM-DD.");
+    }
+    const dateObj = new Date(`${dateTaken}T00:00:00.000Z`);
+    if (Number.isNaN(dateObj.getTime())) {
+      throw new functions.https.HttpsError("invalid-argument", "dateTaken must be a valid date.");
+    }
+    const today = new Date().toISOString().slice(0, 10);
+    if (dateTaken > today) {
+      throw new functions.https.HttpsError("invalid-argument", "dateTaken cannot be in the future.");
+    }
+
+    if (!values || typeof values !== "object" || Array.isArray(values)) {
+      throw new functions.https.HttpsError("invalid-argument", "values must be an object keyed by result number.");
+    }
+
+    // observationId is the doc ID format sa_{sourceId}_{row}_{segment}.
+    // We look up the source doc to find the student via recordRefs.
+    let observationRef;
+    let observation;
+    const idParts = observationId.match(/^sa_(.+)_(\d+)_(\d+)$/);
+    if (!idParts) {
+      throw new functions.https.HttpsError("invalid-argument", "Invalid observation ID format.");
+    }
+    const sourceId = idParts[1];
+
+    // Query the source to get recordRefs -> find the student for this observation
+    const sourceSnap = await db.collection("structuredAssessmentSources").doc(sourceId).get();
+    if (!sourceSnap.exists) {
+      throw new functions.https.HttpsError("not-found", "Assessment source not found.");
+    }
+    const sourceData = sourceSnap.data();
+
+    // Auth: uploader OR admin; classroomadmins scoped to their manageable classrooms
+    const isUploader = sourceData.createdBy === context.auth.uid;
+    const isAdmin = user.role === "classroomadmin" || user.role === "superadmin";
+    if (!isUploader && !isAdmin) {
+      throw new functions.https.HttpsError("permission-denied", "Only the uploader or an admin can add attempts.");
+    }
+    // Mirror the read-path classroom-scope check: classroomadmins cannot mutate
+    // grades on assessments outside their manageable classrooms (#313).
+    if (!isUploader && user.role === "classroomadmin") {
+      const hasAccess = await canAccessClassrooms(user, context.auth.uid, sourceData.classroomIds || []);
+      if (!hasAccess) {
+        throw new functions.https.HttpsError("permission-denied", "Classroom access required to add attempts.");
+      }
+    }
+
+    // Find the observation via recordRefs
+    const ref = (sourceData.recordRefs || []).find((r) => r.observationId === observationId);
+    if (!ref) {
+      throw new functions.https.HttpsError("not-found", "Observation not found in this assessment.");
+    }
+
+    observationRef = db.collection("students")
+      .doc(ref.studentId)
+      .collection("observations")
+      .doc(observationId);
+
+    const obsDoc = await observationRef.get();
+    if (!obsDoc.exists) {
+      throw new functions.https.HttpsError("not-found", "Observation document not found.");
+    }
+    observation = obsDoc.data();
+
+    // Validate values keys match resultDefinitions
+    const resultNumbers = new Set(
+      (observation.resultDefinitions || []).map((d) => d.number),
+    );
+    for (const k of Object.keys(values)) {
+      const num = Number(k);
+      if (!resultNumbers.has(num)) {
+        throw new functions.https.HttpsError(
+          "invalid-argument",
+          `Result number ${k} does not match any result definition.`,
+        );
+      }
+      if (typeof values[k] !== "string" || !values[k].trim()) {
+        throw new functions.https.HttpsError(
+          "invalid-argument",
+          `Value for result ${k} must be a non-empty string.`,
+        );
+      }
+    }
+    for (const num of resultNumbers) {
+      if (!(String(num) in values) && !(num in values)) {
+        throw new functions.https.HttpsError(
+          "invalid-argument",
+          `Missing value for result ${num}.`,
+        );
+      }
+    }
+
+    // Build the attempt payload (kind and n are finalized inside the transaction
+    // using fresh data to prevent stale-read races under concurrent writes).
+    const attemptBase = {
+      values: Object.fromEntries(
+        Object.entries(values).map(([k, v]) => [k, v]),
+      ),
+      dateTaken,
+      addedBy: context.auth.uid,
+      addedAt: Timestamp.now(),
+    };
+
+    // Transaction: append attempt + update gradeStatus + update source pendingCount.
+    // kind and n are derived inside the transaction from fresh reads so concurrent
+    // appends always produce correct metadata even under retry.
+    let committedN;
+    let committedKind;
+    const sourceRef = db.collection("structuredAssessmentSources").doc(sourceId);
+    await db.runTransaction(async (tx) => {
+      const freshObs = await tx.get(observationRef);
+      const freshSource = await tx.get(sourceRef);
+      if (!freshObs.exists || !freshSource.exists) {
+        throw new functions.https.HttpsError("not-found", "Document disappeared during transaction.");
+      }
+
+      const freshAttempts = freshObs.data().attempts || [];
+      const freshGradeStatus = freshObs.data().gradeStatus;
+
+      // Derive kind from fresh state:
+      // 'late'  - absent student receiving their first grade
+      // 'retest' - any additional attempt (graded or absent with prior attempts)
+      // 'original' is reserved for the source XLSX grade, never for appended attempts
+      const freshKind = (freshGradeStatus === "absent" && freshAttempts.length === 0)
+        ? "late"
+        : "retest";
+      committedN = freshAttempts.length + 1;
+      committedKind = freshKind;
+
+      tx.update(observationRef, {
+        attempts: [...freshAttempts, { ...attemptBase, n: committedN, kind: freshKind }],
+        gradeStatus: "graded",
+        updatedAt: Timestamp.now(),
+      });
+
+      // Only decrement pendingCount if status was absent (first grade for this student)
+      if (freshGradeStatus === "absent") {
+        const currentPending = freshSource.data().pendingCount ?? 0;
+        const currentGraded = freshSource.data().gradedCount ?? 0;
+        tx.update(sourceRef, {
+          pendingCount: Math.max(0, currentPending - 1),
+          gradedCount: currentGraded + 1,
+        });
+      }
+    });
+
+    return { success: true, attemptNumber: committedN, kind: committedKind };
+  });
+
+/**
+ * Correct an original grade on an assessment observation.
+ * Auth: classroomadmin or superadmin only. Teachers cannot call this.
+ * Atomically mutates results[i].sourceValue and values["Result N"].
+ * Does NOT touch attempts[].
+ */
+export const correctAssessmentGrade = functions
+  .region("asia-south1")
+  .https.onCall(async (data, context) => {
+    if (!context.auth) {
+      throw new functions.https.HttpsError("unauthenticated", "Sign in required.");
+    }
+    const user = await getCaller(context.auth.uid);
+
+    // Admin-only: teachers cannot correct grades
+    if (user.role !== "classroomadmin" && user.role !== "superadmin") {
+      throw new functions.https.HttpsError(
+        "permission-denied",
+        "Only classroom admins or super admins can correct grades.",
+      );
+    }
+
+    const observationId = requiredString(data?.observationId, "observationId");
+    const resultNumber = data?.resultNumber;
+    const correctedValue = requiredString(data?.correctedValue, "correctedValue");
+
+    if (typeof resultNumber !== "number" || resultNumber < 1) {
+      throw new functions.https.HttpsError("invalid-argument", "resultNumber must be a positive integer.");
+    }
+
+    // Parse observationId to find source and student
+    const idParts = observationId.match(/^sa_(.+)_(\d+)_(\d+)$/);
+    if (!idParts) {
+      throw new functions.https.HttpsError("invalid-argument", "Invalid observation ID format.");
+    }
+    const sourceId = idParts[1];
+
+    const sourceSnap = await db.collection("structuredAssessmentSources").doc(sourceId).get();
+    if (!sourceSnap.exists) {
+      throw new functions.https.HttpsError("not-found", "Assessment source not found.");
+    }
+    const sourceData = sourceSnap.data();
+
+    // Classroomadmins scoped to their manageable classrooms; superadmins have full access.
+    // Mirror the read-path classroom-scope check added in #313 to getStructuredAssessmentSource.
+    if (user.role === "classroomadmin") {
+      const hasAccess = await canAccessClassrooms(user, context.auth.uid, sourceData.classroomIds || []);
+      if (!hasAccess) {
+        throw new functions.https.HttpsError("permission-denied", "Classroom access required to correct grades.");
+      }
+    }
+
+    // Find the observation via recordRefs
+    const ref = (sourceData.recordRefs || []).find((r) => r.observationId === observationId);
+    if (!ref) {
+      throw new functions.https.HttpsError("not-found", "Observation not found in this assessment.");
+    }
+
+    const observationRef = db.collection("students")
+      .doc(ref.studentId)
+      .collection("observations")
+      .doc(observationId);
+
+    // Pre-read for validation only (resultDefinitions don't change post-publish)
+    const obsDoc = await observationRef.get();
+    if (!obsDoc.exists) {
+      throw new functions.https.HttpsError("not-found", "Observation document not found.");
+    }
+    const obsForValidation = obsDoc.data();
+
+    // Validate resultNumber exists in resultDefinitions
+    const definitions = obsForValidation.resultDefinitions || [];
+    const defIndex = definitions.findIndex((d) => d.number === resultNumber);
+    if (defIndex < 0) {
+      throw new functions.https.HttpsError("invalid-argument", `Result number ${resultNumber} does not exist.`);
+    }
+
+    // Validate result exists in results array (pre-read is sufficient for existence check)
+    const preResults = obsForValidation.results || [];
+    const preResultIndex = preResults.findIndex((r) => r.resultNumber === resultNumber);
+    if (preResultIndex < 0) {
+      throw new functions.https.HttpsError("not-found", `Result ${resultNumber} not found in observation.`);
+    }
+
+    // Transaction: re-read + mutate atomically so concurrent corrections to
+    // different result fields on the same observation don't overwrite each other.
+    await db.runTransaction(async (tx) => {
+      const freshObs = await tx.get(observationRef);
+      if (!freshObs.exists) {
+        throw new functions.https.HttpsError("not-found", "Observation document not found.");
+      }
+      const freshData = freshObs.data();
+
+      const results = [...(freshData.results || [])];
+      const resultIndex = results.findIndex((r) => r.resultNumber === resultNumber);
+      if (resultIndex < 0) {
+        throw new functions.https.HttpsError("not-found", `Result ${resultNumber} not found in observation.`);
+      }
+
+      results[resultIndex] = { ...results[resultIndex], sourceValue: correctedValue };
+      const updatedValues = {
+        ...(freshData.values || {}),
+        [`Result ${resultNumber}`]: correctedValue,
+      };
+
+      tx.update(observationRef, {
+        results,
+        values: updatedValues,
+        updatedAt: Timestamp.now(),
+      });
+    });
+
+    return { success: true, resultNumber, correctedValue };
   });

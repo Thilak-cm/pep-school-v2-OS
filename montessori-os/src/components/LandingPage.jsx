@@ -1,7 +1,7 @@
 // LandingPage.jsx — Teacher launchpad (PEP-190)
 import React from 'react';
 import { Box, Typography, ButtonBase, Skeleton } from '@mui/material';
-import { BarChart3, UserPlus, Download, MessageSquare, ChevronRight } from '../icons';
+import { BarChart3, UserPlus, Download, MessageSquare, ChevronRight, ListChecks } from '../icons';
 import { Avatar, MiniTangram, QuickJumpButton } from './ui';
 import { trackEvent } from '../utils/analytics';
 import DynamicIslandPill from './DynamicIslandPill';
@@ -54,6 +54,7 @@ function LandingPage({
     { label: 'People', icon: <UserPlus size={22} />, iconColor: 'var(--color-primary-light)', action: () => { trackEvent('quick_jump', { target: 'people' }); onNavigate('/addUser'); }, roles: 'admin' },
     { label: 'Export', icon: <Download size={22} />, iconColor: 'var(--color-secondary-light)', action: () => { trackEvent('quick_jump', { target: 'export' }); onNavigateToClassroomNotes?.(); }, roles: 'admin' },
     { label: 'Stats', icon: <BarChart3 size={22} />, iconColor: 'var(--color-warning)', action: () => { trackEvent('quick_jump', { target: 'stats' }); onNavigate('/stats'); }, roles: 'all' },
+    { label: 'Assessments', icon: <ListChecks size={22} />, iconColor: 'var(--color-green-bright)', action: () => { trackEvent('quick_jump', { target: 'assessments' }); onNavigate('yourAssessments'); }, roles: 'all' },
   ].filter(j => j.roles === 'all' || (!isTeacher && j.roles === 'admin'));
 
   return (
@@ -97,7 +98,7 @@ function LandingPage({
         </Box>
         <Box sx={{
           display: 'grid',
-          gridTemplateColumns: `repeat(${Math.min(quickJumps.length, 4)}, 1fr)`,
+          gridTemplateColumns: 'repeat(3, minmax(0, 1fr))',
           gap: 1,
         }}>
           {quickJumps.map((item) => (

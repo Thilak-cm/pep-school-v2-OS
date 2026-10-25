@@ -198,3 +198,70 @@ test("maintained workbook parser preserves formulas and displayed values", () =>
   assert.equal(cell.v, 0.125);
   assert.equal(cell.w, "12.5%");
 });
+
+// --- #313: criticality parsing ---
+
+test("parses criticality: high from metadata", () => {
+  const result = parseAssessmentMatrix([
+    ["Assessment Name", "Term Exam"],
+    ["Assessment Description", "End of term"],
+    ["Date", "20/08/2026"],
+    ["Criticality", "High"],
+    ["Result 1", "Score"],
+    ["", ""],
+    ["Name", "Result 1"],
+    ["Ada", "92%"],
+  ]);
+  assert.equal(result.errors.length, 0);
+  assert.equal(result.metadata.criticality, "high");
+});
+
+test("defaults criticality to low when absent", () => {
+  const result = parseAssessmentMatrix([
+    ["Assessment Name", "Pop Quiz"],
+    ["Assessment Description", "Quick check"],
+    ["Date", "20/08/2026"],
+    ["Result 1", "Score"],
+    ["", ""],
+    ["Name", "Result 1"],
+    ["Ada", "85%"],
+  ]);
+  assert.equal(result.errors.length, 0);
+  assert.equal(result.metadata.criticality, "low");
+});
+
+test("defaults criticality to low for unrecognized values", () => {
+  const result = parseAssessmentMatrix([
+    ["Assessment Name", "Quiz"],
+    ["Assessment Description", "Quick check"],
+    ["Date", "20/08/2026"],
+    ["Criticality", "medium"],
+    ["Result 1", "Score"],
+    ["", ""],
+    ["Name", "Result 1"],
+    ["Ada", "85%"],
+  ]);
+  assert.equal(result.errors.length, 0);
+  assert.equal(result.metadata.criticality, "low");
+});
+
+// --- #313: gradeStatus detection ---
+
+test("detects gradeStatus absent when any result column is Absent (case-insensitive)", () => {
+  const result = parseAssessmentMatrix([
+    ["Assessment Name", "Math"],
+    ["Assessment Description", "Fractions"],
+    ["Date", "20/08/2026"],
+    ["Result 1", "Score"],
+    ["Result 2", "Grade"],
+    ["", ""],
+    ["Name", "Result 1", "Result 2"],
+    ["Ada", "92%", "A"],
+    ["Bob", "Absent", "ABSENT"],
+    ["Charlie", "absent", "B"],
+  ]);
+  assert.equal(result.errors.length, 0);
+  assert.equal(result.rows[0].gradeStatus, "graded");
+  assert.equal(result.rows[1].gradeStatus, "absent");
+  assert.equal(result.rows[2].gradeStatus, "absent");
+});

@@ -26,6 +26,9 @@ export const useNavigationState = () => {
   const [studentDashboardFlagOpen, setStudentDashboardFlagOpen] = useState(false);
   const [assessmentReturnScreen, setAssessmentReturnScreen] = useState('settings');
   const [assessmentDeepLink, setAssessmentDeepLink] = useState(null);
+  // #313: Your Assessments lineup
+  const [assessmentLineupSourceId, setAssessmentLineupSourceId] = useState(null);
+  const [assessmentLineupTitle, setAssessmentLineupTitle] = useState(null);
 
   return {
     screen, setScreen,
@@ -47,6 +50,8 @@ export const useNavigationState = () => {
     studentDashboardFlagOpen, setStudentDashboardFlagOpen,
     assessmentReturnScreen, setAssessmentReturnScreen,
     assessmentDeepLink, setAssessmentDeepLink,
+    assessmentLineupSourceId, setAssessmentLineupSourceId,
+    assessmentLineupTitle, setAssessmentLineupTitle,
   };
 };
 

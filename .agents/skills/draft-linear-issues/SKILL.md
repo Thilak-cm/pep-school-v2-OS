@@ -52,6 +52,8 @@ If an owner has no explicit commitments, omit their section. If none exist at al
 
 **Before the issue walkthrough**, write the archive to `meeting-notes/{YYYY}/{YYYY-MM-DD}-{slug}.md` (kebab-case slug from title; append `-2` if the path exists).
 
+**Close open pre-meeting notes first:** scan `meeting-notes/**/*.md` for files with `type: pre_meeting_note`, `status: open`, and a `with:` value that matches any participant in this transcript (case-insensitive substring, e.g. "Rahul"). For each match, update its `status` field to `addressed: {new-meeting-filename}`. List the addressed items under `## Post-Meeting Additions` in the new archive so the agenda items are traceable.
+
 Light redaction first: strip API keys, credentials, phone numbers, email addresses, and anything marked off-record. Do NOT redact student names, classroom names, or product context - those are needed for future issue archaeology.
 
 Frontmatter (the retrieval surface for future agents - keep compact and complete):

@@ -446,8 +446,10 @@ service cloud.firestore {
               isAllowedNonMediaObservationType(request.resource.data))
           );
         
-        // Published assessment records are immutable. Cloud Functions use the
-        // Admin SDK for the pending_upload -> ready Medical transition.
+        // Published assessment records are immutable to clients. Cloud Functions
+        // use the Admin SDK for: pending_upload -> ready Medical transition,
+        // #313 appendAssessmentAttempt (attempts[]), correctAssessmentGrade
+        // (results[]/values mutation). All assessment writes bypass rules.
         allow update: if resource.data.type != 'assessment' &&
           (adminCanAccessObservation() || authorCanEditObservation());
 

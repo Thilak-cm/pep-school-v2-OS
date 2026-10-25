@@ -656,6 +656,9 @@ interface StructuredAssessmentSource {
   recordCount: number;
   multilineSplitCount: number;
   recordRefs: Array<{ studentId: string; observationId: string }>;
+  criticality?: 'high' | 'low';    // #313: parsed from XLSX metadata; absent -> 'low'
+  pendingCount: number;             // #313: students where gradeStatus === 'absent'; denormed at publish
+  gradedCount: number;              // #313: studentCount - pendingCount; updated transactionally by appendAssessmentAttempt
   createdBy: string;
   createdByName: string;
   createdAt: Timestamp;
@@ -675,7 +678,11 @@ Guidance
   cleanup remains `cleanup_pending` for the daily retry job; no orphan path is
   discarded from operational state.
 - Source downloads require current access to every classroom in `classroomIds`.
-- Structured sources and their published records are immutable in v1.
+- Structured sources and their published records are immutable in v1, except for
+  append-only `attempts[]` (retest/late grades via `appendAssessmentAttempt` CF) and
+  admin-only `results[i].sourceValue` + `values` correction via `correctAssessmentGrade` CF.
+- "Current value" contract for all readers: `attempts.length > 0 ? last(attempts).values[resultNumber] : results[i].sourceValue`.
+  Backward-compatible: records without `attempts` continue working via `results`.
 
 ### Pending assessment upload staging
 
@@ -729,6 +736,16 @@ interface Observation {
     resultNumber: number;
     label: string;
     sourceValue: string;
+  }>;
+  criticality?: 'high' | 'low';   // #313: denormalized from source at publish; absent -> treat as 'low'
+  gradeStatus?: 'graded' | 'absent'; // #313: set at publish ('absent' if XLSX value is "Absent" case-insensitive, else 'graded')
+  attempts?: Array<{               // #313: chronological retest/late-grade chain; append-only via CF
+    n: number;                     // 1-indexed, monotonically increasing
+    values: Record<string, string>; // string-keyed by resultDefinitions[].number (Firestore map keys are always strings; JS numeric access coerces correctly)
+    dateTaken: string;             // YYYY-MM-DD
+    addedBy: string;               // uid
+    addedAt: Timestamp;
+    kind: 'original' | 'late' | 'retest';
   }>;
   sourceProvenance?: {            // Structured, internal-only; never rendered
     row: number;

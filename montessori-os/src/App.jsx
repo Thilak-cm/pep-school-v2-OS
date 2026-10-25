@@ -61,6 +61,8 @@ function App() {
     studentDashboardFlagOpen, setStudentDashboardFlagOpen,
     assessmentReturnScreen, setAssessmentReturnScreen,
     assessmentDeepLink, setAssessmentDeepLink,
+    assessmentLineupSourceId, setAssessmentLineupSourceId,
+    assessmentLineupTitle, setAssessmentLineupTitle,
   } = useNavigationState();
 
   const handleNavigateToReport = useCallback(({ studentId: sid, docId }) => {
@@ -416,7 +418,7 @@ function App() {
 
   // ── Derived values ─────────────────────────────────────────────────────
 
-  const titleState = { isTeacher, isSuperAdminUser, selectedClassroom, selectedStudent, timelineTitleAsDashboard, usersAccessView, getStudentDisplayName: () => getStudentDisplayName(selectedStudent) };
+  const titleState = { isTeacher, isSuperAdminUser, selectedClassroom, selectedStudent, timelineTitleAsDashboard, usersAccessView, assessmentLineupTitle, getStudentDisplayName: () => getStudentDisplayName(selectedStudent) };
   const pageTitle = getPageTitle(screen, titleState);
   const backNavigation = getBackNavigation(screen, { classroomTimelineReturnScreen, studentDashboardReturnScreen, lessonNotesReturnScreen, feedbackReturnScreen, assessmentReturnScreen, usersAccessView }, { setScreen, setSelectedStudent, setUsersAccessView });
   const showBackButton = !NO_BACK_BUTTON_SCREENS.has(screen);
@@ -430,6 +432,8 @@ function App() {
     selectedClassroom, selectedStudent,
     assessmentReturnScreen,
     assessmentDeepLink,
+    assessmentLineupSourceId, setAssessmentLineupSourceId,
+    assessmentLineupTitle, setAssessmentLineupTitle,
     studentDashboardNoteType, timelineFilter, prefilledFeedback,
     usersAccessView, pendingViewReportId, reportTypeFilter, initialStudentId,
     lessonNoteInitialSelection, lessonNoteEditObservation, lessonNotesReturnScreen,

@@ -86,6 +86,9 @@ export {
   getAssessmentDownloadUrl,
   deleteAssessment,
   cleanupStaleAssessmentUploads,
+  listMyAssessmentUploads,
+  appendAssessmentAttempt,
+  correctAssessmentGrade,
 } from "./assessments/index.js";
 
 // Test Bench
