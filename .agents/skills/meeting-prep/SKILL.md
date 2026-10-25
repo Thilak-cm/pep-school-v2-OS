@@ -1,11 +1,11 @@
 ---
 name: meeting-prep
-description: Prepare a terse, evidence-backed Pep OS meeting brief with accumulated takeaway completion, Done, Being done, and Next. Use when the user asks for meeting prep, a work update for a manager or teammate, or progress against commitments from prior meetings. Default recent-work research to the rolling past 10 days, but carry unfinished meeting takeaways forward across the full archive.
+description: Prepare a terse, evidence-backed Pep OS meeting brief with accumulated takeaway completion, Done, Being done, Next, and Blockers. Use when the user asks for meeting prep, a work update for a manager or teammate, or progress against commitments from prior meetings. Default recent-work research to the rolling past 10 days, but carry unfinished meeting takeaways forward across the full archive.
 ---
 
 # Meeting Prep
 
-Turn recent repository activity and prior meeting commitments into a compact, Rahul-facing brief. Distinguish shipped from active work, calculate honest progress for every carried Thilak-owned takeaway, make `Done` the main talking points, and focus the forward view on explicit commitments and the P1-first operating priority.
+Turn recent repository activity and prior meeting commitments into a compact, Rahul-facing brief. Distinguish shipped from active work, calculate honest progress for every carried Thilak-owned takeaway, make `Done` the main talking points, focus the forward view on explicit commitments and the P1-first operating priority, and surface everything that needs Rahul's input as blockers.
 
 ## Scope
 
@@ -54,15 +54,25 @@ Optimize for what the user can tell Rahul or use for a product/engineering decis
 - **Always state the priority label beside every issue/PR number.** Identify whether each recommendation is a committed takeaway, P1 work, a P1 dependency, or a lower-priority item.
 - Apply the escalation strategy (P4->P3->P2->P1 over time) as a recommendation framework only - recommend promotions only with evidence of urgency/impact/dependency/staleness, keeping the existing priority visible. **Never change labels, fields, state, branches, or code during this skill.**
 
+## Blockers Logic
+
+Blockers are inputs only Rahul can unblock. Sources:
+- Open pre-meeting notes (`type: pre_meeting_note`, `status: open`) - treat every unchecked `## Agenda Items` entry as a blocker candidate.
+- Takeaways with a recorded dependency on Rahul (e.g. "Dependency: Rahul's dimensions", "blocks T2") that hasn't been resolved.
+- In-progress issues where the missing gate is explicitly Rahul's decision or data.
+
+Do not include general engineering unknowns or things Thilak can resolve independently.
+
 ## Required Output
 
 Only these sections, in order:
 
-0. **Queued agenda items** (only when open pre-meeting notes exist) - scan `meeting-notes/**/*.md` for `type: pre_meeting_note` with `status: open`. List each `## Agenda Items` entry as-is, prefixed with who it's for. Omit this section entirely if none exist.
+0. **Queued agenda items** (only when open pre-meeting notes exist) - scan both worktrees' `meeting-notes/**/*.md` for `type: pre_meeting_note` with `status: open`. List each `## Agenda Items` entry as-is, prefixed with who it's for. Omit this section entirely if none exist.
 1. **Takeaway progress** - `Thilak: {N}% across {count} active takeaways`, then every carried Thilak-owned takeaway: current %, origin date, strongest evidence, largest gap. A progress ledger, not an issue inventory.
 2. **Done** - the main talking points: outcome-focused bullets with proof points.
 3. **Being done** - current work Rahul may care about: open PRs, in-progress issues, risks, dependencies, with priorities. No chronology, no housekeeping.
 4. **Next** - the smallest set of recommended actions, led by incomplete takeaways and P1 items, each labeled by type and priority.
+5. **Blockers** - inputs only Rahul can provide: decisions, data, dimensions, or approvals that are actively gating Thilak's work. One line each: what's needed, which issue/takeaway it unblocks.
 
 Keep it short while listing every active takeaway. No Scope/Evidence/Risks/Tests sections, no research narration, no citation-heavy prose.
 
