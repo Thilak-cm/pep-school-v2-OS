@@ -7,6 +7,8 @@
  */
 
 const REQUIRED_METADATA = new Set(["assessment name", "assessment description", "date"]);
+// #313: optional metadata fields recognized during parsing but not required
+const OPTIONAL_METADATA = new Set(["criticality"]);
 const MAX_RECORDS = 450;
 
 function clean(value) {
@@ -145,7 +147,7 @@ export function parseAssessmentMatrix(matrix, options = {}) {
     }
     const resultNo = resultNumber(first);
     const normalized = key(first);
-    if (REQUIRED_METADATA.has(normalized) || resultNo !== null) {
+    if (REQUIRED_METADATA.has(normalized) || OPTIONAL_METADATA.has(normalized) || resultNo !== null) {
       const count = (metadataOccurrences.get(normalized) || 0) + 1;
       metadataOccurrences.set(normalized, count);
       if (count > 1) {
@@ -258,6 +260,8 @@ export function parseAssessmentMatrix(matrix, options = {}) {
           sourceFormula: cell.formula,
         };
       });
+      // #313: detect absent students - any result column with "absent" (case-insensitive) marks the row
+      const isAbsent = results.some((r) => clean(r.sourceValue).toLowerCase() === "absent");
       parsedRows.push({
         sourceRow: nameCell.sourceRow,
         segment: segment + 1,
@@ -266,6 +270,7 @@ export function parseAssessmentMatrix(matrix, options = {}) {
         nameSourceCell: nameCell.sourceCell,
         values: Object.fromEntries(results.map((result) => [`Result ${result.resultNumber}`, result.sourceValue])),
         results,
+        gradeStatus: isAbsent ? "absent" : "graded",
       });
     }
   }
@@ -274,12 +279,16 @@ export function parseAssessmentMatrix(matrix, options = {}) {
     errors.push({code: "RECORD_LIMIT", message: "This upload creates more than the 450-record limit. Split the workbook and try again."});
   }
 
+  // #313: normalize criticality - only 'high' is recognized; everything else defaults to 'low'
+  const criticality = key(metadata.criticality || "") === "high" ? "high" : "low";
+
   return {
     metadata: {
       ...metadata,
       assessmentName: metadata["assessment name"],
       assessmentDescription: metadata["assessment description"],
       dateRange,
+      criticality,
       ...options,
     },
     resultDefinitions,

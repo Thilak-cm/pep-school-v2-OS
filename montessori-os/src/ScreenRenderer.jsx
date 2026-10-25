@@ -34,6 +34,8 @@ import QuestionDeck from "./components/QuestionDeck.jsx";
 import ChildChat from "./components/ChildChat.jsx";
 import AssessmentUploadPage from "./components/AssessmentUploadPage.jsx";
 import StudentAssessmentsPage from "./components/StudentAssessmentsPage.jsx";
+import YourAssessmentsPage from "./components/YourAssessmentsPage.jsx";
+import YourAssessmentLineup from "./components/YourAssessmentLineup.jsx";
 
 /**
  * Renders the correct screen component based on the current `screen` value.
@@ -54,6 +56,14 @@ function renderScreen(screen, ctx) {
       // #290: open to all signed-in roles; teachers get view-only access
       // (delete stays admin-only inside the page and the CF).
       return <StudentAssessmentsPage student={ctx.selectedStudent} assessmentDeepLink={ctx.assessmentDeepLink} userRole={ctx.role} />;
+    case "yourAssessments":
+      return <YourAssessmentsPage onSelectUpload={(sourceId, title) => {
+        ctx.setAssessmentLineupSourceId?.(sourceId);
+        ctx.setAssessmentLineupTitle?.(title);
+        ctx.setScreen("yourAssessmentLineup");
+      }} />;
+    case "yourAssessmentLineup":
+      return <YourAssessmentLineup sourceId={ctx.assessmentLineupSourceId} userRole={ctx.role} currentUser={ctx.user} />;
     case "landingPage":
       return (
         <LandingPage
@@ -79,6 +89,7 @@ function renderScreen(screen, ctx) {
             // DIP alert CTA routing (PEP-296)
             else if (path === "alerts") ctx.setScreen("alerts");
             else if (path === "interviews") ctx.setScreen("interviews");
+            else if (path === "yourAssessments") ctx.setScreen("yourAssessments");
           }}
           onNavigateToStudent={({ studentId, studentName, classroomId }) => {
             ctx.setSelectedStudent({ id: studentId, displayName: studentName, classroomId });

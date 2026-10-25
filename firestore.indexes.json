@@ -307,6 +307,24 @@
         { "fieldPath": "classroomId", "order": "ASCENDING" },
         { "fieldPath": "generatedAt", "order": "DESCENDING" }
       ]
+    },
+    {
+      "collectionGroup": "structuredAssessmentSources",
+      "queryScope": "COLLECTION",
+      "fields": [
+        { "fieldPath": "createdBy", "order": "ASCENDING" },
+        { "fieldPath": "createdAt", "order": "DESCENDING" }
+      ]
+    },
+    {
+      "collectionGroup": "observations",
+      "queryScope": "COLLECTION",
+      "fields": [
+        { "fieldPath": "type", "order": "ASCENDING" },
+        { "fieldPath": "assessmentKind", "order": "ASCENDING" },
+        { "fieldPath": "criticality", "order": "ASCENDING" },
+        { "fieldPath": "assessmentDate.endDate", "order": "DESCENDING" }
+      ]
     }
   ],
   "fieldOverrides": [
