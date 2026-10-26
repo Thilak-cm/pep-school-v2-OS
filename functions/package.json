@@ -2,7 +2,7 @@
   "name": "pep-os-functions",
   "description": "Cloud Functions for Pep OS (Montessori OS)",
   "engines": {
-    "node": "20"
+    "node": "22"
   },
   "main": "index.js",
   "type": "module",
