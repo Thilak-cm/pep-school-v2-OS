@@ -54,8 +54,8 @@ function LandingPage({
     { label: 'People', icon: <UserPlus size={22} />, iconColor: 'var(--color-primary-light)', action: () => { trackEvent('quick_jump', { target: 'people' }); onNavigate('/addUser'); }, roles: 'admin' },
     { label: 'Export', icon: <Download size={22} />, iconColor: 'var(--color-secondary-light)', action: () => { trackEvent('quick_jump', { target: 'export' }); onNavigateToClassroomNotes?.(); }, roles: 'admin' },
     { label: 'Stats', icon: <BarChart3 size={22} />, iconColor: 'var(--color-warning)', action: () => { trackEvent('quick_jump', { target: 'stats' }); onNavigate('/stats'); }, roles: 'all' },
-    { label: 'Assessments', icon: <ListChecks size={22} />, iconColor: 'var(--color-green-bright)', action: () => { trackEvent('quick_jump', { target: 'assessments' }); onNavigate('yourAssessments'); }, roles: 'all' },
-  ].filter(j => j.roles === 'all' || (!isTeacher && j.roles === 'admin'));
+    { label: 'Assessments', icon: <ListChecks size={22} />, iconColor: 'var(--color-green-bright)', action: () => { trackEvent('quick_jump', { target: 'assessments' }); onNavigate('yourAssessments'); }, roles: 'superadmin' },
+  ].filter(j => j.roles === 'all' || (!isTeacher && j.roles === 'admin') || (userRole === 'superadmin' && j.roles === 'superadmin'));
 
   return (
     <Box sx={{ display: 'flex', flexDirection: 'column', gap: 3 }}>
