@@ -37,30 +37,46 @@ function formatObservationForPrompt(obs) {
   };
 }
 
-async function fetchStudentNotesForWindow(studentId, windowDays) {
-  const cutoff = new Date(Date.now() - windowDays * 24 * 60 * 60 * 1000);
+// cutoffDate is a Date object (lower-bound, inclusive) or null (all-time, no lower bound).
+// Soul generation uses this for delta context (#314): passing prevSoul.updatedAt means only
+// notes since the last generation are fetched, since the previous soul already covers history.
+async function fetchStudentNotesForWindow(studentId, cutoffDate) {
   const notesMap = new Map();
   const studentObsRef = db.collection("students").doc(studentId).collection("observations");
 
-  const collect = async (field) => {
+  if (cutoffDate) {
+    // Two targeted queries to cover observations using either timestamp field
+    const collect = async (field) => {
+      try {
+        const snap = await studentObsRef.where(field, ">=", cutoffDate).get();
+        snap.docs.forEach((doc) => {
+          notesMap.set(doc.id, { id: doc.id, ...doc.data() });
+        });
+      } catch (err) {
+        console.warn(`[studentHelpers] query failed for field ${field} student ${studentId}:`, err);
+      }
+    };
+    await collect("observedAt");
+    await collect("createdAt");
+  } else {
+    // All-time: single full scan (first-gen students or explicit all-time override)
     try {
-      const snap = await studentObsRef.where(field, ">=", cutoff).get();
+      const snap = await studentObsRef.get();
       snap.docs.forEach((doc) => {
         notesMap.set(doc.id, { id: doc.id, ...doc.data() });
       });
     } catch (err) {
-      console.warn(`[studentHelpers] query failed for field ${field} student ${studentId}:`, err);
+      console.warn(`[studentHelpers] all-time query failed for ${studentId}:`, err);
     }
-  };
+  }
 
-  await collect("observedAt");
-  await collect("createdAt");
   const notes = Array.from(notesMap.values()).filter((n) => {
     // Assessment contracts are owned by #252; keep them out of generic AI
     // context until their labels/limits/provenance are deliberately defined.
     if (!isGenericObservation(n)) return false;
+    if (!cutoffDate) return true;
     const ts = chooseObservationTimestamp(n);
-    return ts && ts >= cutoff;
+    return ts && ts >= cutoffDate;
   });
 
   notes.sort((a, b) => {
@@ -72,17 +88,15 @@ async function fetchStudentNotesForWindow(studentId, windowDays) {
   return notes;
 }
 
-async function fetchStudentInterviews(studentId, windowDays) {
-  const cutoff = new Date(Date.now() - windowDays * 24 * 60 * 60 * 1000);
+// cutoffDate is a Date object or null (all-time). See fetchStudentNotesForWindow for rationale.
+async function fetchStudentInterviews(studentId, cutoffDate) {
   const interviewsRef = db.collection("students").doc(studentId).collection("interviews");
 
   try {
-    const snap = await interviewsRef
-      .where("status", "==", "completed")
-      .where("conductedAt", ">=", cutoff)
-      .orderBy("conductedAt", "desc")
-      .get();
-
+    const query = cutoffDate
+      ? interviewsRef.where("status", "==", "completed").where("conductedAt", ">=", cutoffDate).orderBy("conductedAt", "desc")
+      : interviewsRef.where("status", "==", "completed").orderBy("conductedAt", "desc");
+    const snap = await query.get();
     return snap.docs.map((doc) => ({ id: doc.id, ...doc.data() }));
   } catch (err) {
     console.warn(`[studentHelpers] interview fetch failed for ${studentId}:`, err);
