@@ -34,7 +34,7 @@ Firebase Functions v1 Pub/Sub schedules and use asynchronous `onRun` handlers.
 |---|---|---|---|---|
 | Day 1 at 00:00 | `cleanupDeletedChats` | `functions/chat/cleanupDeletedChats.js` | Direct async work | Hard-deletes soft-deleted chats older than 31 days, including subcollections. |
 | Day 1 at 00:30 | `verifyCleanupDeletedChats` | `functions/verification/index.js` | Verifier | Verifies chat cleanup completed for all targeted docs (#229). |
-| Day 1 at 02:00 | `regenerateSoulsMonthly` | `functions/students/soul.js` | Async dispatcher | Finds active students and publishes one message per student to the `soul-workers` Pub/Sub topic (#270). Each message carries a `targetMonth` (YYYY-MM) used by the worker for idempotency - students whose soul doc already has `generatedForMonth === targetMonth` are skipped. Actual generation runs in `soulWorker` (Pub/Sub-triggered, `maxInstances: 10` caps concurrent LLM calls to prevent OpenRouter credit-hold 402 cascades); full run is ~1h, finishing before `verifySoulRegeneration` at 04:00. |
+| Day 1 at 03:00 | `regenerateSoulsMonthly` | `functions/students/soul.js` | Async dispatcher | Finds active students and publishes one message per student to the `soul-workers` Pub/Sub topic (#270). Each message carries a `targetMonth` (YYYY-MM) used by the worker for idempotency - students whose soul doc already has `generatedForMonth === targetMonth` are skipped. Actual generation runs in `soulWorker` (Pub/Sub-triggered, `maxInstances: 10` caps concurrent LLM calls to prevent OpenRouter credit-hold 402 cascades); full run is ~1h, finishing before `verifySoulRegeneration` at 04:00. Shifted from 02:00 to 03:00 to allow post-deploy testing window (#314). |
 | Day 1 at 04:00 | `verifySoulRegeneration` | `functions/verification/index.js` | Verifier | Verifies soul regeneration outputs for all active students (+2h provisional offset, #229). |
 | Last day at 00:00 | `batchGenerateMonthlyPlans` | `functions/monthlyPlan/index.js` | Async dispatcher | Cron expression fires on days 28-31; an IST runtime guard allows processing only on the actual last day. Publishes eligible students to the monthly-plan worker topic. Actual generation and Drive export run in `monthlyPlanWorker`, which is Pub/Sub-triggered rather than cron-triggered. |
 | Last day at 03:00 | `verifyMonthlyPlans` | `functions/verification/index.js` | Verifier | Verifies monthly plan generation + Drive export for all dispatched students (+3h provisional offset, same last-day guard, #229). |
@@ -57,7 +57,7 @@ Firebase Functions v1 Pub/Sub schedules and use asynchronous `onRun` handlers.
 | `verifyDriveIntegrity` | `0 9 * * 1` | `functions/verification/index.js` |
 | `cleanupDeletedChats` | `0 0 1 * *` | `functions/chat/cleanupDeletedChats.js` |
 | `verifyCleanupDeletedChats` | `30 0 1 * *` | `functions/verification/index.js` |
-| `regenerateSoulsMonthly` | `0 2 1 * *` | `functions/students/soul.js` |
+| `regenerateSoulsMonthly` | `0 3 1 * *` | `functions/students/soul.js` |
 | `verifySoulRegeneration` | `0 4 1 * *` | `functions/verification/index.js` |
 | `batchGenerateMonthlyPlans` | `0 0 28-31 * *` | `functions/monthlyPlan/index.js` (plus last-day guard) |
 | `verifyMonthlyPlans` | `0 3 28-31 * *` | `functions/verification/index.js` (plus last-day guard) |

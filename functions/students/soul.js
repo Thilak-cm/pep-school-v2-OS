@@ -551,7 +551,7 @@ async function publishSoulMessages(studentIds, logPrefix, { targetMonth, executi
 export const regenerateSoulsMonthly = functions
   .region("asia-south1")
   .runWith({ timeoutSeconds: 540, memory: "512MB", secrets: [TELEGRAM_BOT_TOKEN] })
-  .pubsub.schedule("0 2 1 * *")
+  .pubsub.schedule("0 3 1 * *")
   .timeZone("Asia/Kolkata")
   .onRun(async () => {
     const JOB_KEY = "soulRegen";
