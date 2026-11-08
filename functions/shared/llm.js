@@ -105,6 +105,23 @@ export function sanitizeMessagesForTrace(messages) {
 }
 
 /**
+ * Sanitize medical LLM trace messages for Langfuse (#255).
+ * Replaces the full parsedContent in the user message input and the LLM summary
+ * in the output with compact placeholders so medical text never leaves the DB.
+ *
+ * Input placeholder:  [medical content: {charCount} chars, {pageCount} pages]
+ * Output placeholder: [medical summary: {charCount} chars]
+ *
+ * @param {Array} messages - LLM messages array (input side)
+ * @param {string} llmOutput - Raw LLM response string (output side)
+ * @param {{ charCount: number, pageCount: number }} meta
+ * @returns {{ messages: Array, output: string }}
+ */
+export function sanitizeMedicalMessagesForTrace(messages, llmOutput, meta) {
+  throw new Error("Not implemented");
+}
+
+/**
  * Build a request body for the OpenAI-compatible Chat Completions API.
  * Automatically strips unsupported parameters for reasoning models.
  */
