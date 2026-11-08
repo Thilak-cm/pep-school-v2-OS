@@ -1,4 +1,4 @@
-import React, { useCallback, useState, useEffect, useRef } from "react";
+import React, { useCallback, useState, useEffect, useRef, useMemo } from "react";
 import { onAuthStateChanged, signOut } from "firebase/auth";
 import { auth, db, cloudFunctions } from "./firebase";
 import SignIn from "./SignIn";
@@ -32,6 +32,12 @@ function App() {
   const [addNoteOpen, setAddNoteOpen] = useState(false);
   const [addNoteInitialStep, setAddNoteInitialStep] = useState('record');
   const [addNoteOpenQuestion, setAddNoteOpenQuestion] = useState(null);
+  // Stable reference: prevents onSnapshot re-renders from resetting selectedStudents in AddNoteModal
+  // ([] !== [] by reference, so a new inline array on every App render would trigger the reset effect)
+  const addNoteInitialStudents = useMemo(() => {
+    const studentScreens = ['timeline', 'studentDashboard', 'studentReportTypes', 'studentReports', 'questionDeck'];
+    return selectedStudent && studentScreens.includes(screen) ? [selectedStudent.id] : [];
+  }, [selectedStudent?.id, screen]);
   const [prefilledFeedback, setPrefilledFeedback] = useState('');
   const [classrooms, setClassrooms] = useState([]);
   const [classroomsLoaded, setClassroomsLoaded] = useState(false);
@@ -522,7 +528,7 @@ function App() {
                   onSave={handleNoteSaved}
                   onRefreshQuestionDeck={() => setQuestionDeckReloadKey((k) => k + 1)}
                   initialStep={addNoteInitialStep}
-                  initialStudents={selectedStudent && (screen === 'timeline' || screen === 'studentDashboard' || screen === 'studentReportTypes' || screen === 'studentReports' || screen === 'questionDeck') ? [selectedStudent.id] : []}
+                  initialStudents={addNoteInitialStudents}
                   currentUser={user}
                   userRole={role}
                   openQuestion={addNoteOpenQuestion}
