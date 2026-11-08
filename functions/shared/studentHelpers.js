@@ -4,7 +4,7 @@ import { db } from "./firebase.js";
 const normalizeTimestampValue = (ts) => {
   if (!ts) return null;
   if (typeof ts.toDate === "function") return ts.toDate();
-  if (ts.seconds) return new Date(ts.seconds * 1000);
+  if (ts.seconds !== undefined) return new Date(ts.seconds * 1000);
   if (ts instanceof Date) return ts;
   return null;
 };

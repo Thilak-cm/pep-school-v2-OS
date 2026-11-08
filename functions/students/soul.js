@@ -226,6 +226,17 @@ async function writeSoulAndGuidelines(studentId, soulContent, programId, templat
   await batch.commit();
 }
 
+/**
+ * On-demand soul generation callable.
+ * @param {object} data - { studentId, windowDays?, targetMonth? }
+ * @returns {{ status: string, studentId: string, reason?: string, ... }}
+ *   Possible status values:
+ *   - "ok"       - soul generated and written
+ *   - "no_notes" - first-gen student with no observations; empty soul written
+ *   - "skipped"  - reason: "zero_delta" (no new notes since last gen),
+ *                  "no_classroom" (student has no classroom), or
+ *                  "invalid_program" (student program not in VALID_PROGRAMS)
+ */
 export const generateStudentProfile = functions
   .region("asia-south1")
   .runWith({ timeoutSeconds: 120, memory: "512MB", secrets: [OPENROUTER_API_KEY, LANGFUSE_SECRET_KEY, LANGFUSE_PUBLIC_KEY] })
@@ -319,11 +330,12 @@ async function generateSoulForStudent(studentId, { windowDays = null, generatedF
   lap("readPrevSoul+guidelines");
 
   // Compute fetch lower bound:
-  // - windowDays provided: explicit override (on-demand admin, testbench) — compute absolute date
-  // - prevSoul exists + has updatedAt: delta — fetch only notes since last generation
-  // - prevSoul exists but updatedAt missing: data anomaly — alert + fall back to all-time
+  // - windowDays provided: explicit override (on-demand admin, testbench) - compute absolute date
+  // - prevSoul exists + has updatedAt: delta - fetch only notes since last generation
+  // - prevSoul exists but updatedAt missing: data anomaly - alert + fall back to all-time
   // - first-gen (no prevSoul): all-time (null = no lower bound)
   let cutoffDate = null;
+  let isFullRegenFallback = false;
   if (typeof windowDays === "number") {
     cutoffDate = new Date(Date.now() - windowDays * 24 * 60 * 60 * 1000);
   } else if (prevSoulSnap.exists) {
@@ -332,6 +344,10 @@ async function generateSoulForStudent(studentId, { windowDays = null, generatedF
       cutoffDate = soulData.updatedAt.toDate ? soulData.updatedAt.toDate() : new Date(soulData.updatedAt);
       console.log(`[soul] ${studentId} delta cutoff: ${cutoffDate.toISOString()} (prevSoul.updatedAt)`);
     } else {
+      // Data anomaly: soul exists but no updatedAt. Do a full regen (all-time) and flag it.
+      // isFullRegenFallback prevents the zero-delta guard from skipping this run -
+      // we want the soul rewritten so updatedAt gets stamped.
+      isFullRegenFallback = true;
       console.warn(`[soul] ${studentId} existing soul missing updatedAt — falling back to all-time`);
       await broadcastAlert(TELEGRAM_BOT_TOKEN.value(), db,
         `\u26a0\ufe0f [soul] Student ${studentId} has existing soul but missing updatedAt — falling back to all-time window for this run.`
@@ -347,9 +363,12 @@ async function generateSoulForStudent(studentId, { windowDays = null, generatedF
   ]);
   lap(`fetchNotes(${notes.length})+interviews(${rawInterviews.length})`);
 
-  // Zero-delta short-circuit: no new content since last generation — skip to avoid overwriting
+  // Zero-delta short-circuit: no new content since last generation - skip to avoid overwriting
   // a valid soul with empty content. Distinct from first-gen zero-notes path (which writes empty soul).
-  if (notes.length === 0 && rawInterviews.length === 0 && prevSoulSnap.exists) {
+  // Bypass when: (a) isFullRegenFallback (missing-updatedAt must rewrite to stamp it), or
+  //              (b) explicit windowDays override (admin requested a full rewrite, honor it).
+  const isExplicitOverride = typeof windowDays === "number";
+  if (notes.length === 0 && rawInterviews.length === 0 && prevSoulSnap.exists && !isFullRegenFallback && !isExplicitOverride) {
     console.log(`[soul] Zero delta for ${studentId} — skipping, previous soul untouched`);
     return { status: "skipped", studentId, reason: "zero_delta" };
   }
