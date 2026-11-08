@@ -9,7 +9,7 @@
 
 import { describe, it, beforeEach, afterEach } from "node:test";
 import assert from "node:assert/strict";
-import { isReasoningModel, buildChatBody, runLLM } from "./llm.js";
+import { isReasoningModel, buildChatBody, runLLM, sanitizeMedicalMessagesForTrace } from "./llm.js";
 
 // ---------------------------------------------------------------------------
 // isReasoningModel
@@ -741,5 +741,57 @@ describe("runLLM timeoutMs (#288)", () => {
         return true;
       },
     );
+  });
+});
+
+// ---------------------------------------------------------------------------
+// sanitizeMedicalMessagesForTrace (#255)
+// Medical text must never appear in Langfuse traces. Input and output are
+// replaced with compact placeholders preserving only size metadata.
+// ---------------------------------------------------------------------------
+
+describe("sanitizeMedicalMessagesForTrace", () => {
+  const meta = { charCount: 4800, pageCount: 6 };
+
+  it("replaces message content with medical content placeholder", () => {
+    const messages = [
+      { role: "system", content: "You are a medical summarizer." },
+      { role: "user", content: "Full PDF text: Detailed neuropsychological report..." },
+    ];
+    const { messages: sanitized } = sanitizeMedicalMessagesForTrace(messages, "summary output", meta);
+    for (const msg of sanitized) {
+      assert.ok(
+        !JSON.stringify(msg).includes("neuropsychological"),
+        "medical text must not appear in sanitized messages",
+      );
+    }
+  });
+
+  it("replaces input with correct placeholder format", () => {
+    const messages = [{ role: "user", content: "medical content here" }];
+    const { messages: sanitized } = sanitizeMedicalMessagesForTrace(messages, "output", meta);
+    const combined = JSON.stringify(sanitized);
+    assert.ok(combined.includes("4800 chars"), "charCount must appear in placeholder");
+    assert.ok(combined.includes("6 pages"), "pageCount must appear in placeholder");
+    assert.ok(combined.includes("medical content"), "placeholder label must be present");
+  });
+
+  it("replaces LLM output with medical summary placeholder", () => {
+    const { output } = sanitizeMedicalMessagesForTrace([], "ADHD diagnosis confirmed. Recommendations: ...", meta);
+    assert.ok(!output.includes("ADHD"), "LLM output must not appear in sanitized trace");
+    assert.ok(output.includes("medical summary"), "output placeholder label must be present");
+  });
+
+  it("includes output charCount in the output placeholder", () => {
+    const llmOutput = "A".repeat(500);
+    const { output } = sanitizeMedicalMessagesForTrace([], llmOutput, meta);
+    assert.ok(output.includes("500 chars"), "output placeholder must include the summary char count");
+  });
+
+  it("does not mutate the original messages array", () => {
+    const messages = [{ role: "user", content: "sensitive medical data" }];
+    const original = JSON.stringify(messages);
+    sanitizeMedicalMessagesForTrace(messages, "output", meta);
+    assert.equal(JSON.stringify(messages), original, "original messages must be unchanged");
   });
 });

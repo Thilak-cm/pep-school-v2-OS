@@ -12,6 +12,43 @@ test("generic AI observation readers exclude both assessment subtypes", () => {
 });
 
 // ---------------------------------------------------------------------------
+// isGenericObservation - medical assessment carve-out (#255)
+// Medical observations with processingStatus:"completed" must pass through
+// to soul gen; all other assessment states remain excluded.
+// ---------------------------------------------------------------------------
+
+test("isGenericObservation passes completed medical assessments through for soul gen (#255)", () => {
+  assert.equal(
+    isGenericObservation({type: "assessment", assessmentKind: "medical", processingStatus: "completed"}),
+    true,
+    "completed medical assessment must reach soul gen context",
+  );
+});
+
+test("isGenericObservation excludes medical assessments that are still processing (#255)", () => {
+  assert.equal(
+    isGenericObservation({type: "assessment", assessmentKind: "medical", processingStatus: "queued"}),
+    false,
+  );
+  assert.equal(
+    isGenericObservation({type: "assessment", assessmentKind: "medical", processingStatus: "processing"}),
+    false,
+  );
+  assert.equal(
+    isGenericObservation({type: "assessment", assessmentKind: "medical", processingStatus: "failed"}),
+    false,
+  );
+});
+
+test("isGenericObservation still excludes structured assessments regardless of processingStatus (#255)", () => {
+  assert.equal(
+    isGenericObservation({type: "assessment", assessmentKind: "structured", processingStatus: "completed"}),
+    false,
+    "structured assessments are excluded until #252",
+  );
+});
+
+// ---------------------------------------------------------------------------
 // normalizeTimestampValue - critical for delta cutoff comparisons (#314)
 // ---------------------------------------------------------------------------
 

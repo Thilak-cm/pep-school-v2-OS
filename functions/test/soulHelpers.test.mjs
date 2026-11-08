@@ -497,3 +497,37 @@ test("buildSoulSystemPrompt includes area-keyed open_questions instruction (PEP-
     "should instruct area-keyed JSON format",
   );
 });
+
+// ---------------------------------------------------------------------------
+// buildSoulDoc - medicalNotes field (#255)
+// medicalNotes is optional; present only for students with completed medical
+// assessments. Must be a top-level field - never nested inside content.
+// ---------------------------------------------------------------------------
+
+test("buildSoulDoc includes medicalNotes as top-level field when provided (#255)", async () => {
+  const { buildSoulDoc } = await import("../utils/soulHelpers.js");
+  const doc = buildSoulDoc({
+    content: "Child shows strong numeracy skills.",
+    medicalNotes: "ADHD diagnosis. Key accommodation: preferential seating.",
+    programId: "primary",
+    observationCount: 10,
+    interviewCount: 1,
+    lastObservationAt: null,
+    lastInterviewAt: null,
+  });
+  assert.equal(doc.medicalNotes, "ADHD diagnosis. Key accommodation: preferential seating.");
+  assert.ok(!doc.content.includes("ADHD"), "medical content must not bleed into soul content field");
+});
+
+test("buildSoulDoc omits medicalNotes entirely when not provided (#255)", async () => {
+  const { buildSoulDoc } = await import("../utils/soulHelpers.js");
+  const doc = buildSoulDoc({
+    content: "Child shows strong numeracy skills.",
+    programId: "primary",
+    observationCount: 10,
+    interviewCount: 1,
+    lastObservationAt: null,
+    lastInterviewAt: null,
+  });
+  assert.ok(!("medicalNotes" in doc), "medicalNotes must be absent when no medical assessments exist");
+});
