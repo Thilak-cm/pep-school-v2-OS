@@ -212,9 +212,10 @@ async function main() {
   const templateConfig = await getSoulTemplateConfig(studentInfo.programId);
   const windowDays = 365;
 
+  const cutoffDate = new Date(Date.now() - windowDays * 24 * 60 * 60 * 1000);
   const [notes, rawInterviews] = await Promise.all([
-    fetchStudentNotesForWindow(studentId, windowDays),
-    fetchStudentInterviews(studentId, windowDays),
+    fetchStudentNotesForWindow(studentId, cutoffDate),
+    fetchStudentInterviews(studentId, cutoffDate),
   ]);
   console.log(`Found ${notes.length} observations, ${rawInterviews.length} interviews (${windowDays}-day window)`);
 

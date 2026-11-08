@@ -34,7 +34,7 @@ export async function testBenchInterviewTurn({ studentId, systemPrompt, messages
     db.collection("students").doc(studentId).collection("ai_summaries").doc("guidelines").get(),
     db.collection("students").doc(studentId).collection("ai_summaries").doc("weekly_snapshot").get(),
     db.collection("students").doc(studentId).collection("ai_summaries").doc("open_questions").get(),
-    fetchStudentInterviews(studentId, 365),
+    fetchStudentInterviews(studentId, new Date(Date.now() - 365 * 24 * 60 * 60 * 1000)),
   ]);
 
   const soul = soulSnap.exists ? soulSnap.data()?.content ?? null : null;

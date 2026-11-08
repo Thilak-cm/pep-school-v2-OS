@@ -314,7 +314,8 @@ async function runBaseballCardForStudent(studentId, {
   const prompt = { systemPrompt: config.systemPrompt };
   const effectiveWindowDays = Number.isFinite(windowDays) && windowDays > 0 ? windowDays : config.windowDays;
 
-  const notes = await fetchStudentNotesForWindow(studentId, effectiveWindowDays);
+  const cutoffDate = new Date(Date.now() - effectiveWindowDays * 24 * 60 * 60 * 1000);
+  const notes = await fetchStudentNotesForWindow(studentId, cutoffDate);
 
   if (!notes.length) {
     const payload = {

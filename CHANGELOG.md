@@ -1,5 +1,17 @@
 # Changelog
 
+# 13.6.1 - 2026-11-08
+
+### Changed
+- Soul generation uses delta context: fetches only notes/interviews since `prevSoul.updatedAt` instead of a fixed 365-day window, cutting input token cost on monthly runs (#314).
+- `fetchStudentNotesForWindow` and `fetchStudentInterviews` accept an absolute `cutoffDate` (Date or null) instead of `windowDays` offset (#314).
+- On-demand callable (`generateStudentProfile`) defaults to delta logic; explicit `windowDays` param remains as admin override (#314).
+- Zero-delta short-circuit skips LLM call when no new content exists since last generation (#314).
+
+### Fixed
+- `normalizeTimestampValue` now handles Firestore Timestamps with `seconds: 0` (epoch) correctly instead of treating them as null (#314).
+- Zero-delta guard no longer fires on the missing-`updatedAt` fallback path or when an explicit `windowDays` override is provided (#314).
+
 # 13.6.0 - 2026-10-25
 
 ### Added

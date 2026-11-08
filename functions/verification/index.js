@@ -41,12 +41,12 @@ export const verifyCleanupDeletedChats = functions
 
 /**
  * Verify soul regeneration completed after the dispatcher + workers.
- * Fires day 1 at 04:00 IST (+2h provisional offset from 02:00 start).
+ * Fires day 1 at 05:00 IST (+2h offset from 03:00 start; shifted from 04:00 with dispatcher, #314).
  */
 export const verifySoulRegeneration = functions
   .region("asia-south1")
   .runWith({ timeoutSeconds: 300, memory: "1GB", secrets: [TELEGRAM_BOT_TOKEN] })
-  .pubsub.schedule("0 4 1 * *")
+  .pubsub.schedule("0 5 1 * *")
   .timeZone("Asia/Kolkata")
   .onRun(async () => {
     await runVerifier(["soulRegen"], TELEGRAM_BOT_TOKEN.value(), db);

@@ -226,6 +226,17 @@ async function writeSoulAndGuidelines(studentId, soulContent, programId, templat
   await batch.commit();
 }
 
+/**
+ * On-demand soul generation callable.
+ * @param {object} data - { studentId, windowDays?, targetMonth? }
+ * @returns {{ status: string, studentId: string, reason?: string, ... }}
+ *   Possible status values:
+ *   - "ok"       - soul generated and written
+ *   - "no_notes" - first-gen student with no observations; empty soul written
+ *   - "skipped"  - reason: "zero_delta" (no new notes since last gen),
+ *                  "no_classroom" (student has no classroom), or
+ *                  "invalid_program" (student program not in VALID_PROGRAMS)
+ */
 export const generateStudentProfile = functions
   .region("asia-south1")
   .runWith({ timeoutSeconds: 120, memory: "512MB", secrets: [OPENROUTER_API_KEY, LANGFUSE_SECRET_KEY, LANGFUSE_PUBLIC_KEY] })
@@ -275,7 +286,9 @@ export const generateStudentProfile = functions
       throw new functions.https.HttpsError("invalid-argument", "targetMonth must be YYYY-MM format");
     }
 
-    const windowDays = data?.windowDays ?? 365;
+    // null = apply delta logic inside generateSoulForStudent (#314).
+    // Explicit windowDays (on-demand override) keeps the escape hatch for admin force-full-context runs.
+    const windowDays = data?.windowDays ?? null;
     return await generateSoulForStudent(studentId, { windowDays, generatedForMonth: targetMonth });
   });
 
@@ -284,7 +297,10 @@ export const generateStudentProfile = functions
 // Reused by the on-demand callable and the Pub/Sub worker.
 // -----------------------------------------------
 
-async function generateSoulForStudent(studentId, { windowDays = 365, generatedForMonth = null, llmTimeoutMs = undefined, traceTags = undefined } = {}) {
+// windowDays: explicit number = override (compute cutoff from offset); null = apply delta logic (#314).
+// Delta logic: use prevSoul.updatedAt as the fetch lower bound so only new notes are read each run.
+// The previous soul already compacts history; layering the delta on top is all the LLM needs.
+async function generateSoulForStudent(studentId, { windowDays = null, generatedForMonth = null, llmTimeoutMs = undefined, traceTags = undefined } = {}) {
   const t0 = Date.now();
   const lap = (label) => console.log(`[soul] ${studentId} ${label} +${Date.now() - t0}ms`);
 
@@ -302,24 +318,63 @@ async function generateSoulForStudent(studentId, { windowDays = 365, generatedFo
   const templateConfig = await getSoulTemplateConfig(studentInfo.programId);
   lap("getSoulTemplateConfig");
 
-  const [notes, rawInterviews] = await Promise.all([
-    fetchStudentNotesForWindow(studentId, windowDays),
-    fetchStudentInterviews(studentId, windowDays),
+  // Fetch prevSoul + guidelines in parallel — prevSoul.updatedAt drives the delta cutoff below
+  const [prevSoulSnap, guidelinesSnap] = await Promise.all([
+    db.collection("students").doc(studentId).collection("ai_summaries").doc("soul").get(),
+    db.collection("students").doc(studentId).collection("ai_summaries").doc("guidelines").get(),
   ]);
-  lap(`fetchNotes(${notes.length})+interviews(${rawInterviews.length})`);
-
-  const guidelinesSnap = await db.collection("students").doc(studentId)
-    .collection("ai_summaries").doc("guidelines").get();
+  const previousSoul = prevSoulSnap.exists ? prevSoulSnap.data().content : null;
   const guidelinesContent = guidelinesSnap.exists
     ? guidelinesSnap.data().content
     : templateConfig.markdown;
+  lap("readPrevSoul+guidelines");
 
-  const prevSoulSnap = await db.collection("students").doc(studentId)
-    .collection("ai_summaries").doc("soul").get();
-  const previousSoul = prevSoulSnap.exists ? prevSoulSnap.data().content : null;
-  lap("readGuidelines+prevSoul");
+  // Compute fetch lower bound:
+  // - windowDays provided: explicit override (on-demand admin, testbench) - compute absolute date
+  // - prevSoul exists + has updatedAt: delta - fetch only notes since last generation
+  // - prevSoul exists but updatedAt missing: data anomaly - alert + fall back to all-time
+  // - first-gen (no prevSoul): all-time (null = no lower bound)
+  let cutoffDate = null;
+  let isFullRegenFallback = false;
+  if (typeof windowDays === "number") {
+    cutoffDate = new Date(Date.now() - windowDays * 24 * 60 * 60 * 1000);
+  } else if (prevSoulSnap.exists) {
+    const soulData = prevSoulSnap.data();
+    if (soulData.updatedAt) {
+      cutoffDate = soulData.updatedAt.toDate ? soulData.updatedAt.toDate() : new Date(soulData.updatedAt);
+      console.log(`[soul] ${studentId} delta cutoff: ${cutoffDate.toISOString()} (prevSoul.updatedAt)`);
+    } else {
+      // Data anomaly: soul exists but no updatedAt. Do a full regen (all-time) and flag it.
+      // isFullRegenFallback prevents the zero-delta guard from skipping this run -
+      // we want the soul rewritten so updatedAt gets stamped.
+      isFullRegenFallback = true;
+      console.warn(`[soul] ${studentId} existing soul missing updatedAt — falling back to all-time`);
+      await broadcastAlert(TELEGRAM_BOT_TOKEN.value(), db,
+        `\u26a0\ufe0f [soul] Student ${studentId} has existing soul but missing updatedAt — falling back to all-time window for this run.`
+      ).catch(() => {});
+    }
+  } else {
+    console.log(`[soul] ${studentId} first-gen — using all-time window`);
+  }
+
+  const [notes, rawInterviews] = await Promise.all([
+    fetchStudentNotesForWindow(studentId, cutoffDate),
+    fetchStudentInterviews(studentId, cutoffDate),
+  ]);
+  lap(`fetchNotes(${notes.length})+interviews(${rawInterviews.length})`);
+
+  // Zero-delta short-circuit: no new content since last generation - skip to avoid overwriting
+  // a valid soul with empty content. Distinct from first-gen zero-notes path (which writes empty soul).
+  // Bypass when: (a) isFullRegenFallback (missing-updatedAt must rewrite to stamp it), or
+  //              (b) explicit windowDays override (admin requested a full rewrite, honor it).
+  const isExplicitOverride = typeof windowDays === "number";
+  if (notes.length === 0 && rawInterviews.length === 0 && prevSoulSnap.exists && !isFullRegenFallback && !isExplicitOverride) {
+    console.log(`[soul] Zero delta for ${studentId} — skipping, previous soul untouched`);
+    return { status: "skipped", studentId, reason: "zero_delta" };
+  }
 
   if (!notes.length && !rawInterviews.length) {
+    // First-gen student with no observations yet
     console.log(`[soul] No observations or interviews for ${studentId}, writing empty soul`);
     await writeSoulAndGuidelines(
       studentId,
@@ -515,7 +570,7 @@ async function publishSoulMessages(studentIds, logPrefix, { targetMonth, executi
 export const regenerateSoulsMonthly = functions
   .region("asia-south1")
   .runWith({ timeoutSeconds: 540, memory: "512MB", secrets: [TELEGRAM_BOT_TOKEN] })
-  .pubsub.schedule("0 2 1 * *")
+  .pubsub.schedule("0 3 1 * *")
   .timeZone("Asia/Kolkata")
   .onRun(async () => {
     const JOB_KEY = "soulRegen";
@@ -641,19 +696,30 @@ export async function testBenchSoul({ studentId, systemPrompt, guidelinesContent
   // production path so Firestore prompts can use either historical format.
   const finalSystemPrompt = injectGuidelinesContent(systemPrompt, guidelinesContent);
 
+  // Read previous soul for continuity — also used to compute delta cutoff if windowDays absent
+  const prevSoulSnap = await db.collection("students").doc(studentId)
+    .collection("ai_summaries").doc("soul").get();
+  const previousSoul = prevSoulSnap.exists ? prevSoulSnap.data().content : null;
+
+  // Explicit windowDays wins; absent = delta (use prevSoul.updatedAt) to mirror production (#314)
+  let cutoffDate = null;
+  if (typeof windowDays === "number") {
+    cutoffDate = new Date(Date.now() - windowDays * 24 * 60 * 60 * 1000);
+  } else if (prevSoulSnap.exists) {
+    const soulData = prevSoulSnap.data();
+    if (soulData.updatedAt) {
+      cutoffDate = soulData.updatedAt.toDate ? soulData.updatedAt.toDate() : new Date(soulData.updatedAt);
+    }
+  }
+
   // Gather observations + interviews
   const [notes, rawInterviews] = await Promise.all([
-    fetchStudentNotesForWindow(studentId, windowDays),
-    includeInterviews ? fetchStudentInterviews(studentId, windowDays) : Promise.resolve([]),
+    fetchStudentNotesForWindow(studentId, cutoffDate),
+    includeInterviews ? fetchStudentInterviews(studentId, cutoffDate) : Promise.resolve([]),
   ]);
 
   const formatted = notes.map(formatObservationForPrompt);
   const formattedInterviews = rawInterviews.map(formatInterviewForPrompt);
-
-  // Read previous soul for continuity
-  const prevSoulSnap = await db.collection("students").doc(studentId)
-    .collection("ai_summaries").doc("soul").get();
-  const previousSoul = prevSoulSnap.exists ? prevSoulSnap.data().content : null;
 
   const userContent = buildSoulUserPrompt(
     { studentName: studentInfo.studentName, dob: studentInfo.dob, age: studentInfo.age, programId: studentInfo.programId },
