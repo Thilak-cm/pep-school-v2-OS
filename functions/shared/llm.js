@@ -118,7 +118,15 @@ export function sanitizeMessagesForTrace(messages) {
  * @returns {{ messages: Array, output: string }}
  */
 export function sanitizeMedicalMessagesForTrace(messages, llmOutput, meta) {
-  throw new Error("Not implemented");
+  const { charCount, pageCount } = meta;
+  const inputPlaceholder = `[medical content: ${charCount} chars, ${pageCount} pages]`;
+  const sanitizedMessages = (messages || []).map((msg) => ({
+    ...msg,
+    content: inputPlaceholder,
+  }));
+  const outputCharCount = typeof llmOutput === "string" ? llmOutput.length : 0;
+  const output = `[medical summary: ${outputCharCount} chars]`;
+  return { messages: sanitizedMessages, output };
 }
 
 /**

@@ -16,6 +16,15 @@ const chooseObservationTimestamp = (obs) => {
 };
 
 const isGenericObservation = (observation) => {
+  // Completed medical assessments flow into soul gen (#255).
+  // Structured assessments remain excluded until #252.
+  if (
+    observation?.type === "assessment" &&
+    observation?.assessmentKind === "medical" &&
+    observation?.processingStatus === "completed"
+  ) {
+    return true;
+  }
   return observation?.type !== "assessment" && !observation?.assessmentKind;
 };
 

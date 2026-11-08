@@ -7,6 +7,11 @@ import {
   parseAssessmentMatrix,
   worksheetToAssessmentMatrix,
 } from "./parser.js";
+import { PubSub } from "@google-cloud/pubsub";
+import { MEDICAL_PDF_TOPIC } from "./medical-pdf-worker.mjs";
+
+const pubsub = new PubSub();
+const medicalPdfTopic = pubsub.topic(MEDICAL_PDF_TOPIC);
 
 const MAX_RECORDS = 450;
 const MAX_STRUCTURED_BYTES = 10 * 1024 * 1024;
@@ -902,9 +907,32 @@ export const finalizeMedicalAssessmentUpload = functions
       observedAt: pending.observedAt,
       uploadStatus: "ready",
       readyAt,
+      // #255: kick off async PDF processing pipeline
+      processingStatus: "queued",
     });
     batch.delete(pendingRef);
     await batch.commit();
+
+    // #255: publish Pub/Sub message to trigger medicalPdfWorker.
+    // observationId doubles as executionId - each upload is unique, so
+    // there is exactly one processing event per doc.
+    try {
+      const pubsubPayload = JSON.stringify({
+        studentId: pending.studentId,
+        executionId: pending.observationId,
+        observationId: pending.observationId,
+      });
+      await medicalPdfTopic.publishMessage({ data: Buffer.from(pubsubPayload) });
+    } catch (pubsubError) {
+      // Log but do not fail the finalize response - the teacher gets "published"
+      // feedback immediately. The daily data integrity checker will flag unprocessed
+      // docs that remain in "queued" state if the publish silently failed.
+      console.error("[finalizeMedicalAssessmentUpload] pubsub publish failed", {
+        observationId: pending.observationId,
+        error: pubsubError?.message,
+      });
+    }
+
     return {observationId: pending.observationId, uploadStatus: "ready"};
   });
 
