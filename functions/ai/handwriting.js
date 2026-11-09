@@ -423,6 +423,10 @@ export const batchAnalyzeWriting = functions
  * Fires Sunday 01:00 IST - moved from 00:30 (#279) to stagger LLM load
  * against the baseball-card workers dispatched at 00:00. Still hours ahead
  * of the 18:00 digests that consume same-week results (#229 requirement).
+ *
+ * PAUSED (#334): writing analysis disabled pending UX and backend logic rework.
+ * To re-enable: remove the early return below. Schedule to restore: "0 1 * * 0"
+ * (Sunday 01:00 IST). Photo classification and trigger gates are unaffected.
  */
 export const generateWritingAnalysis = functions
   .region("asia-south1")
@@ -430,6 +434,13 @@ export const generateWritingAnalysis = functions
   .pubsub.schedule("0 1 * * 0")
   .timeZone("Asia/Kolkata")
   .onRun(async () => {
+    // PAUSED (#334): set to false to re-enable. Schedule to restore: "0 1 * * 0" (Sunday 01:00 IST).
+    const PAUSED = true;
+    if (PAUSED) {
+      console.log("[writingAnalysis] PAUSED per #334 - skipping run, no analysis dispatched");
+      return null;
+    }
+
     const JOB_KEY = "writingAnalysis";
     const executionId = computeExecutionId(JOB_KEY);
 
