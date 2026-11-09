@@ -92,6 +92,9 @@ const EXPECTED_EXPORTS = [
   "listMyAssessmentUploads",
   "appendAssessmentAttempt",
   "correctAssessmentGrade",
+  // Search - Typesense (#331)
+  "mintTypesenseKey",
+  "syncObservationToTypesense",
   // Execution Ledger Verifiers (#229) + Drive integrity check
   "verifyCleanupDeletedChats",
   "verifySoulRegeneration",

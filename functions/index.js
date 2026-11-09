@@ -114,6 +114,9 @@ export { weeklyTeacherStats, triggerTeacherStatsTest } from "./digest/teacherSta
 // Data Integrity Checks (#161)
 export { dataIntegrityChecks } from "./integrity/index.js";
 
+// Search - Typesense sync + scoped key minting (#331)
+export { mintTypesenseKey, syncObservationToTypesense } from "./search/index.js";
+
 // Execution Ledger Verifiers (#229) + Drive integrity check
 export {
   verifyCleanupDeletedChats,
