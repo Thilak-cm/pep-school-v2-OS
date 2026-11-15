@@ -118,33 +118,67 @@ describe("getTraceSampleRate", () => {
 // recordTailTrace
 // ---------------------------------------------------------------------------
 
-/** Fake Langfuse client capturing all calls. */
-function fakeClient() {
+/**
+ * v6-compatible fake deps for recordTailTrace.
+ *
+ * Mirrors the dep-injection surface of the rewritten recordTailTrace:
+ *   isTracingEnabled, getSpanProcessor, startObservation, propagateAttributes.
+ *
+ * captured.rootSpans      - args passed to startObservation for the root span
+ * captured.generations    - args passed to rootSpan.startObservation (child gen)
+ * captured.genUpdates     - args passed to gen.update(...)
+ * captured.endCalls       - args passed to obs.end() (endTime lands here, not in update)
+ * captured.propagateCalls - params objects passed to propagateAttributes
+ * captured.flushes        - times forceFlush() resolved without throwing
+ */
+function fakeV6Deps() {
   const captured = {
-    tracePayloads: [],
-    generationPayloads: [],
-    endPayloads: [],
+    rootSpans: [],
+    generations: [],
+    genUpdates: [],
+    endCalls: [],
     flushes: 0,
   };
-  const client = {
-    trace(payload) {
-      captured.tracePayloads.push(payload);
-      return {
-        generation(genPayload) {
-          captured.generationPayloads.push(genPayload);
-          return {
-            end(endPayload) {
-              captured.endPayloads.push(endPayload);
-            },
-          };
-        },
-      };
+
+  function makeObservation() {
+    const obs = {
+      traceId: "fake-trace-id",
+      startObservation(childName, childAttrs, options) {
+        const child = makeObservation(childName, childAttrs);
+        captured.generations.push({ name: childName, attrs: childAttrs, options, obs: child });
+        return child;
+      },
+      update(updateAttrs) {
+        captured.genUpdates.push(updateAttrs);
+        return this;
+      },
+      end(endTime) {
+        captured.endCalls.push(endTime);
+      },
+    };
+    return obs;
+  }
+
+  const deps = {
+    isTracingEnabled: () => true,
+    getSpanProcessor: () => ({
+      forceFlush: async () => {
+        captured.flushes++;
+      },
+    }),
+    startObservation: (name, attrs, options) => {
+      const obs = makeObservation(name, attrs);
+      captured.rootSpans.push({ name, attrs, options, obs });
+      return obs;
     },
-    async flushAsync() {
-      captured.flushes++;
+    propagateAttributes: (params, fn) => {
+      captured.propagateCalls = captured.propagateCalls || [];
+      captured.propagateCalls.push(params);
+      return fn();
     },
   };
-  return { client, captured };
+
+  return { deps, captured };
 }
 
 const START = new Date("2026-09-27T10:00:00.000Z");
@@ -166,35 +200,35 @@ function basePayload(overrides = {}) {
 
 describe("recordTailTrace", () => {
   it("records failures (level ERROR) unconditionally, even at rate 0", async () => {
-    const { client, captured } = fakeClient();
+    const { deps, captured } = fakeV6Deps();
     const recorded = await recordTailTrace({
-      createClient: () => client,
+      deps,
       sampleRate: 0,
       rng: () => 0.99,
       ...basePayload({ end: { output: { error: "boom" }, level: "ERROR", statusMessage: "network_error", endTime: END } }),
     });
     assert.equal(recorded, true);
-    assert.equal(captured.tracePayloads.length, 1);
-    assert.equal(captured.endPayloads[0].level, "ERROR");
+    assert.equal(captured.rootSpans.length, 1);
+    assert.equal(captured.genUpdates[0].level, "ERROR");
     assert.equal(captured.flushes, 1);
   });
 
   it("records WARNING unconditionally (Q1: cap-hit signal must survive sampling)", async () => {
-    const { client, captured } = fakeClient();
+    const { deps, captured } = fakeV6Deps();
     const recorded = await recordTailTrace({
-      createClient: () => client,
+      deps,
       sampleRate: 0,
       rng: () => 0.99,
       ...basePayload({ end: { output: "truncated...", level: "WARNING", endTime: END } }),
     });
     assert.equal(recorded, true);
-    assert.equal(captured.endPayloads[0].level, "WARNING");
+    assert.equal(captured.genUpdates[0].level, "WARNING");
   });
 
   it("records a clean success when the coin-flip lands under the rate", async () => {
-    const { client, captured } = fakeClient();
+    const { deps, captured } = fakeV6Deps();
     const recorded = await recordTailTrace({
-      createClient: () => client,
+      deps,
       sampleRate: 0.1,
       rng: () => 0.05,
       ...basePayload(),
@@ -203,51 +237,56 @@ describe("recordTailTrace", () => {
     assert.equal(captured.flushes, 1);
   });
 
-  it("sampled-out success creates ZERO Langfuse objects (no client, no flush)", async () => {
-    let clientCreated = false;
+  it("sampled-out success creates ZERO Langfuse objects (no spans, no flush)", async () => {
+    // rng() = 0.5 > sampleRate 0.1 -> sampled out; sampling happens before
+    // any span creation, so rootSpans must stay empty.
+    const { deps, captured } = fakeV6Deps();
     const recorded = await recordTailTrace({
-      createClient: () => {
-        clientCreated = true;
-        return fakeClient().client;
-      },
+      deps,
       sampleRate: 0.1,
       rng: () => 0.5,
       ...basePayload(),
     });
     assert.equal(recorded, false);
-    assert.equal(clientCreated, false, "sampled-out must not even instantiate the client");
+    assert.equal(captured.rootSpans.length, 0, "sampled-out must not create any spans");
+    assert.equal(captured.flushes, 0, "sampled-out must not flush");
   });
 
   it("backdates the trace and generation with explicit start/end times", async () => {
-    const { client, captured } = fakeClient();
+    const { deps, captured } = fakeV6Deps();
     await recordTailTrace({
-      createClient: () => client,
+      deps,
       sampleRate: 1,
       ...basePayload(),
     });
-    // Trace timestamp = call start, so latency in the UI stays honest.
-    assert.equal(captured.tracePayloads[0].timestamp, START);
-    assert.equal(captured.generationPayloads[0].startTime, START);
-    assert.equal(captured.endPayloads[0].endTime, END);
+    // Root span startTime = trace.startTime so latency in the UI stays honest.
+    assert.equal(captured.rootSpans[0].options.startTime, START);
+    // Generation child startTime = generation.startTime.
+    assert.equal(captured.generations[0].options.startTime, START);
+    // endTime is stripped from update() and passed to end() - it lands in endCalls.
+    // endCalls[0] = gen.end(END), endCalls[1] = rootSpan.end(END).
+    assert.equal(captured.endCalls[0], END);
   });
 
   it("passes usageDetails through verbatim (audio_seconds key is a contract)", async () => {
-    const { client, captured } = fakeClient();
+    const { deps, captured } = fakeV6Deps();
     await recordTailTrace({
-      createClient: () => client,
+      deps,
       sampleRate: 1,
       ...basePayload({
         end: { output: "text", usageDetails: { audio_seconds: 42 }, endTime: END },
       }),
     });
-    assert.deepEqual(captured.endPayloads[0].usageDetails, { audio_seconds: 42 });
+    assert.deepEqual(captured.genUpdates[0].usageDetails, { audio_seconds: 42 });
   });
 
-  it("never throws into the request path (client creation failure -> false + warn)", async () => {
+  it("never throws into the request path (startObservation failure -> false + warn)", async () => {
+    const { deps } = fakeV6Deps();
+    deps.startObservation = () => {
+      throw new Error("langfuse down");
+    };
     const recorded = await recordTailTrace({
-      createClient: () => {
-        throw new Error("langfuse down");
-      },
+      deps,
       sampleRate: 1,
       ...basePayload(),
     });
@@ -255,22 +294,24 @@ describe("recordTailTrace", () => {
   });
 
   it("never throws when flush fails", async () => {
-    const { client } = fakeClient();
-    client.flushAsync = async () => {
-      throw new Error("flush failed");
-    };
+    const { deps } = fakeV6Deps();
+    deps.getSpanProcessor = () => ({
+      forceFlush: async () => {
+        throw new Error("flush failed");
+      },
+    });
     const recorded = await recordTailTrace({
-      createClient: () => client,
+      deps,
       sampleRate: 1,
       ...basePayload(),
     });
-    assert.equal(recorded, true, "events were queued; only the flush failed");
+    assert.equal(recorded, true, "spans were created; only the flush failed");
   });
 
   it("defaults to keeping everything when sampleRate is omitted", async () => {
-    const { client, captured } = fakeClient();
+    const { deps, captured } = fakeV6Deps();
     const recorded = await recordTailTrace({
-      createClient: () => client,
+      deps,
       rng: () => 0.999999,
       ...basePayload(),
     });

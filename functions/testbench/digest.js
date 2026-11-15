@@ -6,7 +6,7 @@
  * Does NOT send emails or write to production digest docs.
  */
 
-import { createLangfuse } from "../shared/langfuse.js";
+import { startObservation, propagateAttributes, flushTracing } from "../shared/langfuse.js";
 import { db } from "../shared/firebase.js";
 import { runAgentLoop } from "../shared/agentLoop.js";
 import {
@@ -108,13 +108,14 @@ export async function testBenchDigest({
   maxTokens,
   enabledTools,
 }) {
-  const langfuse = createLangfuse();
-  const trace = langfuse.trace({
-    name: "testbench-digest",
-    userId: "testbench",
-    tags: ["feature:digest", "source:testbench", `type:${promptType}`],
+  const trace = startObservation("testbench-digest", {
     metadata: { classroomId, model, temperature },
   });
+  propagateAttributes({
+    traceName: "testbench-digest",
+    userId: "testbench",
+    tags: ["feature:digest", "source:testbench", `type:${promptType}`],
+  }, () => {});
 
   const config = await fetchDigestConfig();
   const tools = resolveTools(enabledTools, config);
@@ -142,7 +143,7 @@ export async function testBenchDigest({
     }
 
     if (digests.length === 0) {
-      await langfuse.flushAsync();
+      await flushTracing();
       return {
         output: "<p>No classroom digests found. Run classroom digest generation first.</p>",
         totalTokens: 0,
@@ -168,7 +169,7 @@ export async function testBenchDigest({
 
     const htmlContent = parseAndRender(result.content, renderSuperadminDigest);
 
-    await langfuse.flushAsync();
+    await flushTracing();
     return {
       output: htmlContent,
       totalTokens: result.totalTokens || 0,
@@ -208,7 +209,7 @@ export async function testBenchDigest({
 
   const htmlContent = parseAndRender(result.content, renderClassroomDigest);
 
-  await langfuse.flushAsync();
+  await flushTracing();
   return {
     output: htmlContent,
     totalTokens: result.totalTokens || 0,

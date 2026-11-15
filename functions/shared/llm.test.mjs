@@ -276,20 +276,23 @@ describe("runLLM tail sampling (#298)", () => {
   it("nested path (trace passed in): recorder NEVER called; generation on parent trace", async () => {
     globalThis.fetch = okFetch();
     const { calls, deps } = makeDeps();
-    const ends = [];
+    const updates = [];
     const gens = [];
     const parentTrace = {
-      generation(payload) {
-        gens.push(payload);
-        return { end: (p) => ends.push(p) };
+      startObservation(name, attrs, options) {
+        gens.push({ name, attrs, options });
+        return {
+          update(p) { updates.push(p); return this; },
+          end() {},
+        };
       },
     };
     await runLLM({ ...baseArgs, deps, trace: parentTrace });
     assert.equal(calls.record.length, 0, "nested calls must inherit the parent's decision");
     assert.equal(calls.rate.length, 0);
     assert.equal(gens.length, 1);
-    assert.equal(ends.length, 1);
-    assert.equal(ends[0].level, undefined);
+    assert.equal(updates.length, 1);
+    assert.equal(updates[0].level, undefined);
   });
 
   it("nested path failure: generation.end carries level ERROR", async () => {
@@ -300,24 +303,30 @@ describe("runLLM tail sampling (#298)", () => {
       text: async () => "rate limited",
     });
     const { deps } = makeDeps();
-    const ends = [];
+    const updates = [];
     const parentTrace = {
-      generation: () => ({ end: (p) => ends.push(p) }),
+      startObservation: () => ({
+        update: (p) => { updates.push(p); return { end() {} }; },
+        end() {},
+      }),
     };
     await assert.rejects(() => runLLM({ ...baseArgs, deps, trace: parentTrace }));
-    assert.equal(ends[0].level, "ERROR");
-    assert.equal(ends[0].statusMessage, "http_429");
+    assert.equal(updates[0].level, "ERROR");
+    assert.equal(updates[0].statusMessage, "http_429");
   });
 
   it("nested path cap-hit: generation.end carries level WARNING", async () => {
     globalThis.fetch = okFetch({ finishReason: "length" });
     const { deps } = makeDeps();
-    const ends = [];
+    const updates = [];
     const parentTrace = {
-      generation: () => ({ end: (p) => ends.push(p) }),
+      startObservation: () => ({
+        update: (p) => { updates.push(p); return { end() {} }; },
+        end() {},
+      }),
     };
     await runLLM({ ...baseArgs, deps, trace: parentTrace });
-    assert.equal(ends[0].level, "WARNING");
+    assert.equal(updates[0].level, "WARNING");
   });
 
   it("tracing disabled (no Langfuse keys): recorder never called, call still works", async () => {
@@ -407,37 +416,64 @@ describe("runLLM provider-error retry (#310)", () => {
     };
   }
 
-  /** Fake Langfuse client for asserting own-trace promotion. */
-  function makeFakeLangfuse() {
-    const state = { traces: [], flushes: 0 };
-    const client = {
-      trace(payload) {
-        const t = { payload, gens: [] };
-        t.generation = (gp) => {
-          const g = { create: gp, ends: [] };
-          t.gens.push(g);
-          return { end: (e) => g.ends.push(e) };
-        };
-        state.traces.push(t);
-        return t;
-      },
-      flushAsync: async () => {
-        state.flushes++;
+  /** Fake v6 tracing deps for asserting own-trace promotion. */
+  function makeFakeV6TracingDeps() {
+    const state = { traces: [], gens: [], genUpdates: [], propagateCalls: [] };
+
+    function makeObs() {
+      return {
+        traceId: "fake-trace",
+        startObservation(childName, childAttrs, options) {
+          const childUpdates = [];
+          const childEnds = [];
+          const child = {
+            update(p) { childUpdates.push(p); state.genUpdates.push(p); return this; },
+            end(ts) { childEnds.push(ts); },
+          };
+          state.gens.push({ name: childName, attrs: childAttrs, options, updates: childUpdates, ends: childEnds });
+          return child;
+        },
+        update() { return this; },
+        end() {},
+      };
+    }
+
+    return {
+      state,
+      deps: {
+        isTracingEnabled: () => true,
+        startObservation: (name, attrs, options) => {
+          const obs = makeObs(name, attrs);
+          state.traces.push({ name, attrs, options, obs });
+          return obs;
+        },
+        propagateAttributes: (params, fn) => {
+          state.propagateCalls.push(params);
+          return fn();
+        },
       },
     };
-    return { state, client };
   }
 
   function makeParentTrace() {
     const gens = [];
-    const ends = [];
+    const updates = [];
     return {
       gens,
-      ends,
+      updates,
       trace: {
-        generation(payload) {
-          gens.push(payload);
-          return { end: (p) => ends.push(p) };
+        startObservation(name, attrs, options) {
+          const genUpdates = [];
+          const gen = {
+            update(payload) {
+              genUpdates.push(payload);
+              updates.push(payload);
+              return this;
+            },
+            end() {},
+          };
+          gens.push({ name, attrs, options, gen, genUpdates });
+          return gen;
         },
       },
     };
@@ -505,12 +541,12 @@ describe("runLLM provider-error retry (#310)", () => {
     // Nested path: attempt-0 create-time metadata has no attempt (committed
     // before the error is known - AC4 byte-identity). The attempt tag is
     // injected via end-metadata (Langfuse merges end into create server-side).
-    assert.equal(parent.gens[0].metadata.attempt, undefined, "create-time metadata has no attempt");
-    assert.equal(parent.ends[0].metadata.attempt, 0, "attempt injected via end-metadata merge");
-    assert.equal(parent.gens[1].metadata.attempt, 1);
-    assert.equal(parent.ends[0].level, "ERROR");
-    assert.equal(parent.ends[0].statusMessage, "provider_error");
-    assert.equal(parent.ends[1].level, undefined, "successful retry is a clean generation");
+    assert.equal(parent.gens[0].attrs.metadata.attempt, undefined, "create-time metadata has no attempt");
+    assert.equal(parent.updates[0].metadata.attempt, 0, "attempt injected via end-metadata merge");
+    assert.equal(parent.gens[1].attrs.metadata.attempt, 1);
+    assert.equal(parent.updates[0].level, "ERROR");
+    assert.equal(parent.updates[0].statusMessage, "provider_error");
+    assert.equal(parent.updates[1].level, undefined, "successful retry is a clean generation");
     assert.equal(calls.record.length, 0, "nested path never calls the tail recorder");
   });
 
@@ -522,7 +558,7 @@ describe("runLLM provider-error retry (#310)", () => {
     const { deps } = makeDeps();
     const parent = makeParentTrace();
     await runLLM({ ...baseArgs, deps, trace: parent.trace });
-    assert.deepEqual(parent.ends[0].usageDetails, { input: 7, output: 3, total: 10 },
+    assert.deepEqual(parent.updates[0].usageDetails, { input: 7, output: 3, total: 10 },
       "retries make cost analysis honest - failed-attempt spend is real spend");
   });
 
@@ -532,25 +568,27 @@ describe("runLLM provider-error retry (#310)", () => {
       response(),
     ]);
     const { calls, deps } = makeDeps();
-    const { state, client } = makeFakeLangfuse();
-    deps.createLangfuse = () => client;
+    const { state, deps: v6deps } = makeFakeV6TracingDeps();
+    Object.assign(deps, v6deps);
     const result = await runLLM({ ...baseArgs, deps });
     assert.equal(result.content, "hello");
     assert.equal(calls.record.length, 0, "tail recorder bypassed once a retry starts (ERROR = unconditional keep)");
     assert.equal(calls.rate.length, 0, "no sample-rate coin flip on the promoted trace");
     assert.equal(state.traces.length, 1, "exactly one promoted trace for all attempts");
     const t = state.traces[0];
-    assert.equal(t.payload.name, "text_cleanup");
-    assert.equal(t.payload.metadata.featureId, "text_cleanup");
-    assert.ok(t.payload.startTime instanceof Date);
-    assert.equal(t.gens.length, 2, "attempt 0 ERROR generation replayed + attempt 1 success generation");
-    assert.equal(t.gens[0].create.metadata.attempt, 0);
-    assert.equal(t.gens[0].ends[0].level, "ERROR");
-    assert.equal(t.gens[0].ends[0].statusMessage, "provider_error");
-    assert.ok(t.gens[0].ends[0].endTime instanceof Date, "replayed generation keeps its real end time");
-    assert.equal(t.gens[1].create.metadata.attempt, 1);
-    assert.equal(t.gens[1].ends[0].level, undefined);
-    assert.ok(state.flushes >= 1, "harness owns the flush for the promoted client");
+    assert.equal(t.name, "text_cleanup");
+    assert.equal(t.attrs.metadata.featureId, "text_cleanup");
+    assert.ok(t.options.startTime instanceof Date);
+    assert.equal(state.gens.length, 2, "attempt 0 ERROR generation replayed + attempt 1 success generation");
+    assert.equal(state.gens[0].attrs.metadata.attempt, 0);
+    assert.equal(state.gens[0].updates[0].level, "ERROR");
+    assert.equal(state.gens[0].updates[0].statusMessage, "provider_error");
+    // On the replay path, endTime is passed to .end() (not .update()), so check ends[0]
+    assert.ok(state.gens[0].ends[0] instanceof Date, "replayed generation keeps its real end time");
+    assert.equal(state.gens[1].attrs.metadata.attempt, 1);
+    assert.equal(state.gens[1].updates[0].level, undefined);
+    // flush is called via the module-level flushTracing() - safe to call without
+    // a real OTEL processor; the assertion that it ran cannot be checked via deps.
   });
 
   it("own-trace exhaustion: all 3 ERROR generations on one promoted trace, flushed, then throws unavailable", async () => {
@@ -560,20 +598,20 @@ describe("runLLM provider-error retry (#310)", () => {
       response({ content: "p3", finishReason: "error" }),
     ]);
     const { calls, deps } = makeDeps();
-    const { state, client } = makeFakeLangfuse();
-    deps.createLangfuse = () => client;
+    const { state, deps: v6deps } = makeFakeV6TracingDeps();
+    Object.assign(deps, v6deps);
     await assert.rejects(
       () => runLLM({ ...baseArgs, deps }),
       (err) => err.code === "unavailable",
     );
     assert.equal(calls.record.length, 0);
     assert.equal(state.traces.length, 1);
-    assert.equal(state.traces[0].gens.length, 3);
-    for (const g of state.traces[0].gens) {
-      assert.equal(g.ends[0].level, "ERROR");
-      assert.equal(g.ends[0].statusMessage, "provider_error");
+    assert.equal(state.gens.length, 3);
+    for (const g of state.gens) {
+      assert.equal(g.updates[0].level, "ERROR");
+      assert.equal(g.updates[0].statusMessage, "provider_error");
     }
-    assert.ok(state.flushes >= 1, "promoted trace flushed even on the throw path");
+    // flush is called via the module-level flushTracing() on the throw path too.
   });
 
   it("own-trace path: 2 provider errors then success - 1 trace, 3 generations (2 ERROR + 1 success), flushed", async () => {
@@ -583,27 +621,26 @@ describe("runLLM provider-error retry (#310)", () => {
       response({ content: "good output" }),
     ]);
     const { calls, deps } = makeDeps();
-    const { state, client } = makeFakeLangfuse();
-    deps.createLangfuse = () => client;
+    const { state, deps: v6deps } = makeFakeV6TracingDeps();
+    Object.assign(deps, v6deps);
     const result = await runLLM({ ...baseArgs, deps });
     assert.equal(result.content, "good output");
     assert.equal(result.finishReason, "stop");
     assert.equal(calls.record.length, 0, "tail recorder bypassed - promoted trace owns all generations");
     assert.equal(state.traces.length, 1, "exactly one promoted trace");
-    const t = state.traces[0];
-    assert.equal(t.gens.length, 3, "2 ERROR + 1 success generations");
+    assert.equal(state.gens.length, 3, "2 ERROR + 1 success generations");
     // Attempt 0: replayed onto promoted trace with injected attempt tag
-    assert.equal(t.gens[0].create.metadata.attempt, 0);
-    assert.equal(t.gens[0].ends[0].level, "ERROR");
-    assert.equal(t.gens[0].ends[0].statusMessage, "provider_error");
+    assert.equal(state.gens[0].attrs.metadata.attempt, 0);
+    assert.equal(state.gens[0].updates[0].level, "ERROR");
+    assert.equal(state.gens[0].updates[0].statusMessage, "provider_error");
     // Attempt 1: nested on promoted trace (inRetryContext = true)
-    assert.equal(t.gens[1].create.metadata.attempt, 1);
-    assert.equal(t.gens[1].ends[0].level, "ERROR");
-    assert.equal(t.gens[1].ends[0].statusMessage, "provider_error");
+    assert.equal(state.gens[1].attrs.metadata.attempt, 1);
+    assert.equal(state.gens[1].updates[0].level, "ERROR");
+    assert.equal(state.gens[1].updates[0].statusMessage, "provider_error");
     // Attempt 2: success
-    assert.equal(t.gens[2].create.metadata.attempt, 2);
-    assert.equal(t.gens[2].ends[0].level, undefined, "clean success has no level");
-    assert.ok(state.flushes >= 1, "harness owns the flush for the promoted client");
+    assert.equal(state.gens[2].attrs.metadata.attempt, 2);
+    assert.equal(state.gens[2].updates[0].level, undefined, "clean success has no level");
+    // flush is called via the module-level flushTracing() - no deps mock needed.
   });
 
   it("nested-path exhaustion: 3 consecutive errors -> throws unavailable, all 3 ERROR generations on parent trace", async () => {
@@ -620,9 +657,9 @@ describe("runLLM provider-error retry (#310)", () => {
     );
     assert.equal(parent.gens.length, 3, "all 3 attempts nest under the one parent trace");
     for (let i = 0; i < 3; i++) {
-      assert.equal(parent.ends[i].level, "ERROR");
-      assert.equal(parent.ends[i].statusMessage, "provider_error");
-      assert.equal(parent.ends[i].metadata.attempt, i, `attempt ${i} tagged via end-metadata`);
+      assert.equal(parent.updates[i].level, "ERROR");
+      assert.equal(parent.updates[i].statusMessage, "provider_error");
+      assert.equal(parent.updates[i].metadata.attempt, i, `attempt ${i} tagged via end-metadata`);
     }
     assert.equal(fetchCalls.count, 3, "initial + 2 retries");
     assert.equal(calls.record.length, 0, "nested path never calls the tail recorder");

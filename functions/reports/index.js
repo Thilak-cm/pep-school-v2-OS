@@ -3,7 +3,7 @@ import * as functions from "firebase-functions/v1";
 import { defineSecret } from "firebase-functions/params";
 import { db } from "../shared/firebase.js";
 import { runLLM, OPENROUTER_API_KEY, LANGFUSE_SECRET_KEY, LANGFUSE_PUBLIC_KEY } from "../shared/llm.js";
-import { createLangfuse } from "../shared/langfuse.js";
+import { startObservation, propagateAttributes, flushTracing, createScoreClient } from "../shared/langfuse.js";
 import { broadcastAlert } from "../shared/telegram.js";
 import { formatFolderHealedSignal } from "../shared/verifierTelegram.js";
 
@@ -420,12 +420,10 @@ export const generateStudentReport = functions
     const reportType = data?.reportType === "baseline" ? "baseline" : "term";
 
     const studentInfo = await getStudentWithProgram(studentId);
-    const langfuse = createLangfuse();
-    const trace = langfuse.trace({
-      name: "generate-student-report",
-      userId: context.auth.uid,
+    const trace = startObservation("generate-student-report", {
       metadata: { studentId, classroomId: studentInfo.classroomId, programId: studentInfo.programId, reportType },
     });
+    propagateAttributes({ userId: context.auth.uid }, () => {});
 
     const result = await runSingleReport({
       studentId,
@@ -444,7 +442,8 @@ export const generateStudentReport = functions
         noteCount: result.payload.noteCount,
       },
     });
-    await langfuse.flushAsync();
+    trace.end();
+    await flushTracing();
 
     return {
       status: result.status,
@@ -483,10 +482,7 @@ export const previewStudentReport = functions
     }
 
     const studentInfo = await getStudentWithProgram(studentId);
-    const langfuse = createLangfuse();
-    const trace = langfuse.trace({
-      name: "preview-student-report",
-      userId: context.auth.uid,
+    const trace = startObservation("preview-student-report", {
       metadata: {
         studentId,
         classroomId: studentInfo.classroomId,
@@ -494,6 +490,7 @@ export const previewStudentReport = functions
         preview: true,
       },
     });
+    propagateAttributes({ userId: context.auth.uid }, () => {});
 
     let result;
     try {
@@ -514,7 +511,8 @@ export const previewStudentReport = functions
         output: { status: result.status, noteCount: result.payload.noteCount },
       });
     } finally {
-      await langfuse.flushAsync();
+      trace.end();
+      await flushTracing();
     }
 
     return {
@@ -541,12 +539,10 @@ export const exportReportToDrive = functions
       throw new functions.https.HttpsError("unauthenticated", "User must be authenticated");
     }
 
-    const langfuse = createLangfuse();
-    const trace = langfuse.trace({
-      name: "export-report-to-drive",
-      userId: context.auth.uid,
+    const trace = startObservation("export-report-to-drive", {
       metadata: { studentId: data?.studentId, reportType: data?.reportPayload?.reportType || "term" },
     });
+    propagateAttributes({ userId: context.auth.uid }, () => {});
 
     const studentId = String(data?.studentId || "").trim();
     const reportDocId = String(data?.reportDocId || "").trim();
@@ -586,7 +582,8 @@ export const exportReportToDrive = functions
           // Previous attempt fully completed — return existing data (idempotent retry).
           // Read studentName from the stored doc to avoid an extra Firestore read.
           const earlyStudentName = existingReport.studentName || "Student";
-          await langfuse.flushAsync();
+          trace.end();
+          await flushTracing();
           return {
             status: "ok",
             docId: reportDocId,
@@ -756,11 +753,16 @@ export const exportReportToDrive = functions
           if (reportRef) {
             await reportRef.update({ reportEval });
           }
-          // Log scores to Langfuse (guard against null from malformed LLM output)
-          const traceId = trace.id;
-          if (reportEval.sentimentScore != null) langfuse.score({ traceId, name: "report_sentiment", value: reportEval.sentimentScore });
-          if (reportEval.areaBalanceScore != null) langfuse.score({ traceId, name: "report_area_balance", value: reportEval.areaBalanceScore });
-          langfuse.score({ traceId, name: "report_missing_flags_count", value: reportEval.missingInputFlags?.length || 0 });
+          // Log scores to Langfuse (guard against null from malformed LLM output).
+          // v6: scores go via LangfuseClient (not span processor); create a
+          // dedicated client, post scores, then flush it before the main
+          // flushTracing() call at the end of the handler.
+          const traceId = trace.traceId;
+          const scoreClient = createScoreClient();
+          if (reportEval.sentimentScore != null) await scoreClient.score.create({ traceId, name: "report_sentiment", value: reportEval.sentimentScore });
+          if (reportEval.areaBalanceScore != null) await scoreClient.score.create({ traceId, name: "report_area_balance", value: reportEval.areaBalanceScore });
+          await scoreClient.score.create({ traceId, name: "report_missing_flags_count", value: reportEval.missingInputFlags?.length || 0 });
+          await scoreClient.flush();
         }
       } catch (judgeErr) {
         console.warn("[drive-export] judge call failed (non-blocking):", judgeErr);
@@ -856,7 +858,8 @@ export const exportReportToDrive = functions
       });
     }
 
-    await langfuse.flushAsync();
+    trace.end();
+    await flushTracing();
 
     return {
       status: "ok",
