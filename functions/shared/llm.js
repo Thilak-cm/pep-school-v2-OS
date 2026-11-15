@@ -165,6 +165,9 @@ export function buildChatBody({ model, messages, temperature, max_completion_tok
  *   on the nested path the parent trace owns its tags). Used to distinguish run
  *   provenance, e.g. "run:scheduled" vs "run:remediation" - see #167 follow-up.
  * @param {object} [options.generationMetadata] - Additional metadata for the Langfuse generation
+ * @param {Array} [options.traceInput] - Override Langfuse generation input. When provided, used
+ *   instead of sanitizeMessagesForTrace(messages) for the Langfuse generation input field.
+ *   Used by the medical PDF worker to pass fully-redacted messages (#255).
  * @param {object} [options.trace] - Existing Langfuse observation to nest under (skips trace creation).
  *   In v6 this is a LangfuseSpan/LangfuseGeneration from @langfuse/tracing (was a v3 trace object).
  * @param {number} [options.timeoutMs] - Abort the OpenRouter fetch after this many ms (#288).
@@ -185,6 +188,7 @@ export async function runLLM({
   traceMetadata,
   traceTags,
   generationMetadata,
+  traceInput,
   trace,
   timeoutMs,
   deps = {},
@@ -217,7 +221,9 @@ export async function runLLM({
 
   const tracingEnabled = isTracingEnabled();
 
-  const sanitizedInput = sanitizeMessagesForTrace(messages);
+  // traceInput override (#255): callers with domain-specific redaction (e.g.
+  // medical PDF worker) pass pre-sanitized messages; default strips data-URIs only.
+  const sanitizedInput = traceInput || sanitizeMessagesForTrace(messages);
 
   // Retry harness state (#310). activeTrace starts as the caller's observation
   // (or null on the own-trace path) and may be lazily promoted to a real root
@@ -394,7 +400,7 @@ export async function runLLM({
           create: {
             name: `${featureId}-completion`,
             model: resolvedModel,
-            input: messages,
+            input: sanitizedInput,
             metadata: attemptGenMetadata,
             startTime,
           },

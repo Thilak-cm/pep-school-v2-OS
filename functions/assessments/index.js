@@ -925,8 +925,10 @@ export const finalizeMedicalAssessmentUpload = functions
       await medicalPdfTopic.publishMessage({ data: Buffer.from(pubsubPayload) });
     } catch (pubsubError) {
       // Log but do not fail the finalize response - the teacher gets "published"
-      // feedback immediately. The daily data integrity checker will flag unprocessed
-      // docs that remain in "queued" state if the publish silently failed.
+      // feedback immediately. If the publish silently failed, the observation doc
+      // stays in "queued" with no Pub/Sub message in flight. There is no automatic
+      // recovery - the daily integrity checker (checkStaleMedicalProcessing) flags
+      // docs stuck in queued/processing for >1h so ops can manually republish.
       console.error("[finalizeMedicalAssessmentUpload] pubsub publish failed", {
         observationId: pending.observationId,
         error: pubsubError?.message,

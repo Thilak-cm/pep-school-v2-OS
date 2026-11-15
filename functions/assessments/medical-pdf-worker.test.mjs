@@ -1,6 +1,5 @@
 /**
  * Contract tests for medical PDF processing pipeline (#255).
- * All tests should fail with "Not implemented" until /implement-issue fills the stubs.
  */
 
 import test from "node:test";
@@ -116,6 +115,33 @@ test("processMedicalPdf short-circuits when processingStatus is completed", asyn
   assert.equal(callLog.length, 0, "no side effects should occur when already completed");
 });
 
+test("processMedicalPdf short-circuits when processingStatus is failed", async () => {
+  const callLog = [];
+  const mockDeps = {
+    db: {
+      collection: () => ({
+        doc: () => ({
+          collection: () => ({
+            doc: () => ({
+              get: async () => ({
+                exists: true,
+                data: () => ({ processingStatus: "failed", originalFile: { storagePath: "path/original.pdf" } }),
+              }),
+              update: async () => callLog.push("update"),
+            }),
+          }),
+        }),
+      }),
+    },
+    downloadPdf: async () => callLog.push("download"),
+    parsePdf: async () => callLog.push("parse"),
+    runLLM: async () => callLog.push("llm"),
+  };
+
+  await processMedicalPdf({ studentId: "s1", observationId: "o1" }, mockDeps);
+  assert.equal(callLog.length, 0, "no side effects should occur when already failed");
+});
+
 // ---------------------------------------------------------------------------
 // processMedicalPdf - state machine transitions
 // ---------------------------------------------------------------------------
@@ -146,7 +172,10 @@ test("processMedicalPdf skips parse step when parsedContent already exists on re
     },
     downloadPdf: async () => { callLog.push("download"); return Buffer.from(""); },
     parsePdf: async () => { callLog.push("parse"); return { text: "", pageCount: 6 }; },
-    runLLM: async () => { callLog.push("llm"); return { choices: [{ message: { content: "summary" } }] }; },
+    runLLM: async () => {
+      callLog.push("llm");
+      return { content: '{"summary":"test summary","title":"Test Doc"}', usage: {} };
+    },
   };
 
   await processMedicalPdf({ studentId: "s1", observationId: "o1" }, mockDeps);
@@ -154,4 +183,59 @@ test("processMedicalPdf skips parse step when parsedContent already exists on re
   assert.ok(!callLog.includes("download"), "should not re-download when parsedContent exists");
   assert.ok(!callLog.includes("parse"), "should not re-parse when parsedContent exists");
   assert.ok(callLog.includes("llm"), "should still call LLM");
+
+  // Verify the initial processing update includes retryCount increment
+  const processingUpdate = callLog.find((e) => e.op === "update" && e.payload?.processingStatus === "processing");
+  assert.ok(processingUpdate, "must write processingStatus: processing with retryCount");
+  assert.equal(processingUpdate.payload.retryCount?.operand, 1, "retryCount must be FieldValue.increment(1)");
+
+  // Verify the completed update was written with correct fields
+  const completedUpdate = callLog.find((e) => e.op === "update" && e.payload?.processingStatus === "completed");
+  assert.ok(completedUpdate, "must write processingStatus: completed");
+  assert.equal(completedUpdate.payload.summary, "test summary");
+});
+
+// ---------------------------------------------------------------------------
+// processMedicalPdf - permanent error failure write path
+// ---------------------------------------------------------------------------
+
+test("processMedicalPdf writes failed state and rethrows on permanent error", async () => {
+  const callLog = [];
+  const mockDeps = {
+    db: {
+      collection: () => ({
+        doc: () => ({
+          collection: () => ({
+            doc: () => ({
+              get: async () => ({
+                exists: true,
+                data: () => ({
+                  processingStatus: "queued",
+                  originalFile: { storagePath: "path/missing.pdf" },
+                }),
+              }),
+              update: async (payload) => callLog.push({ op: "update", payload }),
+            }),
+          }),
+        }),
+      }),
+    },
+    downloadPdf: async () => {
+      const err = new Error("PDF not found in storage");
+      err.code = "not-found";
+      throw err;
+    },
+    parsePdf: async () => { throw new Error("should not be called"); },
+    runLLM: async () => { throw new Error("should not be called"); },
+  };
+
+  await assert.rejects(
+    () => processMedicalPdf({ studentId: "s1", observationId: "o1" }, mockDeps),
+    { code: "not-found" },
+  );
+
+  // Verify the failure state was written to the observation doc
+  const failedUpdate = callLog.find((e) => e.op === "update" && e.payload?.processingStatus === "failed");
+  assert.ok(failedUpdate, "must write processingStatus: failed");
+  assert.equal(failedUpdate.payload.processingError, "PDF not found in storage");
 });

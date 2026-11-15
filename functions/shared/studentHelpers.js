@@ -16,23 +16,33 @@ const chooseObservationTimestamp = (obs) => {
 };
 
 const isGenericObservation = (observation) => {
-  // Completed medical assessments flow into soul gen (#255).
-  // Structured assessments remain excluded until #252.
-  if (
+  // All assessment types are excluded from generic AI context (reports, baseball
+  // cards, coach chat, monthly plans, tool registry). Structured assessments are
+  // owned by #252; medical assessments flow only through isSoulObservation.
+  return observation?.type !== "assessment" && !observation?.assessmentKind;
+};
+
+// Soul-specific filter (#255): everything isGenericObservation allows, PLUS
+// completed medical assessments. Only soul generation should use this filter -
+// all other AI pipelines use isGenericObservation to keep medical content out.
+const isSoulObservation = (observation) => {
+  if (isGenericObservation(observation)) return true;
+  return (
     observation?.type === "assessment" &&
     observation?.assessmentKind === "medical" &&
     observation?.processingStatus === "completed"
-  ) {
-    return true;
-  }
-  return observation?.type !== "assessment" && !observation?.assessmentKind;
+  );
 };
 
 function formatObservationForPrompt(obs) {
   const ts = chooseObservationTimestamp(obs);
+  // Medical assessments store their content in `summary` (written by the PDF
+  // worker), not `text`. Only soul gen passes medical obs through this formatter
+  // (via isSoulObservation in B1), so the branch is safe for all callers (#255).
+  const isMedicalAssessment = obs.type === "assessment" && obs.assessmentKind === "medical";
   return {
     type: obs.type || "",
-    text: obs.text || "",
+    text: isMedicalAssessment ? (obs.summary || "") : (obs.text || ""),
     lessonTitle: obs.lessonTitle || obs.title || "",
     lessonDescription: obs.lessonDescription || obs.description || "",
     groupComment: obs.groupComment || "",
@@ -49,7 +59,8 @@ function formatObservationForPrompt(obs) {
 // cutoffDate is a Date object (lower-bound, inclusive) or null (all-time, no lower bound).
 // Soul generation uses this for delta context (#314): passing prevSoul.updatedAt means only
 // notes since the last generation are fetched, since the previous soul already covers history.
-async function fetchStudentNotesForWindow(studentId, cutoffDate) {
+// observationFilter defaults to isGenericObservation; soul gen passes isSoulObservation (#255).
+async function fetchStudentNotesForWindow(studentId, cutoffDate, { observationFilter = isGenericObservation } = {}) {
   const notesMap = new Map();
   const studentObsRef = db.collection("students").doc(studentId).collection("observations");
 
@@ -82,7 +93,8 @@ async function fetchStudentNotesForWindow(studentId, cutoffDate) {
   const notes = Array.from(notesMap.values()).filter((n) => {
     // Assessment contracts are owned by #252; keep them out of generic AI
     // context until their labels/limits/provenance are deliberately defined.
-    if (!isGenericObservation(n)) return false;
+    // Soul gen passes isSoulObservation to include completed medical assessments (#255).
+    if (!observationFilter(n)) return false;
     if (!cutoffDate) return true;
     const ts = chooseObservationTimestamp(n);
     return ts && ts >= cutoffDate;
@@ -189,6 +201,7 @@ export {
   normalizeTimestampValue,
   chooseObservationTimestamp,
   isGenericObservation,
+  isSoulObservation,
   formatObservationForPrompt,
   fetchStudentNotesForWindow,
   fetchStudentInterviews,

@@ -782,6 +782,187 @@ describe("runLLM timeoutMs (#288)", () => {
 });
 
 // ---------------------------------------------------------------------------
+// runLLM traceInput override (#255)
+// When traceInput is provided, it replaces the default sanitizeMessagesForTrace
+// output for the Langfuse generation input field.
+// ---------------------------------------------------------------------------
+
+describe("runLLM traceInput override (#255)", () => {
+  const realFetch = globalThis.fetch;
+  const savedEnv = {};
+  const ENV_KEYS = ["OPENROUTER_API_KEY", "LANGFUSE_SECRET_KEY", "LANGFUSE_PUBLIC_KEY"];
+
+  beforeEach(() => {
+    for (const k of ENV_KEYS) savedEnv[k] = process.env[k];
+    process.env.OPENROUTER_API_KEY = "test-key";
+    process.env.LANGFUSE_SECRET_KEY = "sk-test";
+    process.env.LANGFUSE_PUBLIC_KEY = "pk-test";
+  });
+
+  afterEach(() => {
+    globalThis.fetch = realFetch;
+    for (const k of ENV_KEYS) {
+      if (savedEnv[k] === undefined) delete process.env[k];
+      else process.env[k] = savedEnv[k];
+    }
+  });
+
+  it("own-trace path: traceInput is used as generation input instead of sanitizeMessagesForTrace", async () => {
+    globalThis.fetch = async () => ({
+      ok: true,
+      headers: { get: () => null },
+      json: async () => ({
+        choices: [{ message: { content: "hello" }, finish_reason: "stop" }],
+        usage: { prompt_tokens: 10, completion_tokens: 5, total_tokens: 15 },
+      }),
+    });
+    const records = [];
+    const result = await runLLM({
+      featureId: "medicalPdfSummary",
+      messages: [{ role: "user", content: "SENSITIVE MEDICAL TEXT" }],
+      model: "openai/test-model",
+      traceInput: [{ role: "user", content: "[redacted]" }],
+      deps: {
+        recordTailTrace: async (payload) => { records.push(payload); return true; },
+        getTraceSampleRate: async () => 1,
+      },
+    });
+    assert.equal(result.content, "hello");
+    assert.equal(records.length, 1);
+    // The generation input must be the traceInput, not the raw messages
+    assert.deepEqual(records[0].generation.input, [{ role: "user", content: "[redacted]" }]);
+    // Verify the raw medical text is NOT in the trace
+    assert.ok(
+      !JSON.stringify(records[0]).includes("SENSITIVE MEDICAL TEXT"),
+      "raw medical text must not appear in Langfuse trace",
+    );
+  });
+
+  it("nested path: traceInput is used as generation input on the parent trace", async () => {
+    globalThis.fetch = async () => ({
+      ok: true,
+      headers: { get: () => null },
+      json: async () => ({
+        choices: [{ message: { content: "hello" }, finish_reason: "stop" }],
+        usage: { prompt_tokens: 10, completion_tokens: 5, total_tokens: 15 },
+      }),
+    });
+    const gens = [];
+    const parentTrace = {
+      startObservation(name, attrs, options) {
+        gens.push({ name, attrs, options });
+        return {
+          update() { return this; },
+          end() {},
+        };
+      },
+    };
+    await runLLM({
+      featureId: "medicalPdfSummary",
+      messages: [{ role: "user", content: "SENSITIVE MEDICAL TEXT" }],
+      model: "openai/test-model",
+      traceInput: [{ role: "user", content: "[redacted]" }],
+      trace: parentTrace,
+      deps: {
+        recordTailTrace: async () => true,
+        getTraceSampleRate: async () => 1,
+      },
+    });
+    assert.equal(gens.length, 1);
+    assert.deepEqual(gens[0].attrs.input, [{ role: "user", content: "[redacted]" }]);
+  });
+
+  it("own-trace provider-error retry: buffered generation uses traceInput, not raw messages", async () => {
+    // Scripted fetch: first call returns provider error, second succeeds
+    let fetchCount = 0;
+    globalThis.fetch = async () => {
+      fetchCount++;
+      if (fetchCount === 1) {
+        return {
+          ok: true,
+          headers: { get: () => null },
+          json: async () => ({
+            choices: [{ message: { content: "partial" }, finish_reason: "error" }],
+            usage: { prompt_tokens: 10, completion_tokens: 3, total_tokens: 13 },
+          }),
+        };
+      }
+      return {
+        ok: true,
+        headers: { get: () => null },
+        json: async () => ({
+          choices: [{ message: { content: "good output" }, finish_reason: "stop" }],
+          usage: { prompt_tokens: 10, completion_tokens: 5, total_tokens: 15 },
+        }),
+      };
+    };
+
+    // Fake v6 tracing deps to capture what gets written to the promoted trace
+    const state = { traces: [], gens: [], genUpdates: [] };
+    function makeObs() {
+      return {
+        traceId: "fake-trace",
+        startObservation(childName, childAttrs, options) {
+          const childUpdates = [];
+          const childEnds = [];
+          const child = {
+            update(p) { childUpdates.push(p); state.genUpdates.push(p); return this; },
+            end(ts) { childEnds.push(ts); },
+          };
+          state.gens.push({ name: childName, attrs: childAttrs, options, updates: childUpdates, ends: childEnds });
+          return child;
+        },
+        update() { return this; },
+        end() {},
+      };
+    }
+
+    const result = await runLLM({
+      featureId: "medicalPdfSummary",
+      messages: [{ role: "user", content: "SENSITIVE MEDICAL TEXT" }],
+      model: "openai/test-model",
+      traceInput: [{ role: "user", content: "[redacted]" }],
+      deps: {
+        recordTailTrace: async () => { assert.fail("tail recorder must not be called on promoted trace path"); },
+        getTraceSampleRate: async () => 1,
+        isTracingEnabled: () => true,
+        startObservation: (name, attrs, options) => {
+          const obs = makeObs();
+          state.traces.push({ name, attrs, options, obs });
+          return obs;
+        },
+        propagateAttributes: (params, fn) => fn(),
+      },
+    });
+
+    assert.equal(result.content, "good output");
+    assert.equal(fetchCount, 2, "one provider error + one success");
+
+    // The replayed (attempt 0) generation input must use traceInput
+    assert.equal(state.gens.length, 2, "attempt 0 replayed + attempt 1 success");
+    assert.deepEqual(
+      state.gens[0].attrs.input,
+      [{ role: "user", content: "[redacted]" }],
+      "replayed generation must use traceInput, not raw messages",
+    );
+
+    // The success generation (attempt 1) input must also use traceInput
+    assert.deepEqual(
+      state.gens[1].attrs.input,
+      [{ role: "user", content: "[redacted]" }],
+      "success generation must use traceInput, not raw messages",
+    );
+
+    // Verify raw medical text never appears anywhere in the trace state
+    const serialized = JSON.stringify(state);
+    assert.ok(
+      !serialized.includes("SENSITIVE MEDICAL TEXT"),
+      "raw medical text must never appear in Langfuse trace data",
+    );
+  });
+});
+
+// ---------------------------------------------------------------------------
 // sanitizeMedicalMessagesForTrace (#255)
 // Medical text must never appear in Langfuse traces. Input and output are
 // replaced with compact placeholders preserving only size metadata.

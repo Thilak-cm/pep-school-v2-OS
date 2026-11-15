@@ -26,6 +26,7 @@ import {
   fetchStudentInterviews,
   formatObservationForPrompt,
   chooseObservationTimestamp,
+  isSoulObservation,
 } from "../shared/studentHelpers.js";
 import { fetchActiveStudentIds } from "../shared/scheduling.js";
 import { PubSub } from "@google-cloud/pubsub";
@@ -146,7 +147,7 @@ async function callSoulGeneration(observations, interviews, guidelinesContent, s
   }
 }
 
-async function writeSoulAndGuidelines(studentId, soulContent, programId, templateConfig, observationCount, interviewCount, lastObsAt, lastInterviewAt, classroomId = null, generatedForMonth = null) {
+async function writeSoulAndGuidelines(studentId, soulContent, programId, templateConfig, observationCount, interviewCount, lastObsAt, lastInterviewAt, classroomId = null, generatedForMonth = null, medicalNotes = undefined) {
   const aiSummariesRef = db.collection("students").doc(studentId).collection("ai_summaries");
   const soulRef = aiSummariesRef.doc("soul");
   const guidelinesRef = aiSummariesRef.doc("guidelines");
@@ -179,6 +180,7 @@ async function writeSoulAndGuidelines(studentId, soulContent, programId, templat
     interviewCount,
     lastObservationAt: lastObsAt,
     lastInterviewAt: lastInterviewAt,
+    medicalNotes,
   });
   soulDoc.hasEmergentObservations = hasEmergentObservations(narrativeContent);
   soulDoc.guidelinesSuggestions = guidelinesSuggestions;
@@ -358,7 +360,7 @@ async function generateSoulForStudent(studentId, { windowDays = null, generatedF
   }
 
   const [notes, rawInterviews] = await Promise.all([
-    fetchStudentNotesForWindow(studentId, cutoffDate),
+    fetchStudentNotesForWindow(studentId, cutoffDate, { observationFilter: isSoulObservation }),
     fetchStudentInterviews(studentId, cutoffDate),
   ]);
   lap(`fetchNotes(${notes.length})+interviews(${rawInterviews.length})`);
@@ -391,6 +393,15 @@ async function generateSoulForStudent(studentId, { windowDays = null, generatedF
   const formatted = notes.map(formatObservationForPrompt);
   const formattedInterviews = rawInterviews.map(formatInterviewForPrompt);
 
+  // Extract medical assessment summaries for the soul doc's medicalNotes field (#255).
+  // These reach `notes` via isSoulObservation; only completed medical assessments pass.
+  const medicalObs = notes.filter(
+    (n) => n.type === "assessment" && n.assessmentKind === "medical" && n.processingStatus === "completed",
+  );
+  const medicalNotes = medicalObs.length > 0
+    ? medicalObs.map((n) => n.summary || "").filter(Boolean).join("\n\n---\n\n")
+    : undefined;
+
   const lastObsAt = notes.length ? chooseObservationTimestamp(notes[0]) : null;
   const lastInterviewAt = rawInterviews.length && rawInterviews[0].conductedAt
     ? (rawInterviews[0].conductedAt.toDate ? rawInterviews[0].conductedAt.toDate() : new Date(rawInterviews[0].conductedAt))
@@ -410,6 +421,7 @@ async function generateSoulForStudent(studentId, { windowDays = null, generatedF
     formatted.length, formattedInterviews.length, lastObsAt, lastInterviewAt,
     studentInfo.classroomId,
     generatedForMonth,
+    medicalNotes,
   );
   lap("writeSoulAndGuidelines");
 
@@ -714,7 +726,7 @@ export async function testBenchSoul({ studentId, systemPrompt, guidelinesContent
 
   // Gather observations + interviews
   const [notes, rawInterviews] = await Promise.all([
-    fetchStudentNotesForWindow(studentId, cutoffDate),
+    fetchStudentNotesForWindow(studentId, cutoffDate, { observationFilter: isSoulObservation }),
     includeInterviews ? fetchStudentInterviews(studentId, cutoffDate) : Promise.resolve([]),
   ]);
 
