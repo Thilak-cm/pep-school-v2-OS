@@ -21,7 +21,7 @@
     "@langfuse/otel": "^6.1.1",
     "@langfuse/tracing": "^6.1.1",
     "@opentelemetry/api": "^1.9.0",
-    "@opentelemetry/sdk-node": "^0.200.0",
+    "@opentelemetry/sdk-node": "^0.202.0",
     "nodemailer": "^6.9.9",
     "puppeteer-core": "^25.2.1",
     "resend": "^6.12.4",
