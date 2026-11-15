@@ -34,7 +34,8 @@ import AssessmentTimelineEntry from './AssessmentTimelineEntry';
 import AssessmentMatrixSheet from './AssessmentMatrixSheet';
 import MedicalPdfSheet from './MedicalPdfSheet';
 import { buildMediaItemsForObservation as buildSharedMediaItems } from './groupedMediaUtils.js';
-import { DayHeader } from './ui';
+import { DayHeader, HFSearchInput } from './ui';
+import { useTypesenseSearch } from '../hooks/useTypesenseSearch';
 import { groupByCalendarDay } from './classroomTimelineUtils.js';
 import useObservationFilters from '../hooks/useObservationFilters';
 import useTimelineData from '../hooks/useTimelineData';
@@ -95,6 +96,17 @@ function StudentTimeline({ student, currentUser, userRole, noteTypeFilter = null
     commitFilters,
     toggleFilters,
   } = useObservationFilters([], noteTypeFilter);
+
+  // #331: full-text search via Typesense
+  const [searchQuery, setSearchQuery] = useState('');
+  const {
+    results: typesenseResults,
+    searchActive,
+  } = useTypesenseSearch({
+    query: searchQuery,
+    studentId: student?.id,
+    committedFilters: serverFilters,
+  });
 
   // Shared data hook — cursor-based pagination (#221 Sprint 2), server-side filtering (#297)
   const {
@@ -227,8 +239,9 @@ function StudentTimeline({ student, currentUser, userRole, noteTypeFilter = null
 
   // #221 Sprint 2: stats from statsCache via useTimelineStats (see hook above)
 
-  // Server handles author/type/date filtering; observations arrive already filtered (#297)
-  const visibleObservations = observations;
+  // Server handles author/type/date filtering; observations arrive already filtered (#297).
+  // #331: when searchActive, Typesense results replace the Firestore page.
+  const visibleObservations = searchActive ? typesenseResults : observations;
 
   // Apply: commit filters and auto-close panel
   const handleApplyFilters = () => {
@@ -751,6 +764,14 @@ function StudentTimeline({ student, currentUser, userRole, noteTypeFilter = null
         </Box>
       ) : (
         <Box sx={{ display: 'flex', flexDirection: 'column', gap: 1.5 }}>
+          {/* #331: Search bar for full-text search */}
+          <HFSearchInput
+            value={searchQuery}
+            onChange={setSearchQuery}
+            placeholder="Search observations"
+            sx={{ mx: 0 }}
+          />
+
           {/* Filter Panel */}
           <FilterPanel
             showFilters={showFilters}
@@ -973,6 +994,7 @@ function StudentTimeline({ student, currentUser, userRole, noteTypeFilter = null
                   isTransferred={!!(obs.classroomId && student?.classroomId && obs.classroomId !== student.classroomId)}
                   transferredToClassroomName={obs.classroomId !== student?.classroomId ? classroomNameCache[obs.classroomId] : undefined}
                   classroomTeachers={classroomTeachers}
+                  highlightSnippet={searchActive ? obs.highlightSnippet : undefined}
                   onNoteClick={() => handleObservationClick(obs)}
                   mediaUrls={mediaUrls}
                 />
@@ -990,8 +1012,8 @@ function StudentTimeline({ student, currentUser, userRole, noteTypeFilter = null
               </Box>
             ) : null;
           })()}
-          {/* Show More Button — cursor-based pagination (#221 Sprint 2) */}
-          {hasMore && (
+          {/* Show More Button — cursor-based pagination (#221 Sprint 2). Hidden during searchActive (#331). */}
+          {hasMore && !searchActive && (
             <Box sx={{ textAlign: 'center', pt: 2 }}>
               <Button
                 variant="outlined"

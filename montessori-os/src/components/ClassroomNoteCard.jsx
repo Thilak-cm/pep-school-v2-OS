@@ -71,6 +71,7 @@ export default function ClassroomNoteCard({
   onMediaOpen,
   mediaUrls = {},
   variant,
+  highlightSnippet,
 }) {
   const chipConfig = getTypeChipConfig(note.type);
   const teacher = getTeacherForNote(note, classroomTeachers);
@@ -192,6 +193,19 @@ export default function ClassroomNoteCard({
               )}
             </Box>
           </Box>
+        ) : highlightSnippet !== undefined ? (
+          /* #331: Search mode - show snippet window around match with <mark> highlights */
+          <Typography
+            variant="body2"
+            sx={{
+              mb: 0.5,
+              lineHeight: 1.5,
+              wordBreak: 'break-word',
+              fontSize: '0.82rem',
+              '& mark': { backgroundColor: 'rgba(255, 213, 79, 0.4)', borderRadius: '2px' },
+            }}
+            dangerouslySetInnerHTML={{ __html: highlightSnippet }}
+          />
         ) : (
           /* Text / Voice: full-width body */
           <Typography

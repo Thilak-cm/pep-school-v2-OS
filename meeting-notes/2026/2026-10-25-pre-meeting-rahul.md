@@ -2,7 +2,7 @@
 type: pre_meeting_note
 date: 2026-10-25
 with: Rahul
-status: open
+status: addressed: 2026-11-08-product-roadmap-medical-pdf-assessments-search.md
 ---
 
 ## Agenda Items

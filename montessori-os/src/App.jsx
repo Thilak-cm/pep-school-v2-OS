@@ -32,12 +32,6 @@ function App() {
   const [addNoteOpen, setAddNoteOpen] = useState(false);
   const [addNoteInitialStep, setAddNoteInitialStep] = useState('record');
   const [addNoteOpenQuestion, setAddNoteOpenQuestion] = useState(null);
-  // Stable reference: prevents onSnapshot re-renders from resetting selectedStudents in AddNoteModal
-  // ([] !== [] by reference, so a new inline array on every App render would trigger the reset effect)
-  const addNoteInitialStudents = useMemo(() => {
-    const studentScreens = ['timeline', 'studentDashboard', 'studentReportTypes', 'studentReports', 'questionDeck'];
-    return selectedStudent && studentScreens.includes(screen) ? [selectedStudent.id] : [];
-  }, [selectedStudent?.id, screen]);
   const [prefilledFeedback, setPrefilledFeedback] = useState('');
   const [classrooms, setClassrooms] = useState([]);
   const [classroomsLoaded, setClassroomsLoaded] = useState(false);
@@ -70,6 +64,13 @@ function App() {
     assessmentLineupSourceId, setAssessmentLineupSourceId,
     assessmentLineupTitle, setAssessmentLineupTitle,
   } = useNavigationState();
+
+  // Stable reference: prevents onSnapshot re-renders from resetting selectedStudents in AddNoteModal
+  // ([] !== [] by reference, so a new inline array on every App render would trigger the reset effect)
+  const addNoteInitialStudents = useMemo(() => {
+    const studentScreens = ['timeline', 'studentDashboard', 'studentReportTypes', 'studentReports', 'questionDeck'];
+    return selectedStudent && studentScreens.includes(screen) ? [selectedStudent.id] : [];
+  }, [selectedStudent?.id, screen]);
 
   const handleNavigateToReport = useCallback(({ studentId: sid, docId }) => {
     setSelectedStudent((prev) => prev?.id === sid ? prev : { id: sid });

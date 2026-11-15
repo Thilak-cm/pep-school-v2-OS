@@ -17,6 +17,7 @@ import {
   fetchMediaUrlsWithConcurrency,
 } from '../utils/mediaUrlBatching';
 import { fuzzySearchStudents } from '../utils/fuzzySearch';
+import { useTypesenseSearch } from '../hooks/useTypesenseSearch';
 import ReportPreviewDialog from './ReportPreviewDialog';
 import FilterPanel from './FilterPanel';
 import ClassroomNoteCard from './ClassroomNoteCard';
@@ -94,6 +95,16 @@ function ClassroomTimeline({ classroom, currentUser, userRole, manageableClassro
     classroom,
     userRole,
     manageableClassrooms,
+    committedFilters: serverFilters,
+  });
+
+  // #331: Typesense full-text search - parallel state alongside Firestore paginator
+  const {
+    results: typesenseResults,
+    searchActive,
+  } = useTypesenseSearch({
+    query: searchQuery,
+    classroomId: classroom?.id,
     committedFilters: serverFilters,
   });
 
@@ -255,10 +266,13 @@ function ClassroomTimeline({ classroom, currentUser, userRole, manageableClassro
     return [...classroomStudents, ...transferred];
   }, [classroomStudents, transferredStudents]);
 
-  // Filtered students for search — includes transferred so their notes are discoverable
+  // Filtered students for search - includes transferred so their notes are discoverable.
+  // When searchActive (#331), Typesense owns full-text results; fuzzySearchStudents is
+  // retired for the notes tab but still runs for the students tab card filtering.
   const filteredStudents = useMemo(() => {
+    if (searchActive) return allSearchableStudents;
     return fuzzySearchStudents(allSearchableStudents, searchQuery);
-  }, [allSearchableStudents, searchQuery]);
+  }, [allSearchableStudents, searchQuery, searchActive]);
 
   // Students tab card list — exclude transferred students (#151)
   const sortedFilteredStudents = useMemo(() => {
@@ -270,9 +284,11 @@ function ClassroomTimeline({ classroom, currentUser, userRole, manageableClassro
       .sort((a, b) => getName(a).localeCompare(getName(b), undefined, { sensitivity: 'base' }));
   }, [filteredStudents]);
 
-  // Filter notes based on search query (only show notes from students whose names match)
-  // classroomNotes is already merged + deduped + sorted by the hook
+  // Filter notes based on search query.
+  // #331: when searchActive, Typesense results replace the Firestore page.
+  // In browse mode, client-side student-name filtering still runs on the loaded page.
   const filteredNotes = useMemo(() => {
+    if (searchActive) return typesenseResults;
     if (!searchQuery || !searchQuery.trim()) {
       return classroomNotes;
     }
@@ -280,7 +296,7 @@ function ClassroomTimeline({ classroom, currentUser, userRole, manageableClassro
     return classroomNotes.filter(note =>
       matchingStudentIds.has(note.studentId || note.parentStudentId)
     );
-  }, [classroomNotes, filteredStudents, searchQuery]);
+  }, [classroomNotes, filteredStudents, searchQuery, searchActive, typesenseResults]);
 
   // When server-side filters are committed, Firestore handles author/type/date filtering.
   // Client-side search-by-student-name still runs on the (possibly filtered) page.
@@ -482,6 +498,7 @@ function ClassroomTimeline({ classroom, currentUser, userRole, manageableClassro
         isTransferred={transferredStudents.has(item.studentId)}
         transferredToClassroomName={transferredStudents.get(item.studentId)?.transferredToClassroomName}
         classroomTeachers={classroomTeachers}
+        highlightSnippet={searchActive ? item.highlightSnippet : undefined}
         onStudentClick={() => {
           const student = classroomStudents.find(s => s.id === item.studentId) || transferredStudents.get(item.studentId);
           if (transferredStudents.has(item.studentId) && !canNavigateToTransferred(student)) {
@@ -650,8 +667,8 @@ function ClassroomTimeline({ classroom, currentUser, userRole, manageableClassro
                 </React.Fragment>
               ))}
 
-              {/* Show More Button — cursor-based pagination (#221 Sprint 2) */}
-              {hasMore && (
+              {/* Show More Button — cursor-based pagination (#221 Sprint 2). Hidden during searchActive (#331). */}
+              {hasMore && !searchActive && (
                 <Box sx={{ textAlign: 'center', pt: 2 }}>
                   <Button
                     variant="outlined"
