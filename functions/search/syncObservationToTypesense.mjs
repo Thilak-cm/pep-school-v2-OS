@@ -5,6 +5,6 @@ import * as functions from "firebase-functions/v1";
 export const syncObservationToTypesense = functions
   .region("asia-south1")
   .firestore.document("students/{studentId}/observations/{observationId}")
-  .onWrite(async (change, context) => {
+  .onWrite(async () => {
     throw new Error("Not implemented");
   });

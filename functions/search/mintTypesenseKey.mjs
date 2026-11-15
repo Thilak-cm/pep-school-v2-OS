@@ -4,6 +4,6 @@ import * as functions from "firebase-functions/v1";
 
 export const mintTypesenseKey = functions
   .region("asia-south1")
-  .https.onCall(async (data, context) => {
+  .https.onCall(async () => {
     throw new Error("Not implemented");
   });
