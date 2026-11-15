@@ -52,7 +52,7 @@
 import * as functions from "firebase-functions/v1";
 import { z } from "zod";
 import { runLLM as defaultRunLLM } from "./llm.js";
-import { createLangfuse } from "./langfuse.js";
+import { isTracingEnabled, startObservation, propagateAttributes, flushTracing } from "./langfuse.js";
 
 /** Max repair attempts after the initial call (so max 3 LLM calls total). */
 const MAX_REPAIR_ATTEMPTS = 2;
@@ -113,24 +113,31 @@ export async function runStructuredLLM({
   ...llmOptions
 }) {
   const runLLM = deps.runLLM || defaultRunLLM;
-  const createLangfuseFn = deps.createLangfuse || createLangfuse;
+  const isTracingEnabledFn = deps.isTracingEnabled || isTracingEnabled;
+  const startObservationFn = deps.startObservation || startObservation;
+  const propagateAttributesFn = deps.propagateAttributes || propagateAttributes;
   const responseFormat = buildJsonSchemaResponseFormat(schema, schemaName);
 
   // One trace for all attempts. runLLM creates its own trace per call when none
   // is passed, which would scatter repair attempts across traces and hide the
-  // repair rate. Events queue on the client that created the trace, so we own
-  // the flush here (runLLM's internal flush only covers its own client).
-  let langfuse = null;
+  // repair rate. v6: startObservation creates the root span; propagateAttributes
+  // sets trace-level attrs (tags, traceName). We own the flush when we created
+  // the root span (the global span processor handles all spans in v6).
+  let ownsFlush = false;
   let trace = llmOptions.trace || null;
-  if (!trace && process.env.LANGFUSE_SECRET_KEY && process.env.LANGFUSE_PUBLIC_KEY) {
-    langfuse = createLangfuseFn();
-    trace = langfuse.trace({
-      name: llmOptions.traceName || llmOptions.featureId,
+  if (!trace && isTracingEnabledFn()) {
+    trace = startObservationFn(llmOptions.traceName || llmOptions.featureId, {
       metadata: { featureId: llmOptions.featureId, schemaName, ...llmOptions.traceMetadata },
-      // #306: own-trace path owns its tags, mirroring runLLM (llm.js) - callers
-      // thread run provenance (e.g. "run:scheduled" / "run:remediation") here.
-      ...(llmOptions.traceTags?.length ? { tags: llmOptions.traceTags } : {}),
     });
+    // #306: own-trace path owns its tags, mirroring runLLM (llm.js) - callers
+    // thread run provenance (e.g. "run:scheduled" / "run:remediation") here.
+    if (llmOptions.traceTags?.length) {
+      propagateAttributesFn({
+        traceName: llmOptions.traceName || llmOptions.featureId,
+        tags: llmOptions.traceTags,
+      }, () => {});
+    }
+    ownsFlush = true;
   }
 
   let attemptMessages = messages;
@@ -185,12 +192,12 @@ export async function runStructuredLLM({
       // it as success and holds the only reference); the validation failure
       // belongs to this module, so it's recorded as a sibling event. A rising
       // WARNING rate here is itself a drift signal worth alerting on.
-      trace?.event({
-        name: "validation_failure",
+      // v6: events use startObservation with asType:"event"; they auto-end.
+      trace?.startObservation("validation_failure", {
         level: "WARNING",
         statusMessage: failure,
         metadata: { featureId: llmOptions.featureId, repairAttempt: attempt },
-      });
+      }, { asType: "event" });
 
       if (attempt < MAX_REPAIR_ATTEMPTS) {
         // Repair context: original messages + the bad output + the exact error.
@@ -210,31 +217,22 @@ export async function runStructuredLLM({
       }
     }
   } finally {
-    if (langfuse) {
-      try {
-        await langfuse.flushAsync();
-      } catch (e) {
-        console.warn("[structuredLLM] Langfuse flush failed:", e?.message);
-      }
-    }
+    // v6: flushTracing() drains the global span processor; safe to call when
+    // tracing is disabled. Only flush when we own the root span - the caller
+    // owns the flush on the nested path (trace was passed in).
+    if (ownsFlush) await flushTracing();
   }
 
   // #298: terminal ERROR event so exhausted traces surface in a level:ERROR
-  // filter. Emitted after the finally block's flush (which covered per-attempt
-  // WARNING events), so this event needs its own flush.
-  trace?.event({
-    name: "repair_exhausted",
+  // filter. Emitted after the finally block (which flushed per-attempt WARNING
+  // events). v6: events use startObservation with asType:"event"; they auto-end.
+  // A second flush is needed here because the event is created after the finally.
+  trace?.startObservation("repair_exhausted", {
     level: "ERROR",
     statusMessage: lastFailure,
     metadata: { featureId: llmOptions.featureId, repairAttempts: MAX_REPAIR_ATTEMPTS },
-  });
-  if (langfuse) {
-    try {
-      await langfuse.flushAsync();
-    } catch (e) {
-      console.warn("[structuredLLM] Langfuse flush failed:", e?.message);
-    }
-  }
+  }, { asType: "event" });
+  if (ownsFlush) await flushTracing();
 
   // "internal" is in the fan-out workers' PERMANENT_CODES: ACK + failed work
   // item, no Pub/Sub redelivery. Two consecutive repair failures = structural

@@ -185,8 +185,10 @@ function fakeTrace() {
   const events = [];
   return {
     events,
-    event(payload) {
-      events.push(payload);
+    // v6 API: startObservation(name, { level, statusMessage, metadata }, { asType })
+    // Normalise into the same flat shape the assertions already expect.
+    startObservation(name, payload) {
+      events.push({ name, ...payload });
     },
   };
 }

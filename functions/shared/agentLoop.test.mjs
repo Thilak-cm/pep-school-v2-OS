@@ -49,8 +49,10 @@ describe("runAgentLoop timeoutMs (#288)", () => {
     const ends = [];
     return {
       ends,
-      generation: () => ({ end: (p) => ends.push(p) }),
-      span: () => ({ end: () => {} }),
+      startObservation: () => ({
+        update: (p) => { ends.push(p); return { end: () => {} }; },
+        end: () => {},
+      }),
     };
   }
 

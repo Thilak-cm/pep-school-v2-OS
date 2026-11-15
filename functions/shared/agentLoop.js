@@ -74,11 +74,10 @@ export async function runAgentLoop({
       body.tools = tools;
     }
 
-    const generation = trace?.generation({
-      name: `agent-iteration-${iteration}`,
+    const generation = trace?.startObservation(`agent-iteration-${iteration}`, {
       model: resolvedModelId,
       input: messages[messages.length - 1],
-    });
+    }, { asType: "generation" });
 
     let response;
     try {
@@ -96,27 +95,27 @@ export async function runAgentLoop({
       // (shared/llm.js). No flushLangfuse here - caller owns the Langfuse
       // lifecycle; we only close the per-iteration generation span.
       if (err.name === "AbortError") {
-        generation?.end({
+        generation?.update({
           output: { error: `timeout after ${timeoutMs}ms` },
           statusMessage: "timeout",
           level: "ERROR", // #298: standardized levels - filterable in Langfuse UI
-        });
+        })?.end();
         console.error(
           `[agentLoop] iteration ${iteration} timed out after ${timeoutMs}ms`,
         );
         throw err;
       }
-      generation?.end({
+      generation?.update({
         output: { error: err.message },
         statusMessage: "network_error",
         level: "ERROR", // #298
-      });
+      })?.end();
       throw err;
     }
 
     if (!response.ok) {
       const errText = await response.text().catch(() => "");
-      generation?.end({ output: errText, level: "ERROR" });
+      generation?.update({ output: errText, level: "ERROR" })?.end();
       throw new Error(
         `LLM error: ${response.status} — ${errText?.slice?.(0, 200)}`
       );
@@ -125,7 +124,7 @@ export async function runAgentLoop({
     const json = await response.json();
     const choice = json?.choices?.[0]?.message;
     if (!choice) {
-      generation?.end({ output: "no choice in response", level: "ERROR" });
+      generation?.update({ output: "no choice in response", level: "ERROR" })?.end();
       throw new Error("LLM returned no choice");
     }
 
@@ -141,7 +140,7 @@ export async function runAgentLoop({
 
     // Check for tool calls
     if (choice.tool_calls && choice.tool_calls.length > 0) {
-      generation?.end({ output: { toolCalls: choice.tool_calls.map((tc) => tc.function.name) }, ...(usageDetails ? { usageDetails } : {}) });
+      generation?.update({ output: { toolCalls: choice.tool_calls.map((tc) => tc.function.name) }, ...(usageDetails ? { usageDetails } : {}) })?.end();
 
       const iterToolCalls = collectTrace ? [] : null;
       for (const tc of choice.tool_calls) {
@@ -153,15 +152,15 @@ export async function runAgentLoop({
           fnArgs = {};
         }
 
-        const toolSpan = trace?.span({ name: `tool-${fnName}`, input: fnArgs });
+        const toolSpan = trace?.startObservation(`tool-${fnName}`, { input: fnArgs });
         const toolStart = collectTrace ? Date.now() : 0;
         let result;
         try {
           result = await toolExecutor(fnName, fnArgs);
-          toolSpan?.end({ output: result });
+          toolSpan?.update({ output: result })?.end();
         } catch (err) {
           result = { error: err.message };
-          toolSpan?.end({ output: result, level: "ERROR" });
+          toolSpan?.update({ output: result, level: "ERROR" })?.end();
         }
 
         toolCallLog.push({ name: fnName, args: fnArgs, result });
@@ -198,11 +197,11 @@ export async function runAgentLoop({
     // No tool calls — final content
     const content = choice.content?.trim();
     if (!content) {
-      generation?.end({ output: "empty content", level: "ERROR" });
+      generation?.update({ output: "empty content", level: "ERROR" })?.end();
       throw new Error("LLM returned empty final content");
     }
 
-    generation?.end({ output: content, ...(usageDetails ? { usageDetails } : {}) });
+    generation?.update({ output: content, ...(usageDetails ? { usageDetails } : {}) })?.end();
 
     if (collectTrace) {
       iterationTrace.push({

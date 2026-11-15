@@ -290,45 +290,44 @@ test("persistent shape violation exhausts repairs and throws schema_violation", 
 test("traceTags are forwarded to the own-trace Langfuse trace", async () => {
   const stub = stubRunLLM([{ content: JSON.stringify(validPlan()) }]);
 
-  // Fake Langfuse client to capture the trace creation payload.
-  const traces = [];
-  const fakeLangfuse = {
-    trace(payload) {
-      const t = { payload, gens: [] };
-      t.generation = (gp) => {
-        const g = { create: gp, ends: [] };
-        t.gens.push(g);
-        return { end: (e) => g.ends.push(e) };
-      };
-      traces.push(t);
-      return t;
-    },
-    flushAsync: async () => {},
+  // v6 API: capture startObservation calls and propagateAttributes calls.
+  const observations = [];
+  const propagateCalls = [];
+  const fakeStartObservation = (name, payload) => {
+    const span = { name, payload, children: [] };
+    observations.push(span);
+    // Return a minimal span-like object so runLLM's nested generation path works.
+    span.startObservation = (cName, cPayload, cOpts) => {
+      const child = { name: cName, payload: cPayload, opts: cOpts };
+      span.children.push(child);
+      return { update: () => ({ end: () => {} }), end: () => {} };
+    };
+    span.update = () => span;
+    span.end = () => {};
+    return span;
+  };
+  const fakePropagateAttributes = (params, fn) => {
+    propagateCalls.push(params);
+    fn();
   };
 
-  // Inject env so structuredLLM creates its own trace (own-trace path).
-  const savedSK = process.env.LANGFUSE_SECRET_KEY;
-  const savedPK = process.env.LANGFUSE_PUBLIC_KEY;
-  process.env.LANGFUSE_SECRET_KEY = "sk-test";
-  process.env.LANGFUSE_PUBLIC_KEY = "pk-test";
-  try {
-    await runStructuredLLM({
-      schema: MonthlyPlanResponseSchema,
-      schemaName: "monthly_plan",
-      featureId: "monthly_plan",
-      messages: [{ role: "system", content: "sys" }, { role: "user", content: "u" }],
-      model: "test-model",
-      traceTags: ["run:scheduled"],
-      deps: { runLLM: stub.runLLM, createLangfuse: () => fakeLangfuse },
-    });
-  } finally {
-    if (savedSK === undefined) delete process.env.LANGFUSE_SECRET_KEY;
-    else process.env.LANGFUSE_SECRET_KEY = savedSK;
-    if (savedPK === undefined) delete process.env.LANGFUSE_PUBLIC_KEY;
-    else process.env.LANGFUSE_PUBLIC_KEY = savedPK;
-  }
+  await runStructuredLLM({
+    schema: MonthlyPlanResponseSchema,
+    schemaName: "monthly_plan",
+    featureId: "monthly_plan",
+    messages: [{ role: "system", content: "sys" }, { role: "user", content: "u" }],
+    model: "test-model",
+    traceTags: ["run:scheduled"],
+    deps: {
+      runLLM: stub.runLLM,
+      isTracingEnabled: () => true,
+      startObservation: fakeStartObservation,
+      propagateAttributes: fakePropagateAttributes,
+    },
+  });
 
-  assert.equal(traces.length, 1, "exactly one own-trace created");
-  assert.deepEqual(traces[0].payload.tags, ["run:scheduled"],
-    "traceTags must reach the Langfuse trace so run provenance is filterable");
+  assert.equal(observations.length, 1, "exactly one own-trace created");
+  assert.equal(propagateCalls.length, 1, "propagateAttributes called once for tags");
+  assert.deepEqual(propagateCalls[0].tags, ["run:scheduled"],
+    "traceTags must reach propagateAttributes so run provenance is filterable");
 });

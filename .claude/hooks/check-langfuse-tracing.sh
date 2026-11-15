@@ -17,7 +17,7 @@ fi
 # Check if file calls LLM functions
 if [ -f "$FILE_PATH" ] && grep -qE '(runLLM|agentLoop|openrouterStream|openrouter|generateContent|callLLM)' "$FILE_PATH"; then
   # Check if Langfuse is already imported/used
-  if ! grep -qE '(langfuse|createLangfuse|initLangfuse|trace)' "$FILE_PATH"; then
+  if ! grep -qE '(langfuse|startObservation|propagateAttributes|flushTracing|isTracingEnabled|recordTailTrace|trace)' "$FILE_PATH"; then
     echo "REMINDER: This file calls an LLM but has no Langfuse tracing."
     echo "Every LLM call must include Langfuse tracing."
     echo "See existing patterns in functions/shared/langfuse.js."
