@@ -24,31 +24,28 @@ export const LESSON_PROGRAM_DIMENSIONS = {
   ]
 };
 
-/**
- * Placeholder practice note dimensions per program level.
- * Swap with Rahul's real labels when delivered (Takeaway R2, #227).
- * Same yes|partial|no|na rating scale as lesson dimensions.
- */
+// Practice note dimensions per program level (from Rahul, 2026-11-13).
+// Same yes|partial|no|na rating scale as lesson dimensions.
 export const PRACTICE_PROGRAM_DIMENSIONS = {
   toddler: [
-    'Dimension 1',
-    'Dimension 2',
-    'Dimension 3',
+    'Chose independently',
+    'Concentrated',
+    'Used correctly',
   ],
   primary: [
-    'Dimension 1',
-    'Dimension 2',
-    'Dimension 3',
+    'Chose independently',
+    'Concentrated',
+    'Used correctly',
   ],
   elementary: [
-    'Dimension 1',
-    'Dimension 2',
-    'Dimension 3',
+    'Self-started',
+    'Completed',
+    'Showed understanding',
   ],
   adolescent: [
-    'Dimension 1',
-    'Dimension 2',
-    'Dimension 3',
+    'On time',
+    'Complete',
+    'High quality',
   ],
 };
 
