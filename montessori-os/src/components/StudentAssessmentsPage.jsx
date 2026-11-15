@@ -227,7 +227,12 @@ export default function StudentAssessmentsPage({ student, assessmentDeepLink, us
                     <Typography variant="body2" color="text.secondary">{formatDateRange(first.assessmentDate, first.observedAt)}</Typography>
                     {first.assessmentDescription && <Typography sx={{mt: 0.5}}>{first.assessmentDescription}</Typography>}
                   </Box>
-                  <Chip label={`${records.length} record${records.length === 1 ? '' : 's'}`} size="small" />
+                  <Stack direction="row" spacing={0.5} alignItems="center">
+                    {first.criticality === 'high' && (
+                      <Chip label="Critical" size="small" sx={{ height: 20, fontSize: '0.65rem', fontWeight: 700, backgroundColor: '#fce4ec', color: '#c62828' }} />
+                    )}
+                    <Chip label={`${records.length} record${records.length === 1 ? '' : 's'}`} size="small" />
+                  </Stack>
                 </Stack>
                 {sourceLoading[sourceId] && (
                   <Stack direction="row" spacing={1} alignItems="center" sx={{mt: 1}}>
