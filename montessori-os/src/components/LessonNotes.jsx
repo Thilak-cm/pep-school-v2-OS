@@ -58,7 +58,6 @@ import {
   deriveDimensionKeyFromProgram,
   normalizeClassroomId
 } from '../utils/lessonNoteConstraints';
-import { isSuperAdmin } from '../utils/roleUtils';
 
 const observationOperations = createObservationOperations({
   db,
@@ -1317,10 +1316,6 @@ function LessonNoteWizard({
               exclusive
               onChange={(_, value) => {
                 if (!value) return;
-                if (value === 'practice' && !isSuperAdmin(userRole)) {
-                  notify.info('Coming soon');
-                  return;
-                }
                 setNoteSubType(value);
                 setLinkedLesson(null);
                 setLinkDismissed(false);
