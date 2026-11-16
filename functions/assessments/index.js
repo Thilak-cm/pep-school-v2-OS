@@ -7,11 +7,7 @@ import {
   parseAssessmentMatrix,
   worksheetToAssessmentMatrix,
 } from "./parser.js";
-import { PubSub } from "@google-cloud/pubsub";
 import { MEDICAL_PDF_TOPIC } from "./medical-pdf-worker.mjs";
-
-const pubsub = new PubSub();
-const medicalPdfTopic = pubsub.topic(MEDICAL_PDF_TOPIC);
 
 const MAX_RECORDS = 450;
 const MAX_STRUCTURED_BYTES = 10 * 1024 * 1024;
@@ -917,12 +913,16 @@ export const finalizeMedicalAssessmentUpload = functions
     // observationId doubles as executionId - each upload is unique, so
     // there is exactly one processing event per doc.
     try {
+      // Lazy-init PubSub to avoid module-level credential lookup that breaks
+      // emulator tests in CI (no GCP credentials available).
+      const { PubSub } = await import("@google-cloud/pubsub");
+      const topic = new PubSub().topic(MEDICAL_PDF_TOPIC);
       const pubsubPayload = JSON.stringify({
         studentId: pending.studentId,
         executionId: pending.observationId,
         observationId: pending.observationId,
       });
-      await medicalPdfTopic.publishMessage({ data: Buffer.from(pubsubPayload) });
+      await topic.publishMessage({ data: Buffer.from(pubsubPayload) });
     } catch (pubsubError) {
       // Log but do not fail the finalize response - the teacher gets "published"
       // feedback immediately. If the publish silently failed, the observation doc
