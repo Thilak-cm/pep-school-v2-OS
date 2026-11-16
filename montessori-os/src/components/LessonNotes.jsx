@@ -58,6 +58,7 @@ import {
   deriveDimensionKeyFromProgram,
   normalizeClassroomId
 } from '../utils/lessonNoteConstraints';
+import Coachmark from '../coachmark/Coachmark';
 
 const observationOperations = createObservationOperations({
   db,
@@ -129,6 +130,7 @@ function LessonNoteWizard({
     classroomId: initialClassroomId || ''
   });
   const [noteSubType, setNoteSubType] = useState(editObservation?.type === 'practice' ? 'practice' : 'lesson'); // 'lesson' | 'practice'
+  const practiceButtonRef = useRef(null);
   const [lessonMode, setLessonMode] = useState('individual'); // 'individual' | 'group'
   const [classrooms, setClassrooms] = useState([]);
   const [students, setStudents] = useState([]);
@@ -1311,24 +1313,33 @@ function LessonNoteWizard({
           )}
           {/* Note type radio: First time / Practice - shown after title */}
           {!isEditMode && (
-            <ToggleButtonGroup
-              value={noteSubType}
-              exclusive
-              onChange={(_, value) => {
-                if (!value) return;
-                setNoteSubType(value);
-                setLinkedLesson(null);
-                setLinkDismissed(false);
-                setLinkSuggestions([]);
-                markDirty();
-              }}
-              size="small"
-              fullWidth
-              sx={{ maxWidth: 300 }}
-            >
-              <ToggleButton value="lesson">First time</ToggleButton>
-              <ToggleButton value="practice">Practice</ToggleButton>
-            </ToggleButtonGroup>
+            <>
+              <ToggleButtonGroup
+                value={noteSubType}
+                exclusive
+                onChange={(_, value) => {
+                  if (!value) return;
+                  setNoteSubType(value);
+                  setLinkedLesson(null);
+                  setLinkDismissed(false);
+                  setLinkSuggestions([]);
+                  markDirty();
+                }}
+                size="small"
+                fullWidth
+                sx={{ maxWidth: 300 }}
+              >
+                <ToggleButton value="lesson">First time</ToggleButton>
+                <ToggleButton value="practice" ref={practiceButtonRef}>Practice</ToggleButton>
+              </ToggleButtonGroup>
+              <Coachmark
+                coachmarkKey="practice_note_launch"
+                title="Practice Notes"
+                body="Track how a student repeats a lesson. Link it to the original lesson to build a complete learning trail."
+                anchorRef={practiceButtonRef}
+                placement="bottom"
+              />
+            </>
           )}
           {/* Link suggester: individual practice only */}
           {noteSubType === 'practice' && lessonMode === 'individual' && !linkDismissed && linkSuggestions.length > 0 && !linkedLesson && (
