@@ -77,7 +77,7 @@ function persistGenerationUsage({ generation, payload, providerUsage, telemetry,
   const usageDetails = langfuseUsage(providerUsage);
   const endUsage = telemetry?.startStage?.("usage_recording", { iteration }) || (() => {});
   try {
-    generation.end({ ...payload, ...(usageDetails ? { usageDetails } : {}) });
+    generation.update({ ...payload, ...(usageDetails ? { usageDetails } : {}) }).end();
   } finally {
     endUsage({ count: usageDetails ? 1 : 0 });
   }
@@ -275,21 +275,18 @@ function safeJsonSize(value) {
 async function executeToolCall({ tc, toolExecutor, trace, telemetry }) {
   const args = parseToolArgs(tc.function.arguments);
   const endTelemetry = telemetry?.startStage?.("tool_execution", { toolName: tc.function.name }) || (() => {});
-  const toolSpan = trace?.span({
-    name: `tool-${tc.function.name}`,
-    input: args,
-  });
+  const toolSpan = trace?.startObservation(`tool-${tc.function.name}`, { input: args });
   try {
     const result = await toolExecutor(tc.function.name, args);
-    toolSpan?.end({
+    toolSpan?.update({
       output: result,
       metadata: { resultSizeBytes: safeJsonSize(result) },
-    });
+    }).end();
     endTelemetry({ resultSizeBytes: safeJsonSize(result) });
     return { tc, args, result };
   } catch (error) {
     const result = { error: error.message || "Tool call failed" };
-    toolSpan?.end({ output: result, level: "ERROR" });
+    toolSpan?.update({ output: result, level: "ERROR" }).end();
     endTelemetry({ resultSizeBytes: safeJsonSize(result) });
     return { tc, args, result };
   }
@@ -359,7 +356,7 @@ export async function runStreamingAgentLoop({
   maxIterations = 8,
   telemetry,
 }) {
-  if (typeof trace?.generation !== "function") {
+  if (typeof trace?.startObservation !== "function") {
     throw new Error("Langfuse trace is required for chat model execution");
   }
   let content = "";
@@ -369,19 +366,22 @@ export async function runStreamingAgentLoop({
   while (iterations < maxIterations) {
     iterations += 1;
     const endIteration = telemetry?.startStage?.("model_iteration", { iteration: iterations }) || (() => {});
-    const generation = trace?.generation({
-      name: `chat-stream-iteration-${iterations}`,
-      model,
-      input: {
-        messages: structuredClone(messages),
-        tools: structuredClone(tools),
+    const generation = trace?.startObservation(
+      `chat-stream-iteration-${iterations}`,
+      {
         model,
-        temperature,
-        maxTokens,
+        input: {
+          messages: structuredClone(messages),
+          tools: structuredClone(tools),
+          model,
+          temperature,
+          maxTokens,
+        },
+        metadata: { toolCount: tools.length, stream: true, inputMessageCount: messages.length },
       },
-      metadata: { toolCount: tools.length, stream: true, inputMessageCount: messages.length },
-    });
-    if (typeof generation?.end !== "function") {
+      { asType: "generation" },
+    );
+    if (typeof generation?.update !== "function") {
       throw new Error("Langfuse generation could not be created");
     }
     let turn;
@@ -410,11 +410,11 @@ export async function runStreamingAgentLoop({
         toolCallCount: toolCallLog.length,
         toolNames: toolCallLog.map((entry) => entry.name),
       });
-      generation.end({
+      generation.update({
         output: { error: error.message || "Model execution failed" },
         level: "ERROR",
         metadata: { streamedChars: content.length },
-      });
+      }).end();
       throw error;
     }
     endIteration({ streamedChars: turn.content.length });
@@ -483,6 +483,6 @@ export async function runStreamingAgentLoop({
     toolNames: toolCallLog.map((entry) => entry.name),
   });
   const error = new Error(`Chat agent loop exceeded max iterations (${maxIterations})`);
-  trace?.span?.({ name: "chat-stream-loop-error" })?.end?.({ output: error.message, level: "ERROR" });
+  if (trace) trace.startObservation("chat-stream-loop-error", {}).update({ output: error.message, level: "ERROR" }).end();
   throw error;
 }

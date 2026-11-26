@@ -16,7 +16,10 @@ import { resolveModel } from "./modelRegistry.js";
 import {
   recordTailTrace as defaultRecordTailTrace,
   getTraceSampleRate as defaultGetTraceSampleRate,
-  createLangfuse as defaultCreateLangfuse,
+  isTracingEnabled as defaultIsTracingEnabled,
+  flushTracing,
+  startObservation as defaultStartObservation,
+  propagateAttributes as defaultPropagateAttributes,
 } from "./langfuse.js";
 import { fetchWithTimeout } from "./http.js";
 
@@ -105,6 +108,31 @@ export function sanitizeMessagesForTrace(messages) {
 }
 
 /**
+ * Sanitize medical LLM trace messages for Langfuse (#255).
+ * Replaces the full parsedContent in the user message input and the LLM summary
+ * in the output with compact placeholders so medical text never leaves the DB.
+ *
+ * Input placeholder:  [medical content: {charCount} chars, {pageCount} pages]
+ * Output placeholder: [medical summary: {charCount} chars]
+ *
+ * @param {Array} messages - LLM messages array (input side)
+ * @param {string} llmOutput - Raw LLM response string (output side)
+ * @param {{ charCount: number, pageCount: number }} meta
+ * @returns {{ messages: Array, output: string }}
+ */
+export function sanitizeMedicalMessagesForTrace(messages, llmOutput, meta) {
+  const { charCount, pageCount } = meta;
+  const inputPlaceholder = `[medical content: ${charCount} chars, ${pageCount} pages]`;
+  const sanitizedMessages = (messages || []).map((msg) => ({
+    ...msg,
+    content: inputPlaceholder,
+  }));
+  const outputCharCount = typeof llmOutput === "string" ? llmOutput.length : 0;
+  const output = `[medical summary: ${outputCharCount} chars]`;
+  return { messages: sanitizedMessages, output };
+}
+
+/**
  * Build a request body for the OpenAI-compatible Chat Completions API.
  * Automatically strips unsupported parameters for reasoning models.
  */
@@ -137,12 +165,16 @@ export function buildChatBody({ model, messages, temperature, max_completion_tok
  *   on the nested path the parent trace owns its tags). Used to distinguish run
  *   provenance, e.g. "run:scheduled" vs "run:remediation" - see #167 follow-up.
  * @param {object} [options.generationMetadata] - Additional metadata for the Langfuse generation
- * @param {object} [options.trace] - Existing Langfuse trace to nest under (skips trace creation)
+ * @param {Array} [options.traceInput] - Override Langfuse generation input. When provided, used
+ *   instead of sanitizeMessagesForTrace(messages) for the Langfuse generation input field.
+ *   Used by the medical PDF worker to pass fully-redacted messages (#255).
+ * @param {object} [options.trace] - Existing Langfuse observation to nest under (skips trace creation).
+ *   In v6 this is a LangfuseSpan/LangfuseGeneration from @langfuse/tracing (was a v3 trace object).
  * @param {number} [options.timeoutMs] - Abort the OpenRouter fetch after this many ms (#288).
  *   No default by design: the entry point owns its CF budget and passes this down
  *   (background workers only - interactive onCall failures are already user-visible).
  *   Timeout aborts throw "unavailable" (transient), so fan-out workers rethrow -> redelivery.
- * @param {object} [options.deps] - Test injection: { recordTailTrace, getTraceSampleRate, createLangfuse }
+ * @param {object} [options.deps] - Test injection: { recordTailTrace, getTraceSampleRate, isTracingEnabled, startObservation, propagateAttributes }
  * @returns {Promise<{content: string, usage: object, resolvedModel: string, responseModel: string|null, finishReason: string|null}>}
  */
 export async function runLLM({
@@ -156,13 +188,16 @@ export async function runLLM({
   traceMetadata,
   traceTags,
   generationMetadata,
+  traceInput,
   trace,
   timeoutMs,
   deps = {},
 }) {
   const recordTailTrace = deps.recordTailTrace || defaultRecordTailTrace;
   const getTraceSampleRate = deps.getTraceSampleRate || defaultGetTraceSampleRate;
-  const createLangfuse = deps.createLangfuse || defaultCreateLangfuse;
+  const isTracingEnabled = deps.isTracingEnabled || defaultIsTracingEnabled;
+  const _startObservation = deps.startObservation || defaultStartObservation;
+  const _propagateAttributes = deps.propagateAttributes || defaultPropagateAttributes;
 
   // 1. Resolve model through registry - once, OUTSIDE the retry loop (#310):
   // "identical request" means the same body bytes; re-resolving mid-retry
@@ -184,17 +219,19 @@ export async function runLLM({
     throw new functions.https.HttpsError("failed-precondition", "OPENROUTER_API_KEY not configured");
   }
 
-  const tracingEnabled = !!(process.env.LANGFUSE_SECRET_KEY && process.env.LANGFUSE_PUBLIC_KEY);
+  const tracingEnabled = isTracingEnabled();
 
-  const sanitizedInput = sanitizeMessagesForTrace(messages);
+  // traceInput override (#255): callers with domain-specific redaction (e.g.
+  // medical PDF worker) pass pre-sanitized messages; default strips data-URIs only.
+  const sanitizedInput = traceInput || sanitizeMessagesForTrace(messages);
 
-  // Retry harness state (#310). activeTrace starts as the caller's trace (or
-  // null on the own-trace path) and may be lazily promoted to a real trace on
-  // the first provider error. langfuse is non-null only when WE created that
-  // promoted client - then we own the flush (events queue on the creating
-  // client; structuredLLM idiom).
+  // Retry harness state (#310). activeTrace starts as the caller's observation
+  // (or null on the own-trace path) and may be lazily promoted to a real root
+  // span on the first provider error. ownsFlush tracks whether WE created the
+  // promoted root - then we call flushTracing() in finally (v6: the global
+  // span processor handles all spans; no per-client flush like v3).
   let activeTrace = trace || null;
-  let langfuse = null;
+  let ownsFlush = false;
 
   /**
    * One LLM attempt - exactly the pre-#310 runLLM body. Two tracing modes:
@@ -233,13 +270,13 @@ export async function runLLM({
       ...(inRetryContext ? { attempt } : {}),
     };
 
+    // v6: parent.startObservation() replaces parent.generation() (#319)
     const generation = (tracingEnabled && activeTrace)
-      ? activeTrace.generation({
-        name: `${featureId}-completion`,
+      ? activeTrace.startObservation(`${featureId}-completion`, {
         model: resolvedModel,
         input: sanitizedInput,
         metadata: attemptGenMetadata,
-      })
+      }, { asType: "generation" })
       : null;
 
     /**
@@ -250,7 +287,8 @@ export async function runLLM({
     const recordExit = async (end) => {
       if (!tracingEnabled) return;
       if (activeTrace) {
-        generation?.end(end);
+        // v6: .end() only takes an optional timestamp; data goes through .update()
+        generation?.update(end).end();
         return;
       }
       const sampleRate = end.level ? 1 : await getTraceSampleRate(featureId);
@@ -362,7 +400,7 @@ export async function runLLM({
           create: {
             name: `${featureId}-completion`,
             model: resolvedModel,
-            input: messages,
+            input: sanitizedInput,
             metadata: attemptGenMetadata,
             startTime,
           },
@@ -420,33 +458,48 @@ export async function runLLM({
       console.warn(
         `[runLLM:${featureId}] provider error (finish_reason=error) on attempt ${attempt}`,
       );
-      // Own-trace path, first provider error: promote to a real trace so all
-      // attempts nest under one trace. Subsequent attempts take the nested
+      // Own-trace path, first provider error: promote to a real root span so
+      // all attempts nest under one trace. Subsequent attempts take the nested
       // path against it. Inject `attempt: 0` into the buffered generation's
       // metadata - it was built without the tag (inRetryContext was false) but
       // now belongs to a retry sequence.
+      // v6 (#319): startObservation creates a root span (= the trace).
+      // propagateAttributes sets trace-level attrs (tags, traceName) that the
+      // Langfuse span processor picks up when exporting child spans.
       if (tracingEnabled && !activeTrace && result.buffered) {
-        langfuse = createLangfuse();
-        activeTrace = langfuse.trace({
-          name: traceName || featureId,
+        const buf = result.buffered;
+        activeTrace = _startObservation(traceName || featureId, {
           metadata: { featureId, requestedModel: model, resolvedModel, ...traceMetadata },
-          ...(traceTags?.length ? { tags: traceTags } : {}),
-          startTime: result.buffered.traceStartTime,
+        }, {
+          startTime: buf.traceStartTime,
         });
-        const promoted = {
-          ...result.buffered.create,
-          metadata: { ...result.buffered.create.metadata, attempt: 0 },
-        };
-        activeTrace.generation(promoted).end(result.buffered.end);
+        // Replay the buffered generation as a child of the promoted root.
+        _propagateAttributes({
+          traceName: traceName || featureId,
+          ...(traceTags?.length ? { tags: traceTags } : {}),
+        }, () => {
+          const gen = activeTrace.startObservation(buf.create.name, {
+            model: buf.create.model,
+            input: buf.create.input,
+            metadata: { ...buf.create.metadata, attempt: 0 },
+          }, {
+            asType: "generation",
+            ...(buf.create.startTime ? { startTime: buf.create.startTime } : {}),
+          });
+          const { metadata: endMeta, endTime, ...endRest } = buf.end;
+          gen.update({
+            ...endRest,
+            ...(endMeta ? { metadata: endMeta } : {}),
+          }).end(endTime || new Date());
+        });
+        ownsFlush = true;
       }
     }
   } finally {
-    if (langfuse) {
-      try {
-        await langfuse.flushAsync();
-      } catch (e) {
-        console.warn("[runLLM] Langfuse flush failed:", e?.message);
-      }
+    // v6: the global span processor handles all spans; flush when we own
+    // the promoted root (own-trace -> provider-error promotion path).
+    if (ownsFlush) {
+      await flushTracing();
     }
   }
 

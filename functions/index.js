@@ -90,6 +90,7 @@ export {
   appendAssessmentAttempt,
   correctAssessmentGrade,
 } from "./assessments/index.js";
+export { medicalPdfWorker } from "./assessments/medical-pdf-worker.mjs";
 
 // Test Bench
 export { testBenchRun } from "./testbench/index.js";

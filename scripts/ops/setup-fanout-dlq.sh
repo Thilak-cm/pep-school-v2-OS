@@ -2,8 +2,9 @@
 #
 # setup-fanout-dlq.sh (#288)
 #
-# Provisions the shared dead-letter infrastructure for the four fan-out
-# worker pipelines (writingAnalysis, baseballCards, soulRegen, monthlyPlans):
+# Provisions the shared dead-letter infrastructure for the five fan-out
+# worker pipelines (writingAnalysis, baseballCards, soulRegen, monthlyPlans,
+# medicalPdfProcessing):
 #
 #   1. Topic `fanout-dlq` - ONE shared DLQ topic for all four workers.
 #      Why shared (#288 decision): ~0-5 dead msgs/week total, the source is
@@ -38,6 +39,7 @@ WORKER_TOPICS=(
   "baseball-card-workers"
   "soul-workers"
   "monthly-plan-workers"
+  "medical-pdf-workers"
 )
 
 APPLY=false

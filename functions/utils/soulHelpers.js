@@ -311,8 +311,8 @@ export function buildOpenQuestionsHistorySnapshot(prevDoc, archivedAt) {
  * @param {Date|null} params.lastInterviewAt
  * @returns {Object} Soul document fields
  */
-export function buildSoulDoc({ content, programId, observationCount, interviewCount, lastObservationAt, lastInterviewAt }) {
-  return {
+export function buildSoulDoc({ content, programId, observationCount, interviewCount, lastObservationAt, lastInterviewAt, medicalNotes }) {
+  const doc = {
     content,
     programId,
     updatedBy: "cloud-function:soul-generate",
@@ -324,6 +324,12 @@ export function buildSoulDoc({ content, programId, observationCount, interviewCo
       lastInterviewAt: lastInterviewAt || null,
     },
   };
+  // medicalNotes is optional; present only for students with completed medical
+  // assessments. Stored as a top-level field separate from content (#255).
+  if (medicalNotes !== undefined) {
+    doc.medicalNotes = medicalNotes;
+  }
+  return doc;
 }
 
 /**

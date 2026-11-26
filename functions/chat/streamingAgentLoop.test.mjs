@@ -27,8 +27,7 @@ function responseFromChunks(chunks) {
 
 function noOpTrace() {
   return {
-    generation: () => ({ end: () => {} }),
-    span: () => ({ end: () => {} }),
+    startObservation: () => ({ update: () => ({ end: () => {} }), end: () => {} }),
   };
 }
 
@@ -151,7 +150,7 @@ test("executeToolCallBatch records multibyte tool result sizes in UTF-8 bytes", 
   await executeToolCallBatch({
     toolCalls: [{ id: "multibyte", function: { name: "fetch_observations", arguments: "{}" } }],
     toolExecutor: async () => result,
-    trace: { span: () => ({ end: (metadata) => spanEnds.push(metadata) }) },
+    trace: { startObservation: () => ({ update: (value) => { spanEnds.push(value); return { end: () => {} }; }, end: () => {} }) },
     telemetry: {
       startStage: (name) => (metadata = {}) => {
         if (name === "tool_execution") toolEnds.push(metadata);
@@ -181,15 +180,21 @@ test("runStreamingAgentLoop records Langfuse generations and tool spans", async 
   const generations = [];
   const spans = [];
   const trace = {
-    generation: (input) => {
-      const generation = { input, endCalls: [] };
-      generations.push(generation);
-      return { end: (output) => generation.endCalls.push(output) };
-    },
-    span: (input) => {
-      const span = { input, endCalls: [] };
+    startObservation: (name, attrs, opts) => {
+      if (opts?.asType === "generation") {
+        const generation = { input: { name, ...attrs }, endCalls: [] };
+        generations.push(generation);
+        return {
+          update: (output) => { generation.endCalls.push(output); return { end: () => {} }; },
+          end: () => {},
+        };
+      }
+      const span = { input: { name, ...attrs }, endCalls: [] };
       spans.push(span);
-      return { end: (output) => span.endCalls.push(output) };
+      return {
+        update: (output) => { span.endCalls.push(output); return { end: () => {} }; },
+        end: () => {},
+      };
     },
   };
 
@@ -322,8 +327,9 @@ test("runStreamingAgentLoop preserves per-iteration provider milestones and accu
     tools: [{ type: "function", function: { name: "fetch_observations" } }],
     toolExecutor: async () => ({ observations: 1 }),
     trace: {
-      generation: () => ({ end: (value) => generationEnds.push(value) }),
-      span: () => ({ end: () => {} }),
+      startObservation: (name, attrs, opts) => opts?.asType === "generation"
+        ? { update: (value) => { generationEnds.push(value); return { end: () => {} }; }, end: () => {} }
+        : { update: () => ({ end: () => {} }), end: () => {} },
     },
     telemetry: recorder,
   });
@@ -405,7 +411,7 @@ test("runStreamingAgentLoop closes the generation when the provider fails", asyn
       endpoint: "https://example.test",
       messages: [{ role: "user", content: "question" }],
       model: "test-model",
-      trace: { generation: () => ({ end: (value) => endCalls.push(value) }) },
+      trace: { startObservation: () => ({ update: (value) => { endCalls.push(value); return { end: () => {} }; }, end: () => {} }) },
     }),
     /OpenRouter error: 503/,
   );

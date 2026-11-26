@@ -245,6 +245,85 @@ export async function checkTeacherClassroom() {
   };
 }
 
+// ── Check 5: Stale medical PDF processing (#255) ────────────────────
+
+export async function checkStaleMedicalProcessing() {
+  const name = "stale medical PDF processing";
+
+  // Observations stuck in queued/processing for >1 hour indicate a failed
+  // or hung worker. The worker writes processingStatus on the observation doc;
+  // a stuck doc means the Pub/Sub message was lost or the worker died.
+  const oneHourAgo = new Date(Date.now() - 60 * 60 * 1000);
+
+  const studentsSnap = await db.collection("students").get();
+  const stale = [];
+
+  for (const studentDoc of studentsSnap.docs) {
+    const obsSnap = await studentDoc.ref
+      .collection("observations")
+      .where("type", "==", "assessment")
+      .where("assessmentKind", "==", "medical")
+      .get();
+
+    for (const obsDoc of obsSnap.docs) {
+      const data = obsDoc.data();
+      if (!["queued", "processing"].includes(data.processingStatus)) continue;
+
+      // Check if readyAt (or createdAt fallback) is older than 1 hour
+      const readyAt = data.readyAt?.toDate?.() || data.createdAt?.toDate?.() || null;
+      if (readyAt && readyAt < oneHourAgo) {
+        stale.push(
+          `student=${studentDoc.id} obs=${obsDoc.id} status=${data.processingStatus} readyAt=${readyAt.toISOString()}`,
+        );
+      }
+    }
+  }
+
+  if (stale.length === 0) {
+    return { name, passed: true, details: "No stale medical processing found." };
+  }
+
+  return {
+    name,
+    passed: false,
+    details: `${stale.length} stale observation(s):\n${stale.join("\n")}`,
+  };
+}
+
+// ── Check 6: Medical observations needing OCR (#255) ─────────────────
+
+export async function checkMedicalNeedsOcr() {
+  const name = "medical observations needing OCR";
+
+  const studentsSnap = await db.collection("students").get();
+  const flagged = [];
+
+  for (const studentDoc of studentsSnap.docs) {
+    const obsSnap = await studentDoc.ref
+      .collection("observations")
+      .where("type", "==", "assessment")
+      .where("assessmentKind", "==", "medical")
+      .where("likelyNeedsOcr", "==", true)
+      .get();
+
+    for (const obsDoc of obsSnap.docs) {
+      flagged.push(
+        `student=${studentDoc.id} obs=${obsDoc.id}`,
+      );
+    }
+  }
+
+  if (flagged.length === 0) {
+    return { name, passed: true, details: "No medical observations flagged for OCR." };
+  }
+
+  return {
+    name,
+    passed: false,
+    details: `${flagged.length} observation(s) likely need OCR:\n${flagged.join("\n")}`,
+  };
+}
+
 // ── Registry ──────────────────────────────────────────────────────────
 
 export const ALL_CHECKS = [
@@ -252,4 +331,6 @@ export const ALL_CHECKS = [
   checkOrphanedStudents,
   checkZombiePlacements,
   checkTeacherClassroom,
+  checkStaleMedicalProcessing,
+  checkMedicalNeedsOcr,
 ];

@@ -3,7 +3,8 @@ import * as functions from "firebase-functions/v1";
 import { db, auth } from "../shared/firebase.js";
 import { OPENROUTER_API_KEY, LANGFUSE_SECRET_KEY, LANGFUSE_PUBLIC_KEY } from "../shared/llm.js";
 import { getOpenRouterKey, OPENROUTER_ENDPOINT } from "../shared/openrouter.js";
-import { createLangfuse } from "../shared/langfuse.js";
+import { isTracingEnabled, startObservation, propagateAttributes, flushTracing } from "../shared/langfuse.js";
+import { createTraceId } from "@langfuse/tracing";
 import { resolveModel } from "../shared/modelRegistry.js";
 import {
   CHAT_MODEL_INFO,
@@ -251,7 +252,7 @@ export const childChatStream = functions
     });
 
     let trace;
-    let langfuseClient;
+    let langfuseTraceId = null;
     let request;
     let context;
     let streamedContent = "";
@@ -331,18 +332,18 @@ export const childChatStream = functions
       if (!apiKey) {
         throw runtimeError("chat/provider-not-configured", "OpenRouter key is not configured");
       }
-      if (!process.env.LANGFUSE_SECRET_KEY || !process.env.LANGFUSE_PUBLIC_KEY) {
+      if (!isTracingEnabled()) {
         throw runtimeError(
           "chat/observability-not-configured",
           "Langfuse is required for chat model execution",
         );
       }
       const endTrace = telemetry.startStage("langfuse_trace_create");
-      langfuseClient = createLangfuse();
-      trace = langfuseClient.trace({
-        id: request.runId,
-        sessionId: request.chatId,
-        userId: decoded.uid,
+      // Deterministic trace ID so the same runId always maps to the same Langfuse trace.
+      // createTraceId hashes request.runId into a 32-char hex OTEL trace ID, enabling
+      // score lookups from the external runId without storing the mapping separately.
+      const traceId = await createTraceId(request.runId);
+      trace = startObservation("chat", {
         metadata: {
           turnId: request.turnId,
           model,
@@ -353,11 +354,20 @@ export const childChatStream = functions
           classroomId: context.classroomId,
           programId: context.programId,
         },
+      }, {
+        parentSpanContext: { traceId, spanId: "0000000000000000", traceFlags: 1 },
       });
       if (!trace) {
         endTrace();
         throw runtimeError("chat/observability-unavailable", "Langfuse trace could not be created");
       }
+      // Set trace-level attributes (userId, sessionId) so Langfuse groups turns under the chat session.
+      propagateAttributes({
+        traceName: "chat",
+        userId: decoded.uid,
+        sessionId: request.chatId,
+      }, () => {});
+      langfuseTraceId = trace.traceId;
       endTrace();
       telemetry.attachTrace(trace);
       const endStartTurn = telemetry.startStage("turn_start_transaction");
@@ -370,7 +380,7 @@ export const childChatStream = functions
           turnId: request.turnId,
           runId: request.runId,
           model: chatConfig.model,
-          langfuseTraceId: request.runId,
+          langfuseTraceId,
         });
       } finally {
         endStartTurn();
@@ -464,7 +474,7 @@ export const childChatStream = functions
           status: interrupted ? "interrupted" : "completed",
           finishReason,
           model: chatConfig.model,
-          langfuseTraceId: request.runId,
+          langfuseTraceId,
         });
       } finally {
         endAssistantPersistence(finalized ? {
@@ -513,7 +523,7 @@ export const childChatStream = functions
               finishReason: interrupted ? "client_disconnect" : "error",
               errorCode: code,
               model,
-              langfuseTraceId: trace ? request.runId : null,
+              langfuseTraceId: trace ? langfuseTraceId : null,
             });
           } finally {
             endAssistantPersistence(finalized ? {
@@ -548,7 +558,7 @@ export const childChatStream = functions
       try {
         const endFlush = telemetry.startStage("langfuse_flush");
         try {
-          await langfuseClient?.flushAsync?.();
+          await flushTracing();
         } finally {
           endFlush();
         }

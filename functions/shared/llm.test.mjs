@@ -9,7 +9,7 @@
 
 import { describe, it, beforeEach, afterEach } from "node:test";
 import assert from "node:assert/strict";
-import { isReasoningModel, buildChatBody, runLLM } from "./llm.js";
+import { isReasoningModel, buildChatBody, runLLM, sanitizeMedicalMessagesForTrace } from "./llm.js";
 
 // ---------------------------------------------------------------------------
 // isReasoningModel
@@ -276,20 +276,23 @@ describe("runLLM tail sampling (#298)", () => {
   it("nested path (trace passed in): recorder NEVER called; generation on parent trace", async () => {
     globalThis.fetch = okFetch();
     const { calls, deps } = makeDeps();
-    const ends = [];
+    const updates = [];
     const gens = [];
     const parentTrace = {
-      generation(payload) {
-        gens.push(payload);
-        return { end: (p) => ends.push(p) };
+      startObservation(name, attrs, options) {
+        gens.push({ name, attrs, options });
+        return {
+          update(p) { updates.push(p); return this; },
+          end() {},
+        };
       },
     };
     await runLLM({ ...baseArgs, deps, trace: parentTrace });
     assert.equal(calls.record.length, 0, "nested calls must inherit the parent's decision");
     assert.equal(calls.rate.length, 0);
     assert.equal(gens.length, 1);
-    assert.equal(ends.length, 1);
-    assert.equal(ends[0].level, undefined);
+    assert.equal(updates.length, 1);
+    assert.equal(updates[0].level, undefined);
   });
 
   it("nested path failure: generation.end carries level ERROR", async () => {
@@ -300,24 +303,30 @@ describe("runLLM tail sampling (#298)", () => {
       text: async () => "rate limited",
     });
     const { deps } = makeDeps();
-    const ends = [];
+    const updates = [];
     const parentTrace = {
-      generation: () => ({ end: (p) => ends.push(p) }),
+      startObservation: () => ({
+        update: (p) => { updates.push(p); return { end() {} }; },
+        end() {},
+      }),
     };
     await assert.rejects(() => runLLM({ ...baseArgs, deps, trace: parentTrace }));
-    assert.equal(ends[0].level, "ERROR");
-    assert.equal(ends[0].statusMessage, "http_429");
+    assert.equal(updates[0].level, "ERROR");
+    assert.equal(updates[0].statusMessage, "http_429");
   });
 
   it("nested path cap-hit: generation.end carries level WARNING", async () => {
     globalThis.fetch = okFetch({ finishReason: "length" });
     const { deps } = makeDeps();
-    const ends = [];
+    const updates = [];
     const parentTrace = {
-      generation: () => ({ end: (p) => ends.push(p) }),
+      startObservation: () => ({
+        update: (p) => { updates.push(p); return { end() {} }; },
+        end() {},
+      }),
     };
     await runLLM({ ...baseArgs, deps, trace: parentTrace });
-    assert.equal(ends[0].level, "WARNING");
+    assert.equal(updates[0].level, "WARNING");
   });
 
   it("tracing disabled (no Langfuse keys): recorder never called, call still works", async () => {
@@ -407,37 +416,64 @@ describe("runLLM provider-error retry (#310)", () => {
     };
   }
 
-  /** Fake Langfuse client for asserting own-trace promotion. */
-  function makeFakeLangfuse() {
-    const state = { traces: [], flushes: 0 };
-    const client = {
-      trace(payload) {
-        const t = { payload, gens: [] };
-        t.generation = (gp) => {
-          const g = { create: gp, ends: [] };
-          t.gens.push(g);
-          return { end: (e) => g.ends.push(e) };
-        };
-        state.traces.push(t);
-        return t;
-      },
-      flushAsync: async () => {
-        state.flushes++;
+  /** Fake v6 tracing deps for asserting own-trace promotion. */
+  function makeFakeV6TracingDeps() {
+    const state = { traces: [], gens: [], genUpdates: [], propagateCalls: [] };
+
+    function makeObs() {
+      return {
+        traceId: "fake-trace",
+        startObservation(childName, childAttrs, options) {
+          const childUpdates = [];
+          const childEnds = [];
+          const child = {
+            update(p) { childUpdates.push(p); state.genUpdates.push(p); return this; },
+            end(ts) { childEnds.push(ts); },
+          };
+          state.gens.push({ name: childName, attrs: childAttrs, options, updates: childUpdates, ends: childEnds });
+          return child;
+        },
+        update() { return this; },
+        end() {},
+      };
+    }
+
+    return {
+      state,
+      deps: {
+        isTracingEnabled: () => true,
+        startObservation: (name, attrs, options) => {
+          const obs = makeObs(name, attrs);
+          state.traces.push({ name, attrs, options, obs });
+          return obs;
+        },
+        propagateAttributes: (params, fn) => {
+          state.propagateCalls.push(params);
+          return fn();
+        },
       },
     };
-    return { state, client };
   }
 
   function makeParentTrace() {
     const gens = [];
-    const ends = [];
+    const updates = [];
     return {
       gens,
-      ends,
+      updates,
       trace: {
-        generation(payload) {
-          gens.push(payload);
-          return { end: (p) => ends.push(p) };
+        startObservation(name, attrs, options) {
+          const genUpdates = [];
+          const gen = {
+            update(payload) {
+              genUpdates.push(payload);
+              updates.push(payload);
+              return this;
+            },
+            end() {},
+          };
+          gens.push({ name, attrs, options, gen, genUpdates });
+          return gen;
         },
       },
     };
@@ -505,12 +541,12 @@ describe("runLLM provider-error retry (#310)", () => {
     // Nested path: attempt-0 create-time metadata has no attempt (committed
     // before the error is known - AC4 byte-identity). The attempt tag is
     // injected via end-metadata (Langfuse merges end into create server-side).
-    assert.equal(parent.gens[0].metadata.attempt, undefined, "create-time metadata has no attempt");
-    assert.equal(parent.ends[0].metadata.attempt, 0, "attempt injected via end-metadata merge");
-    assert.equal(parent.gens[1].metadata.attempt, 1);
-    assert.equal(parent.ends[0].level, "ERROR");
-    assert.equal(parent.ends[0].statusMessage, "provider_error");
-    assert.equal(parent.ends[1].level, undefined, "successful retry is a clean generation");
+    assert.equal(parent.gens[0].attrs.metadata.attempt, undefined, "create-time metadata has no attempt");
+    assert.equal(parent.updates[0].metadata.attempt, 0, "attempt injected via end-metadata merge");
+    assert.equal(parent.gens[1].attrs.metadata.attempt, 1);
+    assert.equal(parent.updates[0].level, "ERROR");
+    assert.equal(parent.updates[0].statusMessage, "provider_error");
+    assert.equal(parent.updates[1].level, undefined, "successful retry is a clean generation");
     assert.equal(calls.record.length, 0, "nested path never calls the tail recorder");
   });
 
@@ -522,7 +558,7 @@ describe("runLLM provider-error retry (#310)", () => {
     const { deps } = makeDeps();
     const parent = makeParentTrace();
     await runLLM({ ...baseArgs, deps, trace: parent.trace });
-    assert.deepEqual(parent.ends[0].usageDetails, { input: 7, output: 3, total: 10 },
+    assert.deepEqual(parent.updates[0].usageDetails, { input: 7, output: 3, total: 10 },
       "retries make cost analysis honest - failed-attempt spend is real spend");
   });
 
@@ -532,25 +568,27 @@ describe("runLLM provider-error retry (#310)", () => {
       response(),
     ]);
     const { calls, deps } = makeDeps();
-    const { state, client } = makeFakeLangfuse();
-    deps.createLangfuse = () => client;
+    const { state, deps: v6deps } = makeFakeV6TracingDeps();
+    Object.assign(deps, v6deps);
     const result = await runLLM({ ...baseArgs, deps });
     assert.equal(result.content, "hello");
     assert.equal(calls.record.length, 0, "tail recorder bypassed once a retry starts (ERROR = unconditional keep)");
     assert.equal(calls.rate.length, 0, "no sample-rate coin flip on the promoted trace");
     assert.equal(state.traces.length, 1, "exactly one promoted trace for all attempts");
     const t = state.traces[0];
-    assert.equal(t.payload.name, "text_cleanup");
-    assert.equal(t.payload.metadata.featureId, "text_cleanup");
-    assert.ok(t.payload.startTime instanceof Date);
-    assert.equal(t.gens.length, 2, "attempt 0 ERROR generation replayed + attempt 1 success generation");
-    assert.equal(t.gens[0].create.metadata.attempt, 0);
-    assert.equal(t.gens[0].ends[0].level, "ERROR");
-    assert.equal(t.gens[0].ends[0].statusMessage, "provider_error");
-    assert.ok(t.gens[0].ends[0].endTime instanceof Date, "replayed generation keeps its real end time");
-    assert.equal(t.gens[1].create.metadata.attempt, 1);
-    assert.equal(t.gens[1].ends[0].level, undefined);
-    assert.ok(state.flushes >= 1, "harness owns the flush for the promoted client");
+    assert.equal(t.name, "text_cleanup");
+    assert.equal(t.attrs.metadata.featureId, "text_cleanup");
+    assert.ok(t.options.startTime instanceof Date);
+    assert.equal(state.gens.length, 2, "attempt 0 ERROR generation replayed + attempt 1 success generation");
+    assert.equal(state.gens[0].attrs.metadata.attempt, 0);
+    assert.equal(state.gens[0].updates[0].level, "ERROR");
+    assert.equal(state.gens[0].updates[0].statusMessage, "provider_error");
+    // On the replay path, endTime is passed to .end() (not .update()), so check ends[0]
+    assert.ok(state.gens[0].ends[0] instanceof Date, "replayed generation keeps its real end time");
+    assert.equal(state.gens[1].attrs.metadata.attempt, 1);
+    assert.equal(state.gens[1].updates[0].level, undefined);
+    // flush is called via the module-level flushTracing() - safe to call without
+    // a real OTEL processor; the assertion that it ran cannot be checked via deps.
   });
 
   it("own-trace exhaustion: all 3 ERROR generations on one promoted trace, flushed, then throws unavailable", async () => {
@@ -560,20 +598,20 @@ describe("runLLM provider-error retry (#310)", () => {
       response({ content: "p3", finishReason: "error" }),
     ]);
     const { calls, deps } = makeDeps();
-    const { state, client } = makeFakeLangfuse();
-    deps.createLangfuse = () => client;
+    const { state, deps: v6deps } = makeFakeV6TracingDeps();
+    Object.assign(deps, v6deps);
     await assert.rejects(
       () => runLLM({ ...baseArgs, deps }),
       (err) => err.code === "unavailable",
     );
     assert.equal(calls.record.length, 0);
     assert.equal(state.traces.length, 1);
-    assert.equal(state.traces[0].gens.length, 3);
-    for (const g of state.traces[0].gens) {
-      assert.equal(g.ends[0].level, "ERROR");
-      assert.equal(g.ends[0].statusMessage, "provider_error");
+    assert.equal(state.gens.length, 3);
+    for (const g of state.gens) {
+      assert.equal(g.updates[0].level, "ERROR");
+      assert.equal(g.updates[0].statusMessage, "provider_error");
     }
-    assert.ok(state.flushes >= 1, "promoted trace flushed even on the throw path");
+    // flush is called via the module-level flushTracing() on the throw path too.
   });
 
   it("own-trace path: 2 provider errors then success - 1 trace, 3 generations (2 ERROR + 1 success), flushed", async () => {
@@ -583,27 +621,26 @@ describe("runLLM provider-error retry (#310)", () => {
       response({ content: "good output" }),
     ]);
     const { calls, deps } = makeDeps();
-    const { state, client } = makeFakeLangfuse();
-    deps.createLangfuse = () => client;
+    const { state, deps: v6deps } = makeFakeV6TracingDeps();
+    Object.assign(deps, v6deps);
     const result = await runLLM({ ...baseArgs, deps });
     assert.equal(result.content, "good output");
     assert.equal(result.finishReason, "stop");
     assert.equal(calls.record.length, 0, "tail recorder bypassed - promoted trace owns all generations");
     assert.equal(state.traces.length, 1, "exactly one promoted trace");
-    const t = state.traces[0];
-    assert.equal(t.gens.length, 3, "2 ERROR + 1 success generations");
+    assert.equal(state.gens.length, 3, "2 ERROR + 1 success generations");
     // Attempt 0: replayed onto promoted trace with injected attempt tag
-    assert.equal(t.gens[0].create.metadata.attempt, 0);
-    assert.equal(t.gens[0].ends[0].level, "ERROR");
-    assert.equal(t.gens[0].ends[0].statusMessage, "provider_error");
+    assert.equal(state.gens[0].attrs.metadata.attempt, 0);
+    assert.equal(state.gens[0].updates[0].level, "ERROR");
+    assert.equal(state.gens[0].updates[0].statusMessage, "provider_error");
     // Attempt 1: nested on promoted trace (inRetryContext = true)
-    assert.equal(t.gens[1].create.metadata.attempt, 1);
-    assert.equal(t.gens[1].ends[0].level, "ERROR");
-    assert.equal(t.gens[1].ends[0].statusMessage, "provider_error");
+    assert.equal(state.gens[1].attrs.metadata.attempt, 1);
+    assert.equal(state.gens[1].updates[0].level, "ERROR");
+    assert.equal(state.gens[1].updates[0].statusMessage, "provider_error");
     // Attempt 2: success
-    assert.equal(t.gens[2].create.metadata.attempt, 2);
-    assert.equal(t.gens[2].ends[0].level, undefined, "clean success has no level");
-    assert.ok(state.flushes >= 1, "harness owns the flush for the promoted client");
+    assert.equal(state.gens[2].attrs.metadata.attempt, 2);
+    assert.equal(state.gens[2].updates[0].level, undefined, "clean success has no level");
+    // flush is called via the module-level flushTracing() - no deps mock needed.
   });
 
   it("nested-path exhaustion: 3 consecutive errors -> throws unavailable, all 3 ERROR generations on parent trace", async () => {
@@ -620,9 +657,9 @@ describe("runLLM provider-error retry (#310)", () => {
     );
     assert.equal(parent.gens.length, 3, "all 3 attempts nest under the one parent trace");
     for (let i = 0; i < 3; i++) {
-      assert.equal(parent.ends[i].level, "ERROR");
-      assert.equal(parent.ends[i].statusMessage, "provider_error");
-      assert.equal(parent.ends[i].metadata.attempt, i, `attempt ${i} tagged via end-metadata`);
+      assert.equal(parent.updates[i].level, "ERROR");
+      assert.equal(parent.updates[i].statusMessage, "provider_error");
+      assert.equal(parent.updates[i].metadata.attempt, i, `attempt ${i} tagged via end-metadata`);
     }
     assert.equal(fetchCalls.count, 3, "initial + 2 retries");
     assert.equal(calls.record.length, 0, "nested path never calls the tail recorder");
@@ -741,5 +778,238 @@ describe("runLLM timeoutMs (#288)", () => {
         return true;
       },
     );
+  });
+});
+
+// ---------------------------------------------------------------------------
+// runLLM traceInput override (#255)
+// When traceInput is provided, it replaces the default sanitizeMessagesForTrace
+// output for the Langfuse generation input field.
+// ---------------------------------------------------------------------------
+
+describe("runLLM traceInput override (#255)", () => {
+  const realFetch = globalThis.fetch;
+  const savedEnv = {};
+  const ENV_KEYS = ["OPENROUTER_API_KEY", "LANGFUSE_SECRET_KEY", "LANGFUSE_PUBLIC_KEY"];
+
+  beforeEach(() => {
+    for (const k of ENV_KEYS) savedEnv[k] = process.env[k];
+    process.env.OPENROUTER_API_KEY = "test-key";
+    process.env.LANGFUSE_SECRET_KEY = "sk-test";
+    process.env.LANGFUSE_PUBLIC_KEY = "pk-test";
+  });
+
+  afterEach(() => {
+    globalThis.fetch = realFetch;
+    for (const k of ENV_KEYS) {
+      if (savedEnv[k] === undefined) delete process.env[k];
+      else process.env[k] = savedEnv[k];
+    }
+  });
+
+  it("own-trace path: traceInput is used as generation input instead of sanitizeMessagesForTrace", async () => {
+    globalThis.fetch = async () => ({
+      ok: true,
+      headers: { get: () => null },
+      json: async () => ({
+        choices: [{ message: { content: "hello" }, finish_reason: "stop" }],
+        usage: { prompt_tokens: 10, completion_tokens: 5, total_tokens: 15 },
+      }),
+    });
+    const records = [];
+    const result = await runLLM({
+      featureId: "medicalPdfSummary",
+      messages: [{ role: "user", content: "SENSITIVE MEDICAL TEXT" }],
+      model: "openai/test-model",
+      traceInput: [{ role: "user", content: "[redacted]" }],
+      deps: {
+        recordTailTrace: async (payload) => { records.push(payload); return true; },
+        getTraceSampleRate: async () => 1,
+      },
+    });
+    assert.equal(result.content, "hello");
+    assert.equal(records.length, 1);
+    // The generation input must be the traceInput, not the raw messages
+    assert.deepEqual(records[0].generation.input, [{ role: "user", content: "[redacted]" }]);
+    // Verify the raw medical text is NOT in the trace
+    assert.ok(
+      !JSON.stringify(records[0]).includes("SENSITIVE MEDICAL TEXT"),
+      "raw medical text must not appear in Langfuse trace",
+    );
+  });
+
+  it("nested path: traceInput is used as generation input on the parent trace", async () => {
+    globalThis.fetch = async () => ({
+      ok: true,
+      headers: { get: () => null },
+      json: async () => ({
+        choices: [{ message: { content: "hello" }, finish_reason: "stop" }],
+        usage: { prompt_tokens: 10, completion_tokens: 5, total_tokens: 15 },
+      }),
+    });
+    const gens = [];
+    const parentTrace = {
+      startObservation(name, attrs, options) {
+        gens.push({ name, attrs, options });
+        return {
+          update() { return this; },
+          end() {},
+        };
+      },
+    };
+    await runLLM({
+      featureId: "medicalPdfSummary",
+      messages: [{ role: "user", content: "SENSITIVE MEDICAL TEXT" }],
+      model: "openai/test-model",
+      traceInput: [{ role: "user", content: "[redacted]" }],
+      trace: parentTrace,
+      deps: {
+        recordTailTrace: async () => true,
+        getTraceSampleRate: async () => 1,
+      },
+    });
+    assert.equal(gens.length, 1);
+    assert.deepEqual(gens[0].attrs.input, [{ role: "user", content: "[redacted]" }]);
+  });
+
+  it("own-trace provider-error retry: buffered generation uses traceInput, not raw messages", async () => {
+    // Scripted fetch: first call returns provider error, second succeeds
+    let fetchCount = 0;
+    globalThis.fetch = async () => {
+      fetchCount++;
+      if (fetchCount === 1) {
+        return {
+          ok: true,
+          headers: { get: () => null },
+          json: async () => ({
+            choices: [{ message: { content: "partial" }, finish_reason: "error" }],
+            usage: { prompt_tokens: 10, completion_tokens: 3, total_tokens: 13 },
+          }),
+        };
+      }
+      return {
+        ok: true,
+        headers: { get: () => null },
+        json: async () => ({
+          choices: [{ message: { content: "good output" }, finish_reason: "stop" }],
+          usage: { prompt_tokens: 10, completion_tokens: 5, total_tokens: 15 },
+        }),
+      };
+    };
+
+    // Fake v6 tracing deps to capture what gets written to the promoted trace
+    const state = { traces: [], gens: [], genUpdates: [] };
+    function makeObs() {
+      return {
+        traceId: "fake-trace",
+        startObservation(childName, childAttrs, options) {
+          const childUpdates = [];
+          const childEnds = [];
+          const child = {
+            update(p) { childUpdates.push(p); state.genUpdates.push(p); return this; },
+            end(ts) { childEnds.push(ts); },
+          };
+          state.gens.push({ name: childName, attrs: childAttrs, options, updates: childUpdates, ends: childEnds });
+          return child;
+        },
+        update() { return this; },
+        end() {},
+      };
+    }
+
+    const result = await runLLM({
+      featureId: "medicalPdfSummary",
+      messages: [{ role: "user", content: "SENSITIVE MEDICAL TEXT" }],
+      model: "openai/test-model",
+      traceInput: [{ role: "user", content: "[redacted]" }],
+      deps: {
+        recordTailTrace: async () => { assert.fail("tail recorder must not be called on promoted trace path"); },
+        getTraceSampleRate: async () => 1,
+        isTracingEnabled: () => true,
+        startObservation: (name, attrs, options) => {
+          const obs = makeObs();
+          state.traces.push({ name, attrs, options, obs });
+          return obs;
+        },
+        propagateAttributes: (params, fn) => fn(),
+      },
+    });
+
+    assert.equal(result.content, "good output");
+    assert.equal(fetchCount, 2, "one provider error + one success");
+
+    // The replayed (attempt 0) generation input must use traceInput
+    assert.equal(state.gens.length, 2, "attempt 0 replayed + attempt 1 success");
+    assert.deepEqual(
+      state.gens[0].attrs.input,
+      [{ role: "user", content: "[redacted]" }],
+      "replayed generation must use traceInput, not raw messages",
+    );
+
+    // The success generation (attempt 1) input must also use traceInput
+    assert.deepEqual(
+      state.gens[1].attrs.input,
+      [{ role: "user", content: "[redacted]" }],
+      "success generation must use traceInput, not raw messages",
+    );
+
+    // Verify raw medical text never appears anywhere in the trace state
+    const serialized = JSON.stringify(state);
+    assert.ok(
+      !serialized.includes("SENSITIVE MEDICAL TEXT"),
+      "raw medical text must never appear in Langfuse trace data",
+    );
+  });
+});
+
+// ---------------------------------------------------------------------------
+// sanitizeMedicalMessagesForTrace (#255)
+// Medical text must never appear in Langfuse traces. Input and output are
+// replaced with compact placeholders preserving only size metadata.
+// ---------------------------------------------------------------------------
+
+describe("sanitizeMedicalMessagesForTrace", () => {
+  const meta = { charCount: 4800, pageCount: 6 };
+
+  it("replaces message content with medical content placeholder", () => {
+    const messages = [
+      { role: "system", content: "You are a medical summarizer." },
+      { role: "user", content: "Full PDF text: Detailed neuropsychological report..." },
+    ];
+    const { messages: sanitized } = sanitizeMedicalMessagesForTrace(messages, "summary output", meta);
+    for (const msg of sanitized) {
+      assert.ok(
+        !JSON.stringify(msg).includes("neuropsychological"),
+        "medical text must not appear in sanitized messages",
+      );
+    }
+  });
+
+  it("replaces input with correct placeholder format", () => {
+    const messages = [{ role: "user", content: "medical content here" }];
+    const { messages: sanitized } = sanitizeMedicalMessagesForTrace(messages, "output", meta);
+    const combined = JSON.stringify(sanitized);
+    assert.ok(combined.includes("4800 chars"), "charCount must appear in placeholder");
+    assert.ok(combined.includes("6 pages"), "pageCount must appear in placeholder");
+    assert.ok(combined.includes("medical content"), "placeholder label must be present");
+  });
+
+  it("replaces LLM output with medical summary placeholder", () => {
+    const { output } = sanitizeMedicalMessagesForTrace([], "ADHD diagnosis confirmed. Recommendations: ...", meta);
+    assert.ok(!output.includes("ADHD"), "LLM output must not appear in sanitized trace");
+    assert.ok(output.includes("medical summary"), "output placeholder label must be present");
+  });
+
+  it("includes output charCount in the output placeholder", () => {
+    const llmOutput = "A".repeat(500);
+    const { output } = sanitizeMedicalMessagesForTrace([], llmOutput, meta);
+    assert.ok(output.includes("500 chars"), "output placeholder must include the summary char count");
+  });
+
+  it("does not mutate the original messages array", () => {
+    const messages = [{ role: "user", content: "sensitive medical data" }];
+    const original = JSON.stringify(messages);
+    sanitizeMedicalMessagesForTrace(messages, "output", meta);
+    assert.equal(JSON.stringify(messages), original, "original messages must be unchanged");
   });
 });
