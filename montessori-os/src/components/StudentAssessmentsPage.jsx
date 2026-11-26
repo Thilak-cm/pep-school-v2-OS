@@ -325,8 +325,23 @@ export default function StudentAssessmentsPage({ student, assessmentDeepLink, us
               <Typography variant="h6">{record.assessmentName || 'Medical assessment'}</Typography>
               <Typography variant="body2" color="text.secondary">Report date: {formatTimestamp(record.observedAt)}</Typography>
               {record.assessmentDescription && <Typography sx={{mt: 0.75}}>{record.assessmentDescription}</Typography>}
+              {record.processingStatus === 'completed' && record.summary && (
+                <Typography variant="body2" sx={{mt: 1, whiteSpace: 'pre-wrap'}}>{record.summary}</Typography>
+              )}
+              {record.processingStatus && record.processingStatus !== 'completed' && (
+                <Chip
+                  size="small"
+                  sx={{mt: 1}}
+                  label={record.processingStatus === 'processing' ? 'Processing…'
+                    : record.processingStatus === 'queued' ? 'Queued'
+                    : record.processingStatus === 'failed' ? 'Processing failed'
+                    : record.processingStatus === 'needs_review' ? 'Needs review'
+                    : record.processingStatus}
+                  color={record.processingStatus === 'failed' || record.processingStatus === 'needs_review' ? 'error' : 'default'}
+                />
+              )}
               <Typography variant="caption" color="text.secondary" display="block" sx={{mt: 1}}>
-                Uploaded by {record.createdByName || 'Unknown uploader'} · {record.originalFile?.originalFilename || 'PDF'}
+                Uploaded by {record.createdByName || 'Unknown uploader'}
               </Typography>
               <Button
                 size="small"

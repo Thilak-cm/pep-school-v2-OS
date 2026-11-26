@@ -88,6 +88,8 @@ const EXPECTED_EXPORTS = [
   "getAssessmentDownloadUrl",
   "getStructuredAssessmentSource",
   "publishStructuredAssessment",
+  // #255: Medical PDF worker
+  "medicalPdfWorker",
   // #313: Your Assessments
   "listMyAssessmentUploads",
   "appendAssessmentAttempt",

@@ -62,7 +62,7 @@ jobs:
         run: npm ci
 
       - name: Install Functions dependencies
-        run: npm ci --prefix functions
+        run: npm install --prefix functions
 
       - name: Run static security rules tests
         run: npm run test:security

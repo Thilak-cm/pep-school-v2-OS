@@ -25,7 +25,7 @@ import { runAgentLoop } from "../shared/agentLoop.js";
 import { DIGEST_TOOLS, createToolExecutor } from "./tools.js";
 import { parseDigestJson, resolveClassroomDigestContent, renderClassroomDigest, renderSuperadminDigest } from "./renderHtml.js";
 import { batchHtmlToPdf } from "./htmlToPdf.js";
-import { createLangfuse } from "../shared/langfuse.js";
+import { startObservation, propagateAttributes, flushTracing } from "../shared/langfuse.js";
 import {
   computeExecutionId,
   createExecution,
@@ -390,19 +390,26 @@ export const weeklyDigestClassroomAdmin = functions
   .timeZone("Asia/Kolkata")
   .onRun(async () => {
     const JOB_KEY = "digestClassroomAdmin";
-    const langfuse = createLangfuse();
     const weekKey = getWeekKey();
     const sessionId = `digest-${weekKey}`;
 
     const executionId = computeExecutionId(JOB_KEY);
 
-    const trace = langfuse.trace({
-      name: "weekly-digest-classrooms",
-      sessionId,
-      userId: "cron",
-      tags: ["feature:digest", "type:classroom"],
-      metadata: { triggeredAt: new Date().toISOString(), weekKey },
-    });
+    let trace;
+    propagateAttributes(
+      {
+        traceName: "weekly-digest-classrooms",
+        userId: "cron",
+        sessionId,
+        tags: ["feature:digest", "type:classroom"],
+        metadata: { triggeredAt: new Date().toISOString(), weekKey },
+      },
+      () => {
+        trace = startObservation("weekly-digest-classrooms", {
+          metadata: { triggeredAt: new Date().toISOString(), weekKey },
+        });
+      }
+    );
 
     try {
       const config = await fetchDigestConfig();
@@ -419,10 +426,9 @@ export const weeklyDigestClassroomAdmin = functions
       await createExecution(JOB_KEY, executionId, classrooms.length);
       await seedWorkItems(JOB_KEY, executionId, classrooms.map((c) => c.id));
 
-      trace.span({
-        name: "config-loaded",
+      trace.startObservation("config-loaded", {
         input: { model: config.model, classrooms: classrooms.length, weekKey, hasContextualNotes: !!config.contextualNotes },
-      });
+      }).end();
 
       // Fetch statsCache for all classrooms
       const statsDocs = new Map();
@@ -462,8 +468,7 @@ export const weeklyDigestClassroomAdmin = functions
         classrooms,
         async (classroom) => {
           const classroomName = classroom.name || classroom.id;
-          const classroomSpan = trace.span({
-            name: `classroom-${classroom.id}`,
+          const classroomSpan = trace.startObservation(`classroom-${classroom.id}`, {
             metadata: {
               classroomName,
               classroomId: classroom.id,
@@ -555,7 +560,7 @@ export const weeklyDigestClassroomAdmin = functions
               }
             }
 
-            classroomSpan.end({
+            classroomSpan.update({
               output: htmlContent,
               metadata: {
                 hasRedFlags,
@@ -566,7 +571,7 @@ export const weeklyDigestClassroomAdmin = functions
                 emailDelivery: emailResults,
                 studentCount: statsDoc?.students?.length || 0,
               },
-            });
+            }).end();
             digestCount++;
             await updateWorkItem(JOB_KEY, executionId, classroom.id, buildWorkItemUpdate("success", {
               evidence: { weekKey, recipientCount: recipientEmails.length },
@@ -576,7 +581,7 @@ export const weeklyDigestClassroomAdmin = functions
               `[weeklyDigestClassroomAdmin] Error for ${classroom.id}:`,
               err.message
             );
-            classroomSpan.end({ output: err.message, level: "ERROR" });
+            classroomSpan.update({ output: err.message, level: "ERROR" }).end();
             errorCount++;
             await updateWorkItem(JOB_KEY, executionId, classroom.id, buildWorkItemUpdate("failed", {
               failureCategory: classifyError(err),
@@ -590,12 +595,12 @@ export const weeklyDigestClassroomAdmin = functions
       const summary = { digestCount, errorCount, weekKey };
       console.log("[weeklyDigestClassroomAdmin] CF1 complete:", JSON.stringify(summary));
       trace.update({ output: summary });
-      await langfuse.flushAsync();
+      await flushTracing();
       return summary;
     } catch (err) {
       console.error("[weeklyDigestClassroomAdmin] Fatal error:", err);
       trace.update({ output: err.message, level: "ERROR" });
-      await langfuse.flushAsync();
+      await flushTracing();
       await markExecutionFailed(JOB_KEY, executionId, err).catch(() => {});
       const msg = formatCrashSignal(JOB_KEY, executionId, classifyError(err), err.message);
       await broadcastAlert(TELEGRAM_BOT_TOKEN.value(), db, msg).catch(() => {});
@@ -618,18 +623,25 @@ export const weeklyDigestSuperadmin = functions
   .timeZone("Asia/Kolkata")
   .onRun(async () => {
     const JOB_KEY = "digestSuperadmin";
-    const langfuse = createLangfuse();
     const weekKey = getWeekKey();
     const sessionId = `digest-${weekKey}`;
     const executionId = computeExecutionId(JOB_KEY);
 
-    const trace = langfuse.trace({
-      name: "weekly-digest-superadmin",
-      sessionId,
-      userId: "cron",
-      tags: ["feature:digest", "type:superadmin"],
-      metadata: { triggeredAt: new Date().toISOString(), weekKey },
-    });
+    let trace;
+    propagateAttributes(
+      {
+        traceName: "weekly-digest-superadmin",
+        userId: "cron",
+        sessionId,
+        tags: ["feature:digest", "type:superadmin"],
+        metadata: { triggeredAt: new Date().toISOString(), weekKey },
+      },
+      () => {
+        trace = startObservation("weekly-digest-superadmin", {
+          metadata: { triggeredAt: new Date().toISOString(), weekKey },
+        });
+      }
+    );
 
     try {
       // Ledger: single workItem for the consolidated digest
@@ -682,14 +694,13 @@ export const weeklyDigestSuperadmin = functions
         }
       }
 
-      trace.span({
-        name: "digests-loaded",
+      trace.startObservation("digests-loaded", {
         metadata: {
           digestCount: digests.length,
           weekKey,
           classroomsWithRedFlags: digests.filter((d) => d.hasRedFlags).map((d) => d.classroomName),
         },
-      });
+      }).end();
 
       if (digests.length < classroomIds.length) {
         const digestClassroomIds = new Set(digests.map((d) => d.classroomId));
@@ -702,7 +713,7 @@ export const weeklyDigestSuperadmin = functions
       if (digests.length === 0) {
         console.log("[weeklyDigestSuperadmin] No digests found for", weekKey);
         trace.update({ output: "No digests found" });
-        await langfuse.flushAsync();
+        await flushTracing();
         return null;
       }
 
@@ -837,7 +848,7 @@ export const weeklyDigestSuperadmin = functions
         JSON.stringify(summary)
       );
       trace.update({ output: htmlContent, metadata: summary });
-      await langfuse.flushAsync();
+      await flushTracing();
 
       // Ledger: mark the single workItem as success
       await updateWorkItem(JOB_KEY, executionId, "_digest_all", buildWorkItemUpdate("success", {
@@ -853,7 +864,7 @@ export const weeklyDigestSuperadmin = functions
     } catch (err) {
       console.error("[weeklyDigestSuperadmin] Fatal error:", err);
       trace.update({ output: err.message, level: "ERROR" });
-      await langfuse.flushAsync();
+      await flushTracing();
       await markExecutionFailed(JOB_KEY, executionId, err).catch(() => {});
       const msg = formatCrashSignal(JOB_KEY, executionId, classifyError(err), err.message);
       await broadcastAlert(TELEGRAM_BOT_TOKEN.value(), db, msg).catch(() => {});
@@ -894,18 +905,25 @@ export const triggerDigestTest = functions
       ? digestConfigData.testOverrideEmails
       : [callerSnap.data().email];
 
-    const langfuse = createLangfuse();
     const weekKey = getWeekKey();
     const sessionId = `digest-test-${weekKey}-${Date.now()}`;
 
     // ── Run CF 1 logic (per-classroom digests) ──────────────────────
-    const cf1Trace = langfuse.trace({
-      name: "digest-test-classrooms",
-      sessionId,
-      userId: context.auth.uid,
-      tags: ["feature:digest", "type:classroom", "test"],
-      metadata: { triggeredBy: context.auth.uid, weekKey },
-    });
+    let cf1Trace;
+    propagateAttributes(
+      {
+        traceName: "digest-test-classrooms",
+        userId: context.auth.uid,
+        sessionId,
+        tags: ["feature:digest", "type:classroom", "test"],
+        metadata: { triggeredBy: context.auth.uid, weekKey },
+      },
+      () => {
+        cf1Trace = startObservation("digest-test-classrooms", {
+          metadata: { triggeredBy: context.auth.uid, weekKey },
+        });
+      }
+    );
 
     // Test mode: only process classrooms specified in data, or default to ["amazing"]
     const testClassroomIds = data?.classrooms || ["amazing"];
@@ -946,7 +964,7 @@ export const triggerDigestTest = functions
 
     // Run sequentially for test (easier to debug)
     for (const classroom of classrooms) {
-      const span = cf1Trace.span({ name: `classroom-${classroom.id}` });
+      const span = cf1Trace.startObservation(`classroom-${classroom.id}`, {});
       try {
         const statsDoc = statsDocs.get(classroom.id) || null;
 
@@ -1008,25 +1026,33 @@ export const triggerDigestTest = functions
           }
         }
 
-        span.end({ output: { status: "sent", toolCalls: result.toolCallLog.length } });
+        span.update({ output: { status: "sent", toolCalls: result.toolCallLog.length } }).end();
         cf1Count++;
       } catch (err) {
         console.error(`[triggerDigestTest] CF1 error for ${classroom.id}:`, err.message);
-        span.end({ output: err.message, level: "ERROR" });
+        span.update({ output: err.message, level: "ERROR" }).end();
         cf1Errors++;
       }
     }
 
-    await langfuse.flushAsync();
+    await flushTracing();
 
     // ── Run CF 2 logic (superadmin consolidated) ────────────────────
-    const cf2Trace = langfuse.trace({
-      name: "digest-test-superadmin",
-      sessionId,
-      userId: context.auth.uid,
-      tags: ["feature:digest", "type:superadmin", "test"],
-      metadata: { triggeredBy: context.auth.uid, weekKey },
-    });
+    let cf2Trace;
+    propagateAttributes(
+      {
+        traceName: "digest-test-superadmin",
+        userId: context.auth.uid,
+        sessionId,
+        tags: ["feature:digest", "type:superadmin", "test"],
+        metadata: { triggeredBy: context.auth.uid, weekKey },
+      },
+      () => {
+        cf2Trace = startObservation("digest-test-superadmin", {
+          metadata: { triggeredBy: context.auth.uid, weekKey },
+        });
+      }
+    );
 
     // Build program → classroom mapping for test
     const testProgramsSnap = await db.collection("programs").get();
@@ -1161,7 +1187,7 @@ export const triggerDigestTest = functions
     }
 
     cf2Trace.update({ output: cf2Result || "No digests to consolidate" });
-    await langfuse.flushAsync();
+    await flushTracing();
 
     return {
       cf1: { classrooms: cf1Count, errors: cf1Errors },

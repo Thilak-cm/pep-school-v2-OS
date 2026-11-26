@@ -1,5 +1,23 @@
 # Changelog
 
+# 13.7.0 - 2026-11-15
+
+### Added
+- Medical PDF async processing pipeline: Pub/Sub worker extracts native PDF text and generates LLM summary on observation docs (#255).
+- `isSoulObservation` filter in studentHelpers - soul gen includes completed medical assessments; all other AI pipelines (baseball card, reports, chat, monthly plan) remain excluded (#255).
+- `traceInput` parameter on `runLLM` for caller-controlled Langfuse input redaction, including provider-error retry path (#255).
+- `sanitizeMedicalMessagesForTrace` in llm.js - replaces medical content with placeholder metadata for Langfuse traces (#255).
+- Two new daily integrity checks: stale medical processing (queued/processing >1h) and `likelyNeedsOcr` flag scanner (#255).
+- `medicalPdfSummary` entry in model registry (#255).
+- `medicalNotes` field on soul doc - concatenated medical summaries written as structured context alongside the narrative (#255).
+- DLQ policy for `medical-pdf-workers` Pub/Sub topic in setup script (#255).
+
+### Changed
+- `fetchStudentNotesForWindow` accepts an `observationFilter` option (defaults to `isGenericObservation`) so soul gen can pass `isSoulObservation` (#255).
+- `formatObservationForPrompt` maps `obs.summary` for medical assessments instead of `obs.text` (#255).
+- `buildSoulDoc` accepts optional `medicalNotes` parameter; `writeSoulAndGuidelines` extracts and passes medical summaries (#255).
+- Practice dimension placeholders replaced with real labels (#227).
+
 # 13.6.1 - 2026-11-08
 
 ### Changed

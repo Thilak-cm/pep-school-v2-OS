@@ -1,14 +1,93 @@
 import test from "node:test";
 import assert from "node:assert/strict";
 
-import {isGenericObservation, normalizeTimestampValue, chooseObservationTimestamp} from "./studentHelpers.js";
+import {isGenericObservation, isSoulObservation, formatObservationForPrompt, normalizeTimestampValue, chooseObservationTimestamp} from "./studentHelpers.js";
 
-test("generic AI observation readers exclude both assessment subtypes", () => {
+test("generic AI observation readers exclude ALL assessment subtypes (#255 fix)", () => {
   assert.equal(isGenericObservation({type: "text", text: "work"}), true);
   assert.equal(isGenericObservation({type: "lesson"}), true);
   assert.equal(isGenericObservation({type: "assessment", assessmentKind: "structured"}), false);
   assert.equal(isGenericObservation({type: "assessment", assessmentKind: "medical", uploadStatus: "ready"}), false);
   assert.equal(isGenericObservation({assessmentKind: "medical"}), false);
+  // Completed medical assessments are excluded from generic AI context (reports,
+  // baseball cards, coach chat, monthly plans). Only isSoulObservation allows them.
+  assert.equal(
+    isGenericObservation({type: "assessment", assessmentKind: "medical", processingStatus: "completed"}),
+    false,
+    "completed medical assessments must NOT pass isGenericObservation",
+  );
+});
+
+// ---------------------------------------------------------------------------
+// isSoulObservation - soul-only filter (#255)
+// Soul generation uses isSoulObservation which includes everything
+// isGenericObservation allows PLUS completed medical assessments.
+// ---------------------------------------------------------------------------
+
+test("isSoulObservation passes generic observations through", () => {
+  assert.equal(isSoulObservation({type: "text", text: "work"}), true);
+  assert.equal(isSoulObservation({type: "lesson"}), true);
+});
+
+test("isSoulObservation passes completed medical assessments through for soul gen (#255)", () => {
+  assert.equal(
+    isSoulObservation({type: "assessment", assessmentKind: "medical", processingStatus: "completed"}),
+    true,
+    "completed medical assessment must reach soul gen context",
+  );
+});
+
+test("isSoulObservation excludes medical assessments that are still processing (#255)", () => {
+  assert.equal(
+    isSoulObservation({type: "assessment", assessmentKind: "medical", processingStatus: "queued"}),
+    false,
+  );
+  assert.equal(
+    isSoulObservation({type: "assessment", assessmentKind: "medical", processingStatus: "processing"}),
+    false,
+  );
+  assert.equal(
+    isSoulObservation({type: "assessment", assessmentKind: "medical", processingStatus: "failed"}),
+    false,
+  );
+});
+
+test("isSoulObservation still excludes structured assessments regardless of processingStatus (#255)", () => {
+  assert.equal(
+    isSoulObservation({type: "assessment", assessmentKind: "structured", processingStatus: "completed"}),
+    false,
+    "structured assessments are excluded until #252",
+  );
+});
+
+// ---------------------------------------------------------------------------
+// formatObservationForPrompt - medical assessment summary field (#255)
+// Medical assessments store content in `summary`, not `text`. The formatter
+// must use the correct field so soul gen gets real content.
+// ---------------------------------------------------------------------------
+
+test("formatObservationForPrompt uses summary for medical assessments (#255)", () => {
+  const obs = {
+    type: "assessment",
+    assessmentKind: "medical",
+    processingStatus: "completed",
+    summary: "ADHD diagnosis confirmed. Preferential seating recommended.",
+    text: "",
+    createdAt: { toDate: () => new Date("2026-10-01") },
+  };
+  const formatted = formatObservationForPrompt(obs);
+  assert.equal(formatted.text, "ADHD diagnosis confirmed. Preferential seating recommended.");
+  assert.equal(formatted.type, "assessment");
+});
+
+test("formatObservationForPrompt uses text for regular observations (#255)", () => {
+  const obs = {
+    type: "text",
+    text: "Aria chose the bead chain today",
+    createdAt: { toDate: () => new Date("2026-10-01") },
+  };
+  const formatted = formatObservationForPrompt(obs);
+  assert.equal(formatted.text, "Aria chose the bead chain today");
 });
 
 // ---------------------------------------------------------------------------
