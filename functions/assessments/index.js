@@ -912,27 +912,29 @@ export const finalizeMedicalAssessmentUpload = functions
     // #255: publish Pub/Sub message to trigger medicalPdfWorker.
     // observationId doubles as executionId - each upload is unique, so
     // there is exactly one processing event per doc.
-    try {
-      // Lazy-init PubSub to avoid module-level credential lookup that breaks
-      // emulator tests in CI (no GCP credentials available).
-      const { PubSub } = await import("@google-cloud/pubsub");
-      const topic = new PubSub().topic(MEDICAL_PDF_TOPIC);
-      const pubsubPayload = JSON.stringify({
-        studentId: pending.studentId,
-        executionId: pending.observationId,
-        observationId: pending.observationId,
-      });
-      await topic.publishMessage({ data: Buffer.from(pubsubPayload) });
-    } catch (pubsubError) {
-      // Log but do not fail the finalize response - the teacher gets "published"
-      // feedback immediately. If the publish silently failed, the observation doc
-      // stays in "queued" with no Pub/Sub message in flight. There is no automatic
-      // recovery - the daily integrity checker (checkStaleMedicalProcessing) flags
-      // docs stuck in queued/processing for >1h so ops can manually republish.
-      console.error("[finalizeMedicalAssessmentUpload] pubsub publish failed", {
-        observationId: pending.observationId,
-        error: pubsubError?.message,
-      });
+    // Skip in emulator: PubSub has no emulator, and the library's internal
+    // gRPC credential resolution leaks unhandled rejections on Node 20.
+    if (!process.env.FIRESTORE_EMULATOR_HOST) {
+      try {
+        const { PubSub } = await import("@google-cloud/pubsub");
+        const topic = new PubSub().topic(MEDICAL_PDF_TOPIC);
+        const pubsubPayload = JSON.stringify({
+          studentId: pending.studentId,
+          executionId: pending.observationId,
+          observationId: pending.observationId,
+        });
+        await topic.publishMessage({ data: Buffer.from(pubsubPayload) });
+      } catch (pubsubError) {
+        // Log but do not fail the finalize response - the teacher gets "published"
+        // feedback immediately. If the publish silently failed, the observation doc
+        // stays in "queued" with no Pub/Sub message in flight. There is no automatic
+        // recovery - the daily integrity checker (checkStaleMedicalProcessing) flags
+        // docs stuck in queued/processing for >1h so ops can manually republish.
+        console.error("[finalizeMedicalAssessmentUpload] pubsub publish failed", {
+          observationId: pending.observationId,
+          error: pubsubError?.message,
+        });
+      }
     }
 
     return {observationId: pending.observationId, uploadStatus: "ready"};
