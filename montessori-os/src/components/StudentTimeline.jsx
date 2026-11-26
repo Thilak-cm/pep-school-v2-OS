@@ -35,7 +35,6 @@ import AssessmentMatrixSheet from './AssessmentMatrixSheet';
 import MedicalPdfSheet from './MedicalPdfSheet';
 import { buildMediaItemsForObservation as buildSharedMediaItems } from './groupedMediaUtils.js';
 import { DayHeader, HFSearchInput } from './ui';
-import { useTypesenseSearch } from '../hooks/useTypesenseSearch';
 import { groupByCalendarDay } from './classroomTimelineUtils.js';
 import useObservationFilters from '../hooks/useObservationFilters';
 import useTimelineData from '../hooks/useTimelineData';
@@ -97,16 +96,7 @@ function StudentTimeline({ student, currentUser, userRole, noteTypeFilter = null
     toggleFilters,
   } = useObservationFilters([], noteTypeFilter);
 
-  // #331: full-text search via Typesense
   const [searchQuery, setSearchQuery] = useState('');
-  const {
-    results: typesenseResults,
-    searchActive,
-  } = useTypesenseSearch({
-    query: searchQuery,
-    studentId: student?.id,
-    committedFilters: serverFilters,
-  });
 
   // Shared data hook — cursor-based pagination (#221 Sprint 2), server-side filtering (#297)
   const {
@@ -240,8 +230,7 @@ function StudentTimeline({ student, currentUser, userRole, noteTypeFilter = null
   // #221 Sprint 2: stats from statsCache via useTimelineStats (see hook above)
 
   // Server handles author/type/date filtering; observations arrive already filtered (#297).
-  // #331: when searchActive, Typesense results replace the Firestore page.
-  const visibleObservations = searchActive ? typesenseResults : observations;
+  const visibleObservations = observations;
 
   // Apply: commit filters and auto-close panel
   const handleApplyFilters = () => {
