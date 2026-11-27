@@ -483,7 +483,6 @@ function ClassroomTimeline({ classroom, currentUser, userRole, manageableClassro
         isTransferred={transferredStudents.has(item.studentId)}
         transferredToClassroomName={transferredStudents.get(item.studentId)?.transferredToClassroomName}
         classroomTeachers={classroomTeachers}
-        highlightSnippet={searchActive ? item.highlightSnippet : undefined}
         onStudentClick={() => {
           const student = classroomStudents.find(s => s.id === item.studentId) || transferredStudents.get(item.studentId);
           if (transferredStudents.has(item.studentId) && !canNavigateToTransferred(student)) {
@@ -652,8 +651,8 @@ function ClassroomTimeline({ classroom, currentUser, userRole, manageableClassro
                 </React.Fragment>
               ))}
 
-              {/* Show More Button — cursor-based pagination (#221 Sprint 2). Hidden during searchActive (#331). */}
-              {hasMore && !searchActive && (
+              {/* Show More Button — cursor-based pagination (#221 Sprint 2) */}
+              {hasMore && (
                 <Box sx={{ textAlign: 'center', pt: 2 }}>
                   <Button
                     variant="outlined"

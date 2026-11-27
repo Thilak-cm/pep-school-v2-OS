@@ -983,7 +983,6 @@ function StudentTimeline({ student, currentUser, userRole, noteTypeFilter = null
                   isTransferred={!!(obs.classroomId && student?.classroomId && obs.classroomId !== student.classroomId)}
                   transferredToClassroomName={obs.classroomId !== student?.classroomId ? classroomNameCache[obs.classroomId] : undefined}
                   classroomTeachers={classroomTeachers}
-                  highlightSnippet={searchActive ? obs.highlightSnippet : undefined}
                   onNoteClick={() => handleObservationClick(obs)}
                   mediaUrls={mediaUrls}
                 />
@@ -1001,8 +1000,8 @@ function StudentTimeline({ student, currentUser, userRole, noteTypeFilter = null
               </Box>
             ) : null;
           })()}
-          {/* Show More Button — cursor-based pagination (#221 Sprint 2). Hidden during searchActive (#331). */}
-          {hasMore && !searchActive && (
+          {/* Show More Button — cursor-based pagination (#221 Sprint 2) */}
+          {hasMore && (
             <Box sx={{ textAlign: 'center', pt: 2 }}>
               <Button
                 variant="outlined"
