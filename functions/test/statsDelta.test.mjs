@@ -51,9 +51,11 @@ test("cross-run group canonicalization preserves raw student fan-out", () => {
 
 test("pending media is a hard cursor barrier", () => {
   const state = createDeltaAccumulator(new Date("2026-08-22T12:00:00Z"));
-  const before = observation("a", {createdAt: ts(100)});
-  const pending = observation("b", {type: "media", status: "pending_upload", createdAt: ts(101)});
-  const after = observation("c", {createdAt: ts(102)});
+  // Use recent timestamps so the pending media is within the 24h TTL window
+  const nowSec = Math.floor(new Date("2026-08-22T12:00:00Z").getTime() / 1000);
+  const before = observation("a", {createdAt: ts(nowSec - 60)});
+  const pending = observation("b", {type: "media", status: "pending_upload", createdAt: ts(nowSec - 30)});
+  const after = observation("c", {createdAt: ts(nowSec)});
   const result = aggregateObservationPage(state, [before, pending, after]);
   assert.equal(result.blocked, true);
   assert.deepEqual(state.latestCursor, cursorFromObservation(before));

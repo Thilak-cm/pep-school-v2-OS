@@ -44,20 +44,31 @@ export function compareCursors(left = {}, right = {}) {
 }
 
 /**
- * A media observation that has not reached a terminal status ('ready' or 'failed').
+ * A media observation that has not reached a terminal status ('ready' or 'failed')
+ * AND is young enough that the upload could still complete.
+ *
+ * Media older than PENDING_MEDIA_TTL_MS is treated as terminal regardless of
+ * status - the upload ship has sailed and blocking stats on it indefinitely
+ * harms every student in the classroom. This prevents orphaned 'pending_upload'
+ * docs from permanently stalling weekly reconciliation.
  *
  * Delta stats skip past these docs (skipPendingMedia in reconcile.js
  * aggregateObservationPage) so a single orphaned upload cannot permanently
- * stall teacher-triggered refreshes. Weekly reconciliation still blocks on
- * them via stopBeforeCursor from findEarliestPendingMedia.
- *
- * COUPLING: if the media upload flow (mediaDocBuilder.js sets 'pending_upload',
- * functions/media/index.js mediaFinalize transitions to 'ready'/'failed') is
- * fixed to guarantee terminal status, this barrier can be removed and
- * aggregateObservationPage's skipPendingMedia flag can be dropped.
+ * stall teacher-triggered refreshes. Weekly reconciliation blocks on
+ * them via stopBeforeCursor from findEarliestPendingMedia only while
+ * they are within the TTL window.
  */
-export function isPendingMedia(observation = {}) {
-  return observation.type === "media" && observation.status !== "ready" && observation.status !== "failed";
+const PENDING_MEDIA_TTL_MS = 24 * 60 * 60 * 1000; // 24 hours
+
+export function isPendingMedia(observation = {}, nowMs = Date.now()) {
+  if (observation.type !== "media") return false;
+  if (observation.status === "ready" || observation.status === "failed") return false;
+  // Age gate: media older than 24h is terminal for stats purposes.
+  const createdMs = observation.createdAt?.seconds != null
+    ? observation.createdAt.seconds * 1000
+    : (observation.createdAt instanceof Date ? observation.createdAt.getTime() : 0);
+  if (createdMs > 0 && (nowMs - createdMs) > PENDING_MEDIA_TTL_MS) return false;
+  return true;
 }
 
 export function isCountableObservation(observation = {}) {

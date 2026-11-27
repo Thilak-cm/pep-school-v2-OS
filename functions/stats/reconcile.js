@@ -87,7 +87,7 @@ export function aggregateObservationPage(state, observations, canonicalGroups = 
       state.blockedByPendingMedia = true;
       break;
     }
-    if (isPendingMedia(observation)) {
+    if (isPendingMedia(observation, state.now.getTime())) {
       if (skipPendingMedia) {
         // Delta path: log and advance past. The observation is excluded from
         // counts by isCountableObservation but does not stall the cursor.
@@ -109,8 +109,10 @@ export function aggregateObservationPage(state, observations, canonicalGroups = 
 }
 
 export async function findEarliestPendingMedia(database = db, {
+  now = new Date(),
   onPageReleased = () => {},
 } = {}) {
+  const nowMs = now.getTime();
   let pageCursor = null;
   while (true) {
     // Scan every media status so legacy or unexpected not-ready values cannot be
@@ -125,7 +127,7 @@ export async function findEarliestPendingMedia(database = db, {
     }
     const snap = await withFirestoreRetry(() => query.get());
     const page = snap.docs.map(normalizeDocument);
-    const pending = page.find(isPendingMedia);
+    const pending = page.find((obs) => isPendingMedia(obs, nowMs));
     onPageReleased(page.length);
     if (pending) return cursorFromObservation(pending);
     if (page.length < DEFAULT_DELTA_PAGE_SIZE) return null;

@@ -55,12 +55,14 @@ test("reconciliation releases each 1,000-document page before fetching the next"
 });
 
 test("reconciliation pending barrier catches unexpected statuses across pages", async () => {
+  // Use recent timestamps so pending media is within the 24h TTL window
+  const baseSec = Math.floor(Date.now() / 1000) - 60;
   const makeDoc = (index, status = "ready") => ({
     id: `m${index}`,
     ref: {path: `students/s${index}/observations/m${index}`},
     data: () => ({
       classroomId: "c1", type: "media", status,
-      createdAt: {seconds: 100 + index, nanoseconds: index},
+      createdAt: {seconds: baseSec + index, nanoseconds: index},
     }),
   });
   const pages = [
@@ -86,7 +88,7 @@ test("reconciliation pending barrier catches unexpected statuses across pages", 
   assert.deepEqual(released, [1000, 2]);
   assert.equal(starts.length, 1);
   assert.deepEqual(cursor, {
-    createdAt: {seconds: 1100, nanoseconds: 1000},
+    createdAt: {seconds: baseSec + 1000, nanoseconds: 1000},
     documentPath: "students/s1000/observations/m1000",
   });
 });
