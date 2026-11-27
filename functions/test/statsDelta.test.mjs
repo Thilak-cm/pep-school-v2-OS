@@ -155,6 +155,44 @@ test("practice notes count separately from lessons and observations", () => {
   assert.equal(next.teachers[0].practice30d, 1);
 });
 
+test("delta path appends rows for newly-enrolled students with correct counts", () => {
+  const now = new Date("2026-08-22T12:00:00Z");
+  const state = createDeltaAccumulator(now);
+  // s1 is an existing student; s2 is newly enrolled (not in cache.students)
+  addObservationToDelta(state, observation("v1", {type: "voice", studentId: "s1", observedAt: new Date("2026-08-21T12:00:00Z")}));
+  addObservationToDelta(state, observation("v2", {type: "voice", studentId: "s2", path: path("s2", "v2"), observedAt: new Date("2026-08-21T12:00:00Z")}));
+  addObservationToDelta(state, observation("v3", {type: "media", studentId: "s2", path: path("s2", "v3"), observedAt: new Date("2026-08-20T12:00:00Z"), status: "ready", handwritten: true}));
+  const aggregate = finalizeDelta(state).classrooms.get("c1");
+  // Cache only has s1
+  const cache = baseCache("c1", "t1", "s1");
+  const names = {s2: "Saanvi"};
+  const next = applyDeltaToCache(cache, aggregate, now, names);
+  // s1 updated as before
+  assert.equal(next.students[0].id, "s1");
+  assert.equal(next.students[0].totalMentions, 1);
+  // s2 appended with correct counts and name
+  assert.equal(next.students.length, 2);
+  assert.equal(next.students[1].id, "s2");
+  assert.equal(next.students[1].name, "Saanvi");
+  assert.equal(next.students[1].totalMentions, 2);
+  assert.equal(next.students[1].mediaMentions, 1);
+  assert.equal(next.students[1].handwrittenMentions, 1);
+  assert.equal(next.students[1].thisWeekMentions, 2);
+  // studentCount incremented
+  assert.equal(next.studentCount, 2);
+});
+
+test("delta path without names map falls back to Unknown Student", () => {
+  const now = new Date("2026-08-22T12:00:00Z");
+  const state = createDeltaAccumulator(now);
+  addObservationToDelta(state, observation("v1", {type: "voice", studentId: "s2", path: path("s2", "v1"), observedAt: new Date("2026-08-21T12:00:00Z")}));
+  const aggregate = finalizeDelta(state).classrooms.get("c1");
+  const cache = baseCache("c1", "t1", "s1");
+  const next = applyDeltaToCache(cache, aggregate, now);
+  assert.equal(next.students[1].name, "Unknown Student");
+  assert.equal(next.students[1].totalMentions, 1);
+});
+
 test("cross-classroom counts use distinct classrooms and age with rolling state", () => {
   const now = new Date("2026-08-22T12:00:00Z");
   const atMs = new Date("2026-08-21T12:00:00Z").getTime();

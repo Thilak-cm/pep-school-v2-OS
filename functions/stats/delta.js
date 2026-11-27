@@ -286,8 +286,18 @@ function studentWindows(days, nowMs) {
   return result;
 }
 
-/** Merge compact delta counts without changing reconciliation-owned identities. */
-export function applyDeltaToCache(cache, aggregate, now = new Date()) {
+/**
+ * Merge compact delta counts without changing reconciliation-owned identities.
+ *
+ * @param {object} cache - Current statsCache document for one classroom.
+ * @param {object} aggregate - Finalized delta aggregate for the same classroom.
+ * @param {Date} now - Wall clock for window calculations.
+ * @param {Object<string, string>} [newStudentNames] - Optional map of studentId
+ *   to displayName for students discovered in this delta that are absent from
+ *   cache.students[]. When provided, stub rows are appended so the frontend
+ *   shows correct counts immediately instead of waiting for Saturday reconcile.
+ */
+export function applyDeltaToCache(cache, aggregate, now = new Date(), newStudentNames = {}) {
   const currentState = cache.aggregationState;
   if (currentState?.version !== AGGREGATION_STATE_VERSION) throw new Error(`stats cache ${cache.classroomId} requires reconciliation`);
   const nextState = {version: AGGREGATION_STATE_VERSION, teacherRecent: {...currentState.teacherRecent}, studentRecent: {...currentState.studentRecent}};
@@ -302,7 +312,16 @@ export function applyDeltaToCache(cache, aggregate, now = new Date()) {
   const studentIds = new Set([...Object.keys(currentState.studentRecent || {}), ...Object.keys(aggregate?.studentRecent || {})]);
   for (const id of studentIds) nextState.studentRecent[id] = mergeRecent(currentState.studentRecent?.[id], aggregate?.studentRecent?.[id], windowCutoffDay(nowMs, 42), currentDay, emptyStudentDayCounts);
   next.teachers = (cache.teachers || []).map((teacher) => ({...teacher, ...addCounts(teacher, aggregate?.teacherTotals?.[teacher.id] || emptyTeacherCounts()), ...teacherWindows(nextState.teacherRecent[teacher.id], nowMs)}));
+  // Update existing students, then append rows for newly-enrolled students
+  // whose observations arrived in this delta but who have no row yet.
+  const existingIds = new Set((cache.students || []).map((s) => s.id));
+  const newIds = Object.keys(aggregate?.studentTotals || {}).filter((id) => !existingIds.has(id));
   next.students = (cache.students || []).map((student) => ({...student, ...addCounts(student, aggregate?.studentTotals?.[student.id] || emptyStudentCounts()), ...studentWindows(nextState.studentRecent[student.id], nowMs)}));
+  for (const id of newIds) {
+    const stub = {id, name: newStudentNames[id] || "Unknown Student", status: "active", ...emptyStudentCounts()};
+    next.students.push({...stub, ...addCounts(stub, aggregate.studentTotals[id]), ...studentWindows(nextState.studentRecent[id], nowMs)});
+  }
+  if (newIds.length) next.studentCount = (next.studentCount || 0) + newIds.length;
   next.aggregationState = nextState;
   return next;
 }

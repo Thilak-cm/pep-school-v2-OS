@@ -229,6 +229,29 @@ export async function publishDelta(delta, runId, generation, {
   retrySleep,
 } = {}) {
   const now = delta.now;
+  // Pre-flight: discover student IDs in the delta that might be missing from
+  // the cache. We fetch their names BEFORE the transaction so the pure
+  // applyDeltaToCache can append display-ready rows without Firestore I/O.
+  // This is a best-effort name lookup; Saturday reconcile corrects any drift.
+  const allDeltaStudentIds = new Set();
+  for (const agg of delta.classrooms.values()) {
+    for (const id of Object.keys(agg.studentTotals || {})) allDeltaStudentIds.add(id);
+  }
+  const newStudentNames = {};
+  if (allDeltaStudentIds.size > 0) {
+    // Batch-read candidate student docs. Most will already be in the cache;
+    // the actual new-vs-existing filtering happens inside applyDeltaToCache.
+    // Cap at 100 to stay well within Firestore batch-get limits.
+    const ids = [...allDeltaStudentIds].slice(0, 100);
+    const refs = ids.map((id) => database.collection("students").doc(id));
+    const snaps = await withFirestoreRetry(() => database.getAll(...refs));
+    for (const snap of snaps) {
+      if (snap.exists) {
+        const d = snap.data();
+        newStudentNames[snap.id] = d.displayName || d.name || [d.firstName, d.lastName].filter(Boolean).join(" ") || "Unknown Student";
+      }
+    }
+  }
   return withFirestoreRetry(() => database.runTransaction(async (transaction) => {
     const ref = metaRef(database);
     const metaSnap = await transaction.get(ref);
@@ -236,7 +259,7 @@ export async function publishDelta(delta, runId, generation, {
     // Read classroom caches inside the transaction so a concurrent reconcile
     // commit cannot be silently overwritten by deltas applied on stale data.
     const current = await readClassroomCaches(database, transaction);
-    const merged = reconcileCrossClassroomCounts(current.map(({data}) => applyDeltaToCache(data, delta.classrooms.get(data.classroomId), now)), now);
+    const merged = reconcileCrossClassroomCounts(current.map(({data}) => applyDeltaToCache(data, delta.classrooms.get(data.classroomId), now, newStudentNames)), now);
     const writes = current.flatMap((item, index) => {
       const before = {...item.data};
       const after = {...merged[index]};
