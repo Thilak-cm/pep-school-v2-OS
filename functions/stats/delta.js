@@ -58,7 +58,7 @@ export function compareCursors(left = {}, right = {}) {
  * them via stopBeforeCursor from findEarliestPendingMedia only while
  * they are within the TTL window.
  */
-const PENDING_MEDIA_TTL_MS = 24 * 60 * 60 * 1000; // 24 hours
+const PENDING_MEDIA_TTL_MS = 2 * 60 * 60 * 1000; // 2 hours - uploads complete in minutes; anything older is stuck
 
 export function isPendingMedia(observation = {}, nowMs = Date.now()) {
   if (observation.type !== "media") return false;
